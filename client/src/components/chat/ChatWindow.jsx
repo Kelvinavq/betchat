@@ -47,8 +47,8 @@ const LoginView = ({ onLogin, onRegister }) => {
       <FormHint align="center">Bienvenido de vuelta</FormHint>
 
       <FormGroup>
-        <InputLabel>Correo electrónico</InputLabel>
-        <StyledInput type="email" placeholder="tu@email.com" autoComplete="email" />
+        <InputLabel>Nombre de usuario</InputLabel>
+        <StyledInput type="text" placeholder="Nombre de usuario" />
       </FormGroup>
 
       <FormGroup>

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 import Sidebar from '../../components/admin/sidebar/Sidebar'
 import ChatList from '../../components/admin/chat/ChatList'
@@ -10,7 +11,8 @@ import CommandsPage from './commands/CommandsPage'
 import SettingsPage       from './settings/SettingsPage'
 import BanksPage          from './banks/BanksPage'
 import NotificationsPage  from './notifications/NotificationsPage'
-import ModalsPage from './modal/ModalsPage'
+import ModalsPage      from './modal/ModalsPage'
+import BotBuilderPage  from './botbuilder/BotBuilderPage'
 
 const MIN_W     = 240
 const MAX_W     = 560
@@ -108,10 +110,11 @@ const DashboardPage = () => {
   const [isResizing, setIsResizing]           = useState(false)
   const [listWidth, setListWidth]   = useState(() => load('admin_list_w',  DEF_LIST))
   const [panelWidth, setPanelWidth] = useState(() => load('admin_panel_w', DEF_PANEL))
-  const [section, setSection]       = useState('chat')  // 'chat' | 'usuarios' | 'clientes' | 'comandos'
+  const { section = 'chat' }        = useParams()
+  const navigate                    = useNavigate()
 
   const handleNavigate = (id) => {
-    setSection(id)
+    navigate(`/admin/${id}`)
     if (isMobile) { setMobileView('list'); setMobileSidebar(false) }
   }
 
@@ -203,6 +206,10 @@ const DashboardPage = () => {
           <ModalsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
+        {section === 'bot' && (
+          <BotBuilderPage onMenuOpen={() => setMobileSidebar(true)} />
+        )}
+
         {section === 'chat' && mobileView === 'list' && (
           <MobileView $dir={viewDir}>
             <ChatList
@@ -253,7 +260,8 @@ const DashboardPage = () => {
       {section === 'cuentas'        && <BanksPage />}
       {section === 'ajustes'        && <SettingsPage />}
       {section === 'notificaciones' && <NotificationsPage />}
-{section === 'modales' && <ModalsPage />}
+      {section === 'modales'        && <ModalsPage />}
+      {section === 'bot'            && <BotBuilderPage />}
 
       {section === 'chat' && (
         <>

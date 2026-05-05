@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import { ChatProvider } from './context/ChatContext'
 import ClientPage from './pages/client/ClientPage'
@@ -17,6 +17,14 @@ const App = () => {
             <Route path="/admin/login" element={<LoginPage />} />
             <Route
               path="/admin"
+              element={
+                <ProtectedRoute>
+                  <Navigate to="/admin/chat" replace />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/admin/:section"
               element={
                 <ProtectedRoute>
                   <DashboardPage />

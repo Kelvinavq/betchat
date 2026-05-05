@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined'
+import { useState, useEffect } from 'react'
+import ChatOutlinedIcon       from '@mui/icons-material/ChatOutlined'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import BoltOutlinedIcon from '@mui/icons-material/BoltOutlined'
@@ -7,6 +7,7 @@ import SettingsOutlinedIcon           from '@mui/icons-material/SettingsOutlined
 import AccountBalanceOutlinedIcon    from '@mui/icons-material/AccountBalanceOutlined'
 import NotificationsOutlinedIcon     from '@mui/icons-material/NotificationsOutlined'
 import VideoLabelOutlinedIcon from '@mui/icons-material/VideoLabelOutlined';
+import SmartToyOutlinedIcon   from '@mui/icons-material/SmartToyOutlined';
 import MenuIcon from '@mui/icons-material/Menu'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import {
@@ -54,7 +55,13 @@ const NAV_ITEMS = [
   {
     id: 'modales',
     label: 'Modales',
-    icon: <VideoLabelOutlinedIcon />, // puedes cambiar el icono si querés otro
+    icon: <VideoLabelOutlinedIcon />,
+    children: [],
+  },
+  {
+    id: 'bot',
+    label: 'Bot',
+    icon: <SmartToyOutlinedIcon />,
     children: [],
   },
 ]
@@ -78,6 +85,10 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
   const [openItems, setOpenItems]   = useState({})
   const [activeItem, setActiveItem] = useState(activeSection ?? 'chat')
   const [darkMode, setDarkMode]     = useState(true)
+
+  useEffect(() => {
+    if (activeSection) setActiveItem(activeSection)
+  }, [activeSection])
 
   const toggleSub = (id) => setOpenItems(p => ({ ...p, [id]: !p[id] }))
 

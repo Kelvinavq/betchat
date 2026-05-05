@@ -15,8 +15,10 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import CasinoOutlinedIcon from '@mui/icons-material/CasinoOutlined'
 import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
+import HeadsetMicOutlinedIcon from '@mui/icons-material/HeadsetMicOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import useAuth from '../../../hooks/useAuth'
+import TicketsSection from './TicketsSection'
 import {
   PageWrap, PageHeader, MenuBtn, TitleBlock, PageTitle, PageSub,
   Body, SettingsNav, NavGroupLabel, NavBtn, ActiveBar, NavIcon, NavTextWrap, NavLabel, NavSub, SoonPill,
@@ -72,6 +74,12 @@ const TABS = [
     icon: <TuneOutlinedIcon />,
     sub: 'Próximamente',
     soon: true,
+  },
+  {
+    id: 'soporte',
+    label: 'Soporte',
+    icon: <HeadsetMicOutlinedIcon />,
+    sub: 'Tickets y ayuda',
   },
 ]
 
@@ -773,6 +781,13 @@ const SettingsPage = ({ onMenuOpen }) => {
                 </SaveBtn>
               </SaveFooter>
 
+            </Section>
+          )}
+
+          {/* ════════════════ SOPORTE ════════════════ */}
+          {activeTab === 'soporte' && (
+            <Section>
+              <TicketsSection />
             </Section>
           )}
 

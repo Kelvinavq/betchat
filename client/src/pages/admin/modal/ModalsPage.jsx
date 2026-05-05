@@ -1,6 +1,5 @@
 // ModalsPage.jsx
 import { useState, useMemo } from 'react'
-import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
@@ -18,11 +17,10 @@ import {
   Overlay, ModalCard, ModalHead, ModalIconBadge, ModalHeadText, ModalTitle, ModalSub,
   ModalClose, ModalBody, ModalFoot, FootLeft, FootRight, ModalBtn,
   Field, FieldLabel, FieldInput, FieldTextarea, FieldSelect, CharCount,
-  PreviewCard, PreviewAppIcon, PreviewContent, PreviewAppName, PreviewTime,
-  PreviewTitle, PreviewBody, PreviewLabel, ScheduleToggleRow, ScheduleRowLabel,
-  ScheduleRowTitle, ScheduleRowSub, Toggle, ToggleThumb, ScheduleFields,
-  ConfirmBanner, ConfirmTitle, ConfirmSub, ConfirmBtns, ConfirmBtn
-} from './ModalsPage.styles' // reutilizamos estilos
+  ScheduleToggleRow, ScheduleRowLabel, ScheduleRowTitle, ScheduleRowSub,
+  Toggle, ToggleThumb, ScheduleFields, ConfirmBanner, ConfirmTitle,
+  ConfirmSub, ConfirmBtns, ConfirmBtn
+} from './ModalsPage.styles'
 
 const PAGE_SIZE = 8
 const AUDIENCE_OPTIONS = [
@@ -35,15 +33,19 @@ const audienceLabel = v => AUDIENCE_OPTIONS.find(o => o.value === v)?.label ?? v
 
 let nextId = 100
 const MOCK_MODALS = [
-  { id: 1, title: 'Promo modal', body: 'Aprovechá la promo', audience: 'all', status: 'enviada', sentAt: '2026-04-30T12:00:00Z', scheduledFor: null, dismissible: true },
-  { id: 2, title: 'Mantenimiento', body: 'Hoy 02:00 - 04:00', audience: 'all', status: 'programada', sentAt: null, scheduledFor: '2026-05-07T02:00:00Z', dismissible: false },
+  { id: 1, title: '¡Gran Sorteo!', body: 'Participa en nuestro gran sorteo semanal', img: '', audience: 'all', status: 'enviada', sentAt: '2026-04-30T12:00:00Z', scheduledFor: null, dismissible: true, ctaLabel: 'Ver más', ctaUrl: '/sorteo' },
+  { id: 2, title: 'Mantenimiento', body: 'Hoy 02:00 - 04:00', img: '', audience: 'all', status: 'programada', sentAt: null, scheduledFor: '2026-05-07T02:00:00Z', dismissible: false, ctaLabel: '', ctaUrl: '' },
 ]
 
-const BLANK_FORM = { title: '', body: '', audience: 'all', scheduled: false, schedDate: '', schedTime: '', dismissible: true, ctaLabel: '', ctaUrl: '' }
+const BLANK_FORM = {
+  title: '', body: '', img: '', audience: 'all',
+  scheduled: false, schedDate: '', schedTime: '',
+  dismissible: true, ctaLabel: '', ctaUrl: ''
+}
 
 const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }) : null
 const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : null
-const statusLabel = s => s === 'enviada' ? 'Enviada' : s === 'programada' ? 'Programada' : 'Borrador'
+const statusLabel = s => s === 'enviada' ? 'Mostrado' : s === 'programada' ? 'Programado' : 'Borrador'
 
 const ModalsPage = ({ onMenuOpen }) => {
   const [modals, setModals] = useState(MOCK_MODALS)
@@ -80,7 +82,7 @@ const ModalsPage = ({ onMenuOpen }) => {
   const openEdit = m => {
     setEditModal(m)
     setForm({
-      title: m.title, body: m.body, audience: m.audience,
+      title: m.title, body: m.body, img: m.img, audience: m.audience,
       scheduled: !!m.scheduledFor, schedDate: m.scheduledFor ? m.scheduledFor.slice(0,10) : '',
       schedTime: m.scheduledFor ? m.scheduledFor.slice(11,16) : '',
       dismissible: m.dismissible ?? true, ctaLabel: m.ctaLabel ?? '', ctaUrl: m.ctaUrl ?? ''
@@ -95,7 +97,7 @@ const ModalsPage = ({ onMenuOpen }) => {
     const scheduledFor = form.scheduled && form.schedDate ? `${form.schedDate}T${form.schedTime || '00:00'}:00Z` : null
     const resolvedStatus = scheduledFor ? 'programada' : status
     return {
-      title: form.title, body: form.body, audience: form.audience,
+      title: form.title, body: form.body, img: form.img, audience: form.audience,
       status: resolvedStatus, sentAt: resolvedStatus === 'enviada' ? new Date().toISOString() : null,
       scheduledFor, dismissible: !!form.dismissible, ctaLabel: form.ctaLabel, ctaUrl: form.ctaUrl
     }
@@ -126,7 +128,7 @@ const ModalsPage = ({ onMenuOpen }) => {
   const deleteModal = id => setModals(ms => ms.filter(m => m.id !== id))
 
   const isValid = form.title.trim() && form.body.trim()
-  const sendLabel = form.scheduled ? 'Programar' : 'Enviar ahora'
+  const sendLabel = form.scheduled ? 'Programar' : 'Mostrar ahora'
 
   return (
     <PageWrap>
@@ -135,24 +137,24 @@ const ModalsPage = ({ onMenuOpen }) => {
           <HeaderLeft>
             {onMenuOpen && <div style={{width:36,height:36}} />}
             <TitleBlock>
-              <PageTitle>Modales</PageTitle>
-              <PageSub>Gestiona y programa modales que verán tus clientes</PageSub>
+              <PageTitle>Ventanas Promocionales</PageTitle>
+              <PageSub>Crea ventanas emergentes que se muestran en tu sitio web</PageSub>
             </TitleBlock>
           </HeaderLeft>
-          <AddBtn onClick={openNew}><AddIcon /> Nuevo modal</AddBtn>
+          <AddBtn onClick={openNew}><AddIcon /> Nueva ventana</AddBtn>
         </PageHeader>
 
         <StatsStrip>
           <StatCard>
-            <StatIconWrap $bg="rgba(34,197,94,0.10)" $br="rgba(34,197,94,0.20)" $cl="#4ade80"><NotificationsOutlinedIcon /></StatIconWrap>
-            <StatInfo><StatValue>{stats.enviadas}</StatValue><StatLabel>Mostrados</StatLabel></StatInfo>
+            <StatIconWrap $bg="rgba(34,197,94,0.10)" $br="rgba(34,197,94,0.20)" $cl="#4ade80">🎯</StatIconWrap>
+            <StatInfo><StatValue>{stats.enviadas}</StatValue><StatLabel>Mostradas</StatLabel></StatInfo>
           </StatCard>
           <StatCard>
-            <StatIconWrap $bg="rgba(14,165,233,0.10)" $br="rgba(14,165,233,0.20)" $cl="#38bdf8"><NotificationsOutlinedIcon /></StatIconWrap>
-            <StatInfo><StatValue>{stats.programadas}</StatValue><StatLabel>Programados</StatLabel></StatInfo>
+            <StatIconWrap $bg="rgba(14,165,233,0.10)" $br="rgba(14,165,233,0.20)" $cl="#38bdf8">📅</StatIconWrap>
+            <StatInfo><StatValue>{stats.programadas}</StatValue><StatLabel>Programadas</StatLabel></StatInfo>
           </StatCard>
           <StatCard>
-            <StatIconWrap $bg="rgba(255,255,255,0.03)" $br="rgba(255,255,255,0.06)" $cl="rgba(255,255,255,0.35)"><NotificationsOutlinedIcon /></StatIconWrap>
+            <StatIconWrap $bg="rgba(255,255,255,0.03)" $br="rgba(255,255,255,0.06)" $cl="rgba(255,255,255,0.35)">📝</StatIconWrap>
             <StatInfo><StatValue>{stats.borradores}</StatValue><StatLabel>Borradores</StatLabel></StatInfo>
           </StatCard>
         </StatsStrip>
@@ -160,15 +162,15 @@ const ModalsPage = ({ onMenuOpen }) => {
         <FiltersBar>
           <SearchBox>
             <SrchIcon />
-            <SearchInput placeholder="Buscar modales..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
+            <SearchInput placeholder="Buscar ventanas..." value={search} onChange={e => { setSearch(e.target.value); setPage(1) }} />
           </SearchBox>
           <FilterSelect value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1) }}>
             <option value="">Todos los estados</option>
-            <option value="enviada">Mostrados</option>
-            <option value="programada">Programados</option>
+            <option value="enviada">Mostradas</option>
+            <option value="programada">Programadas</option>
             <option value="borrador">Borradores</option>
           </FilterSelect>
-          <ResultCount>{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</ResultCount>
+          <ResultCount>{filtered.length} ventana{filtered.length !== 1 ? 's' : ''}</ResultCount>
         </FiltersBar>
 
         <TableCard>
@@ -176,22 +178,22 @@ const ModalsPage = ({ onMenuOpen }) => {
             <Table>
               <Thead>
                 <tr>
-                  <Th>Modal</Th>
+                  <Th>Ventana</Th>
                   <Th>Audiencia</Th>
-                  <Th>Programado</Th>
-                  <Th>Mostrado</Th>
+                  <Th>Programada</Th>
+                  <Th>Mostrada</Th>
                   <Th>Estado</Th>
                   <Th $center>Acciones</Th>
                 </tr>
               </Thead>
               <Tbody>
                 {paginated.length === 0 ? (
-                  <tr><td colSpan={6} style={{padding: 40, textAlign:'center', color:'rgba(255,255,255,0.2)'}}>No hay modales</td></tr>
+                  <tr><td colSpan={6} style={{padding: 40, textAlign:'center', color:'rgba(255,255,255,0.2)'}}>No hay ventanas</td></tr>
                 ) : paginated.map(m => (
                   <Tr key={m.id}>
                     <Td>
                       <NotifCell>
-                        <NotifIconBadge $s={m.status}><NotificationsOutlinedIcon /></NotifIconBadge>
+                        <NotifIconBadge $s={m.status}>🎯</NotifIconBadge>
                         <NotifMeta>
                           <NotifTitle>{m.title}</NotifTitle>
                           <NotifBodyPreview>{m.body}</NotifBodyPreview>
@@ -217,41 +219,67 @@ const ModalsPage = ({ onMenuOpen }) => {
 
       </PageScroll>
 
+      {/* MODAL DE EDICIÓN */}
       {modalOpen && (
         <Overlay onClick={e => e.target === e.currentTarget && closeModal()}>
-          <ModalCard>
+          <ModalCard style={{maxWidth: 580}}>
             <ModalHead>
-              <ModalIconBadge><NotificationsOutlinedIcon /></ModalIconBadge>
+              <ModalIconBadge>🎯</ModalIconBadge>
               <ModalHeadText>
-                <ModalTitle>{editModal ? 'Editar modal' : 'Nuevo modal'}</ModalTitle>
-                <ModalSub>{editModal ? `Estado: ${statusLabel(editModal.status)}` : 'Crea un modal que se mostrará a los clientes'}</ModalSub>
+                <ModalTitle>{editModal ? 'Editar ventana' : 'Nueva ventana'}</ModalTitle>
+                <ModalSub>{editModal ? `Estado: ${statusLabel(editModal.status)}` : 'Configura cómo se mostrará en la web'}</ModalSub>
               </ModalHeadText>
               <ModalClose onClick={closeModal}><CloseIcon /></ModalClose>
             </ModalHead>
 
             <ModalBody>
-              <div>
-                <PreviewLabel>Vista previa</PreviewLabel>
-                <PreviewCard>
-                  <PreviewAppIcon><NotificationsOutlinedIcon /></PreviewAppIcon>
-                  <PreviewContent>
-                    <PreviewAppName>BetChat <PreviewTime>{form.scheduled ? (form.schedDate + ' ' + (form.schedTime||'00:00')) : 'ahora'}</PreviewTime></PreviewAppName>
-                    <PreviewTitle>{form.title || 'Título del modal'}</PreviewTitle>
-                    <PreviewBody>{form.body || 'El contenido del modal aparecerá aquí...'}</PreviewBody>
-                  </PreviewContent>
-                </PreviewCard>
+              <div style={{textAlign:'center', marginBottom:20}}>
+                <div style={{
+                  display:'inline-block', width:300, minHeight:240, background:'#111', color:'#fff',
+                  borderRadius:12, border:'1px solid rgba(255,255,255,0.08)',
+                  boxShadow:'0 12px 30px rgba(0,0,0,0.5)', padding:20, textAlign:'left',
+                  position:'relative'
+                }}>
+                  {form.img && <img src={form.img} alt="" style={{width:'100%', height:100, objectFit:'cover', borderRadius:8, marginBottom:12}} />}
+                  <div style={{fontWeight:600, marginBottom:6}}>{form.title || 'Título'}</div>
+                  <div style={{fontSize:13, color:'#aaa', lineHeight:1.4, marginBottom:12}}>{form.body || 'Contenido del mensaje...'}</div>
+                  {(form.ctaLabel || form.ctaUrl) && (
+                    <button style={{
+                      background:'#1e86ff', color:'#fff', padding:'6px 10px', borderRadius:8,
+                      border:'none', fontSize:12, cursor:'pointer', width:'100%'
+                    }}>{form.ctaLabel || 'Ir'}</button>
+                  )}
+                  {form.dismissible !== false && (
+                    <button style={{
+                      position:'absolute', top:8, right:8, background:'rgba(0,0,0,0.5)',
+                      color:'#fff', border:'none', borderRadius:100, width:24, height:24,
+                      cursor:'pointer', fontSize:16
+                    }}>✕</button>
+                  )}
+                </div>
               </div>
 
               <Field $full>
                 <FieldLabel>Título</FieldLabel>
-                <FieldInput placeholder="Ej: Atención" maxLength={80} value={form.title} onChange={e => setField('title', e.target.value)} />
+                <FieldInput placeholder="Ej: ¡Nueva promoción!" maxLength={80} value={form.title} onChange={e => setField('title', e.target.value)} />
                 <CharCount $warn={form.title.length > 60}>{form.title.length}/80</CharCount>
               </Field>
 
               <Field $full>
-                <FieldLabel>Contenido</FieldLabel>
-                <FieldTextarea placeholder="Texto del modal..." maxLength={1000} value={form.body} onChange={e => setField('body', e.target.value)} />
-                <CharCount $warn={form.body.length > 900}>{form.body.length}/1000</CharCount>
+                <FieldLabel>Mensaje</FieldLabel>
+                <FieldTextarea placeholder="Texto principal..." maxLength={300} value={form.body} onChange={e => setField('body', e.target.value)} />
+                <CharCount $warn={form.body.length > 240}>{form.body.length}/300</CharCount>
+              </Field>
+
+              <Field>
+                <FieldLabel>Imagen (URL)</FieldLabel>
+                <FieldInput placeholder="https://ejemplo.com/imagen.jpg" value={form.img} onChange={e => setField('img', e.target.value)} />
+              </Field>
+
+              <Field>
+                <FieldLabel>Botón CTA</FieldLabel>
+                <FieldInput placeholder="Texto del botón" value={form.ctaLabel} onChange={e => setField('ctaLabel', e.target.value)} style={{marginBottom:8}} />
+                <FieldInput placeholder="https://destino.com" value={form.ctaUrl} onChange={e => setField('ctaUrl', e.target.value)} />
               </Field>
 
               <Field $full>
@@ -261,16 +289,10 @@ const ModalsPage = ({ onMenuOpen }) => {
                 </FieldSelect>
               </Field>
 
-              <Field>
-                <FieldLabel>CTA (opcional)</FieldLabel>
-                <FieldInput placeholder="Texto del botón (p.ej. Ver oferta)" value={form.ctaLabel} onChange={e => setField('ctaLabel', e.target.value)} />
-                <FieldInput placeholder="URL (opcional)" value={form.ctaUrl} onChange={e => setField('ctaUrl', e.target.value)} style={{marginTop:8}} />
-              </Field>
-
               <ScheduleToggleRow>
                 <ScheduleRowLabel>
                   <ScheduleRowTitle>Programar visualización</ScheduleRowTitle>
-                  <ScheduleRowSub>Define fecha y hora para que el modal se muestre automáticamente</ScheduleRowSub>
+                  <ScheduleRowSub>Define fecha y hora para que se muestre automáticamente</ScheduleRowSub>
                 </ScheduleRowLabel>
                 <Toggle $on={form.scheduled} onClick={() => setField('scheduled', !form.scheduled)}><ToggleThumb $on={form.scheduled} /></Toggle>
               </ScheduleToggleRow>
@@ -296,7 +318,7 @@ const ModalsPage = ({ onMenuOpen }) => {
               {confirmStep && (
                 <ConfirmBanner>
                   <ConfirmTitle>¿Guardar en librería?</ConfirmTitle>
-                  <ConfirmSub>Puedes guardar esta plantilla para usarla después.</ConfirmSub>
+                  <ConfirmSub>Puedes guardar esta ventana para usarla después.</ConfirmSub>
                   <ConfirmBtns>
                     <ConfirmBtn onClick={() => doSend(false)}>Solo mostrar</ConfirmBtn>
                     <ConfirmBtn $primary onClick={() => doSend(true)}>Guardar y mostrar</ConfirmBtn>
