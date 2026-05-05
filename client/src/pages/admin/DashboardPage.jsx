@@ -7,8 +7,10 @@ import ClientPanel from '../../components/admin/client-panel/ClientPanel'
 import UsersPage from './users/UsersPage'
 import ClientsPage from './clients/ClientsPage'
 import CommandsPage from './commands/CommandsPage'
-import SettingsPage from './settings/SettingsPage'
-import BanksPage    from './banks/BanksPage'
+import SettingsPage       from './settings/SettingsPage'
+import BanksPage          from './banks/BanksPage'
+import NotificationsPage  from './notifications/NotificationsPage'
+import ModalsPage from './modal/ModalsPage'
 
 const MIN_W     = 240
 const MAX_W     = 560
@@ -193,6 +195,14 @@ const DashboardPage = () => {
           <SettingsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
+        {section === 'notificaciones' && (
+          <NotificationsPage onMenuOpen={() => setMobileSidebar(true)} />
+        )}
+
+        {section === 'modales' && (
+          <ModalsPage onMenuOpen={() => setMobileSidebar(true)} />
+        )}
+
         {section === 'chat' && mobileView === 'list' && (
           <MobileView $dir={viewDir}>
             <ChatList
@@ -240,8 +250,10 @@ const DashboardPage = () => {
       {section === 'usuarios'  && <UsersPage />}
       {section === 'clientes'  && <ClientsPage />}
       {section === 'comandos'  && <CommandsPage />}
-      {section === 'cuentas'   && <BanksPage />}
-      {section === 'ajustes'   && <SettingsPage />}
+      {section === 'cuentas'        && <BanksPage />}
+      {section === 'ajustes'        && <SettingsPage />}
+      {section === 'notificaciones' && <NotificationsPage />}
+{section === 'modales' && <ModalsPage />}
 
       {section === 'chat' && (
         <>
