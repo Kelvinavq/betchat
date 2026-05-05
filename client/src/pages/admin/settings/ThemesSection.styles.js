@@ -455,3 +455,312 @@ export const WA_BG_STYLE = {
   backgroundColor: '#e5ddd5',
   backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='80' height='80'%3E%3Crect width='80' height='80' fill='%23e5ddd5'/%3E%3Ccircle cx='10' cy='10' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='40' cy='10' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='70' cy='10' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='25' cy='28' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='55' cy='28' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='10' cy='46' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='40' cy='46' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='70' cy='46' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='25' cy='64' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Ccircle cx='55' cy='64' r='3.5' fill='none' stroke='%23b2a99a' stroke-width='0.9' opacity='0.55'/%3E%3Cpath d='M6 18 Q10 13 14 18 Q10 23 6 18z' fill='none' stroke='%23b2a99a' stroke-width='0.8' opacity='0.40'/%3E%3Cpath d='M36 18 Q40 13 44 18 Q40 23 36 18z' fill='none' stroke='%23b2a99a' stroke-width='0.8' opacity='0.40'/%3E%3Cpath d='M66 18 Q70 13 74 18 Q70 23 66 18z' fill='none' stroke='%23b2a99a' stroke-width='0.8' opacity='0.40'/%3E%3Cpath d='M21 36 Q25 31 29 36 Q25 41 21 36z' fill='none' stroke='%23b2a99a' stroke-width='0.8' opacity='0.40'/%3E%3Cpath d='M51 36 Q55 31 59 36 Q55 41 51 36z' fill='none' stroke='%23b2a99a' stroke-width='0.8' opacity='0.40'/%3E%3Cpath d='M6 54 Q10 49 14 54 Q10 59 6 54z' fill='none' stroke='%23b2a99a' stroke-width='0.8' opacity='0.40'/%3E%3Cpath d='M36 54 Q40 49 44 54 Q40 59 36 54z' fill='none' stroke='%23b2a99a' stroke-width='0.8' opacity='0.40'/%3E%3Cpath d='M66 54 Q70 49 74 54 Q70 59 66 54z' fill='none' stroke='%23b2a99a' stroke-width='0.8' opacity='0.40'/%3E%3C/svg%3E")`,
 }
+
+/* ─────────────────────────────
+   Add-theme placeholder card
+───────────────────────────── */
+export const AddThemeCard = styled.button`
+  border-radius: 16px;
+  border: 2px dashed rgba(255,255,255,0.10);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 220px;
+  color: rgba(255,255,255,0.22);
+  transition: all 0.18s;
+  font-family: inherit;
+
+  &:hover {
+    border-color: rgba(30,133,255,0.38);
+    color: rgba(30,133,255,0.60);
+    background: rgba(30,133,255,0.04);
+  }
+
+  svg { font-size: 28px; }
+`
+
+export const AddThemeLabel = styled.span`
+  font-size: 12.5px;
+  font-weight: 500;
+`
+
+/* ─────────────────────────────
+   Custom card overlay controls  (edit / delete)
+───────────────────────────── */
+export const CustomCardControls = styled.div`
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.15s;
+  z-index: 5;
+`
+
+export const CustomCardBtn = styled.button`
+  width: 26px;
+  height: 26px;
+  border-radius: 7px;
+  border: none;
+  background: rgba(8,8,15,0.82);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  color: rgba(255,255,255,0.65);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  svg { font-size: 14px; }
+  &:hover { background: rgba(8,8,15,0.96); color: #fff; }
+  &.delete:hover { color: #f87171; }
+`
+
+/* ─────────────────────────────
+   Custom theme modal
+───────────────────────────── */
+export const CModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+`
+
+export const CModalCard = styled.div`
+  width: 100%;
+  max-width: 560px;
+  max-height: 90dvh;
+  background: #11111e;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 20px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0,0,0,0.70);
+  animation: ${scaleIn} 0.22s ease;
+`
+
+export const CModalHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 22px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  gap: 12px;
+`
+
+export const CModalTitle = styled.h3`
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.90);
+`
+
+export const CModalClose = styled.button`
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  svg { font-size: 18px; }
+  &:hover { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.80); }
+`
+
+export const CModalBody = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+
+  &::-webkit-scrollbar { width: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+`
+
+export const CModalFooter = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 22px 18px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+`
+
+export const CModalCancelBtn = styled.button`
+  height: 38px;
+  padding: 0 18px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: transparent;
+  color: rgba(255,255,255,0.45);
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover { background: rgba(255,255,255,0.05); color: rgba(255,255,255,0.70); }
+`
+
+export const CModalSaveBtn = styled.button`
+  height: 38px;
+  padding: 0 22px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(135deg, #0a2e50, #0d4fe8);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  box-shadow: 0 4px 14px rgba(13,79,232,0.28);
+  &:hover { opacity: 0.86; }
+  &:disabled { opacity: 0.35; pointer-events: none; }
+`
+
+/* color groups */
+export const ColorGroupWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+export const ColorGroupLabel = styled.span`
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255,255,255,0.28);
+  padding-left: 2px;
+`
+
+export const ColorFieldGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+
+  @media (max-width: 480px) { grid-template-columns: 1fr; }
+`
+
+export const ColorFieldRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.14s;
+  position: relative;
+  overflow: hidden;
+  user-select: none;
+  &:hover { background: rgba(255,255,255,0.055); }
+`
+
+export const ColorDot = styled.div`
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  transition: background 0.1s;
+`
+
+export const ColorFieldLabel = styled.span`
+  flex: 1;
+  font-size: 12px;
+  color: rgba(255,255,255,0.52);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const ColorHexValue = styled.span`
+  font-size: 10.5px;
+  font-family: 'Courier New', monospace;
+  color: rgba(255,255,255,0.28);
+  text-transform: uppercase;
+  flex-shrink: 0;
+`
+
+/* theme name input */
+export const ThemeNameField = styled.input`
+  width: 100%;
+  box-sizing: border-box;
+  height: 42px;
+  padding: 0 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 11px;
+  color: rgba(255,255,255,0.88);
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+
+  &::placeholder { color: rgba(255,255,255,0.22); }
+  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.04); }
+`
+
+/* preview + name row inside modal */
+export const ModalPreviewRow = styled.div`
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 16px;
+  align-items: flex-start;
+
+  @media (max-width: 440px) { grid-template-columns: 1fr; }
+`
+
+export const ModalPreviewBox = styled.div`
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+`
+
+export const ModalPreviewLabel = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: rgba(255,255,255,0.25);
+  display: block;
+  margin-bottom: 6px;
+`
+
+export const CustomBadge = styled.span`
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 2px 6px;
+  border-radius: 5px;
+  background: rgba(251,191,36,0.12);
+  color: #fbbf24;
+  border: 1px solid rgba(251,191,36,0.26);
+`
