@@ -1,0 +1,275 @@
+import styled, { css, keyframes } from 'styled-components'
+import { gradients, colors, shadows } from '../../../styles/theme'
+
+export const Wrap = styled.div`
+  width: ${({ $width, $fullWidth }) => $fullWidth ? '100%' : $width ? `${$width}px` : '320px'};
+  min-width: ${({ $width, $fullWidth }) => $fullWidth ? 0 : $width ? `${$width}px` : '320px'};
+  height: var(--app-height, 100dvh);
+  background: #0a0a16;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  overflow: hidden;
+`
+
+/* ── header ── */
+export const ListHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 14px 10px;
+  flex-shrink: 0;
+`
+
+export const ListTitle = styled.h2`
+  font-size: 16px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.01em;
+`
+
+export const HeaderActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  position: relative;
+`
+
+export const IconBtn = styled.button`
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.40);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  svg { font-size: 18px; }
+  &:hover { color: rgba(255, 255, 255, 0.80); background: rgba(255, 255, 255, 0.06); }
+`
+
+export const DropdownMenu = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 180px;
+  background: rgba(12, 12, 26, 0.98);
+  border: 1px solid rgba(40, 140, 255, 0.14);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.60);
+  overflow: hidden;
+  z-index: 50;
+`
+
+export const DropdownItem = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: none;
+  border: none;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 13px;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  svg { font-size: 16px; color: rgba(255, 255, 255, 0.40); }
+  &:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff; }
+`
+
+/* ── search ── */
+export const SearchWrap = styled.div`
+  padding: 4px 12px 10px;
+  flex-shrink: 0;
+  position: relative;
+`
+
+export const SearchIcon = styled.span`
+  position: absolute;
+  left: 22px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: rgba(255, 255, 255, 0.28);
+  display: flex;
+  align-items: center;
+  svg { font-size: 16px; }
+`
+
+export const SearchInput = styled.input`
+  width: 100%;
+  height: 36px;
+  padding: 0 12px 0 34px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 10px;
+  color: #ffffff;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s;
+  &::placeholder { color: rgba(255, 255, 255, 0.22); }
+  &:focus { border-color: rgba(30, 133, 255, 0.40); }
+`
+
+/* ── list ── */
+export const ListScroll = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+  }
+`
+
+export const ChatItem = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: ${({ $active }) => $active ? 'rgba(30, 133, 255, 0.10)' : 'none'};
+  border: none;
+  border-left: 2px solid ${({ $active }) => $active ? colors.primaryLight : 'transparent'};
+  cursor: pointer;
+  transition: background 0.15s;
+  text-align: left;
+  &:hover { background: rgba(255, 255, 255, 0.04); }
+`
+
+/* avatar */
+export const ChatAvatar = styled.div`
+  position: relative;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: ${gradients.btn};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #ffffff;
+  flex-shrink: 0;
+  border: 1px solid rgba(40, 140, 255, 0.28);
+`
+
+export const OnlineDot = styled.span`
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: ${({ $online }) => $online ? '#22c55e' : 'rgba(255,255,255,0.20)'};
+  border: 1.5px solid #0a0a16;
+`
+
+/* item body */
+export const ChatBody = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+`
+
+export const ChatRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+`
+
+export const ChatUsername = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const ChatTime = styled.span`
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.30);
+  flex-shrink: 0;
+`
+
+export const ChatLastMsg = styled.span`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.38);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const TagEl = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  letter-spacing: 0.03em;
+  flex-shrink: 0;
+  white-space: nowrap;
+`
+
+export const TAG_CONFIG = {
+  carga_saldo: { label: 'Carga saldo', bg: 'rgba(245,158,11,0.14)', color: '#f59e0b', border: 'rgba(245,158,11,0.28)' },
+  retiro:      { label: 'Retiro',      bg: 'rgba(239,68,68,0.14)',  color: '#ef4444', border: 'rgba(239,68,68,0.28)'  },
+  soporte:     { label: 'Soporte',     bg: 'rgba(59,130,246,0.14)', color: '#60a5fa', border: 'rgba(59,130,246,0.28)' },
+  cuponera:    { label: 'Cuponera',    bg: 'rgba(139,92,246,0.14)', color: '#a78bfa', border: 'rgba(139,92,246,0.28)' },
+}
+
+export const UnreadBadge = styled.span`
+  background: ${gradients.btn};
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  min-width: 18px;
+  height: 18px;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+  flex-shrink: 0;
+`
+
+/* ── load more ── */
+export const LoadMoreBtn = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: calc(100% - 24px);
+  margin: 8px 12px 12px;
+  height: 38px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+  flex-shrink: 0;
+  &:hover { background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.80); }
+`
+
+export const EmptyState = styled.div`
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.22);
+`

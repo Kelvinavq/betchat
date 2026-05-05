@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"c:\\\\laragon\\\\www\\\\betchat\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(Sort-Object FullName)",
+      "Bash(Format-Table -AutoSize)",
+      "PowerShell(Test-Path \"c:\\\\laragon\\\\www\\\\betchat\"; if \\($?\\) { Get-ChildItem -Path \"c:\\\\laragon\\\\www\\\\betchat\" -Recurse -Force -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName } | Sort-Object })",
+      "PowerShell(Get-ChildItem -Path \"c:\\\\laragon\\\\www\\\\betchat\" -Recurse -Force -Exclude node_modules | ForEach-Object { $_.FullName } | Sort-Object)",
+      "Bash(npm install *)"
+    ]
+  }
+}
