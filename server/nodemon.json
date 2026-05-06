@@ -1,0 +1,12 @@
+{
+  "watch": ["app.js", "config", "controllers", "middlewares", "routes", "utils"],
+  "ignore": ["node_modules", "logs", "**/*.test.js"],
+  "ext": "js",
+  "exec": "node app.js",
+  "env": {
+    "NODE_ENV": "development",
+    "MODE": "development"
+  },
+  "delay": 500,
+  "verbose": true
+}

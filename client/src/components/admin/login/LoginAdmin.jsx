@@ -1,9 +1,9 @@
-import { useRef, useState, useEffect } from "react";
-import logo from "../../../assets/apple.svg";
-import faceid from "../../../assets/faceid.svg";
-import googleIcon from "../../../assets/google.svg";
-import fingerprint from "../../../assets/fingerprint.svg";
-import { useWebGLBackground } from "./useWebGLBackground";
+import { useRef, useState, useEffect } from 'react';
+import logo from '../../../assets/apple.svg';
+import faceid from '../../../assets/faceid.svg';
+import googleIcon from '../../../assets/google.svg';
+import fingerprint from '../../../assets/fingerprint.svg';
+import { useWebGLBackground } from './useWebGLBackground';
 import {
   Section,
   Canvas,
@@ -20,33 +20,100 @@ import {
   SubmitBtn,
   ForgotLink,
   Footer,
-} from "./LoginAdmin.styles";
+  AlertBox,
+  FieldError,
+} from './LoginAdmin.styles';
 
-const Textbox = ({ id, type, label }) => (
+const Textbox = ({ id, type, label, value, onChange, error }) => (
   <TextboxWrapper>
-    <TextboxInput autoComplete="off" required type={type} id={id} />
+    <TextboxInput
+      value={value}
+      onChange={onChange}
+      type={type}
+      id={id}
+      autoComplete={type === 'password' ? 'current-password' : 'username'}
+      $hasError={Boolean(error)}
+    />
     <TextboxLabel htmlFor={id}>{label}</TextboxLabel>
+    {error && <FieldError>{error}</FieldError>}
   </TextboxWrapper>
 );
 
-const LoginAdmin = ({ onSubmit }) => {
+const LoginAdmin = ({ onSubmit, status }) => {
   const canvasRef = useRef(null);
-  const [deviceType, setDeviceType] = useState("other");
+  const [deviceType, setDeviceType] = useState('other');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [attempts, setAttempts] = useState(0);
+  const [cooldown, setCooldown] = useState(0);
+  const [fieldErrors, setFieldErrors] = useState({});
+
   useWebGLBackground(canvasRef);
 
   useEffect(() => {
     const userAgent = navigator.userAgent || navigator.vendor || window.opera;
     if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) {
-      setDeviceType("ios");
+      setDeviceType('ios');
     } else if (/android/i.test(userAgent)) {
-      setDeviceType("android");
+      setDeviceType('android');
     } else {
-      setDeviceType("pc");
+      setDeviceType('pc');
     }
   }, []);
 
-  const biometricIcon = deviceType === "ios" ? faceid : fingerprint;
-  const biometricLabel = deviceType === "ios" ? "FaceID" : "Huella";
+  useEffect(() => {
+    if (!cooldown) return;
+    const timer = window.setInterval(() => {
+      setCooldown((current) => Math.max(0, current - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [cooldown]);
+
+  const biometricIcon = deviceType === 'ios' ? faceid : fingerprint;
+  const biometricLabel = deviceType === 'ios' ? 'FaceID' : 'Huella';
+
+  const handleSubmit = async (event) => {
+    event.preventDefault();
+    if (loading || cooldown > 0) return;
+
+    const trimmedUsername = username.trim();
+    const errors = {};
+
+    if (!trimmedUsername) {
+      errors.username = 'El usuario es obligatorio.';
+    }
+    if (!password) {
+      errors.password = 'La contraseña es obligatoria.';
+    }
+    if (password && password.length < 8) {
+      errors.password = 'La contraseña debe tener al menos 8 caracteres.';
+    }
+
+    if (Object.keys(errors).length) {
+      setFieldErrors(errors);
+      return;
+    }
+
+    setFieldErrors({});
+    setLoading(true);
+
+    try {
+      await onSubmit({ username: trimmedUsername, password });
+      setAttempts(0);
+    } catch (error) {
+      const nextAttempts = attempts + 1;
+      setAttempts(nextAttempts);
+
+      if (nextAttempts >= 5) {
+        setCooldown(30);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const busyText = cooldown > 0 ? `Intenta nuevamente en ${cooldown}s` : 'Ingresar';
 
   return (
     <Section>
@@ -54,7 +121,10 @@ const LoginAdmin = ({ onSubmit }) => {
       <Card>
         <Logo src={logo} alt="logo" />
         <Subtitle>Bienvenido de vuelta!</Subtitle>
-        <Form onSubmit={onSubmit}>
+        {status?.message && (
+          <AlertBox $type={status.type}>{status.message}</AlertBox>
+        )}
+        <Form onSubmit={handleSubmit}>
           <Socials>
             <SsoBtn type="button">
               <img src={googleIcon} alt="Google" />
@@ -66,9 +136,25 @@ const LoginAdmin = ({ onSubmit }) => {
             </SsoBtn>
           </Socials>
           <Or>ó</Or>
-          <Textbox id="login-6-user" type="text" label="Usuario" />
-          <Textbox id="login-6-password" type="password" label="Contraseña" />
-          <SubmitBtn type="submit">Ingresar</SubmitBtn>
+          <Textbox
+            id="login-6-user"
+            type="text"
+            label="Usuario"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            error={fieldErrors.username}
+          />
+          <Textbox
+            id="login-6-password"
+            type="password"
+            label="Contraseña"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            error={fieldErrors.password}
+          />
+          <SubmitBtn type="submit" disabled={loading || cooldown > 0}>
+            {loading ? 'Validando...' : busyText}
+          </SubmitBtn>
         </Form>
         <ForgotLink href="#">¿Olvidaste tu contraseña?</ForgotLink>
         <Footer>BetChat &copy; 2026. Todos los derechos reservados.</Footer>

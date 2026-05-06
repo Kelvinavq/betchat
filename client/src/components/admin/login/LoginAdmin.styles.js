@@ -143,20 +143,20 @@ export const TextboxInput = styled.input`
   width: 100%;
   padding-top: 12px;
   background: ${colors.glass.bg};
-  border: 1px solid ${colors.glass.border};
+  border: 1px solid ${({ $hasError }) => ($hasError ? '#f87171' : colors.glass.border)};
   outline: none;
   color: ${colors.white};
   box-shadow: 0 0 0 2px transparent;
 
   &:hover {
     background: ${colors.glass.bgHover};
-    border-color: ${colors.glass.borderHover};
+    border-color: ${({ $hasError }) => ($hasError ? '#f87171' : colors.glass.borderHover)};
   }
 
   &:focus {
     background: ${colors.glass.bgFocus};
     border-color: transparent;
-    box-shadow: ${shadows.glassFocus};
+    box-shadow: ${({ $hasError }) => ($hasError ? '0 0 0 2px rgba(248, 113, 113, 0.18)' : shadows.glassFocus)};
   }
 
   &:is(:focus, :not(:invalid)) ~ ${TextboxLabel} {
@@ -181,6 +181,12 @@ export const SubmitBtn = styled.button`
   cursor: pointer;
   margin-top: 4px;
 
+  &:disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+    filter: saturate(0.9);
+  }
+
   &:hover {
     background: ${gradients.btnHover};
   }
@@ -201,6 +207,27 @@ export const ForgotLink = styled.a`
   &:hover {
     color: ${colors.primaryLighter};
   }
+`;
+
+export const AlertBox = styled.div`
+  width: 100%;
+  padding: 16px 18px;
+  border-radius: 18px;
+  border: 1px solid ${({ $type }) => ($type === 'success' ? '#1ec07e' : '#f87171')};
+  background: ${({ $type }) => ($type === 'success' ? 'rgba(41, 194, 136, 0.12)' : 'rgba(248, 113, 113, 0.12)')};
+  color: ${({ $type }) => ($type === 'success' ? '#0f766e' : '#b91c1c')};
+  font-size: 13px;
+  text-align: left;
+  margin-bottom: 14px;
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+`;
+
+export const FieldError = styled.span`
+  display: block;
+  margin-top: 8px;
+  color: #f87171;
+  font-size: 12px;
+  text-align: left;
 `;
 
 export const Footer = styled.p`
