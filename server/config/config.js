@@ -61,7 +61,7 @@ export function getDBConfig() {
     port: process.env.DB_PORT_DEV || 3306,
     user: process.env.DB_USER_DEV || 'root',
     password: process.env.DB_PASSWORD_DEV || '',
-    database: process.env.DB_NAME_DEV || 'betchat_dev',
+    database: process.env.DB_NAME_DEV || 'betchat',
   };
 }
 
@@ -92,7 +92,7 @@ export const config = {
   jwtCookieOptions: {
     httpOnly: true,
     secure: isProduction,
-    sameSite: 'none',
+    sameSite: isProduction ? 'none' : 'lax',
     path: '/',
     maxAge: parseDuration(process.env.JWT_EXPIRES_IN || '24h') * 1000,
   },
