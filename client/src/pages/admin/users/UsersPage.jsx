@@ -4,6 +4,7 @@ import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import LogoutIcon from '@mui/icons-material/Logout'
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined'
+import DevicesOutlinedIcon from '@mui/icons-material/DevicesOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import MenuIcon from '@mui/icons-material/Menu'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
@@ -11,6 +12,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import { api } from '../../../utils/api'
+import useAuth from '../../../hooks/useAuth'
 import {
   PageWrap, PageScroll,
   PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
@@ -27,27 +29,58 @@ import {
   SecLabel,
   FormGrid, Field, FieldLabel, FieldInput, FieldSelect,
   StatusRow, StatusRowLabel, StatusRowTitle, StatusRowSub, Toggle, ToggleThumb,
-  PermGrid, PermRow, PermName, PermDot,
+  PermGrid, PermRow, PermName, PermDot, PermActions, PermAction, PermActionLabel,
   RestrList, RestrItem, RestrCheck, RestrLabel, RestrNote,
   ModalFoot, FootLeft, FootRight, ModalBtn,
+  SessionList, SessionCard, SessionMain, SessionTitle, SessionMeta, SessionPill, SessionStatus,
   Toast, ToastIconBox, ToastBody, ToastTitle, ToastMsg, ToastClose,
 } from './UsersPage.styles'
 
 /* ── constants ── */
-const PERM_CONFIG = [
-  { id: 'retiros',  label: 'Retiros',  dot: '#f59e0b', bg: 'rgba(245,158,11,0.12)', cl: '#fbbf24', br: 'rgba(245,158,11,0.24)' },
-  { id: 'cargas',   label: 'Cargas',   dot: '#22c55e', bg: 'rgba(34,197,94,0.12)',  cl: '#4ade80', br: 'rgba(34,197,94,0.24)'  },
-  { id: 'cuponera', label: 'Cuponera', dot: '#a78bfa', bg: 'rgba(139,92,246,0.12)', cl: '#a78bfa', br: 'rgba(139,92,246,0.24)' },
-  { id: 'soporte',  label: 'Soporte',  dot: '#60a5fa', bg: 'rgba(59,130,246,0.12)', cl: '#93c5fd', br: 'rgba(59,130,246,0.24)' },
+const MODULE_CONFIG = [
+  { id: 'chats', label: 'Chat', note: '/admin/chat', dot: '#60a5fa', bg: 'rgba(59,130,246,0.12)', cl: '#93c5fd', br: 'rgba(59,130,246,0.24)' },
+  { id: 'clients', label: 'Clientes', note: '/admin/clientes', dot: '#22c55e', bg: 'rgba(34,197,94,0.12)', cl: '#4ade80', br: 'rgba(34,197,94,0.24)' },
+  { id: 'users', label: 'Usuarios', note: '/admin/usuarios', dot: '#f59e0b', bg: 'rgba(245,158,11,0.12)', cl: '#fbbf24', br: 'rgba(245,158,11,0.24)' },
+  { id: 'commands', label: 'Comandos', note: '/admin/comandos', dot: '#a78bfa', bg: 'rgba(139,92,246,0.12)', cl: '#c4b5fd', br: 'rgba(139,92,246,0.24)' },
+  { id: 'push_notifications', label: 'Notificaciones', note: '/admin/notificaciones', dot: '#f472b6', bg: 'rgba(244,114,182,0.12)', cl: '#f9a8d4', br: 'rgba(244,114,182,0.24)' },
+  { id: 'modals', label: 'Modales', note: '/admin/modales', dot: '#38bdf8', bg: 'rgba(56,189,248,0.12)', cl: '#7dd3fc', br: 'rgba(56,189,248,0.24)' },
+  { id: 'bot_builder', label: 'Bot', note: '/admin/bot', dot: '#34d399', bg: 'rgba(52,211,153,0.12)', cl: '#6ee7b7', br: 'rgba(52,211,153,0.24)' },
+  { id: 'settings', label: 'Ajustes', note: '/admin/ajustes', dot: '#94a3b8', bg: 'rgba(148,163,184,0.12)', cl: '#cbd5e1', br: 'rgba(148,163,184,0.24)' },
 ]
 
-const PAGE_CONFIG = [
-  { id: 'chat',     label: 'Chat',     note: '/admin/chat' },
-  { id: 'clientes', label: 'Clientes', note: '/admin/clientes' },
-  { id: 'usuarios', label: 'Usuarios', note: '/admin/usuarios' },
+const ACTION_CONFIG = [
+  { id: 'can_view', label: 'Ver' },
+  { id: 'can_create', label: 'Crear' },
+  { id: 'can_edit', label: 'Editar' },
+  { id: 'can_delete', label: 'Borrar' },
 ]
 
 const ROWS_PER_PAGE = 8
+
+const defaultPermissions = (role = 'cashier') => {
+  const enabled = role === 'admin'
+  return MODULE_CONFIG.reduce((acc, module) => {
+    acc[module.id] = {
+      can_view: enabled,
+      can_create: enabled,
+      can_edit: enabled,
+      can_delete: enabled,
+    }
+    return acc
+  }, {})
+}
+
+const normalizePermissions = (permissions, role = 'cashier') => {
+  const fallback = defaultPermissions(role)
+  return MODULE_CONFIG.reduce((acc, module) => {
+    const source = permissions?.[module.id] || fallback[module.id]
+    acc[module.id] = ACTION_CONFIG.reduce((actions, action) => {
+      actions[action.id] = Boolean(source[action.id])
+      return actions
+    }, {})
+    return acc
+  }, {})
+}
 
 /* maps an API user to the component's shape */
 const mapApiUser = (u) => ({
@@ -57,10 +90,9 @@ const mapApiUser = (u) => ({
   email:         u.email,
   role:          u.role,          // 'admin' | 'cashier'
   status:        Boolean(u.is_active),
-  online:        false,
+  online:        Boolean(u.online),
   last_login_at: u.last_login_at,
-  perms:         { retiros: false, cargas: false, cuponera: false, soporte: false },
-  restricted:    [],
+  permissions:   normalizePermissions(u.permissions, u.role),
 })
 
 const initForm = (user = null) => ({
@@ -70,12 +102,12 @@ const initForm = (user = null) => ({
   password:   '',
   role:       user?.role       ?? 'cashier',
   status:     user?.status     ?? true,
-  perms:      user ? { ...user.perms }    : { retiros: false, cargas: false, cuponera: false, soporte: false },
-  restricted: user ? [...user.restricted] : [],
+  permissions: user ? normalizePermissions(user.permissions, user.role) : defaultPermissions('cashier'),
 })
 
 /* ── component ── */
 const UsersPage = ({ onMenuOpen }) => {
+  const { user: currentUser, setUser } = useAuth()
   const [users, setUsers]         = useState([])
   const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
@@ -85,8 +117,17 @@ const UsersPage = ({ onMenuOpen }) => {
   const [modalOpen, setModalOpen] = useState(false)
   const [editUser, setEditUser]   = useState(null)
   const [form, setForm]           = useState(initForm())
+  const [sessionsUser, setSessionsUser] = useState(null)
+  const [sessions, setSessions] = useState([])
+  const [sessionsLoading, setSessionsLoading] = useState(false)
   const [alert, setAlert]         = useState(null)
   const [saving, setSaving]       = useState(false)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: ROWS_PER_PAGE,
+    total: 0,
+    totalPages: 1,
+  })
 
   /* auto-dismiss toast */
   useEffect(() => {
@@ -101,32 +142,36 @@ const UsersPage = ({ onMenuOpen }) => {
   const loadUsers = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await api.get('/api/users')
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(ROWS_PER_PAGE),
+        search: search.trim(),
+        status: statusFilter,
+        role: roleFilter,
+      })
+      const data = await api.get('/api/users?' + params.toString())
       setUsers((data.users || []).map(mapApiUser))
+      setPagination(data.pagination || {
+        page,
+        limit: ROWS_PER_PAGE,
+        total: data.users?.length || 0,
+        totalPages: 1,
+      })
     } catch (err) {
       notify(err.payload?.error || 'No se pudo cargar los usuarios', 'danger')
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [page, roleFilter, search, statusFilter])
 
-  useEffect(() => { loadUsers() }, [loadUsers])
+  useEffect(() => {
+    queueMicrotask(() => { loadUsers() })
+  }, [loadUsers])
 
   /* ── filter & paginate ── */
-  const filtered = users.filter(u => {
-    const q = search.toLowerCase()
-    const matchSearch = !q ||
-      u.full_name.toLowerCase().includes(q) ||
-      u.email.toLowerCase().includes(q) ||
-      u.username.toLowerCase().includes(q)
-    const matchStatus = statusFilter === 'all' || (statusFilter === 'active' ? u.status : !u.status)
-    const matchRole   = roleFilter   === 'all' || u.role === roleFilter
-    return matchSearch && matchStatus && matchRole
-  })
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE))
-  const safePage   = Math.min(page, totalPages)
-  const rows       = filtered.slice((safePage - 1) * ROWS_PER_PAGE, safePage * ROWS_PER_PAGE)
+  const totalPages = pagination.totalPages
+  const safePage   = pagination.page
+  const rows       = users
 
   const changeFilter = (setter) => (e) => { setter(e.target.value); setPage(1) }
 
@@ -134,14 +179,29 @@ const UsersPage = ({ onMenuOpen }) => {
   const openAdd  = ()     => { setEditUser(null); setForm(initForm());     setModalOpen(true) }
   const openEdit = (user) => { setEditUser(user); setForm(initForm(user)); setModalOpen(true) }
   const close    = ()     => { setModalOpen(false); setEditUser(null) }
+  const closeSessions = () => { setSessionsUser(null); setSessions([]) }
 
   const setField    = (key, val) => setForm(f => ({ ...f, [key]: val }))
-  const togglePerm  = (id)  => setForm(f => ({ ...f, perms: { ...f.perms, [id]: !f.perms[id] } }))
-  const toggleRestr = (id)  => setForm(f => ({
+  const setRoleField = (role) => setForm(f => ({ ...f, role, permissions: defaultPermissions(role) }))
+  const togglePerm  = (moduleId, actionId)  => setForm(f => ({
     ...f,
-    restricted: f.restricted.includes(id)
-      ? f.restricted.filter(r => r !== id)
-      : [...f.restricted, id],
+    permissions: {
+      ...f.permissions,
+      [moduleId]: {
+        ...f.permissions[moduleId],
+        [actionId]: !f.permissions[moduleId]?.[actionId],
+      },
+    },
+  }))
+  const toggleRestr = (id) => setForm(f => ({
+    ...f,
+    permissions: {
+      ...f.permissions,
+      [id]: {
+        ...f.permissions[id],
+        can_view: !f.permissions[id]?.can_view,
+      },
+    },
   }))
 
   /* ── save (create or edit) ── */
@@ -167,19 +227,24 @@ const UsersPage = ({ onMenuOpen }) => {
         email:     form.email.trim(),
         role:      form.role,
         is_active: form.status,
+        permissions: normalizePermissions(form.permissions, form.role),
       }
       if (!editUser) payload.password = form.password
       else if (form.password) payload.password = form.password
 
       if (editUser) {
         const response = await api.put('/api/users/' + editUser.id, payload)
-        const updated = { ...mapApiUser(response.user), perms: form.perms, restricted: form.restricted }
+        const updated = mapApiUser(response.user)
         setUsers(prev => prev.map(u => u.id === editUser.id ? updated : u))
+        if (currentUser?.id === editUser.id) {
+          setUser(response.user)
+        }
         notify('Usuario actualizado correctamente', 'success')
       } else {
         const response = await api.post('/api/users', payload)
-        const created = { ...mapApiUser(response.user), perms: form.perms, restricted: form.restricted }
+        const created = mapApiUser(response.user)
         setUsers(prev => [created, ...prev])
+        setPage(1)
         notify('Usuario creado correctamente', 'success')
       }
       close()
@@ -194,7 +259,7 @@ const UsersPage = ({ onMenuOpen }) => {
   const handleDelete = async (id) => {
     try {
       await api.delete('/api/users/' + id)
-      setUsers(prev => prev.filter(u => u.id !== id))
+      await loadUsers()
       notify('Usuario eliminado correctamente', 'success')
       close()
     } catch (err) {
@@ -216,6 +281,57 @@ const UsersPage = ({ onMenuOpen }) => {
     }
   }
 
+  const logoutUser = async (id) => {
+    try {
+      await api.post('/api/users/' + id + '/logout', {})
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, online: false } : u))
+      notify('Sesiones cerradas correctamente', 'success')
+    } catch (err) {
+      notify(err.payload?.error || 'No se pudo cerrar la sesión', 'danger')
+    }
+  }
+
+  const openSessions = async (user, options = {}) => {
+    const nextUser = { ...user, online: options.online ?? user.online }
+    setSessionsUser(nextUser)
+    setSessions([])
+    setSessionsLoading(true)
+    try {
+      const data = await api.get('/api/users/' + user.id + '/sessions')
+      setSessions(data.sessions || [])
+    } catch (err) {
+      notify(err.payload?.error || 'No se pudieron cargar las sesiones', 'danger')
+      closeSessions()
+    } finally {
+      setSessionsLoading(false)
+    }
+  }
+
+  const formatDate = (value) => {
+    if (!value) return 'Sin registro'
+    return new Intl.DateTimeFormat('es', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    }).format(new Date(value))
+  }
+
+  const sessionDevice = (session) => {
+    const type = session.device_type || 'unknown'
+    if (type === 'desktop') return 'Escritorio'
+    if (type === 'mobile') return 'Móvil'
+    if (type === 'tablet') return 'Tablet'
+    return 'Dispositivo'
+  }
+
+  const closeActiveSessionsFromModal = async () => {
+    if (!sessionsUser) return
+    await logoutUser(sessionsUser.id)
+    await openSessions(sessionsUser, { online: false })
+  }
+
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
   const displayInitial = (u) => (u.full_name || u.username || '?')[0].toUpperCase()
 
@@ -233,7 +349,7 @@ const UsersPage = ({ onMenuOpen }) => {
             )}
             <TitleBlock>
               <PageTitle>Usuarios</PageTitle>
-              <PageSub>{users.length} usuario{users.length !== 1 ? 's' : ''} en el sistema</PageSub>
+              <PageSub>{pagination.total} usuario{pagination.total !== 1 ? 's' : ''} en el sistema</PageSub>
             </TitleBlock>
           </HeaderLeft>
           <AddBtn type="button" onClick={openAdd}>
@@ -263,7 +379,7 @@ const UsersPage = ({ onMenuOpen }) => {
             <option value="admin">Admin</option>
             <option value="cashier">Cajero</option>
           </FilterSelect>
-          <ResultCount>{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</ResultCount>
+          <ResultCount>{pagination.total} resultado{pagination.total !== 1 ? 's' : ''}</ResultCount>
         </FiltersBar>
 
         {/* ── table ── */}
@@ -321,25 +437,24 @@ const UsersPage = ({ onMenuOpen }) => {
 
                     <Td>
                       <PermChips>
-                        {PERM_CONFIG.filter(p => user.perms[p.id]).map(p => (
+                        {MODULE_CONFIG.filter(p => user.permissions[p.id]?.can_view).map(p => (
                           <PermChip key={p.id} $bg={p.bg} $cl={p.cl} $br={p.br}>{p.label}</PermChip>
                         ))}
-                        {!PERM_CONFIG.some(p => user.perms[p.id]) && (
+                        {!MODULE_CONFIG.some(p => user.permissions[p.id]?.can_view) && (
                           <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.18)' }}>—</span>
                         )}
                       </PermChips>
                     </Td>
 
                     <Td>
-                      {user.restricted.length === 0 ? (
+                      {MODULE_CONFIG.every(p => user.permissions[p.id]?.can_view) ? (
                         <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.18)' }}>Ninguna</span>
                       ) : (
                         <PermChips>
-                          {user.restricted.map(r => {
-                            const cfg = PAGE_CONFIG.find(p => p.id === r)
+                          {MODULE_CONFIG.filter(p => !user.permissions[p.id]?.can_view).map(cfg => {
                             return (
-                              <PermChip key={r} $bg="rgba(239,68,68,0.10)" $cl="#f87171" $br="rgba(239,68,68,0.22)">
-                                {cfg?.label ?? r}
+                              <PermChip key={cfg.id} $bg="rgba(239,68,68,0.10)" $cl="#f87171" $br="rgba(239,68,68,0.22)">
+                                {cfg.label}
                               </PermChip>
                             )
                           })}
@@ -352,7 +467,10 @@ const UsersPage = ({ onMenuOpen }) => {
                         <ActionBtn type="button" title="Editar" onClick={() => openEdit(user)}>
                           <EditOutlinedIcon />
                         </ActionBtn>
-                        <ActionBtn type="button" $v="warn" title="Cerrar sesión" disabled={!user.online}>
+                        <ActionBtn type="button" title="Ver sesiones" onClick={() => openSessions(user)}>
+                          <DevicesOutlinedIcon />
+                        </ActionBtn>
+                        <ActionBtn type="button" $v="warn" title="Cerrar sesión" disabled={!user.online} onClick={() => logoutUser(user.id)}>
                           <LogoutIcon />
                         </ActionBtn>
                         <ActionBtn
@@ -374,9 +492,9 @@ const UsersPage = ({ onMenuOpen }) => {
 
           <Pagination>
             <PaginInfo>
-              {filtered.length === 0
+              {pagination.total === 0
                 ? '0 usuarios'
-                : `${(safePage - 1) * ROWS_PER_PAGE + 1}–${Math.min(safePage * ROWS_PER_PAGE, filtered.length)} de ${filtered.length}`
+                : `${(safePage - 1) * ROWS_PER_PAGE + 1}–${Math.min(safePage * ROWS_PER_PAGE, pagination.total)} de ${pagination.total}`
               }
             </PaginInfo>
             <PaginBtns>
@@ -471,7 +589,7 @@ const UsersPage = ({ onMenuOpen }) => {
                   </Field>
                   <Field>
                     <FieldLabel>Rol</FieldLabel>
-                    <FieldSelect value={form.role} onChange={e => setField('role', e.target.value)}>
+                    <FieldSelect value={form.role} onChange={e => setRoleField(e.target.value)}>
                       <option value="admin">Administrador</option>
                       <option value="cashier">Cajero</option>
                     </FieldSelect>
@@ -494,18 +612,25 @@ const UsersPage = ({ onMenuOpen }) => {
               <div>
                 <SecLabel>Permisos de módulos</SecLabel>
                 <PermGrid style={{ marginTop: 14 }}>
-                  {PERM_CONFIG.map(p => (
-                    <PermRow key={p.id} onClick={() => togglePerm(p.id)}>
+                  {MODULE_CONFIG.map(p => (
+                    <PermRow key={p.id}>
                       <PermName>
                         <PermDot $cl={p.dot} />
                         {p.label}
                       </PermName>
-                      <Toggle
-                        $on={form.perms[p.id]}
-                        onClick={e => { e.stopPropagation(); togglePerm(p.id) }}
-                      >
-                        <ToggleThumb $on={form.perms[p.id]} />
-                      </Toggle>
+                      <PermActions>
+                        {ACTION_CONFIG.map(action => (
+                          <PermAction key={action.id}>
+                            <PermActionLabel>{action.label}</PermActionLabel>
+                            <Toggle
+                              $on={form.permissions[p.id]?.[action.id]}
+                              onClick={() => togglePerm(p.id, action.id)}
+                            >
+                              <ToggleThumb $on={form.permissions[p.id]?.[action.id]} />
+                            </Toggle>
+                          </PermAction>
+                        ))}
+                      </PermActions>
                     </PermRow>
                   ))}
                 </PermGrid>
@@ -515,8 +640,8 @@ const UsersPage = ({ onMenuOpen }) => {
               <div>
                 <SecLabel>Restricciones de páginas</SecLabel>
                 <RestrList style={{ marginTop: 14 }}>
-                  {PAGE_CONFIG.map(pg => {
-                    const blocked = form.restricted.includes(pg.id)
+                  {MODULE_CONFIG.map(pg => {
+                    const blocked = !form.permissions[pg.id]?.can_view
                     return (
                       <RestrItem key={pg.id} type="button" $on={blocked} onClick={() => toggleRestr(pg.id)}>
                         <RestrCheck $on={blocked}>
@@ -553,6 +678,67 @@ const UsersPage = ({ onMenuOpen }) => {
       )}
 
       {/* ── toast notification ── */}
+      {sessionsUser && (
+        <Overlay onClick={closeSessions}>
+          <ModalCard $wide onClick={e => e.stopPropagation()}>
+            <ModalHead>
+              <div>
+                <ModalTitle>Sesiones de {sessionsUser.full_name}</ModalTitle>
+                <ModalSub>{sessionsUser.email}</ModalSub>
+              </div>
+              <ModalClose type="button" onClick={closeSessions}><CloseIcon /></ModalClose>
+            </ModalHead>
+
+            <ModalBody>
+              {sessionsLoading ? (
+                <EmptyCell as="div">Cargando sesiones...</EmptyCell>
+              ) : sessions.length === 0 ? (
+                <EmptyCell as="div">No hay sesiones registradas</EmptyCell>
+              ) : (
+                <SessionList>
+                  {sessions.map(session => (
+                    <SessionCard key={session.id}>
+                      <SessionMain>
+                        <SessionTitle>
+                          <DevicesOutlinedIcon style={{ fontSize: 17 }} />
+                          {sessionDevice(session)}
+                        </SessionTitle>
+                        <SessionMeta>
+                          <SessionPill>IP: {session.ip_address || 'No disponible'}</SessionPill>
+                          <SessionPill>Navegador: {session.browser || 'No disponible'}</SessionPill>
+                          <SessionPill>SO: {session.os || 'No disponible'}</SessionPill>
+                          <SessionPill>Inicio: {formatDate(session.created_at)}</SessionPill>
+                          <SessionPill>Última actividad: {formatDate(session.last_activity_at)}</SessionPill>
+                          <SessionPill>Expira: {formatDate(session.expires_at)}</SessionPill>
+                        </SessionMeta>
+                      </SessionMain>
+                      <SessionStatus $active={session.is_active}>
+                        {session.is_active ? 'Activa' : 'Cerrada'}
+                      </SessionStatus>
+                    </SessionCard>
+                  ))}
+                </SessionList>
+              )}
+            </ModalBody>
+
+            <ModalFoot>
+              <FootLeft />
+              <FootRight>
+                <ModalBtn type="button" onClick={closeSessions}>Cerrar</ModalBtn>
+                <ModalBtn
+                  type="button"
+                  $v="danger"
+                  disabled={!sessionsUser.online}
+                  onClick={closeActiveSessionsFromModal}
+                >
+                  Cerrar sesiones activas
+                </ModalBtn>
+              </FootRight>
+            </ModalFoot>
+          </ModalCard>
+        </Overlay>
+      )}
+
       {alert && (
         <Toast $type={alert.type}>
           <ToastIconBox $type={alert.type}>

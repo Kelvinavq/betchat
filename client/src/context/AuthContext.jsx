@@ -8,11 +8,13 @@ export const AuthProvider = ({ children }) => {
   const [initializing, setInitializing] = useState(true)
 
   useEffect(() => {
+    localStorage.removeItem('betchat_auth_token')
+
     const verifySession = async () => {
       try {
         const response = await api.get('/api/auth/me')
         setUser(response.user)
-      } catch (error) {
+      } catch {
         setUser(null)
       } finally {
         setInitializing(false)

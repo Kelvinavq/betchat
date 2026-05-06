@@ -1,5 +1,5 @@
 import styled, { css, keyframes } from 'styled-components'
-import { gradients, colors } from '../../../styles/theme'
+import { gradients } from '../../../styles/theme'
 
 const fadeUp = keyframes`
   from { opacity: 0; transform: translateY(8px); }
@@ -82,6 +82,27 @@ export const FilterSelect = styled.select`
 `
 export const ResultCount = styled.span`
   margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.28); white-space: nowrap;
+`
+
+export const Pagination = styled.div`
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px; margin-top: 22px; flex-wrap: wrap;
+`
+export const PaginInfo = styled.span`font-size: 12px; color: rgba(255,255,255,0.28);`
+export const PaginBtns = styled.div`display: flex; gap: 4px;`
+export const PaginBtn = styled.button`
+  min-width: 30px; height: 30px; padding: 0 6px; border-radius: 8px;
+  font-size: 12px; font-weight: 500; font-family: inherit; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.15s;
+  ${({ $active }) => $active ? css`
+    background: ${gradients.btn}; border: none; color: #fff;
+  ` : css`
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.40);
+  `}
+  &:hover:not(:disabled) { background: rgba(255,255,255,0.09); color: rgba(255,255,255,0.80); }
+  &:disabled { opacity: 0.28; cursor: default; }
 `
 
 /* ── commands grid ── */

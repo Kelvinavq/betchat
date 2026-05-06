@@ -20,7 +20,7 @@ const LoginPage = () => {
     } catch (error) {
       const message = error.payload?.error || error.message || 'Error al iniciar sesión'
       setStatus({ message, type: 'error' })
-      throw new Error(message)
+      throw new Error(message, { cause: error })
     }
   }
 

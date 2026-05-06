@@ -1,18 +1,21 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
-import MenuIcon        from '@mui/icons-material/Menu'
-import AddIcon         from '@mui/icons-material/Add'
-import SearchIcon      from '@mui/icons-material/Search'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import MenuIcon from '@mui/icons-material/Menu'
+import AddIcon from '@mui/icons-material/Add'
+import SearchIcon from '@mui/icons-material/Search'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
-import CloseIcon       from '@mui/icons-material/Close'
-import FormatBoldIcon  from '@mui/icons-material/FormatBold'
+import CloseIcon from '@mui/icons-material/Close'
+import FormatBoldIcon from '@mui/icons-material/FormatBold'
 import StrikethroughSIcon from '@mui/icons-material/StrikethroughS'
 import EmojiEmotionsOutlinedIcon from '@mui/icons-material/EmojiEmotionsOutlined'
-
+import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
+import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import { api } from '../../../utils/api'
 import {
   PageWrap, PageScroll,
   PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
   FiltersBar, SearchBox, SrchIcon, SearchInput, FilterSelect, ResultCount,
+  Pagination, PaginInfo, PaginBtns, PaginBtn,
   CommandsGrid,
   CommandCard, CardAccent, CardBody, CardTop, CardName, CardStatusDot,
   CommandPill, CardPreview, CardFooter, CardEditBtn, CardStatusBtn,
@@ -27,64 +30,36 @@ import {
   EmojiPopover, EmojiCategoryBar, EmojiCategoryBtn, EmojiGrid, EmojiBtn,
 } from './CommandsPage.styles'
 
-/* ── accent palette ── */
 const ACCENTS = ['#1e85ff', '#8b5cf6', '#06b6d4', '#f59e0b', '#10b981', '#ec4899']
+const ROWS_PER_PAGE = 12
+const EMPTY_FORM = { name: '', command: '', message: '', active: true, matchType: 'contains' }
+
+const EMOJIS = ['😀', '😂', '😊', '😍', '😎', '🙏', '👍', '🔥', '✨', '🎉', '🚀', '✅', '⚠️', '💡', '💰', '📎']
 const accentOf = (id) => ACCENTS[(id - 1) % ACCENTS.length]
 
-/* ── emoji data ── */
-const EMOJI_GROUPS = [
-  {
-    label: '😀',
-    emojis: [
-      '😀','😂','🤣','😊','😍','🥰','😎','🤩','😜','🤔',
-      '😅','🙃','😇','🥳','😏','😒','😢','😭','😱','🤯',
-      '🥺','😡','🤗','😴','🤭','🫡','🫢','🥹','😤','🙄',
-    ],
-  },
-  {
-    label: '👋',
-    emojis: [
-      '👋','🤝','👍','👎','👌','✌️','🤞','🤙','💪','🙏',
-      '👏','🤜','🤛','✋','🖐️','☝️','👆','👇','👉','👈',
-      '🫶','🫂','💁','🤦','🤷','🙋','🙅','🙆','🤷','💃',
-    ],
-  },
-  {
-    label: '❤️',
-    emojis: [
-      '❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔',
-      '❣️','💕','💞','💓','💗','💖','💘','💝','💟','☮️',
-      '⭐','🔥','✨','🎉','🎊','🚀','💡','✅','⚠️','🔔',
-    ],
-  },
-]
+const titleFromTrigger = (trigger) => {
+  return String(trigger || '')
+    .replace(/[-_]+/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase())
+}
 
-/* ── mock data ── */
-let nextId = 7
-const INITIAL_COMMANDS = [
-  { id: 1, name: 'Bienvenida',  command: 'bienvenida', message: '<p>¡Hola! 👋 <strong>Bienvenido/a</strong> a BetChat. Estamos para ayudarte con cualquier consulta.</p>', active: true  },
-  { id: 2, name: 'Retiro',      command: 'retiro',     message: '<p>Para procesar tu retiro necesitamos los siguientes datos:</p><p>• <strong>Monto</strong><br>• <strong>CBU / Alias</strong><br>• <strong>Titular de la cuenta</strong></p>', active: true  },
-  { id: 3, name: 'Soporte',     command: 'soporte',    message: '<p>Nuestro equipo de soporte está disponible <strong>24/7</strong>. Un agente te atenderá en breve. 🙏</p>', active: true  },
-  { id: 4, name: 'Promociones', command: 'promos',     message: '<p>¡Tenemos <strong>grandes promociones</strong> activas! 🎉 Ingresá a tu cuenta para ver los bonos disponibles.</p>', active: true  },
-  { id: 5, name: 'Cerrar sesión', command: 'logout',   message: '<p>Tu sesión ha sido <del>cerrada</del> correctamente. ¡Hasta pronto! 👋</p>', active: false },
-  { id: 6, name: 'Verificar',   command: 'verificar',  message: '<p>Para verificar tu identidad enviá una foto de tu <strong>DNI</strong> (frente y dorso) junto a un selfie. ✅</p>', active: true  },
-]
+const mapApiCommand = (command) => ({
+  id: command.id,
+  name: titleFromTrigger(command.trigger),
+  command: command.trigger,
+  message: command.response,
+  matchType: command.match_type,
+  active: Boolean(command.is_active),
+})
 
-/* ══════════════════════════════════════════
-   Rich Text Editor
-══════════════════════════════════════════ */
 const RichEditor = ({ value, onChange }) => {
-  const ref         = useRef(null)
-  const [showEmoji, setShowEmoji]   = useState(false)
-  const [emojiCat,  setEmojiCat]    = useState(0)
+  const ref = useRef(null)
+  const [showEmoji, setShowEmoji] = useState(false)
   const [boldActive, setBoldActive] = useState(false)
   const [strikeActive, setStrikeActive] = useState(false)
 
-  /* set initial HTML once on mount */
   useEffect(() => {
-    if (ref.current && value !== undefined) {
-      ref.current.innerHTML = value || ''
-    }
+    if (ref.current) ref.current.innerHTML = value || ''
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updateFormatState = () => {
@@ -113,29 +88,14 @@ const RichEditor = ({ value, onChange }) => {
   return (
     <EditorWrap>
       <EditorToolbar>
-        <ToolBtn
-          type="button"
-          $active={boldActive}
-          onMouseDown={e => { e.preventDefault(); exec('bold') }}
-          title="Negrita"
-        >
+        <ToolBtn type="button" $active={boldActive} onMouseDown={e => { e.preventDefault(); exec('bold') }} title="Negrita">
           <FormatBoldIcon style={{ fontSize: 16 }} />
         </ToolBtn>
-        <ToolBtn
-          type="button"
-          $active={strikeActive}
-          onMouseDown={e => { e.preventDefault(); exec('strikeThrough') }}
-          title="Tachado"
-        >
+        <ToolBtn type="button" $active={strikeActive} onMouseDown={e => { e.preventDefault(); exec('strikeThrough') }} title="Tachado">
           <StrikethroughSIcon style={{ fontSize: 16 }} />
         </ToolBtn>
         <ToolSep />
-        <ToolBtn
-          type="button"
-          $active={showEmoji}
-          onClick={() => setShowEmoji(p => !p)}
-          title="Emojis"
-        >
+        <ToolBtn type="button" $active={showEmoji} onClick={() => setShowEmoji(p => !p)} title="Emojis">
           <EmojiEmotionsOutlinedIcon style={{ fontSize: 16 }} />
         </ToolBtn>
       </EditorToolbar>
@@ -144,7 +104,7 @@ const RichEditor = ({ value, onChange }) => {
         ref={ref}
         contentEditable
         suppressContentEditableWarning
-        data-placeholder="Escribe el mensaje del comando…"
+        data-placeholder="Escribe el mensaje del comando..."
         onInput={handleInput}
         onKeyUp={updateFormatState}
         onMouseUp={updateFormatState}
@@ -153,25 +113,12 @@ const RichEditor = ({ value, onChange }) => {
       {showEmoji && (
         <EmojiPopover>
           <EmojiCategoryBar>
-            {EMOJI_GROUPS.map((g, i) => (
-              <EmojiCategoryBtn
-                key={i}
-                type="button"
-                $active={emojiCat === i}
-                onClick={() => setEmojiCat(i)}
-              >
-                {g.label}
-              </EmojiCategoryBtn>
-            ))}
+            <EmojiCategoryBtn type="button" $active>Recientes</EmojiCategoryBtn>
           </EmojiCategoryBar>
           <EmojiGrid>
-            {EMOJI_GROUPS[emojiCat].emojis.map(e => (
-              <EmojiBtn
-                key={e}
-                type="button"
-                onClick={() => insertEmoji(e)}
-              >
-                {e}
+            {EMOJIS.map(emoji => (
+              <EmojiBtn key={emoji} type="button" onClick={() => insertEmoji(emoji)}>
+                {emoji}
               </EmojiBtn>
             ))}
           </EmojiGrid>
@@ -181,38 +128,37 @@ const RichEditor = ({ value, onChange }) => {
   )
 }
 
-/* ══════════════════════════════════════════
-   Command Modal
-══════════════════════════════════════════ */
-const EMPTY_FORM = { name: '', command: '', message: '', active: true }
-
-const CommandModal = ({ cmd, onClose, onSave, onDelete }) => {
+const CommandModal = ({ cmd, onClose, onSave, onDelete, saving }) => {
   const isEdit = Boolean(cmd)
   const [form, setForm] = useState(
     isEdit
-      ? { name: cmd.name, command: cmd.command, message: cmd.message, active: cmd.active }
+      ? { name: cmd.name, command: cmd.command, message: cmd.message, active: cmd.active, matchType: cmd.matchType || 'contains' }
       : { ...EMPTY_FORM }
   )
   const [cmdError, setCmdError] = useState('')
 
-  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const set = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
 
-  const validateCommand = (val) => {
-    if (!val.trim()) return 'El comando no puede estar vacío'
-    if (!/^[a-z0-9_-]+$/i.test(val.trim())) return 'Solo letras, números, _ y -'
+  const validateCommand = (value) => {
+    if (!value.trim()) return 'El comando no puede estar vacío'
+    if (!/^[a-z0-9_-]+$/i.test(value.trim())) return 'Solo letras, números, _ y -'
     return ''
   }
 
-  const handleCommandChange = (v) => {
-    const clean = v.replace(/^\/+/, '')
-    set('command', clean)
+  const handleCommandChange = (value) => {
+    const clean = value.replace(/^\/+/, '')
+    setForm(prev => ({
+      ...prev,
+      command: clean,
+      name: prev.name.trim() ? prev.name : titleFromTrigger(clean),
+    }))
     setCmdError(validateCommand(clean))
   }
 
   const handleSave = () => {
-    const err = validateCommand(form.command)
-    if (err) { setCmdError(err); return }
-    if (!form.name.trim()) return
+    const error = validateCommand(form.command)
+    if (error) { setCmdError(error); return }
+    if (!form.message.trim()) return
     onSave({ ...form, command: form.command.trim().toLowerCase() })
   }
 
@@ -224,7 +170,7 @@ const CommandModal = ({ cmd, onClose, onSave, onDelete }) => {
             <ModalTitle>{isEdit ? 'Editar comando' : 'Nuevo comando'}</ModalTitle>
             <ModalSub>{isEdit ? `Modificando /${cmd.command}` : 'Completa los datos del nuevo comando'}</ModalSub>
           </div>
-          <ModalClose onClick={onClose}><CloseIcon /></ModalClose>
+          <ModalClose type="button" onClick={onClose}><CloseIcon /></ModalClose>
         </ModalHead>
 
         <ModalBody>
@@ -232,37 +178,23 @@ const CommandModal = ({ cmd, onClose, onSave, onDelete }) => {
             <SecLabel>Información básica</SecLabel>
             <FormGrid style={{ marginTop: 12 }}>
               <Field>
-                <FieldLabel>Nombre del comando</FieldLabel>
-                <FieldInput
-                  placeholder="Ej: Bienvenida"
-                  value={form.name}
-                  onChange={e => set('name', e.target.value)}
-                />
+                <FieldLabel>Nombre</FieldLabel>
+                <FieldInput placeholder="Ej: Bienvenida" value={form.name} onChange={e => set('name', e.target.value)} />
               </Field>
               <Field>
                 <FieldLabel>Comando</FieldLabel>
                 <CommandInputWrap style={cmdError ? { borderColor: 'rgba(239,68,68,0.50)' } : {}}>
                   <CommandPrefix>/</CommandPrefix>
-                  <CommandInput
-                    placeholder="nombre_comando"
-                    value={form.command}
-                    onChange={e => handleCommandChange(e.target.value)}
-                  />
+                  <CommandInput placeholder="bienvenida" value={form.command} onChange={e => handleCommandChange(e.target.value)} />
                 </CommandInputWrap>
-                {cmdError && (
-                  <span style={{ fontSize: 11, color: '#f87171', marginTop: 2 }}>{cmdError}</span>
-                )}
+                {cmdError && <span style={{ fontSize: 11, color: '#f87171', marginTop: 2 }}>{cmdError}</span>}
               </Field>
             </FormGrid>
           </div>
 
           <Field>
             <SecLabel style={{ marginBottom: 4 }}>Mensaje de respuesta</SecLabel>
-            <RichEditor
-              key={`editor-${cmd?.id ?? 'new'}`}
-              value={form.message}
-              onChange={v => set('message', v)}
-            />
+            <RichEditor key={`editor-${cmd?.id ?? 'new'}`} value={form.message} onChange={value => set('message', value)} />
           </Field>
 
           <div>
@@ -272,7 +204,7 @@ const CommandModal = ({ cmd, onClose, onSave, onDelete }) => {
                 <StatusRowTitle>Comando activo</StatusRowTitle>
                 <StatusRowSub>{form.active ? 'El comando está disponible para usar' : 'El comando está deshabilitado'}</StatusRowSub>
               </StatusRowLabel>
-              <Toggle $on={form.active} onClick={() => set('active', p => !p)}>
+              <Toggle type="button" $on={form.active} onClick={() => set('active', !form.active)}>
                 <ToggleThumb $on={form.active} />
               </Toggle>
             </StatusRow>
@@ -282,19 +214,15 @@ const CommandModal = ({ cmd, onClose, onSave, onDelete }) => {
         <ModalFoot>
           <FootLeft>
             {isEdit && (
-              <ModalBtn $v="danger" onClick={onDelete}>
+              <ModalBtn type="button" $v="danger" onClick={onDelete} disabled={saving}>
                 <DeleteOutlinedIcon style={{ fontSize: 15 }} /> Eliminar
               </ModalBtn>
             )}
           </FootLeft>
           <FootRight>
-            <ModalBtn $v="ghost" onClick={onClose}>Cancelar</ModalBtn>
-            <ModalBtn
-              $v="primary"
-              onClick={handleSave}
-              disabled={!form.name.trim() || !form.command.trim()}
-            >
-              {isEdit ? 'Guardar cambios' : 'Crear comando'}
+            <ModalBtn type="button" $v="ghost" onClick={onClose} disabled={saving}>Cancelar</ModalBtn>
+            <ModalBtn type="button" $v="primary" onClick={handleSave} disabled={saving || !form.command.trim() || !form.message.trim()}>
+              {saving ? 'Guardando...' : (isEdit ? 'Guardar cambios' : 'Crear comando')}
             </ModalBtn>
           </FootRight>
         </ModalFoot>
@@ -303,43 +231,92 @@ const CommandModal = ({ cmd, onClose, onSave, onDelete }) => {
   )
 }
 
-/* ══════════════════════════════════════════
-   Commands Page
-══════════════════════════════════════════ */
 const CommandsPage = ({ onMenuOpen }) => {
-  const [commands, setCommands]     = useState(INITIAL_COMMANDS)
-  const [search,   setSearch]       = useState('')
-  const [filter,   setFilter]       = useState('all')   // 'all' | 'active' | 'inactive'
-  const [modal,    setModal]        = useState(null)    // null | 'new' | command object
+  const [commands, setCommands] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [search, setSearch] = useState('')
+  const [filter, setFilter] = useState('all')
+  const [page, setPage] = useState(1)
+  const [modal, setModal] = useState(null)
+  const [pagination, setPagination] = useState({ page: 1, limit: ROWS_PER_PAGE, total: 0, totalPages: 1 })
 
-  const filtered = commands.filter(c => {
-    const matchSearch = !search || c.name.toLowerCase().includes(search.toLowerCase()) || c.command.toLowerCase().includes(search.toLowerCase())
-    const matchFilter = filter === 'all' || (filter === 'active' ? c.active : !c.active)
-    return matchSearch && matchFilter
-  })
-
-  const toggleStatus = useCallback((e, id) => {
-    e.stopPropagation()
-    setCommands(p => p.map(c => c.id === id ? { ...c, active: !c.active } : c))
-  }, [])
-
-  const openEdit = useCallback((e, cmd) => {
-    e.stopPropagation()
-    setModal(cmd)
-  }, [])
-
-  const handleSave = (form) => {
-    if (modal === 'new') {
-      setCommands(p => [...p, { id: nextId++, ...form }])
-    } else {
-      setCommands(p => p.map(c => c.id === modal.id ? { ...c, ...form } : c))
+  const loadCommands = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        page: String(page),
+        limit: String(ROWS_PER_PAGE),
+        search: search.trim(),
+        status: filter,
+      })
+      const data = await api.get('/api/commands?' + params.toString())
+      setCommands((data.commands || []).map(mapApiCommand))
+      setPagination(data.pagination || { page, limit: ROWS_PER_PAGE, total: data.commands?.length || 0, totalPages: 1 })
+    } finally {
+      setLoading(false)
     }
-    setModal(null)
+  }, [filter, page, search])
+
+  useEffect(() => {
+    queueMicrotask(() => { loadCommands() })
+  }, [loadCommands])
+
+  const totalPages = pagination.totalPages
+  const safePage = pagination.page
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+
+  const openEdit = useCallback((event, command) => {
+    event.stopPropagation()
+    setModal(command)
+  }, [])
+
+  const toggleStatus = useCallback(async (event, id) => {
+    event.stopPropagation()
+    const target = commands.find(command => command.id === id)
+    if (!target) return
+    const nextActive = !target.active
+    setCommands(prev => prev.map(command => command.id === id ? { ...command, active: nextActive } : command))
+    try {
+      await api.put('/api/commands/' + id, { is_active: nextActive })
+    } catch {
+      setCommands(prev => prev.map(command => command.id === id ? { ...command, active: !nextActive } : command))
+    }
+  }, [commands])
+
+  const handleSave = async (form) => {
+    setSaving(true)
+    try {
+      const payload = {
+        trigger: form.command,
+        response: form.message,
+        match_type: form.matchType || 'contains',
+        is_active: form.active,
+      }
+
+      if (modal === 'new') {
+        await api.post('/api/commands', payload)
+        setPage(1)
+      } else {
+        await api.put('/api/commands/' + modal.id, payload)
+      }
+
+      setModal(null)
+      await loadCommands()
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const handleDelete = () => {
-    setCommands(p => p.filter(c => c.id !== modal.id))
-    setModal(null)
+  const handleDelete = async () => {
+    setSaving(true)
+    try {
+      await api.delete('/api/commands/' + modal.id)
+      setModal(null)
+      await loadCommands()
+    } finally {
+      setSaving(false)
+    }
   }
 
   return (
@@ -348,16 +325,16 @@ const CommandsPage = ({ onMenuOpen }) => {
         <PageHeader>
           <HeaderLeft>
             {onMenuOpen && (
-              <MenuBtn onClick={onMenuOpen} aria-label="Abrir menú">
+              <MenuBtn type="button" onClick={onMenuOpen} aria-label="Abrir menú">
                 <MenuIcon />
               </MenuBtn>
             )}
             <TitleBlock>
               <PageTitle>Comandos</PageTitle>
-              <PageSub>{commands.length} comandos en total</PageSub>
+              <PageSub>{pagination.total} comandos en total</PageSub>
             </TitleBlock>
           </HeaderLeft>
-          <AddBtn onClick={() => setModal('new')}>
+          <AddBtn type="button" onClick={() => setModal('new')}>
             <AddIcon /> Nuevo comando
           </AddBtn>
         </PageHeader>
@@ -366,75 +343,90 @@ const CommandsPage = ({ onMenuOpen }) => {
           <SearchBox>
             <SrchIcon><SearchIcon /></SrchIcon>
             <SearchInput
-              placeholder="Buscar por nombre o comando…"
+              placeholder="Buscar por comando o respuesta..."
               value={search}
-              onChange={e => setSearch(e.target.value)}
+              onChange={event => { setSearch(event.target.value); setPage(1) }}
             />
           </SearchBox>
-          <FilterSelect value={filter} onChange={e => setFilter(e.target.value)}>
+          <FilterSelect value={filter} onChange={event => { setFilter(event.target.value); setPage(1) }}>
             <option value="all">Todos</option>
             <option value="active">Activos</option>
             <option value="inactive">Inactivos</option>
           </FilterSelect>
-          <ResultCount>{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</ResultCount>
+          <ResultCount>{pagination.total} resultado{pagination.total !== 1 ? 's' : ''}</ResultCount>
         </FiltersBar>
 
-        {filtered.length === 0 && (commands.length > 0 || search || filter !== 'all') ? (
+        {loading ? (
+          <EmptyWrap><EmptyTitle>Cargando comandos...</EmptyTitle></EmptyWrap>
+        ) : commands.length === 0 && (pagination.total > 0 || search || filter !== 'all') ? (
           <EmptyWrap>
             <EmptyGlyph>🔍</EmptyGlyph>
             <EmptyTitle>Sin resultados</EmptyTitle>
             <EmptySub>No hay comandos que coincidan con los filtros aplicados.</EmptySub>
           </EmptyWrap>
-        ) : commands.length === 0 ? (
+        ) : pagination.total === 0 ? (
           <EmptyWrap>
             <EmptyGlyph>⚡</EmptyGlyph>
             <EmptyTitle>Sin comandos</EmptyTitle>
             <EmptySub>Crea tu primer comando para agilizar las respuestas del equipo.</EmptySub>
           </EmptyWrap>
         ) : (
-          <CommandsGrid>
-            {filtered.map(cmd => {
-              const accent = accentOf(cmd.id)
-              return (
-                <CommandCard key={cmd.id} $active={cmd.active} onClick={e => openEdit(e, cmd)}>
-                  <CardAccent style={{ background: `linear-gradient(90deg, ${accent}cc, ${accent}44)` }} />
-                  <CardBody>
-                    <CardTop>
-                      <CardName>{cmd.name}</CardName>
-                      <CardStatusDot $active={cmd.active} />
-                    </CardTop>
+          <>
+            <CommandsGrid>
+              {commands.map(command => {
+                const accent = accentOf(command.id)
+                return (
+                  <CommandCard key={command.id} $active={command.active} onClick={event => openEdit(event, command)}>
+                    <CardAccent style={{ background: `linear-gradient(90deg, ${accent}cc, ${accent}44)` }} />
+                    <CardBody>
+                      <CardTop>
+                        <CardName>{command.name}</CardName>
+                        <CardStatusDot $active={command.active} />
+                      </CardTop>
+                      <CommandPill style={{ background: `${accent}18`, border: `1px solid ${accent}44`, color: accent }}>
+                        /{command.command}
+                      </CommandPill>
+                      <CardPreview dangerouslySetInnerHTML={{ __html: command.message }} />
+                      <CardFooter>
+                        <CardEditBtn type="button" onClick={event => openEdit(event, command)}>
+                          <EditOutlinedIcon /> Editar
+                        </CardEditBtn>
+                        <CardStatusBtn type="button" $active={command.active} onClick={event => toggleStatus(event, command.id)}>
+                          {command.active ? 'Activo' : 'Inactivo'}
+                        </CardStatusBtn>
+                      </CardFooter>
+                    </CardBody>
+                  </CommandCard>
+                )
+              })}
+              <AddCard type="button" onClick={() => setModal('new')}>
+                <AddCardIconWrap><AddIcon /></AddCardIconWrap>
+                <AddCardLabel>Nuevo comando</AddCardLabel>
+              </AddCard>
+            </CommandsGrid>
 
-                    <CommandPill style={{
-                      background: `${accent}18`,
-                      border: `1px solid ${accent}44`,
-                      color: accent,
-                    }}>
-                      /{cmd.command}
-                    </CommandPill>
-
-                    <CardPreview dangerouslySetInnerHTML={{ __html: cmd.message }} />
-
-                    <CardFooter>
-                      <CardEditBtn onClick={e => openEdit(e, cmd)}>
-                        <EditOutlinedIcon /> Editar
-                      </CardEditBtn>
-                      <CardStatusBtn
-                        $active={cmd.active}
-                        onClick={e => toggleStatus(e, cmd.id)}
-                      >
-                        {cmd.active ? 'Activo' : 'Inactivo'}
-                      </CardStatusBtn>
-                    </CardFooter>
-                  </CardBody>
-                </CommandCard>
-              )
-            })}
-
-            <AddCard onClick={() => setModal('new')}>
-              <AddCardIconWrap><AddIcon /></AddCardIconWrap>
-              <AddCardLabel>Nuevo comando</AddCardLabel>
-            </AddCard>
-          </CommandsGrid>
+            <Pagination>
+              <PaginInfo>
+                {pagination.total === 0
+                  ? '0 comandos'
+                  : `${(safePage - 1) * ROWS_PER_PAGE + 1}-${Math.min(safePage * ROWS_PER_PAGE, pagination.total)} de ${pagination.total}`
+                }
+              </PaginInfo>
+              <PaginBtns>
+                <PaginBtn type="button" onClick={() => setPage(prev => Math.max(1, prev - 1))} disabled={safePage === 1}>
+                  <ChevronLeftIcon />
+                </PaginBtn>
+                {pages.map(item => (
+                  <PaginBtn key={item} type="button" $active={item === safePage} onClick={() => setPage(item)}>
+                    {item}
+                  </PaginBtn>
+                ))}
+                <PaginBtn type="button" onClick={() => setPage(prev => Math.min(totalPages, prev + 1))} disabled={safePage === totalPages}>
+                  <ChevronRightIcon />
+                </PaginBtn>
+              </PaginBtns>
+            </Pagination>
+          </>
         )}
       </PageScroll>
 
@@ -444,6 +436,7 @@ const CommandsPage = ({ onMenuOpen }) => {
           onClose={() => setModal(null)}
           onSave={handleSave}
           onDelete={handleDelete}
+          saving={saving}
         />
       )}
     </PageWrap>

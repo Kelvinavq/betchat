@@ -360,7 +360,7 @@ export const Overlay = styled.div`
 `
 
 export const ModalCard = styled.div`
-  width: 100%; max-width: 560px;
+  width: 100%; max-width: ${({ $wide }) => $wide ? '760px' : '560px'};
   max-height: calc(var(--app-height, 100dvh) - 32px);
   background: #0d0d20;
   border: 1px solid rgba(255,255,255,0.09);
@@ -481,7 +481,7 @@ export const PermGrid = styled.div`
   @media (max-width: 480px) { grid-template-columns: 1fr; }
 `
 export const PermRow = styled.div`
-  display: flex; align-items: center; justify-content: space-between;
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
   padding: 10px 12px;
   background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
   border-radius: 10px; transition: background 0.15s;
@@ -494,6 +494,17 @@ export const PermName = styled.span`
 export const PermDot = styled.span`
   width: 8px; height: 8px; border-radius: 50%;
   background: ${({ $cl }) => $cl}; flex-shrink: 0;
+`
+export const PermActions = styled.div`
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  grid-column: 1 / -1;
+`
+export const PermAction = styled.div`
+  display: flex; flex-direction: column; align-items: center; gap: 5px;
+`
+export const PermActionLabel = styled.span`
+  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: rgba(255,255,255,0.24);
 `
 
 /* page restrictions */
@@ -545,4 +556,44 @@ export const ModalBtn = styled.button`
   `}
   &:hover { opacity: 0.82; }
   &:active { transform: scale(0.97); }
+`
+
+export const SessionList = styled.div`
+  display: flex; flex-direction: column; gap: 10px;
+`
+export const SessionCard = styled.div`
+  display: grid; grid-template-columns: 1fr auto; gap: 12px;
+  padding: 13px 14px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 12px;
+  @media (max-width: 560px) { grid-template-columns: 1fr; }
+`
+export const SessionMain = styled.div`
+  min-width: 0; display: flex; flex-direction: column; gap: 8px;
+`
+export const SessionTitle = styled.div`
+  display: flex; align-items: center; gap: 8px; min-width: 0;
+  font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.82);
+`
+export const SessionMeta = styled.div`
+  display: flex; flex-wrap: wrap; gap: 6px;
+`
+export const SessionPill = styled.span`
+  display: inline-flex; align-items: center; gap: 5px;
+  max-width: 100%;
+  padding: 4px 7px; border-radius: 7px;
+  font-size: 11px; color: rgba(255,255,255,0.46);
+  background: rgba(255,255,255,0.045);
+  border: 1px solid rgba(255,255,255,0.065);
+  overflow-wrap: anywhere;
+`
+export const SessionStatus = styled.span`
+  height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 9px; border-radius: 999px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em;
+  color: ${({ $active }) => $active ? '#4ade80' : 'rgba(255,255,255,0.28)'};
+  background: ${({ $active }) => $active ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.045)'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(34,197,94,0.24)' : 'rgba(255,255,255,0.07)'};
 `

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import ChatOutlinedIcon       from '@mui/icons-material/ChatOutlined'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
@@ -10,6 +10,8 @@ import VideoLabelOutlinedIcon from '@mui/icons-material/VideoLabelOutlined';
 import SmartToyOutlinedIcon   from '@mui/icons-material/SmartToyOutlined';
 import MenuIcon from '@mui/icons-material/Menu'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import useAuth from '../../../hooks/useAuth'
+import { canViewSection } from '../../../utils/adminPermissions'
 import {
   SidebarWrap, SidebarTop, LogoWrap, LogoBadge, LogoText, ToggleBtn,
   NavSection, SectionLabel, NavList, NavItem, NavBtn, NavIcon, NavLabel, NavArrow,
@@ -82,21 +84,20 @@ const BOTTOM_ITEMS = [
 ]
 
 const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
+  const { user } = useAuth()
   const [openItems, setOpenItems]   = useState({})
-  const [activeItem, setActiveItem] = useState(activeSection ?? 'chat')
   const [darkMode, setDarkMode]     = useState(true)
-
-  useEffect(() => {
-    if (activeSection) setActiveItem(activeSection)
-  }, [activeSection])
+  const activeItem = activeSection ?? 'chat'
 
   const toggleSub = (id) => setOpenItems(p => ({ ...p, [id]: !p[id] }))
 
   const handleNavClick = (item) => {
-    setActiveItem(item.id)
     if (item.children.length && expanded) toggleSub(item.id)
     onNavigate?.(item.id)
   }
+
+  const navItems = NAV_ITEMS.filter(item => canViewSection(user, item.id))
+  const bottomItems = BOTTOM_ITEMS.filter(item => canViewSection(user, item.id))
 
   return (
     <SidebarWrap $expanded={expanded}>
@@ -118,7 +119,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
       </NavSection>
 
       <NavList>
-        {NAV_ITEMS.map(item => {
+        {navItems.map(item => {
           const isActive = activeItem === item.id || item.children.some(c => c.id === activeItem)
           const isOpen   = expanded && openItems[item.id]
           return (
@@ -138,7 +139,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
                     <li key={child.id}>
                       <SubBtn
                         $active={activeItem === child.id}
-                        onClick={() => setActiveItem(child.id)}
+                        onClick={() => onNavigate?.(item.id)}
                       >
                         {child.label}
                       </SubBtn>
@@ -159,7 +160,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
       </NavSection>
 
       <NavList>
-        {BOTTOM_ITEMS.map(item => {
+        {bottomItems.map(item => {
           const isActive = activeItem === item.id
           return (
             <NavItem key={item.id}>

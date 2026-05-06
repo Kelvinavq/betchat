@@ -13,6 +13,8 @@ import BanksPage          from './banks/BanksPage'
 import NotificationsPage  from './notifications/NotificationsPage'
 import ModalsPage      from './modal/ModalsPage'
 import BotBuilderPage  from './botbuilder/BotBuilderPage'
+import useAuth from '../../hooks/useAuth'
+import { SECTION_MODULES, canViewSection } from '../../utils/adminPermissions'
 
 const MIN_W     = 240
 const MAX_W     = 560
@@ -99,6 +101,18 @@ const MobileView = styled.div`
   animation-fill-mode: both;
 `
 
+const AccessDenied = styled.div`
+  flex: 1;
+  min-width: 0;
+  height: var(--app-height, 100dvh);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  color: rgba(255,255,255,0.54);
+  font-size: 14px;
+`
+
 /* ── component ── */
 const DashboardPage = () => {
   const [selectedChat, setSelectedChat]       = useState(null)
@@ -112,6 +126,11 @@ const DashboardPage = () => {
   const [panelWidth, setPanelWidth] = useState(() => load('admin_panel_w', DEF_PANEL))
   const { section = 'chat' }        = useParams()
   const navigate                    = useNavigate()
+  const { user }                    = useAuth()
+
+  const allowedSections = Object.keys(SECTION_MODULES).filter(id => canViewSection(user, id))
+  const firstAllowedSection = allowedSections[0]
+  const canViewCurrentSection = canViewSection(user, section)
 
   const handleNavigate = (id) => {
     navigate(`/admin/${id}`)
@@ -120,6 +139,12 @@ const DashboardPage = () => {
 
   useEffect(() => { localStorage.setItem('admin_list_w',  String(listWidth))  }, [listWidth])
   useEffect(() => { localStorage.setItem('admin_panel_w', String(panelWidth)) }, [panelWidth])
+
+  useEffect(() => {
+    if (!canViewCurrentSection && firstAllowedSection) {
+      navigate(`/admin/${firstAllowedSection}`, { replace: true })
+    }
+  }, [canViewCurrentSection, firstAllowedSection, navigate, section])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024)
@@ -158,6 +183,9 @@ const DashboardPage = () => {
 
   const openClient = () => { setViewDir('fwd'); setMobileView('client') }
   const backToChat = () => { setViewDir('back'); setMobileView('chat') }
+  const renderAccessDenied = () => (
+    <AccessDenied>No tienes permisos para acceder a esta sección.</AccessDenied>
+  )
 
   /* ── MOBILE ── */
   if (isMobile) {
@@ -178,39 +206,41 @@ const DashboardPage = () => {
           </>
         )}
 
-        {section === 'usuarios' && (
+        {!canViewCurrentSection && renderAccessDenied()}
+
+        {canViewCurrentSection && section === 'usuarios' && (
           <UsersPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
-        {section === 'clientes' && (
+        {canViewCurrentSection && section === 'clientes' && (
           <ClientsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
-        {section === 'comandos' && (
+        {canViewCurrentSection && section === 'comandos' && (
           <CommandsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
-        {section === 'cuentas' && (
+        {canViewCurrentSection && section === 'cuentas' && (
           <BanksPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
-        {section === 'ajustes' && (
+        {canViewCurrentSection && section === 'ajustes' && (
           <SettingsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
-        {section === 'notificaciones' && (
+        {canViewCurrentSection && section === 'notificaciones' && (
           <NotificationsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
-        {section === 'modales' && (
+        {canViewCurrentSection && section === 'modales' && (
           <ModalsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
-        {section === 'bot' && (
+        {canViewCurrentSection && section === 'bot' && (
           <BotBuilderPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
-        {section === 'chat' && mobileView === 'list' && (
+        {canViewCurrentSection && section === 'chat' && mobileView === 'list' && (
           <MobileView $dir={viewDir}>
             <ChatList
               selectedChat={selectedChat}
@@ -221,7 +251,7 @@ const DashboardPage = () => {
           </MobileView>
         )}
 
-        {section === 'chat' && mobileView === 'chat' && selectedChat && (
+        {canViewCurrentSection && section === 'chat' && mobileView === 'chat' && selectedChat && (
           <MobileView $dir={viewDir}>
             <AdminChatView
               chat={selectedChat}
@@ -231,7 +261,7 @@ const DashboardPage = () => {
           </MobileView>
         )}
 
-        {section === 'chat' && mobileView === 'client' && selectedChat && (
+        {canViewCurrentSection && section === 'chat' && mobileView === 'client' && selectedChat && (
           <MobileView $dir={viewDir}>
             <ClientPanel
               client={selectedChat}
@@ -254,16 +284,18 @@ const DashboardPage = () => {
         activeSection={section}
       />
 
-      {section === 'usuarios'  && <UsersPage />}
-      {section === 'clientes'  && <ClientsPage />}
-      {section === 'comandos'  && <CommandsPage />}
-      {section === 'cuentas'        && <BanksPage />}
-      {section === 'ajustes'        && <SettingsPage />}
-      {section === 'notificaciones' && <NotificationsPage />}
-      {section === 'modales'        && <ModalsPage />}
-      {section === 'bot'            && <BotBuilderPage />}
+      {!canViewCurrentSection && renderAccessDenied()}
 
-      {section === 'chat' && (
+      {canViewCurrentSection && section === 'usuarios'  && <UsersPage />}
+      {canViewCurrentSection && section === 'clientes'  && <ClientsPage />}
+      {canViewCurrentSection && section === 'comandos'  && <CommandsPage />}
+      {canViewCurrentSection && section === 'cuentas'        && <BanksPage />}
+      {canViewCurrentSection && section === 'ajustes'        && <SettingsPage />}
+      {canViewCurrentSection && section === 'notificaciones' && <NotificationsPage />}
+      {canViewCurrentSection && section === 'modales'        && <ModalsPage />}
+      {canViewCurrentSection && section === 'bot'            && <BotBuilderPage />}
+
+      {canViewCurrentSection && section === 'chat' && (
         <>
           <ChatList
             selectedChat={selectedChat}

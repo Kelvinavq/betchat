@@ -1,7 +1,8 @@
 import jwt from 'jsonwebtoken';
 import { config } from '../config/config.js';
+import { query } from '../config/database.js';
 
-function getCookieValue(req, name) {
+export function getCookieValue(req, name) {
   const cookieHeader = req.headers.cookie;
   if (!cookieHeader) return null;
 
@@ -18,7 +19,7 @@ function getCookieValue(req, name) {
     }, null);
 }
 
-export function authenticateToken(req, res, next) {
+export async function authenticateToken(req, res, next) {
   const authHeader = req.headers.authorization || req.headers.Authorization;
   let token = null;
 
@@ -45,6 +46,33 @@ export function authenticateToken(req, res, next) {
       algorithms: ['HS256'],
       issuer: config.jwtIssuer,
     });
+
+    if (payload.jti) {
+      const { rows, error } = await query(
+        `SELECT id FROM user_sessions
+         WHERE user_id = ? AND session_token = ? AND is_active = 1
+           AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+         LIMIT 1`,
+        [payload.sub, payload.jti]
+      );
+
+      if (error) {
+        return next(error);
+      }
+
+      if (!rows?.length) {
+        return res.status(401).json({
+          error: 'La sesión no está activa',
+          code: 'SESSION_INACTIVE',
+        });
+      }
+
+      await query(
+        'UPDATE user_sessions SET last_activity_at = CURRENT_TIMESTAMP WHERE user_id = ? AND session_token = ?',
+        [payload.sub, payload.jti]
+      );
+    }
+
     req.user = payload;
     next();
   } catch (error) {

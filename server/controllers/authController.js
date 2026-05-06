@@ -1,7 +1,10 @@
 import jwt from 'jsonwebtoken';
+import { randomUUID } from 'crypto';
 import { query } from '../config/database.js';
 import { config } from '../config/config.js';
 import { verifyPassword } from '../utils/password.js';
+import { getCookieValue } from '../middlewares/authMiddleware.js';
+import { rowsToPermissions } from '../utils/userPermissions.js';
 
 const ALLOWED_ROLES = ['admin', 'cashier'];
 const DUMMY_PASSWORD_HASH = '$2a$12$KIXxJp7LNqCAQsfyi.W8VOe3vlqZ29wxs2jR7NpuTR5sMBUy3eL8W';
@@ -15,6 +18,8 @@ function sanitizeUser(user) {
     role: user.role,
     is_active: Boolean(user.is_active),
     last_login_at: user.last_login_at,
+    online: Boolean(user.online),
+    permissions: user.permissions,
   };
 }
 
@@ -63,10 +68,12 @@ export async function login(req, res, next) {
       });
     }
 
+    const sessionToken = randomUUID();
     const tokenPayload = {
       sub: user.id,
       username: user.username,
       role: user.role,
+      jti: sessionToken,
     };
 
     const token = jwt.sign(tokenPayload, config.jwtSecret, {
@@ -76,6 +83,30 @@ export async function login(req, res, next) {
     });
 
     await query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
+    const expiresAt = new Date(Date.now() + (config.jwtExpiresInSeconds || 86400) * 1000);
+
+    await query(
+      `INSERT INTO user_sessions
+        (user_id, session_token, ip_address, browser, device_type, is_active, last_activity_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?)`,
+      [
+        user.id,
+        sessionToken,
+        req.ip || null,
+        String(req.headers['user-agent'] || '').slice(0, 120) || null,
+        /mobile/i.test(req.headers['user-agent'] || '') ? 'mobile' : 'desktop',
+        expiresAt,
+      ]
+    );
+
+    const { rows: permissionRows, error: permissionsError } = await query(
+      'SELECT module, can_view, can_create, can_edit, can_delete FROM user_permissions WHERE user_id = ?',
+      [user.id]
+    );
+
+    if (permissionsError) {
+      return next(permissionsError);
+    }
 
     res.cookie(config.jwtCookieName, token, {
       ...config.jwtCookieOptions,
@@ -84,7 +115,11 @@ export async function login(req, res, next) {
 
     res.json({
       expiresIn: config.jwtExpiresIn,
-      user: sanitizeUser(user),
+      user: sanitizeUser({
+        ...user,
+        online: true,
+        permissions: rowsToPermissions(permissionRows, user.role),
+      }),
     });
   } catch (error) {
     next(error);
@@ -93,6 +128,24 @@ export async function login(req, res, next) {
 
 export async function logout(req, res, next) {
   try {
+    const token = getCookieValue(req, config.jwtCookieName) || getCookieValue(req, 'auth_token');
+    if (token) {
+      try {
+        const payload = jwt.verify(token, config.jwtSecret, {
+          algorithms: ['HS256'],
+          issuer: config.jwtIssuer,
+        });
+        if (payload?.sub && payload?.jti) {
+          await query(
+            'UPDATE user_sessions SET is_active = 0, last_activity_at = CURRENT_TIMESTAMP WHERE user_id = ? AND session_token = ?',
+            [payload.sub, payload.jti]
+          );
+        }
+      } catch {
+        // The cookie is still cleared even when the token is expired or malformed.
+      }
+    }
+
     res.clearCookie(config.jwtCookieName, {
       ...config.jwtCookieOptions,
       maxAge: 0,
@@ -114,7 +167,16 @@ export async function me(req, res, next) {
     }
 
     const { rows, error } = await query(
-      'SELECT id, username, full_name, email, role, is_active, last_login_at FROM users WHERE id = ? LIMIT 1',
+      `SELECT
+        u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at,
+        EXISTS(
+          SELECT 1 FROM user_sessions us
+          WHERE us.user_id = u.id AND us.is_active = 1
+            AND (us.expires_at IS NULL OR us.expires_at > CURRENT_TIMESTAMP)
+        ) AS online
+       FROM users u
+       WHERE u.id = ?
+       LIMIT 1`,
       [userId]
     );
 
@@ -130,7 +192,21 @@ export async function me(req, res, next) {
       });
     }
 
-    res.json({ user: sanitizeUser(user) });
+    const { rows: permissionRows, error: permissionsError } = await query(
+      'SELECT module, can_view, can_create, can_edit, can_delete FROM user_permissions WHERE user_id = ?',
+      [userId]
+    );
+
+    if (permissionsError) {
+      return next(permissionsError);
+    }
+
+    res.json({
+      user: sanitizeUser({
+        ...user,
+        permissions: rowsToPermissions(permissionRows, user.role),
+      }),
+    });
   } catch (error) {
     next(error);
   }

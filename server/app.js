@@ -11,6 +11,9 @@ import { config, validateConfig, getCorsOrigins } from './config/config.js';
 import { initializePool, closePool } from './config/database.js';
 import authRoutes from './routes/authRoutes.js';
 import userRoutes from './routes/userRoutes.js';
+import commandRoutes from './routes/commandRoutes.js';
+import modalRoutes from './routes/modalRoutes.js';
+import bankAccountRoutes from './routes/bankAccountRoutes.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -47,6 +50,9 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 // Rutas de autenticación
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
+app.use('/api/commands', commandRoutes);
+app.use('/api/modals', modalRoutes);
+app.use('/api/bank-accounts', bankAccountRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {

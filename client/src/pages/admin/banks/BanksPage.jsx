@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import SearchIcon        from '@mui/icons-material/Search'
 import AddIcon           from '@mui/icons-material/Add'
 import EditOutlinedIcon  from '@mui/icons-material/EditOutlined'
@@ -11,6 +11,7 @@ import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlin
 import PowerSettingsNewIcon       from '@mui/icons-material/PowerSettingsNew'
 import VisibilityOutlinedIcon     from '@mui/icons-material/VisibilityOutlined'
 import VisibilityOffOutlinedIcon  from '@mui/icons-material/VisibilityOffOutlined'
+import { api } from '../../../utils/api'
 import {
   PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
   BankTabsBar, BankTab, BankTabDot, BankTabCount,
@@ -24,11 +25,10 @@ import {
   EmptyRow, EmptyCell,
   Overlay, ModalCard, ModalHead, ModalBankBadge, ModalHeadText, ModalTitle, ModalSub, ModalClose,
   ModalBody, ModalFoot, FootLeft, FootRight, ModalBtn,
-  SecLabel, FormGrid, Field, FieldLabel, FieldInput, FieldSelect, InputWrap, InputSuffix,
+  SecLabel, FormGrid, Field, FieldLabel, FieldInput, InputWrap, InputSuffix,
   StatusRow, StatusRowLabel, StatusRowTitle, StatusRowSub, Toggle, ToggleThumb,
 } from './BanksPage.styles'
 
-/* ── bank type config ── */
 const BANKS = [
   {
     id: 'hgcash',
@@ -60,107 +60,204 @@ const BANKS = [
   },
 ]
 
-/* ── mock data ── */
-const INIT_HGCASH = [
-  { id: 1, nombre_titular: 'Juan García',   email: 'juan@gmail.com',   cuit: '20-12345678-9', alias: 'juangarcia.hg',  cbu: '0070999120000012345678', estatus: 'activa',   token: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9', cookie: 'session=abc', cookie_expires_at: '2026-08-01', webhook_secret: 'whsec_abc123' },
-  { id: 2, nombre_titular: 'María López',   email: 'maria@gmail.com',  cuit: '27-98765432-1', alias: 'marialopez.hg',  cbu: '0070999120000098765432', estatus: 'inactiva', token: null,  cookie: null, cookie_expires_at: null, webhook_secret: null },
-  { id: 3, nombre_titular: 'Pedro Torres',  email: 'pedro@gmail.com',  cuit: '20-11223344-5', alias: 'pedrotorres.hg', cbu: '0070999120000011223344', estatus: 'activa',   token: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9', cookie: 'sess=xyz', cookie_expires_at: '2026-05-01', webhook_secret: 'whsec_xyz789' },
-]
-const INIT_MP = [
-  { id: 1, nombre_titular: 'Carlos Ruiz',   alias: 'carlosruiz.mp',  cbu: 'CBU0001234567890123456', estatus: 'activa',   token: 'APP_USR-1234567890abcdef-123456-abcdef1234567890' },
-  { id: 2, nombre_titular: 'Sofía Martínez',alias: 'sofiamtz.mp',   cbu: 'CBU0009876543210987654', estatus: 'inactiva', token: 'APP_USR-9876543210abcdef-654321-fedcba9876543210' },
-]
-const INIT_TELEPAGOS = [
-  { id: 1, nombre_titular: 'Diego Herrera', email: 'diego@gmail.com', cuit: '20-55443322-1', alias: 'diegoherrera.tp', cbu: '0070999120000055443322', estatus: 'activa',   token: 'tp_live_abc123xyz789', expires_at: '2026-07-15' },
-  { id: 2, nombre_titular: 'Valentina Cruz',email: 'vale@gmail.com',  cuit: '27-99887766-5', alias: 'valecruz.tp',     cbu: '0070999120000099887766', estatus: 'inactiva', token: null, expires_at: null },
-]
-const INIT_MANUAL = [
-  { id: 1, nombre_titular: 'Luis Méndez',   email: 'luis@gmail.com',  cuit: '20-33445566-7', alias: 'luismendez',    cbu: '0070999120000033445566', estatus: 'activa' },
-  { id: 2, nombre_titular: 'Ana Ramos',     email: 'ana@gmail.com',   cuit: '27-66554433-2', alias: 'anaramos',      cbu: '0070999120000066554433', estatus: 'activa' },
-  { id: 3, nombre_titular: 'Marcos Vera',   email: 'marcos@gmail.com',cuit: '20-77889900-4', alias: 'marcosvera',    cbu: '0070999120000077889900', estatus: 'inactiva' },
-]
-
-/* ── helpers ── */
 const ROWS = 8
-const maskCBU   = (v) => v ? `${v.slice(0,8)}···${v.slice(-4)}` : '—'
-const maskToken = (v) => v ? `${v.slice(0,10)}···${v.slice(-4)}` : '—'
+const EMPTY_COUNTS = { hgcash: 0, mercadopago: 0, telepagos: 0, manual: 0 }
+
+const maskCBU   = (v) => v ? `${v.slice(0, 8)}...${v.slice(-4)}` : '-'
+const maskToken = (v) => v ? `${v.slice(0, 10)}...${v.slice(-4)}` : '-'
 const isExpired = (d) => d && new Date(d) < new Date()
-const fmtDate   = (d) => d ? new Date(d).toLocaleDateString('es-AR', { day:'2-digit', month:'short', year:'numeric' }) : null
+const fmtDate   = (d) => d ? new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }) : null
 
 const initForm = (bank, account = null) => {
-  if (bank === 'hgcash')     return { nombre_titular: account?.nombre_titular ?? '', email: account?.email ?? '', password: '', cuit: account?.cuit ?? '', alias: account?.alias ?? '', cbu: account?.cbu ?? '', webhook_secret: account?.webhook_secret ?? '', estatus: account?.estatus ?? 'activa' }
-  if (bank === 'mercadopago') return { nombre_titular: account?.nombre_titular ?? '', token: account?.token ?? '', alias: account?.alias ?? '', cbu: account?.cbu ?? '', estatus: account?.estatus ?? 'activa' }
-  if (bank === 'telepagos')   return { nombre_titular: account?.nombre_titular ?? '', email: account?.email ?? '', password: '', cuit: account?.cuit ?? '', alias: account?.alias ?? '', cbu: account?.cbu ?? '', estatus: account?.estatus ?? 'activa' }
-  /* manual */                return { nombre_titular: account?.nombre_titular ?? '', email: account?.email ?? '', cuit: account?.cuit ?? '', alias: account?.alias ?? '', cbu: account?.cbu ?? '', estatus: account?.estatus ?? 'activa' }
-}
-
-/* ── component ── */
-const BanksPage = ({ onMenuOpen }) => {
-  const [activeBank, setActiveBank] = useState('hgcash')
-  const [search,      setSearch]    = useState('')
-  const [statusFilter,setStatus]    = useState('all')
-  const [page,        setPage]      = useState(1)
-  const [modalOpen,   setModal]     = useState(false)
-  const [editAcc,     setEditAcc]   = useState(null)
-  const [form,        setForm]      = useState({})
-  const [showPw,      setShowPw]    = useState({})
-
-  const [hgcash,     setHgcash]     = useState(INIT_HGCASH)
-  const [mp,         setMp]         = useState(INIT_MP)
-  const [telepagos,  setTelepagos]  = useState(INIT_TELEPAGOS)
-  const [manual,     setManual]     = useState(INIT_MANUAL)
-
-  /* data selectors */
-  const dataMap = { hgcash, mercadopago: mp, telepagos, manual }
-  const setMap  = { hgcash: setHgcash, mercadopago: setMp, telepagos: setTelepagos, manual: setManual }
-  const rows    = dataMap[activeBank]
-  const setRows = setMap[activeBank]
-  const bankCfg = BANKS.find(b => b.id === activeBank)
-
-  /* filter */
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase()
-    return rows.filter(a => {
-      const matchQ = !q
-        || a.nombre_titular?.toLowerCase().includes(q)
-        || a.email?.toLowerCase().includes(q)
-        || a.alias?.toLowerCase().includes(q)
-        || a.cbu?.toLowerCase().includes(q)
-      const matchS = statusFilter === 'all' || a.estatus === statusFilter
-      return matchQ && matchS
-    })
-  }, [rows, search, statusFilter])
-
-  const totalPages = Math.max(1, Math.ceil(filtered.length / ROWS))
-  const safePage   = Math.min(page, totalPages)
-  const pageRows   = filtered.slice((safePage - 1) * ROWS, safePage * ROWS)
-
-  const changeFilter = (setter) => (e) => { setter(e.target.value); setPage(1) }
-
-  /* modal */
-  const openAdd  = ()    => { setEditAcc(null); setForm(initForm(activeBank)); setShowPw({}); setModal(true) }
-  const openEdit = (acc) => { setEditAcc(acc);  setForm(initForm(activeBank, acc)); setShowPw({}); setModal(true) }
-  const close    = ()    => setModal(false)
-
-  const setField  = (k, v) => setForm(f => ({ ...f, [k]: v }))
-  const togglePw  = (k)    => setShowPw(p => ({ ...p, [k]: !p[k] }))
-
-  const handleSave = () => {
-    if (!form.nombre_titular?.trim()) return
-    if (editAcc) {
-      setRows(prev => prev.map(a => a.id === editAcc.id ? { ...a, ...form } : a))
-    } else {
-      setRows(prev => [{ id: Date.now(), ...form }, ...prev])
+  if (bank === 'hgcash') {
+    return {
+      nombre_titular: account?.nombre_titular ?? '',
+      email: account?.email ?? '',
+      password: '',
+      cuit: account?.cuit ?? '',
+      alias: account?.alias ?? '',
+      cbu: account?.cbu ?? '',
+      webhook_enabled: Boolean(account?.webhook_enabled || account?.webhook_secret),
+      webhook_secret: account?.webhook_secret ?? '',
+      estatus: account?.estatus ?? 'activa',
     }
-    close()
   }
 
-  const deleteAcc  = (id) => setRows(prev => prev.filter(a => a.id !== id))
-  const toggleStatus = (id) => setRows(prev => prev.map(a =>
-    a.id === id ? { ...a, estatus: a.estatus === 'activa' ? 'inactiva' : 'activa' } : a
-  ))
+  if (bank === 'mercadopago') {
+    return {
+      nombre_titular: account?.nombre_titular ?? '',
+      token: account?.token ?? '',
+      alias: account?.alias ?? '',
+      cbu: account?.cbu ?? '',
+      estatus: account?.estatus ?? 'activa',
+    }
+  }
 
-  /* switch bank tab */
+  if (bank === 'telepagos') {
+    return {
+      nombre_titular: account?.nombre_titular ?? '',
+      email: account?.email ?? '',
+      password: '',
+      cuit: account?.cuit ?? '',
+      alias: account?.alias ?? '',
+      cbu: account?.cbu ?? '',
+      token: account?.token ?? '',
+      expires_at: account?.expires_at ?? '',
+      estatus: account?.estatus ?? 'activa',
+    }
+  }
+
+  return {
+    nombre_titular: account?.nombre_titular ?? '',
+    email: account?.email ?? '',
+    cuit: account?.cuit ?? '',
+    alias: account?.alias ?? '',
+    cbu: account?.cbu ?? '',
+    estatus: account?.estatus ?? 'activa',
+  }
+}
+
+const validateForm = (bank, form, editing) => {
+  const required = {
+    mercadopago: ['nombre_titular', 'alias', 'cbu', 'token'],
+    manual: ['nombre_titular', 'alias', 'cbu'],
+    hgcash: ['nombre_titular', 'email', 'cuit', 'alias', 'cbu'],
+    telepagos: ['nombre_titular', 'email', 'cuit', 'alias', 'cbu', 'token', 'expires_at'],
+  }[bank]
+
+  const missing = required.filter(key => !String(form[key] ?? '').trim())
+  if (missing.length) return 'Completa todos los campos obligatorios antes de guardar.'
+  if ((bank === 'hgcash' || bank === 'telepagos') && !editing && !String(form.password ?? '').trim()) {
+    return 'La contrasena es obligatoria para crear esta cuenta.'
+  }
+  if (bank === 'hgcash' && form.webhook_enabled && !String(form.webhook_secret ?? '').trim()) {
+    return 'Agrega el webhook secret o desactiva el uso de webhook.'
+  }
+  return null
+}
+
+const BanksPage = ({ onMenuOpen }) => {
+  const [activeBank, setActiveBank] = useState('hgcash')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatus] = useState('all')
+  const [page, setPage] = useState(1)
+  const [accounts, setAccounts] = useState([])
+  const [counts, setCounts] = useState(EMPTY_COUNTS)
+  const [pagination, setPagination] = useState({ page: 1, limit: ROWS, total: 0, totalPages: 1 })
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [modalOpen, setModal] = useState(false)
+  const [editAcc, setEditAcc] = useState(null)
+  const [form, setForm] = useState({})
+  const [showPw, setShowPw] = useState({})
+
+  const bankCfg = BANKS.find(b => b.id === activeBank)
+  const totalCount = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0)
+
+  const loadAccounts = useCallback(async () => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({
+        provider: activeBank,
+        page: String(page),
+        limit: String(ROWS),
+        status: statusFilter,
+      })
+      if (search.trim()) params.set('search', search.trim())
+
+      const data = await api.get(`/api/bank-accounts?${params.toString()}`)
+      setAccounts(data.accounts || [])
+      setCounts({ ...EMPTY_COUNTS, ...(data.counts || {}) })
+      setPagination(data.pagination || { page: 1, limit: ROWS, total: 0, totalPages: 1 })
+    } catch (err) {
+      window.alert(err.message || 'No se pudieron cargar las cuentas bancarias.')
+    } finally {
+      setLoading(false)
+    }
+  }, [activeBank, page, search, statusFilter])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadAccounts()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadAccounts])
+
+  const changeFilter = (setter) => (e) => {
+    setter(e.target.value)
+    setPage(1)
+  }
+
+  const openAdd = () => {
+    setEditAcc(null)
+    setForm(initForm(activeBank))
+    setShowPw({})
+    setModal(true)
+  }
+
+  const openEdit = (acc) => {
+    setEditAcc(acc)
+    setForm(initForm(activeBank, acc))
+    setShowPw({})
+    setModal(true)
+  }
+
+  const close = () => {
+    if (!saving) setModal(false)
+  }
+
+  const setField = (key, value) => setForm(prev => ({ ...prev, [key]: value }))
+  const togglePw = (key) => setShowPw(prev => ({ ...prev, [key]: !prev[key] }))
+
+  const handleSave = async () => {
+    const error = validateForm(activeBank, form, Boolean(editAcc))
+    if (error) {
+      window.alert(error)
+      return
+    }
+
+    setSaving(true)
+    try {
+      const payload = { provider: activeBank, ...form }
+      if (editAcc) {
+        await api.put(`/api/bank-accounts/${editAcc.id}`, payload)
+      } else {
+        await api.post('/api/bank-accounts', payload)
+      }
+      setModal(false)
+      await loadAccounts()
+    } catch (err) {
+      window.alert(err.payload?.details?.[0] || err.message || 'No se pudo guardar la cuenta.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const deleteAcc = async (id) => {
+    if (!window.confirm('Eliminar esta cuenta bancaria?')) return
+    try {
+      await api.delete(`/api/bank-accounts/${id}`)
+      setModal(false)
+      await loadAccounts()
+    } catch (err) {
+      window.alert(err.message || 'No se pudo eliminar la cuenta.')
+    }
+  }
+
+  const toggleStatus = async (acc) => {
+    try {
+      await api.put(`/api/bank-accounts/${acc.id}`, {
+        ...acc,
+        password: '',
+        estatus: acc.estatus === 'activa' ? 'inactiva' : 'activa',
+      })
+      await loadAccounts()
+    } catch (err) {
+      window.alert(err.message || 'No se pudo cambiar el estado.')
+    }
+  }
+
   const switchBank = (id) => {
     setActiveBank(id)
     setSearch('')
@@ -169,21 +266,24 @@ const BanksPage = ({ onMenuOpen }) => {
   }
 
   const addLabel = {
-    hgcash: 'Nueva HGCash', mercadopago: 'Nueva MP',
-    telepagos: 'Nueva Telepagos', manual: 'Cuenta manual',
+    hgcash: 'Nueva HGCash',
+    mercadopago: 'Nueva MP',
+    telepagos: 'Nueva Telepagos',
+    manual: 'Cuenta manual',
   }
+
+  const totalPages = Math.max(1, pagination.totalPages || 1)
+  const safePage = Math.min(page, totalPages)
 
   return (
     <PageWrap>
       <PageScroll>
-
-        {/* ── header ── */}
         <PageHeader>
           <HeaderLeft>
             {onMenuOpen && <MenuBtn type="button" onClick={onMenuOpen}><MenuIcon /></MenuBtn>}
             <TitleBlock>
               <PageTitle>Cuentas bancarias</PageTitle>
-              <PageSub>{hgcash.length + mp.length + telepagos.length + manual.length} cuentas en el sistema</PageSub>
+              <PageSub>{totalCount} cuentas en el sistema</PageSub>
             </TitleBlock>
           </HeaderLeft>
           <AddBtn type="button" onClick={openAdd}>
@@ -191,10 +291,8 @@ const BanksPage = ({ onMenuOpen }) => {
           </AddBtn>
         </PageHeader>
 
-        {/* ── bank type tabs ── */}
         <BankTabsBar>
           {BANKS.map(b => {
-            const count = dataMap[b.id].length
             const isActive = activeBank === b.id
             return (
               <BankTab
@@ -205,14 +303,13 @@ const BanksPage = ({ onMenuOpen }) => {
                 <BankTabDot $color={b.color} $active={isActive} />
                 {b.label}
                 <BankTabCount $active={isActive} $color={b.color} $bg={b.bg} $br={b.br}>
-                  {count}
+                  {counts[b.id] || 0}
                 </BankTabCount>
               </BankTab>
             )
           })}
         </BankTabsBar>
 
-        {/* ── filters ── */}
         <FiltersBar>
           <SearchBox>
             <SrchIcon><SearchIcon /></SrchIcon>
@@ -226,10 +323,9 @@ const BanksPage = ({ onMenuOpen }) => {
             <option value="activa">Activas</option>
             <option value="inactiva">Inactivas</option>
           </FilterSelect>
-          <ResultCount>{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</ResultCount>
+          <ResultCount>{pagination.total || 0} resultado{pagination.total !== 1 ? 's' : ''}</ResultCount>
         </FiltersBar>
 
-        {/* ── table ── */}
         <TableCard key={activeBank}>
           <TableScroll>
             <Table>
@@ -239,25 +335,23 @@ const BanksPage = ({ onMenuOpen }) => {
                   {activeBank !== 'mercadopago' && <Th>CUIT</Th>}
                   <Th>Alias / CBU</Th>
                   {activeBank === 'mercadopago' && <Th>Token</Th>}
-                  {activeBank === 'hgcash'      && <Th>Cookie / Webhook</Th>}
-                  {activeBank === 'telepagos'   && <Th>Token / Vence</Th>}
+                  {activeBank === 'hgcash' && <Th>Cookie / Webhook</Th>}
+                  {activeBank === 'telepagos' && <Th>Token / Vence</Th>}
                   <Th $center>Estado</Th>
                   <Th $center>Acciones</Th>
                 </tr>
               </Thead>
               <Tbody>
-                {pageRows.length === 0 ? (
+                {accounts.length === 0 ? (
                   <EmptyRow>
-                    <EmptyCell colSpan={7}>No se encontraron cuentas</EmptyCell>
+                    <EmptyCell colSpan={7}>{loading ? 'Cargando cuentas...' : 'No se encontraron cuentas'}</EmptyCell>
                   </EmptyRow>
-                ) : pageRows.map(acc => (
+                ) : accounts.map(acc => (
                   <Tr key={acc.id}>
-
-                    {/* titular */}
                     <Td>
                       <AccountCell>
                         <AccountAvatar $bg={bankCfg.avatarBg} $br={bankCfg.avatarBr}>
-                          {acc.nombre_titular[0].toUpperCase()}
+                          {(acc.nombre_titular || '?')[0].toUpperCase()}
                         </AccountAvatar>
                         <AccountMeta>
                           <AccountName>{acc.nombre_titular}</AccountName>
@@ -266,18 +360,15 @@ const BanksPage = ({ onMenuOpen }) => {
                       </AccountCell>
                     </Td>
 
-                    {/* cuit */}
                     {activeBank !== 'mercadopago' && (
-                      <Td><MonoText>{acc.cuit ?? '—'}</MonoText></Td>
+                      <Td><MonoText>{acc.cuit || '-'}</MonoText></Td>
                     )}
 
-                    {/* alias / cbu */}
                     <Td>
                       <AccountName style={{ fontSize: 12.5 }}>{acc.alias}</AccountName>
                       <MonoLabel>{maskCBU(acc.cbu)}</MonoLabel>
                     </Td>
 
-                    {/* mp token */}
                     {activeBank === 'mercadopago' && (
                       <Td>
                         <MonoText>{maskToken(acc.token)}</MonoText>
@@ -287,7 +378,6 @@ const BanksPage = ({ onMenuOpen }) => {
                       </Td>
                     )}
 
-                    {/* hgcash cookie/webhook */}
                     {activeBank === 'hgcash' && (
                       <Td>
                         {acc.cookie_expires_at ? (
@@ -295,20 +385,19 @@ const BanksPage = ({ onMenuOpen }) => {
                             ? <ExpiredBadge>Cookie expirada</ExpiredBadge>
                             : <TokenBadge $ok>Cookie activa</TokenBadge>
                         ) : <TokenBadge>Sin cookie</TokenBadge>}
-                        {acc.webhook_secret && (
+                        {acc.webhook_enabled && (
                           <div style={{ marginTop: 4 }}>
-                            <TokenBadge $ok>Webhook ✓</TokenBadge>
+                            <TokenBadge $ok>Webhook activo</TokenBadge>
                           </div>
                         )}
                       </Td>
                     )}
 
-                    {/* telepagos token/expiry */}
                     {activeBank === 'telepagos' && (
                       <Td>
                         {acc.token
                           ? <MonoText style={{ fontSize: 11 }}>{maskToken(acc.token)}</MonoText>
-                          : <MonoText>—</MonoText>}
+                          : <MonoText>-</MonoText>}
                         {acc.expires_at && (
                           <div style={{ marginTop: 4 }}>
                             {isExpired(acc.expires_at)
@@ -319,14 +408,12 @@ const BanksPage = ({ onMenuOpen }) => {
                       </Td>
                     )}
 
-                    {/* estado */}
                     <Td $center>
                       <StatusBadge $on={acc.estatus === 'activa'}>
                         {acc.estatus === 'activa' ? 'Activa' : 'Inactiva'}
                       </StatusBadge>
                     </Td>
 
-                    {/* acciones */}
                     <Td $center>
                       <ActionBtns style={{ justifyContent: 'center' }}>
                         <ActionBtn type="button" title="Editar" onClick={() => openEdit(acc)}>
@@ -336,7 +423,7 @@ const BanksPage = ({ onMenuOpen }) => {
                           type="button"
                           $v={acc.estatus === 'activa' ? 'danger' : 'success'}
                           title={acc.estatus === 'activa' ? 'Desactivar' : 'Activar'}
-                          onClick={() => toggleStatus(acc.id)}
+                          onClick={() => toggleStatus(acc)}
                         >
                           <PowerSettingsNewIcon />
                         </ActionBtn>
@@ -348,7 +435,6 @@ const BanksPage = ({ onMenuOpen }) => {
                         </ActionBtn>
                       </ActionBtns>
                     </Td>
-
                   </Tr>
                 ))}
               </Tbody>
@@ -357,58 +443,53 @@ const BanksPage = ({ onMenuOpen }) => {
 
           <Pagination>
             <PaginInfo>
-              {filtered.length === 0 ? '0 cuentas'
-                : `${(safePage-1)*ROWS+1}–${Math.min(safePage*ROWS,filtered.length)} de ${filtered.length}`}
+              {pagination.total === 0 ? '0 cuentas'
+                : `${(safePage - 1) * ROWS + 1}-${Math.min(safePage * ROWS, pagination.total)} de ${pagination.total}`}
             </PaginInfo>
             <PaginBtns>
-              <PaginBtn type="button" onClick={() => setPage(p => Math.max(1,p-1))} disabled={safePage===1}>
+              <PaginBtn type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
                 <ChevronLeftIcon />
               </PaginBtn>
-              {Array.from({ length: totalPages }, (_,i) => i+1).map(p => (
-                <PaginBtn key={p} type="button" $active={p===safePage} onClick={() => setPage(p)}>{p}</PaginBtn>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
+                <PaginBtn key={p} type="button" $active={p === safePage} onClick={() => setPage(p)}>{p}</PaginBtn>
               ))}
-              <PaginBtn type="button" onClick={() => setPage(p => Math.min(totalPages,p+1))} disabled={safePage===totalPages}>
+              <PaginBtn type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
                 <ChevronRightIcon />
               </PaginBtn>
             </PaginBtns>
           </Pagination>
         </TableCard>
-
       </PageScroll>
 
-      {/* ════════════════ MODAL ════════════════ */}
       {modalOpen && (
         <Overlay onClick={close}>
           <ModalCard onClick={e => e.stopPropagation()}>
-
             <ModalHead>
               <ModalBankBadge $bg={bankCfg.bg} $br={bankCfg.br} $cl={bankCfg.color}>
                 <AccountBalanceOutlinedIcon />
               </ModalBankBadge>
               <ModalHeadText>
                 <ModalTitle>{editAcc ? `Editar cuenta ${bankCfg.label}` : `Nueva cuenta ${bankCfg.label}`}</ModalTitle>
-                <ModalSub>{editAcc ? `Modificando datos de ${editAcc.nombre_titular}` : `Completa los datos de la nueva cuenta`}</ModalSub>
+                <ModalSub>{editAcc ? `Modificando datos de ${editAcc.nombre_titular}` : 'Completa los datos de la nueva cuenta'}</ModalSub>
               </ModalHeadText>
               <ModalClose type="button" onClick={close}><CloseIcon /></ModalClose>
             </ModalHead>
 
             <ModalBody>
-
-              {/* ── campos comunes: titular ── */}
               <div>
                 <SecLabel>Titular</SecLabel>
                 <FormGrid style={{ marginTop: 12 }}>
                   <Field $full>
                     <FieldLabel>Nombre completo del titular</FieldLabel>
                     <FieldInput
-                      type="text" placeholder="Juan García"
+                      type="text" placeholder="Juan Garcia"
                       value={form.nombre_titular ?? ''}
                       onChange={e => setField('nombre_titular', e.target.value)}
                     />
                   </Field>
                   {form.email !== undefined && (
                     <Field $full>
-                      <FieldLabel>Correo electrónico</FieldLabel>
+                      <FieldLabel>Correo electronico {activeBank === 'manual' && '(opcional)'}</FieldLabel>
                       <FieldInput
                         type="email" placeholder="cuenta@gmail.com"
                         value={form.email ?? ''}
@@ -419,13 +500,13 @@ const BanksPage = ({ onMenuOpen }) => {
                   {form.password !== undefined && (
                     <Field $full>
                       <FieldLabel>
-                        Contraseña&nbsp;
-                        {editAcc && <span style={{ fontWeight:400, textTransform:'none', letterSpacing:0, fontSize:10, color:'rgba(255,255,255,0.22)' }}>dejar vacío para no cambiar</span>}
+                        Contrasena&nbsp;
+                        {editAcc && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>dejar vacio para no cambiar</span>}
                       </FieldLabel>
                       <InputWrap>
                         <FieldInput
                           type={showPw.pw ? 'text' : 'password'}
-                          placeholder="••••••••"
+                          placeholder="********"
                           value={form.password ?? ''}
                           onChange={e => setField('password', e.target.value)}
                           autoComplete="new-password"
@@ -440,13 +521,12 @@ const BanksPage = ({ onMenuOpen }) => {
                 </FormGrid>
               </div>
 
-              {/* ── datos bancarios ── */}
               <div>
                 <SecLabel>Datos bancarios</SecLabel>
                 <FormGrid style={{ marginTop: 12 }}>
                   {form.cuit !== undefined && (
                     <Field>
-                      <FieldLabel>CUIT</FieldLabel>
+                      <FieldLabel>CUIT {activeBank === 'manual' && '(opcional)'}</FieldLabel>
                       <FieldInput
                         type="text" placeholder="20-12345678-9"
                         value={form.cuit ?? ''}
@@ -476,15 +556,12 @@ const BanksPage = ({ onMenuOpen }) => {
                 </FormGrid>
               </div>
 
-              {/* ── token (MP y Telepagos) ── */}
               {form.token !== undefined && (
                 <div>
                   <SecLabel>Credenciales API</SecLabel>
                   <FormGrid style={{ marginTop: 12 }}>
                     <Field $full>
-                      <FieldLabel>
-                        {activeBank === 'mercadopago' ? 'Token de acceso (APP_USR-...)' : 'Token de autenticación'}
-                      </FieldLabel>
+                      <FieldLabel>{activeBank === 'mercadopago' ? 'Token de acceso (APP_USR-...)' : 'Token de autenticacion'}</FieldLabel>
                       <InputWrap>
                         <FieldInput
                           type={showPw.token ? 'text' : 'password'}
@@ -499,64 +576,90 @@ const BanksPage = ({ onMenuOpen }) => {
                         </InputSuffix>
                       </InputWrap>
                     </Field>
+                    {activeBank === 'telepagos' && (
+                      <Field $full>
+                        <FieldLabel>Fecha de vencimiento</FieldLabel>
+                        <FieldInput
+                          type="date"
+                          value={form.expires_at ?? ''}
+                          onChange={e => setField('expires_at', e.target.value)}
+                        />
+                      </Field>
+                    )}
                   </FormGrid>
                 </div>
               )}
 
-              {/* ── webhook secret (HGCash) ── */}
-              {form.webhook_secret !== undefined && (
+              {form.webhook_enabled !== undefined && (
                 <div>
                   <SecLabel>Webhook</SecLabel>
-                  <FormGrid style={{ marginTop: 12 }}>
-                    <Field $full>
-                      <FieldLabel>Webhook Secret</FieldLabel>
-                      <InputWrap>
-                        <FieldInput
-                          type={showPw.wh ? 'text' : 'password'}
-                          placeholder="whsec_..."
-                          value={form.webhook_secret ?? ''}
-                          onChange={e => setField('webhook_secret', e.target.value)}
-                          autoComplete="off"
-                          style={{ paddingRight: 40, fontFamily: "'Courier New', monospace", fontSize: 12 }}
-                        />
-                        <InputSuffix type="button" onClick={() => togglePw('wh')} tabIndex={-1}>
-                          {showPw.wh ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
-                        </InputSuffix>
-                      </InputWrap>
-                    </Field>
-                  </FormGrid>
+                  <StatusRow style={{ marginTop: 12 }}>
+                    <StatusRowLabel>
+                      <StatusRowTitle>Usar webhook</StatusRowTitle>
+                      <StatusRowSub>Activalo solo para cuentas que recibiran notificaciones automaticas</StatusRowSub>
+                    </StatusRowLabel>
+                    <Toggle
+                      type="button"
+                      $on={form.webhook_enabled}
+                      onClick={() => setForm(prev => ({
+                        ...prev,
+                        webhook_enabled: !prev.webhook_enabled,
+                        webhook_secret: prev.webhook_enabled ? '' : prev.webhook_secret,
+                      }))}
+                    >
+                      <ToggleThumb $on={form.webhook_enabled} />
+                    </Toggle>
+                  </StatusRow>
+
+                  {form.webhook_enabled && (
+                    <FormGrid style={{ marginTop: 12 }}>
+                      <Field $full>
+                        <FieldLabel>Webhook Secret</FieldLabel>
+                        <InputWrap>
+                          <FieldInput
+                            type={showPw.wh ? 'text' : 'password'}
+                            placeholder="whsec_..."
+                            value={form.webhook_secret ?? ''}
+                            onChange={e => setField('webhook_secret', e.target.value)}
+                            autoComplete="off"
+                            style={{ paddingRight: 40, fontFamily: "'Courier New', monospace", fontSize: 12 }}
+                          />
+                          <InputSuffix type="button" onClick={() => togglePw('wh')} tabIndex={-1}>
+                            {showPw.wh ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                          </InputSuffix>
+                        </InputWrap>
+                      </Field>
+                    </FormGrid>
+                  )}
                 </div>
               )}
 
-              {/* ── estado ── */}
               <StatusRow>
                 <StatusRowLabel>
                   <StatusRowTitle>Cuenta activa</StatusRowTitle>
                   <StatusRowSub>La cuenta puede operar y recibir transacciones</StatusRowSub>
                 </StatusRowLabel>
-                <Toggle $on={form.estatus === 'activa'} onClick={() => setField('estatus', form.estatus === 'activa' ? 'inactiva' : 'activa')}>
+                <Toggle type="button" $on={form.estatus === 'activa'} onClick={() => setField('estatus', form.estatus === 'activa' ? 'inactiva' : 'activa')}>
                   <ToggleThumb $on={form.estatus === 'activa'} />
                 </Toggle>
               </StatusRow>
-
             </ModalBody>
 
             <ModalFoot>
               <FootLeft>
                 {editAcc && (
-                  <ModalBtn type="button" $v="danger" onClick={() => { deleteAcc(editAcc.id); close() }}>
+                  <ModalBtn type="button" $v="danger" onClick={() => deleteAcc(editAcc.id)} disabled={saving}>
                     Eliminar
                   </ModalBtn>
                 )}
               </FootLeft>
               <FootRight>
-                <ModalBtn type="button" onClick={close}>Cancelar</ModalBtn>
-                <ModalBtn type="button" $v="primary" onClick={handleSave}>
-                  {editAcc ? 'Guardar cambios' : 'Crear cuenta'}
+                <ModalBtn type="button" onClick={close} disabled={saving}>Cancelar</ModalBtn>
+                <ModalBtn type="button" $v="primary" onClick={handleSave} disabled={saving}>
+                  {saving ? 'Guardando...' : editAcc ? 'Guardar cambios' : 'Crear cuenta'}
                 </ModalBtn>
               </FootRight>
             </ModalFoot>
-
           </ModalCard>
         </Overlay>
       )}

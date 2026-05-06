@@ -1,0 +1,290 @@
+import { query } from '../config/database.js'
+
+const PROVIDERS = ['hgcash', 'mercadopago', 'telepagos', 'manual']
+
+function parseAccountData(value) {
+  if (!value) return {}
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return {}
+  }
+}
+
+function normalizeText(value) {
+  return String(value ?? '').trim()
+}
+
+function normalizeBoolean(value) {
+  return value === true || value === 1 || value === '1' || value === 'true'
+}
+
+function requireFields(body, fields, errors) {
+  fields.forEach((field) => {
+    if (!normalizeText(body[field])) errors.push(`El campo ${field} es requerido`)
+  })
+}
+
+function sanitizeAccount(row) {
+  const data = parseAccountData(row.account_data)
+
+  return {
+    id: row.id,
+    provider: row.provider_slug,
+    nombre_titular: data.nombre_titular || '',
+    email: data.email || '',
+    cuit: data.cuit || '',
+    alias: row.alias || data.alias || '',
+    cbu: data.cbu || '',
+    token: data.token || '',
+    cookie: data.cookie || '',
+    cookie_expires_at: data.cookie_expires_at || null,
+    webhook_enabled: Boolean(data.webhook_enabled),
+    webhook_secret: data.webhook_secret || '',
+    expires_at: data.expires_at || null,
+    currency: row.currency || 'ARS',
+    estatus: row.is_active ? 'activa' : 'inactiva',
+    created_at: row.created_at ?? null,
+    updated_at: row.updated_at ?? null,
+  }
+}
+
+async function getProvider(slug) {
+  const { rows, error } = await query(
+    'SELECT id, slug, name FROM bank_providers WHERE slug = ? AND is_active = 1 LIMIT 1',
+    [slug]
+  )
+  if (error) throw error
+  return rows?.[0] || null
+}
+
+async function getAccountRow(id) {
+  const { rows, error } = await query(
+    `SELECT ba.*, bp.slug AS provider_slug
+     FROM bank_accounts ba
+     INNER JOIN bank_providers bp ON bp.id = ba.provider_id
+     WHERE ba.id = ?
+     LIMIT 1`,
+    [id]
+  )
+  if (error) throw error
+  return rows?.[0] || null
+}
+
+function validatePayload(body, provider, { editing = false, previousData = {} } = {}) {
+  const errors = []
+  const password = normalizeText(body.password)
+  const webhookEnabled = normalizeBoolean(body.webhook_enabled)
+  const payload = {
+    nombre_titular: normalizeText(body.nombre_titular),
+    email: normalizeText(body.email),
+    cuit: normalizeText(body.cuit),
+    alias: normalizeText(body.alias),
+    cbu: normalizeText(body.cbu),
+    token: normalizeText(body.token),
+    cookie: normalizeText(body.cookie),
+    cookie_expires_at: normalizeText(body.cookie_expires_at) || null,
+    webhook_enabled: webhookEnabled,
+    webhook_secret: webhookEnabled ? normalizeText(body.webhook_secret) : '',
+    expires_at: normalizeText(body.expires_at) || null,
+  }
+
+  if (password) payload.password = password
+  else if (editing && previousData.password) payload.password = previousData.password
+
+  if (provider === 'mercadopago') {
+    requireFields(payload, ['nombre_titular', 'alias', 'cbu', 'token'], errors)
+  }
+
+  if (provider === 'manual') {
+    requireFields(payload, ['nombre_titular', 'alias', 'cbu'], errors)
+  }
+
+  if (provider === 'hgcash') {
+    requireFields(payload, ['nombre_titular', 'email', 'cuit', 'alias', 'cbu'], errors)
+    if (!editing && !password) errors.push('El campo password es requerido')
+    if (webhookEnabled && !payload.webhook_secret) errors.push('El webhook secret es requerido cuando el webhook esta activo')
+  }
+
+  if (provider === 'telepagos') {
+    requireFields(payload, ['nombre_titular', 'email', 'cuit', 'alias', 'cbu', 'token', 'expires_at'], errors)
+    if (!editing && !password) errors.push('El campo password es requerido')
+  }
+
+  return { errors, payload }
+}
+
+async function getCounts() {
+  const { rows, error } = await query(
+    `SELECT bp.slug, COUNT(ba.id) AS total
+     FROM bank_providers bp
+     LEFT JOIN bank_accounts ba ON ba.provider_id = bp.id
+     WHERE bp.slug IN ('hgcash', 'mercadopago', 'telepagos', 'manual')
+     GROUP BY bp.slug`,
+    []
+  )
+  if (error) throw error
+
+  return rows.reduce((acc, row) => {
+    acc[row.slug] = Number(row.total || 0)
+    return acc
+  }, { hgcash: 0, mercadopago: 0, telepagos: 0, manual: 0 })
+}
+
+export async function getBankAccounts(req, res, next) {
+  try {
+    const providerSlug = String(req.query.provider || 'hgcash')
+    if (!PROVIDERS.includes(providerSlug)) {
+      return res.status(400).json({ error: 'Proveedor invalido', code: 'INVALID_PROVIDER' })
+    }
+
+    const provider = await getProvider(providerSlug)
+    if (!provider) return res.status(404).json({ error: 'Proveedor no encontrado', code: 'PROVIDER_NOT_FOUND' })
+
+    const page = Math.max(1, parseInt(req.query.page || '1', 10) || 1)
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '8', 10) || 8))
+    const search = normalizeText(req.query.search)
+    const status = String(req.query.status || 'all')
+
+    const where = ['ba.provider_id = ?']
+    const values = [provider.id]
+
+    if (search) {
+      where.push(`(
+        ba.alias LIKE ?
+        OR JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.nombre_titular')) LIKE ?
+        OR JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.email')) LIKE ?
+        OR JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.cbu')) LIKE ?
+        OR JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.cuit')) LIKE ?
+      )`)
+      const like = `%${search}%`
+      values.push(like, like, like, like, like)
+    }
+
+    if (status === 'activa' || status === 'inactiva') {
+      where.push('ba.is_active = ?')
+      values.push(status === 'activa' ? 1 : 0)
+    }
+
+    const whereSql = `WHERE ${where.join(' AND ')}`
+
+    const { rows: countRows, error: countError } = await query(
+      `SELECT COUNT(*) AS total
+       FROM bank_accounts ba
+       ${whereSql}`,
+      values
+    )
+    if (countError) return next(countError)
+
+    const total = Number(countRows?.[0]?.total || 0)
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+    const safePage = Math.min(page, totalPages)
+    const offset = (safePage - 1) * limit
+
+    const { rows, error } = await query(
+      `SELECT ba.*, bp.slug AS provider_slug
+       FROM bank_accounts ba
+       INNER JOIN bank_providers bp ON bp.id = ba.provider_id
+       ${whereSql}
+       ORDER BY ba.updated_at DESC, ba.id DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      values
+    )
+    if (error) return next(error)
+
+    const counts = await getCounts()
+
+    res.json({
+      accounts: rows.map(sanitizeAccount),
+      counts,
+      pagination: { page: safePage, limit, total, totalPages },
+    })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function createBankAccount(req, res, next) {
+  try {
+    const providerSlug = String(req.body.provider || '')
+    if (!PROVIDERS.includes(providerSlug)) {
+      return res.status(400).json({ error: 'Proveedor invalido', code: 'INVALID_PROVIDER' })
+    }
+
+    const provider = await getProvider(providerSlug)
+    if (!provider) return res.status(404).json({ error: 'Proveedor no encontrado', code: 'PROVIDER_NOT_FOUND' })
+
+    const { errors, payload } = validatePayload(req.body, providerSlug)
+    if (errors.length > 0) {
+      return res.status(400).json({ error: 'Datos de cuenta invalidos', details: errors, code: 'INVALID_BANK_ACCOUNT_PAYLOAD' })
+    }
+
+    const isActive = req.body.estatus !== 'inactiva' && req.body.is_active !== false
+    const { rows: result, error: insertError } = await query(
+      'INSERT INTO bank_accounts (provider_id, alias, account_data, currency, is_active) VALUES (?, ?, ?, ?, ?)',
+      [provider.id, payload.alias, JSON.stringify(payload), req.body.currency || 'ARS', isActive ? 1 : 0]
+    )
+    if (insertError) return next(insertError)
+
+    const row = await getAccountRow(result.insertId)
+    res.status(201).json({ account: sanitizeAccount(row), counts: await getCounts() })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateBankAccount(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ error: 'ID de cuenta invalido', code: 'INVALID_ID' })
+    }
+
+    const current = await getAccountRow(id)
+    if (!current) return res.status(404).json({ error: 'Cuenta no encontrada', code: 'BANK_ACCOUNT_NOT_FOUND' })
+
+    const providerSlug = current.provider_slug
+    const previousData = parseAccountData(current.account_data)
+    const { errors, payload } = validatePayload(req.body, providerSlug, { editing: true, previousData })
+    if (errors.length > 0) {
+      return res.status(400).json({ error: 'Datos de cuenta invalidos', details: errors, code: 'INVALID_BANK_ACCOUNT_PAYLOAD' })
+    }
+
+    const isActive = req.body.estatus !== 'inactiva' && req.body.is_active !== false
+    const { error: updateError } = await query(
+      'UPDATE bank_accounts SET alias = ?, account_data = ?, currency = ?, is_active = ? WHERE id = ?',
+      [payload.alias, JSON.stringify(payload), req.body.currency || current.currency || 'ARS', isActive ? 1 : 0, id]
+    )
+    if (updateError) return next(updateError)
+
+    const row = await getAccountRow(id)
+    res.json({ account: sanitizeAccount(row), counts: await getCounts() })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function deleteBankAccount(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ error: 'ID de cuenta invalido', code: 'INVALID_ID' })
+    }
+
+    const { error } = await query('DELETE FROM bank_accounts WHERE id = ?', [id])
+    if (error) {
+      if (error.code === 'ER_ROW_IS_REFERENCED_2') {
+        return res.status(409).json({
+          error: 'La cuenta esta en uso y no se puede eliminar. Puedes desactivarla.',
+          code: 'BANK_ACCOUNT_IN_USE',
+        })
+      }
+      return next(error)
+    }
+
+    res.json({ success: true, counts: await getCounts() })
+  } catch (err) {
+    next(err)
+  }
+}
