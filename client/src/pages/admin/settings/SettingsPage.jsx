@@ -612,6 +612,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                         <option>MXN</option>
                         <option>COP</option>
                         <option>CLP</option>
+                        <option>UYU</option>
                       </CurrencySelect>
                     </MontoInputRow>
                     <MontoNote>
@@ -664,6 +665,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                         <option>MXN</option>
                         <option>COP</option>
                         <option>CLP</option>
+                        <option>UYU</option>
                       </CurrencySelect>
                     </MontoInputRow>
                     <MontoNote>

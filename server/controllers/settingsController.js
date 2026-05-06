@@ -30,6 +30,40 @@ function normalizeText(value) {
   return String(value ?? '').trim()
 }
 
+const SUPPORTED_CURRENCIES = ['USD', 'ARS', 'MXN', 'COP', 'CLP', 'UYU']
+const SUPPORTED_OPERATIONS = ['deposit', 'withdrawal']
+
+function normalizeCurrency(value) {
+  return normalizeText(value).toUpperCase()
+}
+
+function validateAmountEntry(item) {
+  const currency = normalizeCurrency(item.currency || '')
+  const operation = normalizeText(item.operation || '').toLowerCase()
+  const amount = Number(item.amount)
+  const is_active = item.is_active === false ? 0 : 1
+
+  if (!SUPPORTED_CURRENCIES.includes(currency)) {
+    return { valid: false, message: `Moneda no soportada: ${currency}` }
+  }
+  if (!SUPPORTED_OPERATIONS.includes(operation)) {
+    return { valid: false, message: `Operacion invalida: ${operation}` }
+  }
+  if (Number.isNaN(amount) || amount < 0) {
+    return { valid: false, message: 'Monto invalido' }
+  }
+
+  return {
+    valid: true,
+    value: {
+      currency,
+      operation,
+      amount,
+      is_active,
+    },
+  }
+}
+
 function sanitizeUser(row) {
   return {
     id: row.id,
@@ -101,6 +135,30 @@ async function getAmounts() {
   })
 
   return result
+}
+
+async function getAmountsList() {
+  const { rows, error } = await query(
+    'SELECT currency, operation, min_amount, is_active FROM amounts WHERE operation IN ("deposit", "withdrawal") ORDER BY operation, currency',
+    []
+  )
+  if (error) throw error
+
+  return rows.map(row => ({
+    currency: row.currency || 'USD',
+    operation: row.operation,
+    amount: String(row.min_amount ?? '0'),
+    is_active: Boolean(row.is_active),
+  }))
+}
+
+function buildAmountResponse(amountEntry) {
+  return {
+    currency: amountEntry.currency,
+    operation: amountEntry.operation,
+    amount: String(amountEntry.amount),
+    is_active: Boolean(amountEntry.is_active),
+  }
 }
 
 async function getApis() {
@@ -195,9 +253,10 @@ async function getBankProviders() {
 
 export async function getSettings(req, res, next) {
   try {
-    const [profile, amounts, apis, chatBank, bankData] = await Promise.all([
+    const [profile, amounts, amountsList, apis, chatBank, bankData] = await Promise.all([
       getProfile(req.user.sub),
       getAmounts(),
+      getAmountsList(),
       getApis(),
       getChatBank(),
       getBankProviders(),
@@ -208,6 +267,8 @@ export async function getSettings(req, res, next) {
     res.json({
       profile: sanitizeUser(profile),
       amounts,
+      amountsList,
+      supportedCurrencies: SUPPORTED_CURRENCIES,
       apis,
       chatBank,
       bankProviders: bankData.providers,
@@ -298,28 +359,151 @@ export async function updatePassword(req, res, next) {
 
 export async function updateAmounts(req, res, next) {
   try {
-    const carga = req.body.carga || {}
-    const retiro = req.body.retiro || {}
-    const payloads = [
-      { operation: 'deposit', currency: normalizeText(carga.currency || 'USD').toUpperCase(), amount: Number(carga.amount) },
-      { operation: 'withdrawal', currency: normalizeText(retiro.currency || 'USD').toUpperCase(), amount: Number(retiro.amount) },
-    ]
+    const entries = Array.isArray(req.body)
+      ? req.body
+      : [
+        { operation: 'deposit', currency: normalizeText(req.body.carga?.currency || 'USD').toUpperCase(), amount: Number(req.body.carga?.amount) },
+        { operation: 'withdrawal', currency: normalizeText(req.body.retiro?.currency || 'USD').toUpperCase(), amount: Number(req.body.retiro?.amount) },
+      ]
 
-    if (payloads.some(item => !item.currency || Number.isNaN(item.amount) || item.amount < 0)) {
-      return res.status(400).json({ error: 'Montos invalidos', code: 'INVALID_AMOUNTS' })
-    }
+    const normalized = entries.map(item => {
+      const validation = validateAmountEntry(item)
+      if (!validation.valid) {
+        throw new Error(validation.message)
+      }
+      return validation.value
+    })
 
-    for (const item of payloads) {
+    for (const item of normalized) {
       const { error } = await query(
         `INSERT INTO amounts (currency, operation, min_amount, is_active)
-         VALUES (?, ?, ?, 1)
-         ON DUPLICATE KEY UPDATE min_amount = VALUES(min_amount), is_active = 1`,
-        [item.currency, item.operation, item.amount]
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE min_amount = VALUES(min_amount), is_active = VALUES(is_active)`,
+        [item.currency, item.operation, item.amount, item.is_active]
       )
       if (error) return next(error)
     }
 
-    res.json({ amounts: await getAmounts() })
+    res.json({ amounts: await getAmounts(), amountsList: await getAmountsList() })
+  } catch (err) {
+    if (err.message && err.message.startsWith('Moneda no soportada')) {
+      return res.status(400).json({ error: err.message, code: 'INVALID_CURRENCY' })
+    }
+    if (err.message === 'Operacion invalida' || err.message === 'Monto invalido') {
+      return res.status(400).json({ error: err.message, code: 'INVALID_AMOUNTS' })
+    }
+    next(err)
+  }
+}
+
+export async function getAmountsListRoute(req, res, next) {
+  try {
+    res.json({ amountsList: await getAmountsList(), supportedCurrencies: SUPPORTED_CURRENCIES })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function createAmount(req, res, next) {
+  try {
+    const validation = validateAmountEntry(req.body)
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.message, code: 'INVALID_AMOUNTS' })
+    }
+
+    const value = validation.value
+    const { rows: existing, error: existingError } = await query(
+      'SELECT 1 FROM amounts WHERE currency = ? AND operation = ? LIMIT 1',
+      [value.currency, value.operation]
+    )
+    if (existingError) return next(existingError)
+    if (existing?.length) {
+      return res.status(409).json({ error: 'El monto ya existe para esa moneda y operacion', code: 'AMOUNT_CONFLICT' })
+    }
+
+    const { error } = await query(
+      'INSERT INTO amounts (currency, operation, min_amount, is_active) VALUES (?, ?, ?, ?)',
+      [value.currency, value.operation, value.amount, value.is_active]
+    )
+    if (error) return next(error)
+
+    res.status(201).json({ amount: buildAmountResponse(value), amountsList: await getAmountsList() })
+  } catch (err) {
+    if (err.message && err.message.startsWith('Moneda no soportada')) {
+      return res.status(400).json({ error: err.message, code: 'INVALID_CURRENCY' })
+    }
+    next(err)
+  }
+}
+
+export async function updateAmount(req, res, next) {
+  try {
+    const originalCurrency = normalizeCurrency(req.params.currency)
+    const originalOperation = normalizeText(req.params.operation).toLowerCase()
+
+    const validation = validateAmountEntry(req.body)
+    if (!validation.valid) {
+      return res.status(400).json({ error: validation.message, code: 'INVALID_AMOUNTS' })
+    }
+
+    const value = validation.value
+
+    const { rows: existingRows, error: existingError } = await query(
+      'SELECT 1 FROM amounts WHERE currency = ? AND operation = ? LIMIT 1',
+      [originalCurrency, originalOperation]
+    )
+    if (existingError) return next(existingError)
+    if (!existingRows?.length) {
+      return res.status(404).json({ error: 'Monto no encontrado', code: 'AMOUNT_NOT_FOUND' })
+    }
+
+    if ((value.currency !== originalCurrency || value.operation !== originalOperation) && value.is_active) {
+      const { rows: conflictRows, error: conflictError } = await query(
+        'SELECT 1 FROM amounts WHERE currency = ? AND operation = ? LIMIT 1',
+        [value.currency, value.operation]
+      )
+      if (conflictError) return next(conflictError)
+      if (conflictRows?.length) {
+        return res.status(409).json({ error: 'Ya existe un monto con esa moneda y operacion', code: 'AMOUNT_CONFLICT' })
+      }
+    }
+
+    const { error } = await query(
+      'UPDATE amounts SET currency = ?, operation = ?, min_amount = ?, is_active = ? WHERE currency = ? AND operation = ?',
+      [value.currency, value.operation, value.amount, value.is_active, originalCurrency, originalOperation]
+    )
+    if (error) return next(error)
+
+    res.json({ amount: buildAmountResponse(value), amountsList: await getAmountsList() })
+  } catch (err) {
+    if (err.message && err.message.startsWith('Moneda no soportada')) {
+      return res.status(400).json({ error: err.message, code: 'INVALID_CURRENCY' })
+    }
+    next(err)
+  }
+}
+
+export async function deleteAmount(req, res, next) {
+  try {
+    const currency = normalizeCurrency(req.params.currency)
+    const operation = normalizeText(req.params.operation).toLowerCase()
+
+    const { rows: existingRows, error: existingError } = await query(
+      'SELECT 1 FROM amounts WHERE currency = ? AND operation = ? LIMIT 1',
+      [currency, operation]
+    )
+    if (existingError) return next(existingError)
+    if (!existingRows?.length) {
+      return res.status(404).json({ error: 'Monto no encontrado', code: 'AMOUNT_NOT_FOUND' })
+    }
+
+    const { error } = await query(
+      'UPDATE amounts SET is_active = 0 WHERE currency = ? AND operation = ?',
+      [currency, operation]
+    )
+    if (error) return next(error)
+
+    res.json({ amountsList: await getAmountsList() })
   } catch (err) {
     next(err)
   }
