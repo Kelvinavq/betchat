@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import SearchIcon from '@mui/icons-material/Search'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
@@ -8,6 +8,9 @@ import CloseIcon from '@mui/icons-material/Close'
 import MenuIcon from '@mui/icons-material/Menu'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
+import { api } from '../../../utils/api'
 import {
   PageWrap, PageScroll,
   PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
@@ -18,7 +21,7 @@ import {
   PermChips, PermChip,
   ActionBtns, ActionBtn,
   Pagination, PaginInfo, PaginBtns, PaginBtn,
-  EmptyRow, EmptyCell,
+  EmptyRow, EmptyCell, LoadingRow, LoadingCell,
   Overlay, ModalCard, ModalHead, ModalTitle, ModalSub, ModalClose, ModalBody,
   AvatarRow, AvatarBox, AvatarHint,
   SecLabel,
@@ -27,9 +30,10 @@ import {
   PermGrid, PermRow, PermName, PermDot,
   RestrList, RestrItem, RestrCheck, RestrLabel, RestrNote,
   ModalFoot, FootLeft, FootRight, ModalBtn,
+  Toast, ToastIconBox, ToastBody, ToastTitle, ToastMsg, ToastClose,
 } from './UsersPage.styles'
 
-/* ── config ── */
+/* ── constants ── */
 const PERM_CONFIG = [
   { id: 'retiros',  label: 'Retiros',  dot: '#f59e0b', bg: 'rgba(245,158,11,0.12)', cl: '#fbbf24', br: 'rgba(245,158,11,0.24)' },
   { id: 'cargas',   label: 'Cargas',   dot: '#22c55e', bg: 'rgba(34,197,94,0.12)',  cl: '#4ade80', br: 'rgba(34,197,94,0.24)'  },
@@ -45,35 +49,35 @@ const PAGE_CONFIG = [
 
 const ROWS_PER_PAGE = 8
 
-/* ── mock data ── */
-const MOCK_USERS = [
-  { id: 1,  username: 'Ana García',       email: 'ana@betchat.com',        role: 'admin',  status: true,  online: true,  perms: { retiros: true,  cargas: true,  cuponera: true,  soporte: true  }, restricted: [] },
-  { id: 2,  username: 'Luis Mendoza',     email: 'luis@betchat.com',       role: 'cajero', status: true,  online: true,  perms: { retiros: true,  cargas: true,  cuponera: false, soporte: false }, restricted: ['usuarios'] },
-  { id: 3,  username: 'Carla Ruiz',       email: 'carla@betchat.com',      role: 'cajero', status: true,  online: false, perms: { retiros: false, cargas: true,  cuponera: true,  soporte: true  }, restricted: [] },
-  { id: 4,  username: 'Pedro Torres',     email: 'pedro@betchat.com',      role: 'admin',  status: true,  online: false, perms: { retiros: true,  cargas: true,  cuponera: true,  soporte: true  }, restricted: [] },
-  { id: 5,  username: 'María López',      email: 'maria@betchat.com',      role: 'cajero', status: false, online: false, perms: { retiros: false, cargas: false, cuponera: false, soporte: true  }, restricted: ['clientes', 'usuarios'] },
-  { id: 6,  username: 'Jorge Díaz',       email: 'jorge@betchat.com',      role: 'cajero', status: true,  online: true,  perms: { retiros: true,  cargas: false, cuponera: false, soporte: true  }, restricted: [] },
-  { id: 7,  username: 'Sofía Martínez',   email: 'sofia@betchat.com',      role: 'admin',  status: true,  online: true,  perms: { retiros: true,  cargas: true,  cuponera: true,  soporte: true  }, restricted: [] },
-  { id: 8,  username: 'Diego Herrera',    email: 'diego@betchat.com',      role: 'cajero', status: true,  online: false, perms: { retiros: false, cargas: true,  cuponera: true,  soporte: false }, restricted: ['usuarios'] },
-  { id: 9,  username: 'Valentina Cruz',   email: 'valentina@betchat.com',  role: 'cajero', status: false, online: false, perms: { retiros: false, cargas: false, cuponera: false, soporte: false }, restricted: ['chat', 'clientes', 'usuarios'] },
-  { id: 10, username: 'Mateo Flores',     email: 'mateo@betchat.com',      role: 'admin',  status: true,  online: true,  perms: { retiros: true,  cargas: true,  cuponera: false, soporte: true  }, restricted: [] },
-  { id: 11, username: 'Isabella Vega',    email: 'isabella@betchat.com',   role: 'cajero', status: true,  online: true,  perms: { retiros: false, cargas: true,  cuponera: true,  soporte: true  }, restricted: [] },
-  { id: 12, username: 'Sebastián Ríos',  email: 'sebastian@betchat.com',  role: 'cajero', status: false, online: false, perms: { retiros: false, cargas: false, cuponera: false, soporte: false }, restricted: ['clientes'] },
-]
+/* maps an API user to the component's shape */
+const mapApiUser = (u) => ({
+  id:            u.id,
+  username:      u.username,
+  full_name:     u.full_name || u.username,
+  email:         u.email,
+  role:          u.role,          // 'admin' | 'cashier'
+  status:        Boolean(u.is_active),
+  online:        false,
+  last_login_at: u.last_login_at,
+  perms:         { retiros: false, cargas: false, cuponera: false, soporte: false },
+  restricted:    [],
+})
 
 const initForm = (user = null) => ({
+  full_name:  user?.full_name  ?? '',
   username:   user?.username   ?? '',
   email:      user?.email      ?? '',
   password:   '',
-  role:       user?.role       ?? 'cajero',
+  role:       user?.role       ?? 'cashier',
   status:     user?.status     ?? true,
-  perms:      user ? { ...user.perms }      : { retiros: false, cargas: false, cuponera: false, soporte: false },
-  restricted: user ? [...user.restricted]   : [],
+  perms:      user ? { ...user.perms }    : { retiros: false, cargas: false, cuponera: false, soporte: false },
+  restricted: user ? [...user.restricted] : [],
 })
 
 /* ── component ── */
 const UsersPage = ({ onMenuOpen }) => {
-  const [users, setUsers]         = useState(MOCK_USERS)
+  const [users, setUsers]         = useState([])
+  const [loading, setLoading]     = useState(true)
   const [search, setSearch]       = useState('')
   const [statusFilter, setStatus] = useState('all')
   const [roleFilter, setRole]     = useState('all')
@@ -81,11 +85,40 @@ const UsersPage = ({ onMenuOpen }) => {
   const [modalOpen, setModalOpen] = useState(false)
   const [editUser, setEditUser]   = useState(null)
   const [form, setForm]           = useState(initForm())
+  const [alert, setAlert]         = useState(null)
+  const [saving, setSaving]       = useState(false)
+
+  /* auto-dismiss toast */
+  useEffect(() => {
+    if (!alert) return
+    const t = setTimeout(() => setAlert(null), 4500)
+    return () => clearTimeout(t)
+  }, [alert])
+
+  const notify = (message, type = 'success') => setAlert({ message, type })
+
+  /* ── load users from API ── */
+  const loadUsers = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await api.get('/api/users')
+      setUsers((data.users || []).map(mapApiUser))
+    } catch (err) {
+      notify(err.payload?.error || 'No se pudo cargar los usuarios', 'danger')
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadUsers() }, [loadUsers])
 
   /* ── filter & paginate ── */
   const filtered = users.filter(u => {
     const q = search.toLowerCase()
-    const matchSearch = !q || u.username.toLowerCase().includes(q) || u.email.toLowerCase().includes(q)
+    const matchSearch = !q ||
+      u.full_name.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q) ||
+      u.username.toLowerCase().includes(q)
     const matchStatus = statusFilter === 'all' || (statusFilter === 'active' ? u.status : !u.status)
     const matchRole   = roleFilter   === 'all' || u.role === roleFilter
     return matchSearch && matchStatus && matchRole
@@ -98,41 +131,93 @@ const UsersPage = ({ onMenuOpen }) => {
   const changeFilter = (setter) => (e) => { setter(e.target.value); setPage(1) }
 
   /* ── modal helpers ── */
-  const openAdd  = ()     => { setEditUser(null);  setForm(initForm());       setModalOpen(true) }
-  const openEdit = (user) => { setEditUser(user);  setForm(initForm(user));   setModalOpen(true) }
-  const close    = ()     => setModalOpen(false)
+  const openAdd  = ()     => { setEditUser(null); setForm(initForm());     setModalOpen(true) }
+  const openEdit = (user) => { setEditUser(user); setForm(initForm(user)); setModalOpen(true) }
+  const close    = ()     => { setModalOpen(false); setEditUser(null) }
 
-  const setField     = (key, val) => setForm(f => ({ ...f, [key]: val }))
-  const togglePerm   = (id)  => setForm(f => ({ ...f, perms: { ...f.perms, [id]: !f.perms[id] } }))
-  const toggleRestr  = (id)  => setForm(f => ({
+  const setField    = (key, val) => setForm(f => ({ ...f, [key]: val }))
+  const togglePerm  = (id)  => setForm(f => ({ ...f, perms: { ...f.perms, [id]: !f.perms[id] } }))
+  const toggleRestr = (id)  => setForm(f => ({
     ...f,
     restricted: f.restricted.includes(id)
       ? f.restricted.filter(r => r !== id)
       : [...f.restricted, id],
   }))
 
-  const handleSave = () => {
-    if (!form.username.trim() || !form.email.trim()) return
-    if (editUser) {
-      setUsers(prev => prev.map(u =>
-        u.id === editUser.id
-          ? { ...u, username: form.username, email: form.email, role: form.role, status: form.status, perms: form.perms, restricted: form.restricted }
-          : u
-      ))
-    } else {
-      setUsers(prev => [{
-        id: Date.now(), username: form.username, email: form.email,
-        role: form.role, status: form.status, online: false,
-        perms: form.perms, restricted: form.restricted,
-      }, ...prev])
+  /* ── save (create or edit) ── */
+  const handleSave = async () => {
+    if (!form.full_name.trim() || !form.username.trim() || !form.email.trim()) {
+      notify('Completa nombre completo, usuario y correo antes de continuar', 'danger')
+      return
     }
-    close()
+    if (!editUser && (!form.password || form.password.length < 8)) {
+      notify('La contraseña debe tener al menos 8 caracteres', 'danger')
+      return
+    }
+    if (editUser && form.password && form.password.length < 8) {
+      notify('La nueva contraseña debe tener al menos 8 caracteres', 'danger')
+      return
+    }
+
+    setSaving(true)
+    try {
+      const payload = {
+        username:  form.username.trim(),
+        full_name: form.full_name.trim(),
+        email:     form.email.trim(),
+        role:      form.role,
+        is_active: form.status,
+      }
+      if (!editUser) payload.password = form.password
+      else if (form.password) payload.password = form.password
+
+      if (editUser) {
+        const response = await api.put('/api/users/' + editUser.id, payload)
+        const updated = { ...mapApiUser(response.user), perms: form.perms, restricted: form.restricted }
+        setUsers(prev => prev.map(u => u.id === editUser.id ? updated : u))
+        notify('Usuario actualizado correctamente', 'success')
+      } else {
+        const response = await api.post('/api/users', payload)
+        const created = { ...mapApiUser(response.user), perms: form.perms, restricted: form.restricted }
+        setUsers(prev => [created, ...prev])
+        notify('Usuario creado correctamente', 'success')
+      }
+      close()
+    } catch (err) {
+      notify(err.payload?.error || err.message || 'No se pudo guardar el usuario', 'danger')
+    } finally {
+      setSaving(false)
+    }
   }
 
-  const deleteUser       = (id) => setUsers(prev => prev.filter(u => u.id !== id))
-  const toggleStatus     = (id) => setUsers(prev => prev.map(u => u.id === id ? { ...u, status: !u.status } : u))
+  /* ── delete ── */
+  const handleDelete = async (id) => {
+    try {
+      await api.delete('/api/users/' + id)
+      setUsers(prev => prev.filter(u => u.id !== id))
+      notify('Usuario eliminado correctamente', 'success')
+      close()
+    } catch (err) {
+      notify(err.payload?.error || 'No se pudo eliminar el usuario', 'danger')
+    }
+  }
+
+  /* ── toggle active status (optimistic) ── */
+  const toggleStatus = async (id) => {
+    const target = users.find(u => u.id === id)
+    if (!target) return
+    const newStatus = !target.status
+    setUsers(prev => prev.map(u => u.id === id ? { ...u, status: newStatus } : u))
+    try {
+      await api.put('/api/users/' + id, { is_active: newStatus })
+    } catch (err) {
+      setUsers(prev => prev.map(u => u.id === id ? { ...u, status: !newStatus } : u))
+      notify(err.payload?.error || 'No se pudo cambiar el estado', 'danger')
+    }
+  }
 
   const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+  const displayInitial = (u) => (u.full_name || u.username || '?')[0].toUpperCase()
 
   return (
     <PageWrap>
@@ -148,7 +233,7 @@ const UsersPage = ({ onMenuOpen }) => {
             )}
             <TitleBlock>
               <PageTitle>Usuarios</PageTitle>
-              <PageSub>{users.length} usuarios en el sistema</PageSub>
+              <PageSub>{users.length} usuario{users.length !== 1 ? 's' : ''} en el sistema</PageSub>
             </TitleBlock>
           </HeaderLeft>
           <AddBtn type="button" onClick={openAdd}>
@@ -176,7 +261,7 @@ const UsersPage = ({ onMenuOpen }) => {
           <FilterSelect value={roleFilter} onChange={changeFilter(setRole)}>
             <option value="all">Todos los roles</option>
             <option value="admin">Admin</option>
-            <option value="cajero">Cajero</option>
+            <option value="cashier">Cajero</option>
           </FilterSelect>
           <ResultCount>{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</ResultCount>
         </FiltersBar>
@@ -197,7 +282,11 @@ const UsersPage = ({ onMenuOpen }) => {
                 </tr>
               </Thead>
               <Tbody>
-                {rows.length === 0 ? (
+                {loading ? (
+                  <LoadingRow>
+                    <LoadingCell colSpan={7}>Cargando usuarios...</LoadingCell>
+                  </LoadingRow>
+                ) : rows.length === 0 ? (
                   <EmptyRow>
                     <EmptyCell colSpan={7}>No se encontraron usuarios</EmptyCell>
                   </EmptyRow>
@@ -206,9 +295,9 @@ const UsersPage = ({ onMenuOpen }) => {
 
                     <Td>
                       <UserCell>
-                        <UserAvatar>{user.username[0].toUpperCase()}</UserAvatar>
+                        <UserAvatar>{displayInitial(user)}</UserAvatar>
                         <UserMeta>
-                          <UserName>{user.username}</UserName>
+                          <UserName>{user.full_name}</UserName>
                           <UserEmail>{user.email}</UserEmail>
                         </UserMeta>
                       </UserCell>
@@ -318,7 +407,7 @@ const UsersPage = ({ onMenuOpen }) => {
                 <ModalTitle>{editUser ? 'Editar usuario' : 'Nuevo usuario'}</ModalTitle>
                 <ModalSub>
                   {editUser
-                    ? `Modificando datos de ${editUser.username}`
+                    ? `Modificando datos de ${editUser.full_name}`
                     : 'Completa los datos del nuevo usuario'}
                 </ModalSub>
               </div>
@@ -327,9 +416,11 @@ const UsersPage = ({ onMenuOpen }) => {
 
             <ModalBody>
 
-              {/* avatar */}
+              {/* avatar preview */}
               <AvatarRow>
-                <AvatarBox>{form.username ? form.username[0].toUpperCase() : '?'}</AvatarBox>
+                <AvatarBox>
+                  {(form.full_name || form.username || '?')[0].toUpperCase()}
+                </AvatarBox>
                 <AvatarHint>El avatar se genera automáticamente</AvatarHint>
               </AvatarRow>
 
@@ -337,12 +428,21 @@ const UsersPage = ({ onMenuOpen }) => {
               <div>
                 <SecLabel>Información</SecLabel>
                 <FormGrid style={{ marginTop: 14 }}>
-                  <Field>
-                    <FieldLabel>Nombre de usuario</FieldLabel>
+                  <Field $full>
+                    <FieldLabel>Nombre completo</FieldLabel>
                     <FieldInput
                       type="text" placeholder="Juan García"
+                      value={form.full_name}
+                      onChange={e => setField('full_name', e.target.value)}
+                    />
+                  </Field>
+                  <Field>
+                    <FieldLabel>Usuario de acceso</FieldLabel>
+                    <FieldInput
+                      type="text" placeholder="juangarcia"
                       value={form.username}
                       onChange={e => setField('username', e.target.value)}
+                      autoComplete="off"
                     />
                   </Field>
                   <Field>
@@ -356,7 +456,11 @@ const UsersPage = ({ onMenuOpen }) => {
                   <Field>
                     <FieldLabel>
                       Contraseña&nbsp;
-                      {editUser && <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>dejar vacío para no cambiar</span>}
+                      {editUser && (
+                        <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>
+                          dejar vacío para no cambiar
+                        </span>
+                      )}
                     </FieldLabel>
                     <FieldInput
                       type="password" placeholder="••••••••"
@@ -369,7 +473,7 @@ const UsersPage = ({ onMenuOpen }) => {
                     <FieldLabel>Rol</FieldLabel>
                     <FieldSelect value={form.role} onChange={e => setField('role', e.target.value)}>
                       <option value="admin">Administrador</option>
-                      <option value="cajero">Cajero</option>
+                      <option value="cashier">Cajero</option>
                     </FieldSelect>
                   </Field>
                 </FormGrid>
@@ -431,15 +535,15 @@ const UsersPage = ({ onMenuOpen }) => {
             <ModalFoot>
               <FootLeft>
                 {editUser && (
-                  <ModalBtn type="button" $v="danger" onClick={() => { deleteUser(editUser.id); close() }}>
+                  <ModalBtn type="button" $v="danger" onClick={() => handleDelete(editUser.id)}>
                     Eliminar
                   </ModalBtn>
                 )}
               </FootLeft>
               <FootRight>
-                <ModalBtn type="button" onClick={close}>Cancelar</ModalBtn>
-                <ModalBtn type="button" $v="primary" onClick={handleSave}>
-                  {editUser ? 'Guardar cambios' : 'Crear usuario'}
+                <ModalBtn type="button" onClick={close} disabled={saving}>Cancelar</ModalBtn>
+                <ModalBtn type="button" $v="primary" onClick={handleSave} disabled={saving}>
+                  {saving ? (editUser ? 'Guardando...' : 'Creando...') : (editUser ? 'Guardar cambios' : 'Crear usuario')}
                 </ModalBtn>
               </FootRight>
             </ModalFoot>
@@ -447,6 +551,26 @@ const UsersPage = ({ onMenuOpen }) => {
           </ModalCard>
         </Overlay>
       )}
+
+      {/* ── toast notification ── */}
+      {alert && (
+        <Toast $type={alert.type}>
+          <ToastIconBox $type={alert.type}>
+            {alert.type === 'success'
+              ? <CheckCircleOutlinedIcon />
+              : <ErrorOutlinedIcon />
+            }
+          </ToastIconBox>
+          <ToastBody>
+            <ToastTitle>{alert.type === 'success' ? 'Éxito' : 'Error'}</ToastTitle>
+            <ToastMsg>{alert.message}</ToastMsg>
+          </ToastBody>
+          <ToastClose type="button" onClick={() => setAlert(null)}>
+            <CloseIcon />
+          </ToastClose>
+        </Toast>
+      )}
+
     </PageWrap>
   )
 }

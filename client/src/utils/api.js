@@ -1,33 +1,5 @@
 const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
-const loadSavedAuth = () => {
-  try {
-    const saved = JSON.parse(localStorage.getItem('betchat_auth') || 'null')
-    return saved?.token || ''
-  } catch (error) {
-    return ''
-  }
-}
-
-let authToken = loadSavedAuth()
-
-export const setApiAuthToken = (token) => {
-  authToken = token || ''
-
-  try {
-    const saved = JSON.parse(localStorage.getItem('betchat_auth') || 'null') || {}
-    if (token) {
-      localStorage.setItem('betchat_auth', JSON.stringify({ ...saved, token }))
-    } else {
-      localStorage.removeItem('betchat_auth')
-    }
-  } catch (error) {
-    if (!token) {
-      localStorage.removeItem('betchat_auth')
-    }
-  }
-}
-
 const normalizeUrl = (base, endpoint) => {
   const trimmedBase = base.replace(/\/+$/, '')
   const trimmedEndpoint = endpoint.replace(/^\/+/, '')
@@ -40,13 +12,10 @@ const request = async (endpoint, options = {}) => {
     ...options.headers,
   }
 
-  if (authToken) {
-    headers.Authorization = `Bearer ${authToken}`
-  }
-
-  const res = await fetch(`${BASE_URL}${endpoint}`, {
+  const res = await fetch(normalizeUrl(BASE_URL, endpoint), {
     ...options,
     headers,
+    credentials: 'include',
   })
 
   if (!res.ok) {

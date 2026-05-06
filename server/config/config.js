@@ -9,6 +9,37 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const isProduction = process.env.MODE === 'production';
 
+function parseDuration(value) {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(0, Math.floor(value));
+  }
+
+  if (!value || typeof value !== 'string') {
+    return 0;
+  }
+
+  const normalized = value.trim();
+  const matches = normalized.match(/^([0-9]+)(s|m|h|d)?$/i);
+  if (!matches) {
+    return 0;
+  }
+
+  const amount = Number(matches[1]);
+  const unit = matches[2]?.toLowerCase() || 's';
+
+  switch (unit) {
+    case 'd':
+      return amount * 86400;
+    case 'h':
+      return amount * 3600;
+    case 'm':
+      return amount * 60;
+    case 's':
+    default:
+      return amount;
+  }
+}
+
 /**
  * Configuración de base de datos según el modo (dev/prod)
  */
@@ -55,6 +86,16 @@ export const config = {
   // Autenticación
   jwtSecret: process.env.JWT_SECRET || 'change_me_in_production',
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '24h',
+  jwtExpiresInSeconds: parseDuration(process.env.JWT_EXPIRES_IN || '24h'),
+  jwtIssuer: process.env.JWT_ISSUER || 'BetChat',
+  jwtCookieName: process.env.JWT_COOKIE_NAME || 'betchat_session',
+  jwtCookieOptions: {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: 'none',
+    path: '/',
+    maxAge: parseDuration(process.env.JWT_EXPIRES_IN || '24h') * 1000,
+  },
 
   // Base de datos
   db: getDBConfig(),

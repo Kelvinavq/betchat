@@ -9,6 +9,10 @@ const slideUp = keyframes`
   from { opacity: 0; transform: translateY(22px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 `
+const slideFromRight = keyframes`
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+`
 
 /* ── page shell ── */
 export const PageWrap = styled.div`
@@ -37,6 +41,65 @@ export const PageHeader = styled.div`
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 26px;
+`
+
+export const AlertBox = styled.div`
+  margin-bottom: 16px;
+  padding: 16px 18px;
+  border-radius: 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  background: ${({ $type }) => $type === 'danger'
+    ? 'linear-gradient(135deg, rgba(239,68,68,0.15), rgba(220,38,38,0.08))'
+    : 'linear-gradient(135deg, rgba(34,197,94,0.18), rgba(34,211,142,0.10))'};
+  border: 1px solid ${({ $type }) => $type === 'danger'
+    ? 'rgba(239,68,68,0.26)'
+    : 'rgba(16,185,129,0.22)'};
+  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+`
+
+/* ── toast notification (fixed top-right) ── */
+export const Toast = styled.div`
+  position: fixed; top: 24px; right: 24px; z-index: 9999;
+  min-width: 300px; max-width: 400px;
+  padding: 14px 16px; border-radius: 16px;
+  background: #12122a;
+  border: 1px solid ${({ $type }) => $type === 'danger'
+    ? 'rgba(239,68,68,0.30)' : 'rgba(34,197,94,0.30)'};
+  box-shadow: 0 24px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
+  display: flex; align-items: flex-start; gap: 12px;
+  animation: ${slideFromRight} 0.28s cubic-bezier(0.16,1,0.3,1) both;
+  @media (max-width: 480px) { right: 16px; left: 16px; min-width: unset; top: 16px; }
+`
+export const ToastIconBox = styled.div`
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: ${({ $type }) => $type === 'danger'
+    ? 'rgba(239,68,68,0.14)' : 'rgba(34,197,94,0.14)'};
+  color: ${({ $type }) => $type === 'danger' ? '#f87171' : '#4ade80'};
+  svg { font-size: 20px; }
+`
+export const ToastBody = styled.div`flex: 1; min-width: 0; padding-top: 1px;`
+export const ToastTitle = styled.p`font-size: 13px; font-weight: 700; color: #fff;`
+export const ToastMsg = styled.p`
+  font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 3px; line-height: 1.45;
+`
+export const ToastClose = styled.button`
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; margin-top: 1px;
+  background: rgba(255,255,255,0.06); border: none;
+  color: rgba(255,255,255,0.35);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s;
+  svg { font-size: 14px; }
+  &:hover { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.75); }
+`
+
+/* ── loading / empty state ── */
+export const LoadingRow = styled.tr``
+export const LoadingCell = styled.td`
+  padding: 56px 20px; text-align: center;
+  color: rgba(255,255,255,0.22); font-size: 14px;
 `
 
 export const HeaderLeft = styled.div`

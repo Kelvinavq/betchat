@@ -10,6 +10,7 @@ import { dirname } from 'path';
 import { config, validateConfig, getCorsOrigins } from './config/config.js';
 import { initializePool, closePool } from './config/database.js';
 import authRoutes from './routes/authRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -45,6 +46,7 @@ app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Rutas de autenticación
 app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {

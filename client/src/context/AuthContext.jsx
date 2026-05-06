@@ -1,45 +1,43 @@
 import { createContext, useEffect, useState } from 'react'
-
-const STORAGE_KEY = 'betchat_auth'
+import { api } from '../utils/api'
 
 export const AuthContext = createContext(null)
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
-  const [token, setToken] = useState(null)
+  const [initializing, setInitializing] = useState(true)
 
   useEffect(() => {
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null')
-      if (saved?.user && saved?.token) {
-        setUser(saved.user)
-        setToken(saved.token)
+    const verifySession = async () => {
+      try {
+        const response = await api.get('/api/auth/me')
+        setUser(response.user)
+      } catch (error) {
+        setUser(null)
+      } finally {
+        setInitializing(false)
       }
-    } catch (error) {
-      console.warn('No se pudo cargar auth desde localStorage:', error)
     }
+
+    verifySession()
   }, [])
 
-  useEffect(() => {
-    if (user && token) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ user, token }))
-    } else {
-      localStorage.removeItem(STORAGE_KEY)
-    }
-  }, [user, token])
-
-  const login = (userData, authToken) => {
+  const login = (userData) => {
     setUser(userData)
-    setToken(authToken)
   }
 
-  const logout = () => {
-    setUser(null)
-    setToken(null)
+  const logout = async () => {
+    try {
+      await api.post('/api/auth/logout')
+    } catch (error) {
+      console.warn('Error al cerrar sesión:', error)
+    } finally {
+      setUser(null)
+    }
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, setUser }}>
+    <AuthContext.Provider value={{ user, login, logout, setUser, initializing }}>
       {children}
     </AuthContext.Provider>
   )

@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import useAuth from '../../hooks/useAuth'
 import LoginAdmin from '../../components/admin/login/LoginAdmin'
-import { api, setApiAuthToken } from '../../utils/api'
+import { api } from '../../utils/api'
 
 const LoginPage = () => {
   const navigate = useNavigate()
@@ -14,9 +14,7 @@ const LoginPage = () => {
 
     try {
       const response = await api.post('/api/auth/login', { username, password })
-      const { token, user } = response
-      setApiAuthToken(token)
-      login(user, token)
+      login(response.user)
       setStatus({ message: 'Bienvenido de nuevo', type: 'success' })
       navigate('/admin')
     } catch (error) {
