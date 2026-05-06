@@ -1,5 +1,6 @@
 // ModalsPage.jsx
 import { useState, useMemo } from 'react'
+import MenuIcon from '@mui/icons-material/Menu'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
@@ -8,7 +9,7 @@ import SendIcon from '@mui/icons-material/Send'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined'
 import {
-  PageWrap, PageScroll, PageHeader, HeaderLeft, AddBtn, TitleBlock, PageTitle, PageSub,
+  PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, AddBtn, TitleBlock, PageTitle, PageSub,
   StatsStrip, StatCard, StatIconWrap, StatInfo, StatValue, StatLabel,
   FiltersBar, SearchBox, SrchIcon, SearchInput, FilterSelect, ResultCount,
   TableCard, TableScroll, Table, Thead, Th, Tbody, Tr, Td,
@@ -135,7 +136,11 @@ const ModalsPage = ({ onMenuOpen }) => {
       <PageScroll>
         <PageHeader>
           <HeaderLeft>
-            {onMenuOpen && <div style={{width:36,height:36}} />}
+            {onMenuOpen && (
+              <MenuBtn type="button" onClick={onMenuOpen} aria-label="Menú">
+                <MenuIcon />
+              </MenuBtn>
+            )}
             <TitleBlock>
               <PageTitle>Ventanas Promocionales</PageTitle>
               <PageSub>Crea ventanas emergentes que se muestran en tu sitio web</PageSub>

@@ -85,6 +85,7 @@ export const PageSub = styled.p`
   color: #475569;
   margin: 0;
   white-space: nowrap;
+  @media (max-width: 480px) { display: none; }
 `
 
 export const HeaderRight = styled.div`
@@ -121,6 +122,12 @@ export const HeaderBtn = styled.button`
     &:hover { background: linear-gradient(135deg, #16538d 0%, #1a5ef5 100%); }
     &:active { background: linear-gradient(135deg, #1a8aee 0%, #0840cc 100%); }
   `}
+
+  @media (max-width: 560px) {
+    padding: 0 10px;
+    gap: 0;
+    span { display: none; }
+  }
 `
 
 /* ─────────────────────────────
@@ -130,6 +137,10 @@ export const BuilderLayout = styled.div`
   flex: 1;
   display: flex;
   overflow: hidden;
+
+  @media (max-width: 767px) {
+    flex-direction: column;
+  }
 `
 
 /* ─────────────────────────────
@@ -143,6 +154,15 @@ export const FlowPanel = styled.aside`
   border-right: 1px solid rgba(255,255,255,0.05);
   overflow: hidden;
   background: rgba(0,0,0,0.18);
+
+  @media (max-width: 767px) {
+    display: ${({ $hidden }) => $hidden ? 'none' : 'flex'};
+    width: 100%;
+    min-width: 0;
+    flex: none;
+    border-right: none;
+    border-bottom: 1px solid rgba(255,255,255,0.05);
+  }
 `
 
 export const FlowPanelHead = styled.div`
@@ -274,6 +294,36 @@ export const EditorPanel = styled.main`
   flex-direction: column;
   overflow: hidden;
   min-width: 0;
+
+  @media (max-width: 767px) {
+    display: ${({ $hidden }) => $hidden ? 'none' : 'flex'};
+    flex: 1;
+  }
+`
+
+export const MobileBackBtn = styled.button`
+  display: none;
+
+  @media (max-width: 767px) {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 7px;
+    border: none;
+    background: rgba(255,255,255,0.05);
+    color: #64748b;
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.14s;
+    white-space: nowrap;
+    flex-shrink: 0;
+    svg { font-size: 15px; }
+    &:hover { background: rgba(255,255,255,0.09); color: #94a3b8; }
+  }
 `
 
 export const EditorPanelHead = styled.div`

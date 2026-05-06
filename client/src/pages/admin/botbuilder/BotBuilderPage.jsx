@@ -21,6 +21,7 @@ import {
   PageWrap, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, HeaderRight, HeaderBtn,
   BuilderLayout,
   FlowPanel, FlowPanelHead, FlowPanelTitle, ScreenList, ScreenCard, ScreenCardDot,
+  MobileBackBtn,
   ScreenCardInfo, ScreenCardName, RootBadge, ScreenCardMeta, AddScreenBtn,
   EditorPanel, EditorPanelHead, ScreenNameInput, EditorActionBtn, EditorScroll,
   SectionLabel, ItemsList, ItemCard, DragHandle, ItemTypeIcon, ItemContent,
@@ -412,6 +413,14 @@ const BotBuilderPage = ({ onMenuOpen }) => {
   const [dragIndex, setDragIndex]               = useState(null)
   const [dragOverIndex, setDragOverIndex]       = useState(null)
   const [showToast, setShowToast]               = useState(false)
+  const [isMobile, setIsMobile]                 = useState(() => window.innerWidth < 768)
+  const [mobilePanel, setMobilePanel]           = useState('flow')
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768)
+    window.addEventListener('resize', check)
+    return () => window.removeEventListener('resize', check)
+  }, [])
 
   const selectedScreen = flow.screens.find(s => s.id === selectedScreenId) ?? null
 
@@ -439,6 +448,12 @@ const BotBuilderPage = ({ onMenuOpen }) => {
     updateScreen(selectedScreenId, s => ({ ...s, name: value }))
   }
 
+  /* ── select screen (handles mobile panel switch) ── */
+  const handleSelectScreen = (id) => {
+    setSelectedScreenId(id)
+    if (isMobile) setMobilePanel('editor')
+  }
+
   /* ── add screen ── */
   const handleAddScreen = (name) => {
     const id = `screen-${makeId()}`
@@ -456,6 +471,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
       ],
     }))
     setSelectedScreenId(id)
+    if (isMobile) setMobilePanel('editor')
     setModal(null)
   }
 
@@ -583,11 +599,11 @@ const BotBuilderPage = ({ onMenuOpen }) => {
         <HeaderRight>
           <HeaderBtn $v="ghost" onClick={() => setModal({ type: 'preview' })}>
             <VisibilityOutlinedIcon style={{ fontSize: 15 }} />
-            Vista previa
+            <span>Vista previa</span>
           </HeaderBtn>
           <HeaderBtn $v="primary" onClick={handleSave}>
             <SaveOutlinedIcon style={{ fontSize: 15 }} />
-            Guardar
+            <span>Guardar</span>
           </HeaderBtn>
         </HeaderRight>
       </PageHeader>
@@ -595,8 +611,8 @@ const BotBuilderPage = ({ onMenuOpen }) => {
       {/* ── main layout ── */}
       <BuilderLayout>
 
-        {/* ── flow panel (left) ── */}
-        <FlowPanel>
+        {/* ── flow panel (left / mobile full) ── */}
+        <FlowPanel $hidden={isMobile && mobilePanel === 'editor'}>
           <FlowPanelHead>
             <FlowPanelTitle>Pantallas del flujo</FlowPanelTitle>
           </FlowPanelHead>
@@ -606,7 +622,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
               <ScreenCard
                 key={screen.id}
                 $active={screen.id === selectedScreenId}
-                onClick={() => setSelectedScreenId(screen.id)}
+                onClick={() => handleSelectScreen(screen.id)}
               >
                 <ScreenCardDot $root={screen.isRoot}>
                   {screen.isRoot ? <HomeOutlinedIcon style={{ fontSize: 14 }} /> : <ChatBubbleOutlineIcon style={{ fontSize: 13 }} />}
@@ -632,8 +648,8 @@ const BotBuilderPage = ({ onMenuOpen }) => {
           </ScreenList>
         </FlowPanel>
 
-        {/* ── editor panel (right) ── */}
-        <EditorPanel>
+        {/* ── editor panel (right / mobile full) ── */}
+        <EditorPanel $hidden={isMobile && mobilePanel === 'flow'}>
           {!selectedScreen ? (
             <EmptyEditor>
               <EmptyEditorIcon>🤖</EmptyEditorIcon>
@@ -644,6 +660,15 @@ const BotBuilderPage = ({ onMenuOpen }) => {
             <>
               {/* editor head */}
               <EditorPanelHead>
+                <MobileBackBtn
+                  type="button"
+                  onClick={() => setMobilePanel('flow')}
+                  aria-label="Volver a pantallas"
+                >
+                  <ArrowBackIcon />
+                  Pantallas
+                </MobileBackBtn>
+
                 <ScreenNameInput
                   value={selectedScreen.name}
                   onChange={e => handleScreenRename(e.target.value)}
