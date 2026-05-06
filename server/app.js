@@ -16,6 +16,7 @@ import commandRoutes from './routes/commandRoutes.js';
 import modalRoutes from './routes/modalRoutes.js';
 import bankAccountRoutes from './routes/bankAccountRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
+import clientsRoutes from './routes/clientsRoutes.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -59,6 +60,7 @@ app.use('/api/commands', commandRoutes);
 app.use('/api/modals', modalRoutes);
 app.use('/api/bank-accounts', bankAccountRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/clients', clientsRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {

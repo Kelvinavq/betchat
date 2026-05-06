@@ -186,15 +186,15 @@ CREATE TABLE IF NOT EXISTS `config_openrouter` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
---  12. CHAT PROCESSING CONFIG  (which bank account handles deposits)
+--  13. THEME CONFIG  (active theme selection)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS `chat_processing_config` (
+CREATE TABLE IF NOT EXISTS `theme_config` (
   `id`              INT UNSIGNED  NOT NULL DEFAULT 1,
-  `bank_account_id` INT UNSIGNED  DEFAULT NULL COMMENT 'active account for incoming deposits',
+  `client_theme`    VARCHAR(120)  DEFAULT 'betchat-dark' COMMENT 'active client theme id',
+  `admin_theme`     VARCHAR(120)  DEFAULT 'dark-blue'    COMMENT 'active admin theme id',
   `updated_at`      DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
-  CONSTRAINT `chk_cpc_singleton`  CHECK (`id` = 1),
-  CONSTRAINT `fk_cpc_bank_account` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`id`) ON DELETE SET NULL
+  CONSTRAINT `chk_theme_config_singleton` CHECK (`id` = 1)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -496,6 +496,7 @@ INSERT IGNORE INTO `config_casino`     (`id`) VALUES (1);
 INSERT IGNORE INTO `config_aws`        (`id`) VALUES (1);
 INSERT IGNORE INTO `config_openrouter` (`id`) VALUES (1);
 INSERT IGNORE INTO `chat_processing_config` (`id`) VALUES (1);
+INSERT IGNORE INTO `theme_config`      (`id`) VALUES (1);
 
 -- Initial bot flow (mirrors INITIAL_FLOW in BotBuilderPage.jsx)
 INSERT IGNORE INTO `bot_screens` (`id`, `name`, `is_root`, `sort_order`) VALUES

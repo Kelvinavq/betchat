@@ -351,3 +351,97 @@ export const ModalBtn = styled.button`
   &:active { transform: scale(0.97); }
   &:disabled { opacity: 0.32; cursor: default; pointer-events: none; }
 `
+/* ── toast notification ── */
+export const Toast = styled.div`
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 600;
+  min-width: 280px;
+  max-width: 380px;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px;
+  border-radius: 16px;
+  background: #101024;
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+  animation: ${fadeUp} 0.2s ease both;
+
+  ${({ $type }) => $type === 'success' ? css`
+    border-color: rgba(34,197,94,0.28);
+  ` : css`
+    border-color: rgba(239,68,68,0.28);
+  `}
+
+  @media (max-width: 600px) {
+    left: 14px;
+    right: 14px;
+    bottom: 14px;
+    max-width: none;
+  }
+`
+
+export const ToastIconBox = styled.div`
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  ${({ $type }) => $type === 'success' ? css`
+    background: rgba(34,197,94,0.13);
+    color: #4ade80;
+  ` : css`
+    background: rgba(239,68,68,0.12);
+    color: #f87171;
+  `}
+
+  svg {
+    font-size: 20px;
+  }
+`
+
+export const ToastBody = styled.div`
+  flex: 1;
+  min-width: 0;
+`
+
+export const ToastTitle = styled.p`
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.90);
+  margin-bottom: 2px;
+`
+
+export const ToastMsg = styled.p`
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255,255,255,0.48);
+`
+
+export const ToastClose = styled.button`
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 7px;
+  border: none;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  svg {
+    font-size: 15px;
+  }
+
+  &:hover {
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.80);
+  }
+`

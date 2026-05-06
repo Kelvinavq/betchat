@@ -224,6 +224,9 @@ const SettingsPage = ({ onMenuOpen }) => {
   const [chatBanks, setChatBanks] = useState(CHAT_BANKS)
   const [chatAccounts, setChatAccounts] = useState(CHAT_ACCOUNTS)
 
+  /* ── temas ── */
+  const [themeConfig, setThemeConfig] = useState({ clientTheme: 'betchat-dark', adminTheme: 'dark-blue' })
+
   const activeBankCfg = chatBanks.find(b => b.id === chatBank.provider) ?? null
 
   const loadSettings = useCallback(async () => {
@@ -246,6 +249,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         ...provider,
         ...(BANK_STYLES[provider.id] || BANK_STYLES.manual),
       })))
+      setThemeConfig(data.themeConfig || { clientTheme: 'betchat-dark', adminTheme: 'dark-blue' })
     } catch (error) {
       window.alert(error.message || 'No se pudieron cargar los ajustes.')
     } finally {
@@ -985,7 +989,10 @@ const SettingsPage = ({ onMenuOpen }) => {
           {/* ════════════════ TEMAS ════════════════ */}
           {activeTab === 'temas' && (
             <Section>
-              <ThemesSection />
+              <ThemesSection
+                themeConfig={themeConfig}
+                onThemeChange={setThemeConfig}
+              />
             </Section>
           )}
 

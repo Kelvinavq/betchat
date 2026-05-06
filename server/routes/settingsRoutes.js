@@ -9,6 +9,7 @@ import {
   deleteAmount,
   updateApiConfig,
   updateChatBank,
+  updateThemeConfig,
   updatePassword,
   updateProfile,
 } from '../controllers/settingsController.js'
@@ -25,5 +26,6 @@ router.put('/profile', authenticateToken, requireRole('admin'), updateProfile)
 router.put('/password', authenticateToken, requireRole('admin'), updatePassword)
 router.put('/apis/:provider', authenticateToken, requireRole('admin'), updateApiConfig)
 router.put('/chat-bank', authenticateToken, requireRole('admin'), updateChatBank)
+router.put('/themes', authenticateToken, requireRole('admin'), updateThemeConfig)
 
 export default router

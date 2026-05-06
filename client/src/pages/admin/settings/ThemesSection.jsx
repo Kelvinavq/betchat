@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import SmartphoneOutlinedIcon from '@mui/icons-material/SmartphoneOutlined'
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined'
 import CheckIcon from '@mui/icons-material/Check'
@@ -7,6 +7,7 @@ import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
+import { api } from '../../../utils/api'
 import {
   ThemesWrap, SubTabBar, SubTab, SectionBanner,
   ThemeGrid, ThemeCard, ThemeCardPreview, CheckOverlay, ThemeCardInfo, ThemeNameRow,
@@ -371,14 +372,14 @@ const loadCustom = (key) => {
 /* ─────────────────────────────
    Main component
 ───────────────────────────── */
-const ThemesSection = () => {
+const ThemesSection = ({ themeConfig, onThemeChange }) => {
   const [subTab, setSubTab] = useState('cliente')
 
   /* active / pending selection */
-  const [pendingClient, setPendingClient] = useState(() => localStorage.getItem('theme_client') ?? 'betchat-dark')
-  const [pendingAdmin,  setPendingAdmin]  = useState(() => localStorage.getItem('theme_admin')  ?? 'dark-blue')
-  const [activeClient,  setActiveClient]  = useState(() => localStorage.getItem('theme_client') ?? 'betchat-dark')
-  const [activeAdmin,   setActiveAdmin]   = useState(() => localStorage.getItem('theme_admin')  ?? 'dark-blue')
+  const [pendingClient, setPendingClient] = useState(themeConfig?.clientTheme || 'betchat-dark')
+  const [pendingAdmin,  setPendingAdmin]  = useState(themeConfig?.adminTheme || 'dark-blue')
+  const [activeClient,  setActiveClient]  = useState(themeConfig?.clientTheme || 'betchat-dark')
+  const [activeAdmin,   setActiveAdmin]   = useState(themeConfig?.adminTheme || 'dark-blue')
   const [saved, setSaved] = useState(false)
 
   /* custom themes */
@@ -408,17 +409,39 @@ const ThemesSection = () => {
     ? pendingClient !== activeClient
     : pendingAdmin !== activeAdmin
 
-  /* ── apply theme ── */
-  const handleApply = () => {
-    if (isClient) {
-      localStorage.setItem('theme_client', pendingClient)
-      setActiveClient(pendingClient)
-    } else {
-      localStorage.setItem('theme_admin', pendingAdmin)
-      setActiveAdmin(pendingAdmin)
+  /* ── update state when themeConfig changes ── */
+  useEffect(() => {
+    if (themeConfig) {
+      setPendingClient(themeConfig.clientTheme)
+      setActiveClient(themeConfig.clientTheme)
+      setPendingAdmin(themeConfig.adminTheme)
+      setActiveAdmin(themeConfig.adminTheme)
     }
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2200)
+  }, [themeConfig])
+
+  /* ── apply theme ── */
+  const handleApply = async () => {
+    try {
+      const newClientTheme = isClient ? pendingClient : activeClient
+      const newAdminTheme = isClient ? activeAdmin : pendingAdmin
+
+      const data = await api.put('/api/settings/themes', {
+        clientTheme: newClientTheme,
+        adminTheme: newAdminTheme,
+      })
+
+      setActiveClient(newClientTheme)
+      setActiveAdmin(newAdminTheme)
+      setSaved(true)
+      setTimeout(() => setSaved(false), 2200)
+
+      // Notify parent component
+      if (onThemeChange) {
+        onThemeChange(data.themeConfig)
+      }
+    } catch (error) {
+      window.alert(error.message || 'No se pudo guardar la configuración de temas.')
+    }
   }
 
   /* ── open modal ── */
@@ -572,7 +595,7 @@ const ThemesSection = () => {
         <>
           <SectionBanner>
             <InfoOutlinedIcon />
-            Cambia el esquema de colores del panel de administración. El tema se guarda localmente por ahora.
+            Cambia el esquema de colores del panel de administración. Los cambios se aplican globalmente.
           </SectionBanner>
 
           <AdminThemeGrid>

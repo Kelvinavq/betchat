@@ -201,6 +201,19 @@ async function getChatBank() {
   }
 }
 
+async function getThemeConfig() {
+  const { rows, error } = await query(
+    'SELECT client_theme, admin_theme FROM theme_config WHERE id = 1 LIMIT 1',
+    []
+  )
+  if (error) throw error
+
+  return {
+    clientTheme: rows?.[0]?.client_theme || 'betchat-dark',
+    adminTheme: rows?.[0]?.admin_theme || 'dark-blue',
+  }
+}
+
 async function getBankProviders() {
   const { rows, error } = await query(
     `SELECT
@@ -253,13 +266,14 @@ async function getBankProviders() {
 
 export async function getSettings(req, res, next) {
   try {
-    const [profile, amounts, amountsList, apis, chatBank, bankData] = await Promise.all([
+    const [profile, amounts, amountsList, apis, chatBank, bankData, themeConfig] = await Promise.all([
       getProfile(req.user.sub),
       getAmounts(),
       getAmountsList(),
       getApis(),
       getChatBank(),
       getBankProviders(),
+      getThemeConfig(),
     ])
 
     if (!profile) return res.status(404).json({ error: 'Usuario no encontrado', code: 'USER_NOT_FOUND' })
@@ -273,6 +287,7 @@ export async function getSettings(req, res, next) {
       chatBank,
       bankProviders: bankData.providers,
       bankAccounts: bankData.accounts,
+      themeConfig,
     })
   } catch (err) {
     next(err)
@@ -572,6 +587,29 @@ export async function updateChatBank(req, res, next) {
     if (error) return next(error)
 
     res.json({ chatBank: await getChatBank() })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateThemeConfig(req, res, next) {
+  try {
+    const clientTheme = String(req.body.clientTheme || '').trim()
+    const adminTheme = String(req.body.adminTheme || '').trim()
+
+    if (!clientTheme || !adminTheme) {
+      return res.status(400).json({ error: 'Temas de cliente y admin son requeridos', code: 'INVALID_THEMES' })
+    }
+
+    const { error } = await query(
+      `INSERT INTO theme_config (id, client_theme, admin_theme)
+       VALUES (1, ?, ?)
+       ON DUPLICATE KEY UPDATE client_theme = VALUES(client_theme), admin_theme = VALUES(admin_theme)`,
+      [clientTheme, adminTheme]
+    )
+    if (error) return next(error)
+
+    res.json({ themeConfig: await getThemeConfig() })
   } catch (err) {
     next(err)
   }

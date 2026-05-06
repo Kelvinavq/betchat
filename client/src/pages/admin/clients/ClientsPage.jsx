@@ -1,7 +1,7 @@
-import { useState, useRef, useMemo } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import SearchIcon from '@mui/icons-material/Search'
 import AddIcon from '@mui/icons-material/Add'
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import LogoutIcon from '@mui/icons-material/Logout'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
@@ -11,6 +11,10 @@ import CloseIcon from '@mui/icons-material/Close'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import MenuIcon from '@mui/icons-material/Menu'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
+import { api } from '../../../utils/api'
 import {
   PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub,
   HeaderActions, AddBtn, OutlineBtn,
@@ -26,45 +30,49 @@ import {
   SecLabel, FormGrid, Field, FieldLabel, FieldInput, FieldInputError, ErrorMsg,
   StatusRow, StatusRowLabel, StatusRowTitle, StatusRowSub, Toggle, ToggleThumb,
   ModalFoot, FootLeft, FootRight, ModalBtn,
+  Toast, ToastIconBox, ToastBody, ToastTitle, ToastMsg, ToastClose,
 } from './ClientsPage.styles'
 
 const PER_PAGE = 10
 
-const INITIAL_CLIENTS = [
-  { id: 1,  username: 'carlos_gamez',  regDate: '15/01/2024', externalId: 'GX-10041', cuitCuil: '20-35471823-4', active: true,  online: true  },
-  { id: 2,  username: 'martina_j',     regDate: '22/01/2024', externalId: 'GX-10098', cuitCuil: '27-28739021-3', active: true,  online: false },
-  { id: 3,  username: 'pablobet99',    regDate: '03/02/2024', externalId: 'GX-10157', cuitCuil: '20-42187364-9', active: true,  online: true  },
-  { id: 4,  username: 'lucia_r',       regDate: '11/02/2024', externalId: 'GX-10203', cuitCuil: '27-31094827-6', active: false, online: false },
-  { id: 5,  username: 'diego_slots',   regDate: '28/02/2024', externalId: 'GX-10284', cuitCuil: '20-38762190-1', active: true,  online: false },
-  { id: 6,  username: 'valeria_bet',   regDate: '05/03/2024', externalId: 'GX-10312', cuitCuil: '27-40391872-5', active: true,  online: true  },
-  { id: 7,  username: 'juancruz_m',    regDate: '19/03/2024', externalId: 'GX-10398', cuitCuil: '20-29374851-2', active: true,  online: false },
-  { id: 8,  username: 'florencia_g',   regDate: '02/04/2024', externalId: 'GX-10441', cuitCuil: '27-36582041-8', active: false, online: false },
-  { id: 9,  username: 'matias_poker',  regDate: '14/04/2024', externalId: 'GX-10509', cuitCuil: '20-44129873-7', active: true,  online: true  },
-  { id: 10, username: 'camila_w',      regDate: '27/04/2024', externalId: 'GX-10567', cuitCuil: '27-32198476-4', active: true,  online: false },
-  { id: 11, username: 'rodrigo_vip',   regDate: '08/05/2024', externalId: 'GX-10621', cuitCuil: '20-37841029-3', active: true,  online: false },
-  { id: 12, username: 'sofia_plays',   regDate: '21/05/2024', externalId: 'GX-10688', cuitCuil: '27-43920157-6', active: false, online: false },
-  { id: 13, username: 'nicolas_bet',   regDate: '04/06/2024', externalId: 'GX-10744', cuitCuil: '20-31728490-5', active: true,  online: true  },
-  { id: 14, username: 'agustina_r',    regDate: '17/06/2024', externalId: 'GX-10812', cuitCuil: '27-39102874-1', active: true,  online: false },
-  { id: 15, username: 'hernando_play', regDate: '30/06/2024', externalId: 'GX-10879', cuitCuil: '20-45678321-9', active: true,  online: false },
-  { id: 16, username: 'rocio_gamer',   regDate: '12/07/2024', externalId: 'GX-10933', cuitCuil: '27-34819062-7', active: true,  online: true  },
-  { id: 17, username: 'leandro_mx',    regDate: '25/07/2024', externalId: 'GX-10997', cuitCuil: '20-40237185-8', active: false, online: false },
-  { id: 18, username: 'melisa_lucky',  regDate: '08/08/2024', externalId: 'GX-11054', cuitCuil: '27-28901364-2', active: true,  online: false },
-  { id: 19, username: 'tomas_ace',     regDate: '21/08/2024', externalId: 'GX-11118', cuitCuil: '20-46103827-5', active: true,  online: false },
-  { id: 20, username: 'ana_diamante',  regDate: '03/09/2024', externalId: 'GX-11172', cuitCuil: '27-37290148-3', active: true,  online: true  },
-]
-
 const todayStr = () =>
   new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
-/* ── edit / add modal ── */
-const ClientModal = ({ mode, client, onClose, onSave, onDelete }) => {
+/* ── view / add modal ── */
+const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify }) => {
   const [form, setForm] = useState(() =>
-    mode === 'edit' && client
-      ? { username: client.username, externalId: client.externalId, cuitCuil: client.cuitCuil, regDate: client.regDate, active: client.active, password: '' }
-      : { username: '', externalId: '', cuitCuil: '', regDate: todayStr(), active: true, password: '' }
+    mode === 'view' && client
+      ? {
+          username: client.username,
+          fullName: client.fullName || '',
+          email: client.email || '',
+          externalId: client.externalId || '',
+          cuil: client.cuil || '',
+          active: client.active,
+          registeredAt: client.registeredAt ? new Date(client.registeredAt).toLocaleDateString('es-AR') : '',
+        }
+      : { username: '', password: '' }
   )
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const avatarChar = form.username.trim() ? form.username.trim()[0].toUpperCase() : '?'
+
+  const copyToClipboard = (text) => {
+    navigator.clipboard.writeText(text).then(() => {
+      notify('Copiado al portapapeles', 'success')
+    }).catch(() => {
+      // Fallback para navegadores antiguos
+      const textArea = document.createElement('textarea')
+      textArea.value = text
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+      notify('Copiado al portapapeles', 'success')
+    })
+  }
+
+  const isViewMode = mode === 'view'
+  const isAddMode = mode === 'add'
 
   return (
     <Overlay onClick={onClose}>
@@ -72,9 +80,11 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete }) => {
 
         <ModalHead>
           <div>
-            <ModalTitle>{mode === 'add' ? 'Nuevo cliente' : 'Editar cliente'}</ModalTitle>
+            <ModalTitle>
+              {isAddMode ? 'Nuevo cliente' : isViewMode ? 'Ver cliente' : 'Editar cliente'}
+            </ModalTitle>
             <ModalSub>
-              {mode === 'add' ? 'Registrar nuevo cliente en el sistema' : `Modificando a ${client.username}`}
+              {isAddMode ? 'Registrar nuevo cliente en el sistema' : `Información de ${client.username}`}
             </ModalSub>
           </div>
           <ModalClose onClick={onClose}><CloseIcon /></ModalClose>
@@ -87,80 +97,130 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete }) => {
             <AvatarHint>Avatar generado automáticamente</AvatarHint>
           </AvatarRow>
 
-          <div>
-            <SecLabel>Datos del cliente</SecLabel>
-            <FormGrid style={{ marginTop: 14 }}>
-              <Field $full>
-                <FieldLabel>Nombre de usuario</FieldLabel>
-                <FieldInput
-                  placeholder="usuario123"
-                  value={form.username}
-                  onChange={e => set('username', e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>ID Externo (plataforma)</FieldLabel>
-                <FieldInput
-                  placeholder="GX-00000"
-                  value={form.externalId}
-                  onChange={e => set('externalId', e.target.value)}
-                />
-              </Field>
-              <Field>
-                <FieldLabel>CUIT / CUIL</FieldLabel>
-                <FieldInput
-                  placeholder="XX-XXXXXXXX-X"
-                  value={form.cuitCuil}
-                  onChange={e => set('cuitCuil', e.target.value)}
-                />
-              </Field>
-              <Field $full>
-                <FieldLabel>Fecha de registro</FieldLabel>
-                <FieldInput
-                  placeholder="DD/MM/YYYY"
-                  value={form.regDate}
-                  onChange={e => set('regDate', e.target.value)}
-                  disabled={mode === 'edit'}
-                />
-              </Field>
-              {mode === 'add' && (
+          {isAddMode ? (
+            // Modo agregar: solo usuario y contraseña
+            <div>
+              <SecLabel>Datos del cliente</SecLabel>
+              <FormGrid style={{ marginTop: 14 }}>
+                <Field $full>
+                  <FieldLabel>Nombre de usuario</FieldLabel>
+                  <FieldInput
+                    placeholder="usuario123"
+                    value={form.username}
+                    onChange={e => set('username', e.target.value)}
+                    autoComplete="username"
+                  />
+                </Field>
                 <Field $full>
                   <FieldLabel>Contraseña</FieldLabel>
                   <FieldInput
-                    type="password"
-                    placeholder="••••••••"
+                    type="text"
+                    placeholder="contraseña123"
                     value={form.password}
                     onChange={e => set('password', e.target.value)}
                     autoComplete="new-password"
                   />
                 </Field>
-              )}
-            </FormGrid>
-          </div>
+              </FormGrid>
+            </div>
+          ) : isViewMode ? (
+            // Modo ver: campos readonly con botones de copiar
+            <div>
+              <SecLabel>Datos del cliente</SecLabel>
+              <FormGrid style={{ marginTop: 14 }}>
+                <Field $full>
+                  <FieldLabel>Nombre de usuario</FieldLabel>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <FieldInput
+                      value={form.username}
+                      readOnly
+                      style={{ flex: 1 }}
+                    />
+                    <ModalBtn
+                      style={{ padding: '8px', minWidth: 'auto' }}
+                      onClick={() => copyToClipboard(form.username)}
+                      title="Copiar usuario"
+                    >
+                      <ContentCopyIcon style={{ fontSize: 16 }} />
+                    </ModalBtn>
+                  </div>
+                </Field>
+                <Field>
+                  <FieldLabel>Nombre completo</FieldLabel>
+                  <FieldInput
+                    placeholder="No especificado"
+                    value={form.fullName}
+                    onChange={e => set('fullName', e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Correo electrónico</FieldLabel>
+                  <FieldInput
+                    type="email"
+                    placeholder="usuario@email.com"
+                    value={form.email}
+                    onChange={e => set('email', e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>ID Externo (plataforma)</FieldLabel>
+                  <FieldInput
+                    value={form.externalId}
+                    readOnly
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>CUIT / CUIL</FieldLabel>
+                  <FieldInput
+                    placeholder="XX-XXXXXXXX-X"
+                    value={form.cuil}
+                    onChange={e => set('cuil', e.target.value)}
+                  />
+                </Field>
+                <Field $full>
+                  <FieldLabel>Fecha de registro</FieldLabel>
+                  <FieldInput
+                    value={form.registeredAt}
+                    readOnly
+                  />
+                </Field>
+              </FormGrid>
 
-          <StatusRow>
-            <StatusRowLabel>
-              <StatusRowTitle>Cuenta activa</StatusRowTitle>
-              <StatusRowSub>El cliente puede iniciar sesión en la plataforma</StatusRowSub>
-            </StatusRowLabel>
-            <Toggle $on={form.active} onClick={() => set('active', !form.active)}>
-              <ToggleThumb $on={form.active} />
-            </Toggle>
-          </StatusRow>
+              <StatusRow>
+                <StatusRowLabel>
+                  <StatusRowTitle>Cuenta activa</StatusRowTitle>
+                  <StatusRowSub>El cliente puede iniciar sesión en la plataforma</StatusRowSub>
+                </StatusRowLabel>
+                <Toggle $on={form.active} onClick={() => set('active', !form.active)}>
+                  <ToggleThumb $on={form.active} />
+                </Toggle>
+              </StatusRow>
+            </div>
+          ) : (
+            // Modo editar (si se implementa en el futuro)
+            <div>Modo editar no implementado</div>
+          )}
 
         </ModalBody>
 
         <ModalFoot>
           <FootLeft>
-            {mode === 'edit' && (
+            {isViewMode && (
               <ModalBtn $v="danger" onClick={() => onDelete(client.id)}>Eliminar</ModalBtn>
             )}
           </FootLeft>
           <FootRight>
-            <ModalBtn onClick={onClose}>Cancelar</ModalBtn>
-            <ModalBtn $v="primary" onClick={() => onSave(form)}>
-              {mode === 'add' ? 'Crear cliente' : 'Guardar cambios'}
-            </ModalBtn>
+            <ModalBtn onClick={onClose}>Cerrar</ModalBtn>
+            {isViewMode && (
+              <ModalBtn $v="primary" onClick={() => onSave(form)}>
+                Guardar cambios
+              </ModalBtn>
+            )}
+            {isAddMode && (
+              <ModalBtn $v="primary" onClick={() => onSave(form)}>
+                Crear cliente
+              </ModalBtn>
+            )}
           </FootRight>
         </ModalFoot>
 
@@ -239,48 +299,102 @@ const PwdModal = ({ client, onClose, onSave }) => {
 
 /* ── main page ── */
 const ClientsPage = ({ onMenuOpen }) => {
-  const [clients, setClients]       = useState(INITIAL_CLIENTS)
+  const [clients, setClients]       = useState([])
+  const [loading, setLoading]       = useState(true)
   const [search, setSearch]         = useState('')
   const [statFilter, setStatFilter] = useState('all')
   const [page, setPage]             = useState(1)
+  const [totalClients, setTotalClients] = useState(0)
   const [modal, setModal]           = useState(null)    // null | { mode, client }
   const [pwdModal, setPwdModal]     = useState(null)    // null | { client }
+  const [alert, setAlert]           = useState(null)
   const importRef                   = useRef(null)
 
-  const filtered = useMemo(() => {
-    let list = clients
-    if (search.trim()) {
-      const q = search.toLowerCase()
-      list = list.filter(c =>
-        c.username.toLowerCase().includes(q) ||
-        c.externalId.toLowerCase().includes(q) ||
-        c.cuitCuil.replace(/-/g, '').includes(q.replace(/-/g, ''))
-      )
-    }
-    if (statFilter === 'active')   list = list.filter(c => c.active)
-    if (statFilter === 'inactive') list = list.filter(c => !c.active)
-    return list
-  }, [clients, search, statFilter])
+  /* auto-dismiss toast */
+  useEffect(() => {
+    if (!alert) return
+    const t = setTimeout(() => setAlert(null), 4500)
+    return () => clearTimeout(t)
+  }, [alert])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE))
-  const safePage   = Math.min(page, totalPages)
-  const sliced     = filtered.slice((safePage - 1) * PER_PAGE, safePage * PER_PAGE)
-  const reset      = (fn) => { fn(); setPage(1) }
+  const notify = (message, type = 'success') => {
+    setAlert({ message, type })
+  }
+
+  // Cargar clientes desde API
+  const loadClients = useCallback(async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: PER_PAGE.toString(),
+        search: search.trim(),
+        status: statFilter,
+      })
+
+      const data = await api.get(`/api/clients?${params}`)
+      setClients(data.clients || [])
+      setTotalClients(Number(data.pagination?.total || 0))
+    } catch (error) {
+      console.error('Error al cargar clientes:', error)
+      notify(error.payload?.error || error.message || 'Error al cargar clientes', 'danger')
+    } finally {
+      setLoading(false)
+    }
+  }, [page, search, statFilter])
+
+  // Cargar datos cuando cambian los filtros
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadClients()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadClients])
+
+  const reset = (fn) => {
+    setPage(1)
+    fn()
+  }
 
   /* ── csv export ── */
-  const exportCSV = () => {
-    const header = 'Usuario,Fecha de registro,ID Externo,CUIT/CUIL,Estado'
-    const rows = filtered.map(c =>
-      [c.username, c.regDate, c.externalId, c.cuitCuil, c.active ? 'Activo' : 'Inactivo'].join(',')
-    )
-    const content = '﻿' + [header, ...rows].join('\n')
-    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
-    const url  = URL.createObjectURL(blob)
-    const a    = document.createElement('a')
-    a.href     = url
-    a.download = `clientes_${new Date().toISOString().slice(0, 10)}.csv`
-    document.body.appendChild(a); a.click(); document.body.removeChild(a)
-    URL.revokeObjectURL(url)
+  const exportCSV = async () => {
+    try {
+      // Obtener todos los clientes sin paginación para exportar
+      const params = new URLSearchParams({
+        page: '1',
+        limit: '10000', // Límite alto para obtener todos
+        search: '',
+        status: 'all',
+      })
+
+      const data = await api.get(`/api/clients?${params}`)
+
+      const header = 'Usuario,Nombre completo,Email,CUIT/CUIL,ID Externo,Estado,Fecha registro'
+      const rows = data.clients.map(c =>
+        [
+          c.username,
+          c.fullName || '',
+          c.email || '',
+          c.cuil || '',
+          c.externalId || '',
+          c.active ? 'Activo' : 'Inactivo',
+          c.registeredAt ? new Date(c.registeredAt).toLocaleDateString('es-AR') : ''
+        ].join(',')
+      )
+      const content = '﻿' + [header, ...rows].join('\n')
+      const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `clientes_${new Date().toISOString().slice(0, 10)}.csv`
+      document.body.appendChild(a); a.click(); document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+      notify('CSV exportado correctamente', 'success')
+    } catch (error) {
+      console.error('Error al exportar CSV:', error)
+      notify(error.payload?.error || error.message || 'Error al exportar CSV', 'danger')
+    }
   }
 
   /* ── csv import ── */
@@ -307,36 +421,68 @@ const ClientsPage = ({ onMenuOpen }) => {
         })
         .filter(c => c.username)
       setClients(prev => [...prev, ...imported])
+      notify('CSV importado correctamente', 'success')
     }
     reader.readAsText(file, 'UTF-8')
     e.target.value = ''
   }
 
   /* ── crud ── */
-  const handleSave = (form) => {
-    if (modal.mode === 'add') {
-      setClients(prev => [...prev, { ...form, id: Date.now(), online: false }])
-    } else {
-      setClients(prev => prev.map(c => c.id === modal.client.id ? { ...c, ...form } : c))
+  const handleSave = async (form) => {
+    try {
+      if (modal.mode === 'add') {
+        await api.post('/api/clients', {
+          username: form.username,
+          password: form.password,
+        })
+        notify('Cliente creado exitosamente.', 'success')
+      } else if (modal.mode === 'view') {
+        // En modo view, permitir actualizar algunos campos
+        const updateData = {
+          fullName: form.fullName || '',
+          email: form.email || '',
+          cuil: form.cuil || '',
+          isActive: form.active,
+        }
+        await api.put(`/api/clients/${modal.client.id}`, updateData)
+        notify('Cliente actualizado exitosamente.', 'success')
+      }
+      setModal(null)
+      loadClients() // Recargar la lista
+    } catch (error) {
+      console.error('Error al guardar cliente:', error)
+      notify(error.payload?.error || error.message || 'Error al guardar cliente', 'danger')
     }
-    setModal(null)
   }
 
-  const handleDelete = (id) => {
-    setClients(prev => prev.filter(c => c.id !== id))
-    setModal(null)
+  const handleDelete = async (id) => {
+    if (!window.confirm('¿Estás seguro de que quieres eliminar este cliente?')) return
+
+    try {
+      await api.delete(`/api/clients/${id}`)
+      notify('Cliente eliminado exitosamente.', 'success')
+      loadClients() // Recargar la lista
+    } catch (error) {
+      console.error('Error al eliminar cliente:', error)
+      notify(error.payload?.error || error.message || 'Error al eliminar cliente', 'danger')
+    }
   }
 
-  const handlePwdSave = (_newPwd) => {
-    /* TODO: wire to API */
-    setPwdModal(null)
+  const handlePwdSave = async (newPwd) => {
+    try {
+      await api.put(`/api/clients/${pwdModal.client.id}/password`, { password: newPwd })
+      notify('Contraseña actualizada exitosamente.', 'success')
+      setPwdModal(null)
+    } catch (error) {
+      console.error('Error al actualizar contraseña:', error)
+      notify(error.payload?.error || error.message || 'Error al actualizar contraseña', 'danger')
+    }
   }
 
-  const toggleStatus = (id) =>
-    setClients(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c))
-
-  const from = filtered.length > 0 ? (safePage - 1) * PER_PAGE + 1 : 0
-  const to   = Math.min(safePage * PER_PAGE, filtered.length)
+  const totalPages = Math.ceil(totalClients / PER_PAGE)
+  const safePage   = Math.min(page, totalPages || 1)
+  const from = totalClients > 0 ? (safePage - 1) * PER_PAGE + 1 : 0
+  const to   = Math.min(safePage * PER_PAGE, totalClients)
   const pageNums = Array.from({ length: totalPages }, (_, i) => i + 1)
 
   return (
@@ -351,7 +497,7 @@ const ClientsPage = ({ onMenuOpen }) => {
             )}
             <TitleBlock>
               <PageTitle>Clientes</PageTitle>
-              <PageSub>{clients.length} cliente{clients.length !== 1 && 's'} registrado{clients.length !== 1 && 's'}</PageSub>
+              <PageSub>{totalClients} cliente{totalClients !== 1 && 's'} registrado{totalClients !== 1 && 's'}</PageSub>
             </TitleBlock>
           </HeaderLeft>
           <HeaderActions>
@@ -385,7 +531,7 @@ const ClientsPage = ({ onMenuOpen }) => {
             <option value="active">Activos</option>
             <option value="inactive">Inactivos</option>
           </FilterSelect>
-          <ResultCount>{filtered.length} resultado{filtered.length !== 1 && 's'}</ResultCount>
+          <ResultCount>{totalClients} resultado{totalClients !== 1 && 's'}</ResultCount>
         </FiltersBar>
 
         {/* ── table ── */}
@@ -404,24 +550,28 @@ const ClientsPage = ({ onMenuOpen }) => {
                 </tr>
               </Thead>
               <Tbody>
-                {sliced.length === 0 ? (
+                {loading ? (
+                  <EmptyRow>
+                    <EmptyCell colSpan={7}>Cargando clientes...</EmptyCell>
+                  </EmptyRow>
+                ) : clients.length === 0 ? (
                   <EmptyRow>
                     <EmptyCell colSpan={7}>No se encontraron clientes</EmptyCell>
                   </EmptyRow>
-                ) : sliced.map(c => (
+                ) : clients.map(c => (
                   <Tr key={c.id}>
                     <Td>
                       <ClientCell>
-                        <ClientAvatar>{c.username[0].toUpperCase()}</ClientAvatar>
+                        <ClientAvatar>{(c.username || '?')[0].toUpperCase()}</ClientAvatar>
                         <ClientMeta>
                           <ClientName>{c.username}</ClientName>
                           <ClientId>{c.externalId}</ClientId>
                         </ClientMeta>
                       </ClientCell>
                     </Td>
-                    <Td><MonoText>{c.regDate}</MonoText></Td>
+                    <Td><MonoText>{c.registeredAt ? new Date(c.registeredAt).toLocaleDateString('es-AR') : ''}</MonoText></Td>
                     <Td><MonoText>{c.externalId}</MonoText></Td>
-                    <Td><MonoText>{c.cuitCuil}</MonoText></Td>
+                    <Td><MonoText>{c.cuil}</MonoText></Td>
                     <Td>
                       <StatusBadge $on={c.active}>{c.active ? 'Activo' : 'Inactivo'}</StatusBadge>
                     </Td>
@@ -429,10 +579,10 @@ const ClientsPage = ({ onMenuOpen }) => {
                     <Td $center>
                       <ActionBtns style={{ justifyContent: 'center' }}>
                         <ActionBtn
-                          title="Editar cliente"
-                          onClick={() => setModal({ mode: 'edit', client: c })}
+                          title="Ver cliente"
+                          onClick={() => setModal({ mode: 'view', client: c })}
                         >
-                          <EditOutlinedIcon />
+                          <VisibilityOutlinedIcon />
                         </ActionBtn>
                         <ActionBtn
                           title="Cambiar contraseña"
@@ -465,7 +615,7 @@ const ClientsPage = ({ onMenuOpen }) => {
 
           <Pagination>
             <PaginInfo>
-              {filtered.length > 0 ? `${from}–${to} de ${filtered.length}` : '0 resultados'}
+              {totalClients > 0 ? `${from}-${to} de ${totalClients}` : '0 resultados'}
             </PaginInfo>
             <PaginBtns>
               <PaginBtn
@@ -507,6 +657,7 @@ const ClientsPage = ({ onMenuOpen }) => {
           onClose={() => setModal(null)}
           onSave={handleSave}
           onDelete={handleDelete}
+          notify={notify}
         />
       )}
 
@@ -516,6 +667,24 @@ const ClientsPage = ({ onMenuOpen }) => {
           onClose={() => setPwdModal(null)}
           onSave={handlePwdSave}
         />
+      )}
+
+      {alert && (
+        <Toast $type={alert.type}>
+          <ToastIconBox $type={alert.type}>
+            {alert.type === 'success'
+              ? <CheckCircleOutlinedIcon />
+              : <ErrorOutlinedIcon />
+            }
+          </ToastIconBox>
+          <ToastBody>
+            <ToastTitle>{alert.type === 'success' ? 'Éxito' : 'Error'}</ToastTitle>
+            <ToastMsg>{alert.message}</ToastMsg>
+          </ToastBody>
+          <ToastClose type="button" onClick={() => setAlert(null)}>
+            <CloseIcon />
+          </ToastClose>
+        </Toast>
       )}
     </PageWrap>
   )
