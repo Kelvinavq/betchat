@@ -192,6 +192,23 @@ export const ProfileAvatar = styled.div`
   font-size: 24px; font-weight: 700; color: #fff;
   border: 2px solid rgba(40,140,255,0.28);
   box-shadow: 0 0 28px rgba(30,133,255,0.16);
+  position: relative; overflow: hidden;
+`
+
+export const ProfileAvatarImg = styled.img`
+  width: 100%; height: 100%; object-fit: cover; display: block;
+`
+
+export const ProfileAvatarBtn = styled.button`
+  position: absolute; right: -1px; bottom: -1px;
+  width: 25px; height: 25px; border-radius: 9px 0 15px 0;
+  border: 1px solid rgba(255,255,255,0.18);
+  background: rgba(5,12,30,0.84);
+  color: rgba(255,255,255,0.78);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.18s, color 0.18s;
+  svg { font-size: 15px; }
+  &:hover { background: rgba(30,133,255,0.86); color: #fff; }
 `
 
 export const ProfileInfo = styled.div`min-width: 0;`

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
@@ -17,15 +17,17 @@ import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import HeadsetMicOutlinedIcon from '@mui/icons-material/HeadsetMicOutlined'
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
+import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import useAuth from '../../../hooks/useAuth'
+import { api } from '../../../utils/api'
 import TicketsSection from './TicketsSection'
 import ThemesSection from './ThemesSection'
 import {
   PageWrap, PageHeader, MenuBtn, TitleBlock, PageTitle, PageSub,
   Body, SettingsNav, NavGroupLabel, NavBtn, ActiveBar, NavIcon, NavTextWrap, NavLabel, NavSub, SoonPill,
   Content, Section,
-  ProfileCard, ProfileAvatar, ProfileInfo, ProfileName, ProfileRole, ProfileBadge,
+  ProfileCard, ProfileAvatar, ProfileAvatarImg, ProfileAvatarBtn, ProfileInfo, ProfileName, ProfileRole, ProfileBadge,
   Card, CardHead, CardIcon, CardHeadText, CardTitle, CardSub, CardBody,
   FormGrid, Field, FieldLabel, InputWrap, FieldInput, InputSuffix,
   SaveFooter, SaveBtn,
@@ -114,15 +116,64 @@ const CHAT_ACCOUNTS = {
   manual:      [{ id: 1, label: 'Luis Méndez — luismendez' }, { id: 2, label: 'Ana Ramos — anaramos' }, { id: 3, label: 'Marcos Vera — marcosvera' }],
 }
 
+const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
+
+const resolveAssetUrl = (url) => {
+  if (!url) return ''
+  if (/^https?:\/\//i.test(url)) return url
+  return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`
+}
+
+const optimizeAvatar = (file) => new Promise((resolve, reject) => {
+  if (!file?.type?.startsWith('image/')) {
+    reject(new Error('Selecciona una imagen valida.'))
+    return
+  }
+
+  const reader = new FileReader()
+  reader.onload = () => {
+    const img = new Image()
+    img.onload = () => {
+      const maxSize = 512
+      const scale = Math.min(1, maxSize / Math.max(img.width, img.height))
+      const canvas = document.createElement('canvas')
+      canvas.width = Math.max(1, Math.round(img.width * scale))
+      canvas.height = Math.max(1, Math.round(img.height * scale))
+      const ctx = canvas.getContext('2d')
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
+      resolve(canvas.toDataURL('image/webp', 0.82))
+    }
+    img.onerror = () => reject(new Error('No se pudo procesar la imagen.'))
+    img.src = reader.result
+  }
+  reader.onerror = () => reject(new Error('No se pudo leer la imagen.'))
+  reader.readAsDataURL(file)
+})
+
+const BANK_STYLES = {
+  hgcash: { initials: 'HG', color: '#818cf8', bg: 'rgba(99,102,241,0.10)', br: 'rgba(99,102,241,0.26)', avatarBg: 'linear-gradient(135deg,#4f46e5,#6366f1)', avatarBr: 'rgba(99,102,241,0.35)' },
+  mercadopago: { initials: 'MP', color: '#38bdf8', bg: 'rgba(14,165,233,0.10)', br: 'rgba(14,165,233,0.26)', avatarBg: 'linear-gradient(135deg,#0284c7,#38bdf8)', avatarBr: 'rgba(14,165,233,0.35)' },
+  telepagos: { initials: 'TP', color: '#fb923c', bg: 'rgba(249,115,22,0.10)', br: 'rgba(249,115,22,0.26)', avatarBg: 'linear-gradient(135deg,#ea580c,#f97316)', avatarBr: 'rgba(249,115,22,0.35)' },
+  manual: { initials: 'MN', color: '#94a3b8', bg: 'rgba(148,163,184,0.08)', br: 'rgba(148,163,184,0.20)', avatarBg: 'linear-gradient(135deg,#475569,#64748b)', avatarBr: 'rgba(148,163,184,0.28)' },
+}
+
 const SettingsPage = ({ onMenuOpen }) => {
-  const { user } = useAuth()
+  const { user, setUser } = useAuth()
+  const avatarInputRef = useRef(null)
   const [activeTab, setActiveTab] = useState('perfil')
 
   /* ── profile form ── */
   const [profileForm, setProfileForm] = useState({
-    username: user?.name ?? '',
-    email: 'admin@betchat.com',
+    username: user?.username ?? user?.name ?? '',
+    full_name: user?.full_name ?? user?.username ?? user?.name ?? '',
+    email: user?.email ?? '',
+    avatar_url: user?.avatar_url ?? '',
+    avatar_data_url: '',
   })
+  const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url ? resolveAssetUrl(user.avatar_url) : '')
+  const [loadingSettings, setLoadingSettings] = useState(true)
   const [pwForm, setPwForm] = useState({ current: '', next: '', confirm: '' })
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false })
   const [profileSaved, setProfileSaved] = useState(false)
@@ -152,9 +203,15 @@ const SettingsPage = ({ onMenuOpen }) => {
   const toggleSecret = (key) =>
     setShowSecret(p => ({ ...p, [key]: !p[key] }))
 
-  const saveApi = (provider) => {
-    setApiSaved(p => ({ ...p, [provider]: true }))
-    setTimeout(() => setApiSaved(p => ({ ...p, [provider]: false })), 2200)
+  const saveApi = async (provider) => {
+    try {
+      const data = await api.put(`/api/settings/apis/${provider}`, apis[provider])
+      setApis(prev => ({ ...prev, ...(data.apis || {}) }))
+      setApiSaved(p => ({ ...p, [provider]: true }))
+      setTimeout(() => setApiSaved(p => ({ ...p, [provider]: false })), 2200)
+    } catch (error) {
+      window.alert(error.message || 'No se pudo guardar la integracion.')
+    }
   }
 
   const isCasinoOk     = !!(apis.casino.token && apis.casino.url)
@@ -164,8 +221,108 @@ const SettingsPage = ({ onMenuOpen }) => {
   /* ── banco de chat ── */
   const [chatBank, setChatBank]   = useState({ provider: null, accountId: '' })
   const [bancoSaved, setBancoSaved] = useState(false)
+  const [chatBanks, setChatBanks] = useState(CHAT_BANKS)
+  const [chatAccounts, setChatAccounts] = useState(CHAT_ACCOUNTS)
 
-  const activeBankCfg = CHAT_BANKS.find(b => b.id === chatBank.provider) ?? null
+  const activeBankCfg = chatBanks.find(b => b.id === chatBank.provider) ?? null
+
+  const loadSettings = useCallback(async () => {
+    try {
+      const data = await api.get('/api/settings')
+      const profile = data.profile || {}
+      setProfileForm({
+        username: profile.username || '',
+        full_name: profile.full_name || profile.username || '',
+        email: profile.email || '',
+        avatar_url: profile.avatar_url || '',
+        avatar_data_url: '',
+      })
+      setAvatarPreview(profile.avatar_url ? resolveAssetUrl(profile.avatar_url) : '')
+      setMontos(data.amounts || { carga: { amount: '10', currency: 'USD' }, retiro: { amount: '50', currency: 'USD' } })
+      setApis(prev => ({ ...prev, ...(data.apis || {}) }))
+      setChatBank(data.chatBank || { provider: null, accountId: '' })
+      setChatAccounts(data.bankAccounts || {})
+      setChatBanks((data.bankProviders || []).map(provider => ({
+        ...provider,
+        ...(BANK_STYLES[provider.id] || BANK_STYLES.manual),
+      })))
+    } catch (error) {
+      window.alert(error.message || 'No se pudieron cargar los ajustes.')
+    } finally {
+      setLoadingSettings(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      loadSettings()
+    }, 0)
+
+    return () => window.clearTimeout(timer)
+  }, [loadSettings])
+
+  const handleAvatarFile = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    try {
+      const dataUrl = await optimizeAvatar(file)
+      setAvatarPreview(dataUrl)
+      setProfileForm(prev => ({ ...prev, avatar_data_url: dataUrl }))
+    } catch (error) {
+      window.alert(error.message)
+    }
+  }
+
+  const saveProfile = async () => {
+    try {
+      const data = await api.put('/api/settings/profile', profileForm)
+      const profile = data.profile
+      setProfileForm({
+        username: profile.username || '',
+        full_name: profile.full_name || profile.username || '',
+        email: profile.email || '',
+        avatar_url: profile.avatar_url || '',
+        avatar_data_url: '',
+      })
+      setAvatarPreview(profile.avatar_url ? resolveAssetUrl(profile.avatar_url) : '')
+      setUser(prev => prev ? { ...prev, ...profile } : prev)
+      triggerSaved(setProfileSaved)
+    } catch (error) {
+      window.alert(error.message || 'No se pudo guardar el perfil.')
+    }
+  }
+
+  const savePassword = async () => {
+    try {
+      await api.put('/api/settings/password', pwForm)
+      setPwForm({ current: '', next: '', confirm: '' })
+      triggerSaved(setPwSaved)
+    } catch (error) {
+      window.alert(error.message || 'No se pudo actualizar la contrasena.')
+    }
+  }
+
+  const saveAmounts = async () => {
+    try {
+      const data = await api.put('/api/settings/amounts', montos)
+      setMontos(data.amounts || montos)
+      triggerSaved(setMontosSaved)
+    } catch (error) {
+      window.alert(error.message || 'No se pudieron guardar los montos.')
+    }
+  }
+
+  const saveChatBank = async () => {
+    try {
+      const data = await api.put('/api/settings/chat-bank', chatBank)
+      setChatBank(data.chatBank || chatBank)
+      triggerSaved(setBancoSaved)
+    } catch (error) {
+      window.alert(error.message || 'No se pudo guardar el banco de chat.')
+    }
+  }
 
   const triggerSaved = (setter) => {
     setter(true)
@@ -178,7 +335,7 @@ const SettingsPage = ({ onMenuOpen }) => {
   const setMonto = (key, field, val) =>
     setMontos(m => ({ ...m, [key]: { ...m[key], [field]: val } }))
 
-  const initials = (profileForm.username || user?.name || '?')[0].toUpperCase()
+  const initials = (profileForm.full_name || profileForm.username || user?.username || '?')[0].toUpperCase()
 
   return (
     <PageWrap>
@@ -191,7 +348,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         )}
         <TitleBlock>
           <PageTitle>Ajustes</PageTitle>
-          <PageSub>Configura tu cuenta y los parámetros del sistema</PageSub>
+          <PageSub>{loadingSettings ? 'Cargando ajustes...' : 'Configura tu cuenta y los parámetros del sistema'}</PageSub>
         </TitleBlock>
       </PageHeader>
 
@@ -232,9 +389,21 @@ const SettingsPage = ({ onMenuOpen }) => {
 
               {/* profile summary */}
               <ProfileCard>
-                <ProfileAvatar>{initials}</ProfileAvatar>
+                <ProfileAvatar>
+                  {avatarPreview ? <ProfileAvatarImg src={avatarPreview} alt="" /> : initials}
+                  <ProfileAvatarBtn type="button" onClick={() => avatarInputRef.current?.click()} title="Subir avatar">
+                    <PhotoCameraOutlinedIcon />
+                  </ProfileAvatarBtn>
+                  <input
+                    ref={avatarInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarFile}
+                    style={{ display: 'none' }}
+                  />
+                </ProfileAvatar>
                 <ProfileInfo>
-                  <ProfileName>{profileForm.username || 'Usuario'}</ProfileName>
+                  <ProfileName>{profileForm.full_name || profileForm.username || 'Usuario'}</ProfileName>
                   <ProfileRole>{profileForm.email}</ProfileRole>
                   <ProfileBadge $role={user?.role}>
                     {user?.role === 'admin' ? 'Administrador' : 'Cajero'}
@@ -255,6 +424,18 @@ const SettingsPage = ({ onMenuOpen }) => {
                 </CardHead>
                 <CardBody>
                   <FormGrid>
+                    <Field>
+                      <FieldLabel>Nombre completo</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder="Tu nombre"
+                          value={profileForm.full_name}
+                          onChange={e => setProfileForm(f => ({ ...f, full_name: e.target.value }))}
+                          autoComplete="name"
+                        />
+                      </InputWrap>
+                    </Field>
                     <Field>
                       <FieldLabel>Nombre de usuario</FieldLabel>
                       <InputWrap>
@@ -284,7 +465,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                     <SaveBtn
                       type="button"
                       $saved={profileSaved}
-                      onClick={() => triggerSaved(setProfileSaved)}
+                      onClick={saveProfile}
                     >
                       {profileSaved ? <><CheckIcon />Guardado</> : 'Guardar cambios'}
                     </SaveBtn>
@@ -362,7 +543,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                     <SaveBtn
                       type="button"
                       $saved={pwSaved}
-                      onClick={() => triggerSaved(setPwSaved)}
+                      onClick={savePassword}
                     >
                       {pwSaved ? <><CheckIcon />Contraseña actualizada</> : 'Cambiar contraseña'}
                     </SaveBtn>
@@ -497,7 +678,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                 <SaveBtn
                   type="button"
                   $saved={montosSaved}
-                  onClick={() => triggerSaved(setMontosSaved)}
+                  onClick={saveAmounts}
                 >
                   {montosSaved ? <><CheckIcon />Montos actualizados</> : 'Guardar montos'}
                 </SaveBtn>
@@ -720,7 +901,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                 </CardHead>
                 <CardBody>
                   <ProviderGrid>
-                    {CHAT_BANKS.map(b => {
+                    {chatBanks.map(b => {
                       const isActive = chatBank.provider === b.id
                       return (
                         <ProviderCard
@@ -764,7 +945,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                     onChange={e => setChatBank(p => ({ ...p, accountId: e.target.value }))}
                   >
                     <option value="">Selecciona una cuenta…</option>
-                    {(CHAT_ACCOUNTS[activeBankCfg.id] ?? []).map(acc => (
+                    {(chatAccounts[activeBankCfg.id] ?? []).map(acc => (
                       <option key={acc.id} value={acc.id}>{acc.label}</option>
                     ))}
                   </FieldSelect>
@@ -781,7 +962,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                 <SaveBtn
                   type="button"
                   $saved={bancoSaved}
-                  onClick={() => triggerSaved(setBancoSaved)}
+                  onClick={saveChatBank}
                   disabled={!chatBank.provider || !chatBank.accountId}
                   style={(!chatBank.provider || !chatBank.accountId) ? { opacity: 0.35, pointerEvents: 'none' } : {}}
                 >

@@ -5,6 +5,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
+import path from 'path';
 
 // Importar configuración y BD
 import { config, validateConfig, getCorsOrigins } from './config/config.js';
@@ -14,6 +15,7 @@ import userRoutes from './routes/userRoutes.js';
 import commandRoutes from './routes/commandRoutes.js';
 import modalRoutes from './routes/modalRoutes.js';
 import bankAccountRoutes from './routes/bankAccountRoutes.js';
+import settingsRoutes from './routes/settingsRoutes.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -33,7 +35,9 @@ const io = new SocketIOServer(httpServer, {
 // ============================================================
 
 // Seguridad HTTP y CORS
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: 'cross-origin' },
+}));
 app.disable('x-powered-by');
 app.use(cors({
   origin: getCorsOrigins(),
@@ -46,6 +50,7 @@ app.use(cors({
 // Body parser
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Rutas de autenticación
 app.use('/api/auth', authRoutes);
@@ -53,6 +58,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/commands', commandRoutes);
 app.use('/api/modals', modalRoutes);
 app.use('/api/bank-accounts', bankAccountRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {

@@ -16,6 +16,7 @@ function sanitizeUser(user) {
     full_name: user.full_name,
     email: user.email,
     role: user.role,
+    avatar_url: user.avatar_url || null,
     is_active: Boolean(user.is_active),
     last_login_at: user.last_login_at,
     online: Boolean(user.online),
@@ -28,7 +29,7 @@ export async function login(req, res, next) {
     const { username, password } = req.body;
 
     const { rows, error } = await query(
-      'SELECT id, username, full_name, email, password_hash, role, is_active, last_login_at FROM users WHERE username = ? LIMIT 1',
+      'SELECT id, username, full_name, email, password_hash, role, avatar_url, is_active, last_login_at FROM users WHERE username = ? LIMIT 1',
       [username]
     );
 
@@ -168,7 +169,7 @@ export async function me(req, res, next) {
 
     const { rows, error } = await query(
       `SELECT
-        u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at,
+        u.id, u.username, u.full_name, u.email, u.role, u.avatar_url, u.is_active, u.last_login_at,
         EXISTS(
           SELECT 1 FROM user_sessions us
           WHERE us.user_id = u.id AND us.is_active = 1
