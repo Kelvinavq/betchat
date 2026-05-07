@@ -1,9 +1,14 @@
-﻿const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
+export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000'
 
 const normalizeUrl = (base, endpoint) => {
   const trimmedBase = base.replace(/\/+$/, '')
   const trimmedEndpoint = endpoint.replace(/^\/+/, '')
   return `${trimmedBase}/${trimmedEndpoint}`
+}
+
+export const resolveApiAsset = (url = '') => {
+  if (!url || /^https?:\/\//i.test(url) || url.startsWith('blob:') || url.startsWith('data:')) return url
+  return normalizeUrl(API_BASE_URL, url)
 }
 
 const request = async (endpoint, options = {}) => {
@@ -12,7 +17,7 @@ const request = async (endpoint, options = {}) => {
     ...options.headers,
   }
 
-  const res = await fetch(normalizeUrl(BASE_URL, endpoint), {
+  const res = await fetch(normalizeUrl(API_BASE_URL, endpoint), {
     ...options,
     headers,
     credentials: 'include',

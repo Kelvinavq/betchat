@@ -1,4 +1,8 @@
+import jwt from 'jsonwebtoken'
 import { query, transaction } from '../config/database.js'
+import { config } from '../config/config.js'
+import { getCookieValue } from '../middlewares/authMiddleware.js'
+import { persistMessage } from './chatController.js'
 
 const ITEM_TYPES = ['message', 'button']
 
@@ -96,38 +100,231 @@ function validateFlow(body) {
   return { errors, screens: normalizedScreens }
 }
 
-export async function getBotFlow(req, res, next) {
+function getClientPayload(req) {
+  const token = getCookieValue(req, config.clientJwtCookieName)
+  if (!token) return null
   try {
-    const { rows: screenRows, error: screenError } = await query(
-      `SELECT id, name, is_root, sort_order
+    const payload = jwt.verify(token, config.jwtSecret, {
+      algorithms: ['HS256'],
+      issuer: config.jwtIssuer,
+    })
+    return payload?.type === 'client' ? payload : null
+  } catch {
+    return null
+  }
+}
+
+async function loadBotFlow() {
+  const { rows: screenRows, error: screenError } = await query(
+    `SELECT id, name, is_root, sort_order
        FROM bot_screens
        ORDER BY sort_order ASC, created_at ASC`
-    )
-    if (screenError) return next(screenError)
+  )
+  if (screenError) throw screenError
 
-    const { rows: itemRows, error: itemError } = await query(
-      `SELECT id, screen_id, type, text, label, action_screen_id, is_back, sort_order
+  const { rows: itemRows, error: itemError } = await query(
+    `SELECT id, screen_id, type, text, label, action_screen_id, is_back, sort_order
        FROM bot_items
        ORDER BY screen_id ASC, sort_order ASC, created_at ASC`
-    )
-    if (itemError) return next(itemError)
+  )
+  if (itemError) throw itemError
 
-    const screens = (screenRows || []).map(sanitizeScreen)
-    const byId = new Map(screens.map(screen => [screen.id, screen]))
+  const screens = (screenRows || []).map(sanitizeScreen)
+  const byId = new Map(screens.map(screen => [screen.id, screen]))
 
-    for (const item of itemRows || []) {
-      const screen = byId.get(item.screen_id)
-      if (screen) screen.items.push(sanitizeItem(item))
-    }
+  for (const item of itemRows || []) {
+    const screen = byId.get(item.screen_id)
+    if (screen) screen.items.push(sanitizeItem(item))
+  }
 
-    res.json({ flow: { screens } })
+  return { flow: { screens } }
+}
+
+export async function getBotFlow(req, res, next) {
+  try {
+    res.json(await loadBotFlow())
   } catch (error) {
     next(error)
   }
 }
 
 export async function getClientBotFlow(req, res, next) {
-  return getBotFlow(req, res, next)
+  try {
+    const data = await loadBotFlow()
+    const client = getClientPayload(req)
+    let state = null
+
+    if (client?.sub) {
+      const { rows, error } = await query(
+        `SELECT id, bot_screen_id, bot_last_button_id
+         FROM chats
+         WHERE client_id = ? AND is_archived = 0
+         ORDER BY id DESC
+         LIMIT 1`,
+        [client.sub]
+      )
+      if (error) return next(error)
+      const chat = rows?.[0]
+      if (chat) {
+        const root = data.flow.screens.find(screen => screen.isRoot) || data.flow.screens[0] || null
+        const currentScreenId = chat.bot_screen_id || root?.id || null
+        state = {
+          chatId: Number(chat.id),
+          currentScreenId,
+          lastButtonId: chat.bot_last_button_id || null,
+        }
+      }
+    }
+
+    res.json({ ...data, state })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function updateClientBotState(req, res, next) {
+  try {
+    const client = getClientPayload(req)
+    if (!client?.sub) {
+      return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
+    }
+
+    const chatId = Number(req.params.chatId || req.body?.chatId)
+    const screenId = normalizeId(req.body?.screenId)
+    const buttonId = normalizeId(req.body?.buttonId)
+    if (!chatId || !screenId) {
+      return res.status(400).json({ error: 'Estado del bot invalido.', code: 'INVALID_BOT_STATE' })
+    }
+
+    const { rows: screenRows, error: screenError } = await query(
+      'SELECT id FROM bot_screens WHERE id = ? LIMIT 1',
+      [screenId]
+    )
+    if (screenError) return next(screenError)
+    if (!screenRows?.length) {
+      return res.status(404).json({ error: 'Pantalla del bot no encontrada.', code: 'BOT_SCREEN_NOT_FOUND' })
+    }
+
+    const { rows, error } = await query(
+      `UPDATE chats
+       SET bot_screen_id = ?, bot_last_button_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND client_id = ?`,
+      [screenId, buttonId || null, chatId, client.sub]
+    )
+    if (error) return next(error)
+    if (!rows?.affectedRows) {
+      return res.status(404).json({ error: 'Chat no encontrado.', code: 'CHAT_NOT_FOUND' })
+    }
+
+    res.json({
+      success: true,
+      state: {
+        chatId,
+        currentScreenId: screenId,
+        lastButtonId: buttonId || null,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function selectClientBotOption(req, res, next) {
+  try {
+    const client = getClientPayload(req)
+    if (!client?.sub) {
+      return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
+    }
+
+    const chatId = Number(req.params.chatId || req.body?.chatId)
+    const buttonId = normalizeId(req.body?.buttonId)
+    const clientMessageId = normalizeId(req.body?.clientMessageId)
+    const botMessageIds = Array.isArray(req.body?.botMessageIds) ? req.body.botMessageIds.map(normalizeId) : []
+    if (!chatId || !buttonId) {
+      return res.status(400).json({ error: 'Opcion del bot invalida.', code: 'INVALID_BOT_OPTION' })
+    }
+
+    const { rows: chatRows, error: chatError } = await query(
+      `SELECT id, bot_screen_id
+       FROM chats
+       WHERE id = ? AND client_id = ? AND is_archived = 0
+       LIMIT 1`,
+      [chatId, client.sub]
+    )
+    if (chatError) return next(chatError)
+    const chat = chatRows?.[0]
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat no encontrado.', code: 'CHAT_NOT_FOUND' })
+    }
+
+    const { rows: buttonRows, error: buttonError } = await query(
+      `SELECT bi.id, bi.label, bi.action_screen_id, bi.screen_id
+       FROM bot_items bi
+       WHERE bi.id = ? AND bi.type = 'button'
+       LIMIT 1`,
+      [buttonId]
+    )
+    if (buttonError) return next(buttonError)
+    const button = buttonRows?.[0]
+    if (!button) {
+      return res.status(404).json({ error: 'Opcion del bot no encontrada.', code: 'BOT_OPTION_NOT_FOUND' })
+    }
+
+    const targetScreenId = button.action_screen_id || chat.bot_screen_id || button.screen_id
+    const { rows: itemRows, error: itemError } = await query(
+      `SELECT id, type, text, label, action_screen_id, is_back, sort_order
+       FROM bot_items
+       WHERE screen_id = ?
+       ORDER BY sort_order ASC, created_at ASC`,
+      [targetScreenId]
+    )
+    if (itemError) return next(itemError)
+
+    const created = []
+    const selected = await persistMessage({
+      chatId,
+      senderType: 'client',
+      content: String(button.label || '').trim(),
+      messageType: 'text',
+      clientMessageId,
+    })
+    created.push(selected.message)
+
+    const botTexts = (itemRows || []).filter(item => item.type === 'message' && item.text)
+    for (const [index, item] of botTexts.entries()) {
+      const result = await persistMessage({
+        chatId,
+        senderType: 'system',
+        content: String(item.text || '').trim(),
+        messageType: 'text',
+        clientMessageId: botMessageIds[index] || `bot-${buttonId}-${item.id}`,
+      })
+      created.push(result.message)
+    }
+
+    const { rows: updateRows, error: updateError } = await query(
+      `UPDATE chats
+       SET bot_screen_id = ?, bot_last_button_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND client_id = ?`,
+      [targetScreenId, buttonId, chatId, client.sub]
+    )
+    if (updateError) return next(updateError)
+    if (!updateRows?.affectedRows) {
+      return res.status(404).json({ error: 'Chat no encontrado.', code: 'CHAT_NOT_FOUND' })
+    }
+
+    res.status(201).json({
+      success: true,
+      messages: created,
+      state: {
+        chatId,
+        currentScreenId: targetScreenId,
+        lastButtonId: buttonId,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
 }
 
 export async function saveBotFlow(req, res, next) {

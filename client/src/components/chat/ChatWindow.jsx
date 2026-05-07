@@ -1,4 +1,4 @@
-import { useContext, useState, useRef, useEffect } from 'react'
+import { useCallback, useContext, useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import CloseIcon from '@mui/icons-material/Close'
 import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined'
@@ -13,7 +13,8 @@ import AttachFileIcon from '@mui/icons-material/AttachFile'
 import DescriptionIcon from '@mui/icons-material/Description'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import { ChatContext } from '../../context/ChatContext'
-import { api } from '../../utils/api'
+import { api, resolveApiAsset } from '../../utils/api'
+import { getSocket, makeClientMessageId } from '../../utils/socket'
 import {
   Window, VisualSection, CloseBtn, VisualLogo, AppLabel,
   FormSection, FormTitle, FormHint, FormGroup, InputLabel,
@@ -24,8 +25,10 @@ import {
   ChatHeader, ChatHeaderSide, ChatHeaderCenter,
   ChatHeaderBtn,
   HeaderPill, HeaderPillText, HeaderPillBadge,
+  ConnectionBanner,
   MessagesArea, ChatMessages,
   MessageRow, MessageAvatar, MessageContent, MessageBubble, MessageTime,
+  TypingBubble, TypingDot, TypingText,
   BotButtonsWrap, BotOptionBtn,
   ScrollDownBtn,
   BottomArea, AttachPanel, AttachGrid, AttachOption,
@@ -33,6 +36,8 @@ import {
   PreviewOverlay, PreviewTitle, PreviewImg, PreviewPdfCard,
   PreviewActions, PreviewBtn,
   SendingBubbleWrap,
+  PendingMediaWrap, PendingMediaTitle, PendingMediaHint,
+  PendingMediaActions, PendingMediaBtn,
   MediaMsgImg, MediaMsgPdf,
   ViewerOverlay, ViewerContent, ViewerFileName, ViewerImg,
   ViewerEmbed, ViewerActions, ViewerBtn,
@@ -258,10 +263,78 @@ const MediaViewer = ({ data, onClose }) => {
 
 /* ── chat view ── */
 
-const SEND_DELAY_MS = 10000
 const BOT_AVATAR = 'BC'
+const OUTBOX_PREFIX = 'betchat_outbox_'
+const MIN_MEDIA_LOADER_MS = 1200
+const MEDIA_PENDING_MS = 12000
+const TYPING_IDLE_MS = 1400
+const RECONNECT_WATCHDOG_MS = 5000
+const MANUAL_CONNECT_COOLDOWN_MS = 10000
 
 const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(reader.result)
+  reader.onerror = () => reject(new Error('No se pudo leer el archivo'))
+  reader.readAsDataURL(file)
+})
+
+const mapDbMessage = (msg) => ({
+  id: `db-${msg.id}`,
+  dbId: msg.id,
+  clientMessageId: msg.clientMessageId || '',
+  type: msg.messageType === 'image' ? 'image' : msg.messageType === 'pdf' ? 'pdf' : 'text',
+  text: msg.content,
+  mediaUrl: resolveApiAsset(msg.fileUrl),
+  fileName: msg.fileName,
+  received: msg.senderType !== 'client',
+  time: msg.time,
+  avatar: BOT_AVATAR,
+})
+
+const splitBotButtons = (items) => {
+  const normalMessages = []
+  const botButtonMessages = []
+  for (const item of items) {
+    if (item.type === 'bot-buttons') botButtonMessages.push(item)
+    else normalMessages.push(item)
+  }
+  return { normalMessages, botButtonMessages }
+}
+
+const outboxKey = (chatId) => `${OUTBOX_PREFIX}${chatId}`
+
+const readOutbox = (chatId) => {
+  if (!chatId) return []
+  try {
+    return JSON.parse(localStorage.getItem(outboxKey(chatId)) || '[]')
+  } catch {
+    return []
+  }
+}
+
+const writeOutbox = (chatId, items) => {
+  if (!chatId) return
+  try {
+    if (items.length) localStorage.setItem(outboxKey(chatId), JSON.stringify(items))
+    else localStorage.removeItem(outboxKey(chatId))
+  } catch {
+    // If storage quota is exceeded, keep the in-memory queue only.
+  }
+}
+
+const mapQueuedMessage = (payload) => ({
+  id: payload.clientMessageId,
+  clientMessageId: payload.clientMessageId,
+  type: payload.messageType === 'image' || payload.messageType === 'pdf' ? 'pending-media' : 'text',
+  mediaType: payload.messageType,
+  text: payload.content || '',
+  fileName: payload.fileName || '',
+  received: false,
+  time: payload.time || messageTime(),
+})
+
+const isMediaPayload = (payload) => payload?.messageType === 'image' || payload?.messageType === 'pdf'
 
 const createBotMessages = (screen, reason = 'screen') => {
   const time = messageTime()
@@ -310,23 +383,77 @@ const createBotMessages = (screen, reason = 'screen') => {
   }]
 }
 
+const createBotButtonMessages = (screen, reason = 'screen') => {
+  if (!screen) return []
+  const buttons = screen.items.filter(item => item.type === 'button' && item.label)
+  if (buttons.length === 0) return []
+  return [{
+    id: `bot-buttons-${reason}-${screen.id}-${Date.now()}`,
+    type: 'bot-buttons',
+    buttons,
+    received: true,
+    time: messageTime(),
+    avatar: BOT_AVATAR,
+  }]
+}
+
+const mergeDbMessage = (incoming) => (prev) => {
+  const mapped = mapDbMessage(incoming)
+  if (mapped.clientMessageId) {
+    const index = prev.findIndex(item =>
+      item.id === mapped.clientMessageId || item.clientMessageId === mapped.clientMessageId
+    )
+    if (index !== -1) {
+      const next = [...prev]
+      next[index] = mapped
+      return next
+    }
+  }
+  if (prev.some(item => item.dbId && Number(item.dbId) === Number(incoming.id))) return prev
+  return [...prev, mapped]
+}
+
 const ChatView = ({ onClose, client }) => {
   const [input, setInput]             = useState('')
   const [messages, setMessages]       = useState([])
   const [botFlow, setBotFlow]         = useState(null)
+  const [currentBotScreenId, setCurrentBotScreenId] = useState(null)
   const [botActionPending, setBotActionPending] = useState(false)
+  const [connectionStatus, setConnectionStatus] = useState('online')
   const [attachOpen, setAttachOpen]   = useState(false)
   const [showScroll, setShowScroll]   = useState(false)
   const [previewData, setPreviewData] = useState(null)
   const [viewerData, setViewerData]   = useState(null)
+  const [adminTyping, setAdminTyping] = useState(false)
 
   const messagesRef  = useRef(null)
   const bottomRef    = useRef(null)
   const imageInputRef = useRef(null)
   const pdfInputRef   = useRef(null)
   const botActionPendingRef = useRef(false)
+  const outboxRef = useRef([])
+  const pendingTimersRef = useRef(new Map())
+  const cancelledMediaRef = useRef(new Set())
+  const connectionTimerRef = useRef(null)
+  const connectionStatusRef = useRef(connectionStatus)
+  const lastManualConnectRef = useRef(0)
+  const readTimerRef = useRef(null)
+  const typingTimerRef = useRef(null)
+  const adminTypingTimerRef = useRef(null)
+  const typingActiveRef = useRef(false)
   const username = client?.fullName || client?.username || 'Cliente'
-  const onlineLabel = client?.online === false ? 'Conectando' : 'En linea'
+  const onlineLabel = connectionStatus === 'offline'
+    ? 'Sin conexion'
+    : connectionStatus === 'reconnecting' ? 'Reconectando' : connectionStatus === 'connected' ? 'Conectado' : 'En linea'
+  const connectionBanner = connectionStatus === 'offline'
+    ? 'Sin conexion. Guardamos tus mensajes para reenviarlos.'
+    : connectionStatus === 'reconnecting' ? 'Reconectando...' : 'Conexion restablecida'
+  const showConnectionBanner = connectionStatus !== 'online'
+  const chatId = client?.chatId
+
+  useEffect(() => {
+    connectionStatusRef.current = connectionStatus
+  }, [connectionStatus])
 
   const scrollToBottom = (smooth = true) => {
     const el = messagesRef.current
@@ -341,13 +468,208 @@ const ChatView = ({ onClose, client }) => {
     setShowScroll(el.scrollHeight - el.scrollTop - el.clientHeight > 80)
   }
 
+  const markConnectionRestored = useCallback(() => {
+    window.clearTimeout(connectionTimerRef.current)
+    setConnectionStatus(previous => previous === 'online' ? 'online' : 'connected')
+    connectionTimerRef.current = window.setTimeout(() => setConnectionStatus('online'), 1800)
+  }, [])
+
+  const clearPendingTimer = useCallback((clientMessageId) => {
+    const timer = pendingTimersRef.current.get(clientMessageId)
+    if (timer) window.clearTimeout(timer)
+    pendingTimersRef.current.delete(clientMessageId)
+  }, [])
+
+  const setQueuedManualRetry = useCallback((clientMessageId) => {
+    const next = outboxRef.current.map(item =>
+      item.clientMessageId === clientMessageId && isMediaPayload(item)
+        ? { ...item, needsManualRetry: true }
+        : item
+    )
+    outboxRef.current = next
+    writeOutbox(chatId, next)
+  }, [chatId])
+
+  const markMessagePending = useCallback((clientMessageId) => {
+    clearPendingTimer(clientMessageId)
+    setQueuedManualRetry(clientMessageId)
+    setMessages(prev => prev.map(message =>
+      message.id === clientMessageId || message.clientMessageId === clientMessageId
+        ? { ...message, type: 'pending-media' }
+        : message
+    ))
+  }, [clearPendingTimer, setQueuedManualRetry])
+
+  const schedulePendingState = useCallback((clientMessageId) => {
+    clearPendingTimer(clientMessageId)
+    const timer = window.setTimeout(() => {
+      markMessagePending(clientMessageId)
+    }, MEDIA_PENDING_MS)
+    pendingTimersRef.current.set(clientMessageId, timer)
+  }, [clearPendingTimer, markMessagePending])
+
+  const replaceOptimisticMessage = useCallback((clientMessageId, dbMessage) => {
+    setMessages(prev => prev.map(message =>
+      message.id === clientMessageId || message.clientMessageId === clientMessageId
+        ? mapDbMessage(dbMessage)
+        : message
+    ))
+  }, [])
+
+  const markOutboundDelivered = useCallback(() => {
+    if (!chatId) return
+    api.put(`/api/client/chats/${chatId}/delivered`, {}).catch(() => {})
+  }, [chatId])
+
+  const markOutboundReadSoon = useCallback(() => {
+    if (!chatId) return
+    window.clearTimeout(readTimerRef.current)
+    readTimerRef.current = window.setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        api.put(`/api/client/chats/${chatId}/read`, {}).catch(() => {})
+      }
+    }, 1200)
+  }, [chatId])
+
+  const queueMessage = useCallback((payload) => {
+    const next = [...outboxRef.current.filter(item => item.clientMessageId !== payload.clientMessageId), payload]
+    outboxRef.current = next
+    writeOutbox(chatId, next)
+  }, [chatId])
+
+  const removeQueuedMessage = useCallback((clientMessageId) => {
+    const next = outboxRef.current.filter(item => item.clientMessageId !== clientMessageId)
+    outboxRef.current = next
+    writeOutbox(chatId, next)
+  }, [chatId])
+
+  const sendHttpPayload = useCallback(async (payload) => {
+    if (!navigator.onLine || !payload?.chatId) return false
+    try {
+      const result = await api.post(`/api/client/chats/${payload.chatId}/messages`, payload)
+      clearPendingTimer(payload.clientMessageId)
+      removeQueuedMessage(payload.clientMessageId)
+      if (cancelledMediaRef.current.has(payload.clientMessageId)) {
+        cancelledMediaRef.current.delete(payload.clientMessageId)
+        return true
+      }
+      replaceOptimisticMessage(payload.clientMessageId, result.message)
+      markConnectionRestored()
+      return true
+    } catch {
+      if (cancelledMediaRef.current.has(payload.clientMessageId)) return false
+      if (isMediaPayload(payload)) markMessagePending(payload.clientMessageId)
+      return false
+    }
+  }, [clearPendingTimer, markConnectionRestored, markMessagePending, removeQueuedMessage, replaceOptimisticMessage])
+
+  const sendSocketPayload = useCallback((payload, { queueWhenOffline = true } = {}) => {
+    const socket = getSocket('client')
+    if (!navigator.onLine) {
+      if (queueWhenOffline) queueMessage(payload)
+      setConnectionStatus('offline')
+      return
+    }
+
+    if (!socket.connected) {
+      if (queueWhenOffline) queueMessage(payload)
+      setConnectionStatus('reconnecting')
+      sendHttpPayload(payload)
+      return
+    }
+
+    socket.timeout(9000).emit('message:send', payload, (error, ack) => {
+      if (cancelledMediaRef.current.has(payload.clientMessageId)) return
+      if (error || !ack?.ok) {
+        if (queueWhenOffline) queueMessage(isMediaPayload(payload) ? { ...payload, needsManualRetry: true } : payload)
+        if (isMediaPayload(payload)) markMessagePending(payload.clientMessageId)
+        setConnectionStatus(navigator.onLine ? 'reconnecting' : 'offline')
+        return
+      }
+      const finish = () => {
+        clearPendingTimer(payload.clientMessageId)
+        removeQueuedMessage(payload.clientMessageId)
+        replaceOptimisticMessage(payload.clientMessageId, ack.message)
+        markConnectionRestored()
+      }
+      const elapsed = Date.now() - (payload.loaderStartedAt || 0)
+      const remaining = payload.messageType === 'image' || payload.messageType === 'pdf'
+        ? Math.max(MIN_MEDIA_LOADER_MS - elapsed, 0)
+        : 0
+      window.setTimeout(finish, remaining)
+    })
+  }, [clearPendingTimer, markConnectionRestored, markMessagePending, queueMessage, removeQueuedMessage, replaceOptimisticMessage, sendHttpPayload])
+
+  const flushOutbox = useCallback(() => {
+    if (!chatId || outboxRef.current.length === 0) return
+    const pending = [...outboxRef.current]
+    pending.forEach(payload => {
+      if (isMediaPayload(payload) && payload.needsManualRetry) return
+      if (navigator.onLine && !getSocket('client').connected) sendHttpPayload(payload)
+      else sendSocketPayload(payload, { queueWhenOffline: true })
+    })
+  }, [chatId, sendHttpPayload, sendSocketPayload])
+
+  const retryQueuedMedia = useCallback((clientMessageId) => {
+    const payload = outboxRef.current.find(item => item.clientMessageId === clientMessageId)
+    if (!payload) return
+    cancelledMediaRef.current.delete(clientMessageId)
+    const retryPayload = { ...payload, needsManualRetry: false, loaderStartedAt: Date.now() }
+    queueMessage(retryPayload)
+    setMessages(prev => prev.map(message =>
+      message.id === clientMessageId || message.clientMessageId === clientMessageId
+        ? { ...message, type: 'sending' }
+        : message
+    ))
+    schedulePendingState(clientMessageId)
+    if (navigator.onLine && !getSocket('client').connected) sendHttpPayload(retryPayload)
+    else sendSocketPayload(retryPayload, { queueWhenOffline: true })
+  }, [queueMessage, schedulePendingState, sendHttpPayload, sendSocketPayload])
+
+  const cancelQueuedMedia = useCallback((clientMessageId) => {
+    cancelledMediaRef.current.add(clientMessageId)
+    clearPendingTimer(clientMessageId)
+    removeQueuedMessage(clientMessageId)
+    setMessages(prev => prev.filter(message =>
+      message.id !== clientMessageId && message.clientMessageId !== clientMessageId
+    ))
+  }, [clearPendingTimer, removeQueuedMessage])
+
   const sendMessage = () => {
     const text = input.trim()
-    if (!text) return
+    if (!text || !chatId) return
     const time = messageTime()
-    setMessages(prev => [...prev, { id: Date.now(), type: 'text', text, received: false, time }])
+    const clientMessageId = makeClientMessageId('client-text')
+    const payload = {
+      chatId,
+      clientMessageId,
+      messageType: 'text',
+      content: text,
+      time,
+    }
+    setMessages(prev => [...prev, { id: clientMessageId, clientMessageId, type: 'text', text, received: false, time }])
     setInput('')
     setAttachOpen(false)
+    sendSocketPayload(payload)
+    emitTyping(false)
+  }
+
+  const emitTyping = useCallback((isTyping) => {
+    if (!chatId) return
+    typingActiveRef.current = isTyping
+    getSocket('client').emit('typing', { chatId, isTyping })
+  }, [chatId])
+
+  const handleInputChange = (event) => {
+    const nextValue = event.target.value
+    setInput(nextValue)
+    if (nextValue.trim()) {
+      if (!typingActiveRef.current) emitTyping(true)
+    } else {
+      emitTyping(false)
+    }
+    window.clearTimeout(typingTimerRef.current)
+    typingTimerRef.current = window.setTimeout(() => emitTyping(false), TYPING_IDLE_MS)
   }
 
   const handleKeyDown = (e) => {
@@ -359,71 +681,139 @@ const ChatView = ({ onClose, client }) => {
     botActionPendingRef.current = true
     setBotActionPending(true)
 
-    const target = botFlow?.screens?.find(screen => screen.id === button.actionScreenId)
+    const currentScreen = botFlow?.screens?.find(screen => screen.id === currentBotScreenId)
+    const target = botFlow?.screens?.find(screen => screen.id === button.actionScreenId) || currentScreen
     const time = messageTime()
+    const optionMessageId = makeClientMessageId('client-bot-option')
+    const botMessages = createBotMessages(target, button.id)
+    const botTextMessages = botMessages.filter(message => message.type === 'text')
+    const botMessageIds = botTextMessages.map(() => makeClientMessageId('bot-auto'))
 
-    setTimeout(() => {
-      setMessages(prev => [
-        ...prev,
-        {
-          id: `user-bot-${button.id}-${Date.now()}`,
-          type: 'text',
-          text: button.label,
-          received: false,
-          time,
-        },
-        ...createBotMessages(target, button.id),
-      ])
+    setCurrentBotScreenId(target?.id || currentBotScreenId)
+    setMessages(prev => [
+      ...prev.filter(message => message.type !== 'bot-buttons'),
+      {
+        id: optionMessageId,
+        clientMessageId: optionMessageId,
+        type: 'text',
+        text: button.label,
+        received: false,
+        time,
+      },
+      ...botMessages.map(message => {
+        if (message.type !== 'text') return message
+        const index = botTextMessages.findIndex(item => item.id === message.id)
+        return { ...message, id: botMessageIds[index], clientMessageId: botMessageIds[index] }
+      }),
+    ])
+
+    if (!chatId || !target?.id) {
       botActionPendingRef.current = false
       setBotActionPending(false)
-    }, 260)
+      return
+    }
+
+    api.post(`/api/client/bot/chats/${chatId}/select`, {
+      buttonId: button.id,
+      clientMessageId: optionMessageId,
+      botMessageIds,
+    })
+      .then((data) => {
+        markConnectionRestored()
+        setCurrentBotScreenId(data.state?.currentScreenId || target.id)
+        for (const message of data.messages || []) {
+          setMessages(mergeDbMessage(message))
+        }
+      })
+      .catch(() => {
+        api.put(`/api/client/bot/chats/${chatId}/state`, {
+          screenId: target.id,
+          buttonId: button.id,
+        }).catch(() => {})
+      })
+      .finally(() => {
+        botActionPendingRef.current = false
+        setBotActionPending(false)
+      })
   }
 
   const handleFileSelect = (e, type) => {
     const file = e.target.files?.[0]
     if (!file) return
     const url = URL.createObjectURL(file)
-    setPreviewData({ type, url, name: file.name })
+    setPreviewData({ type, url, name: file.name, file })
     setAttachOpen(false)
     e.target.value = ''
   }
 
-  const sendMedia = () => {
-    if (!previewData) return
-    const { type, url, name } = previewData
+  const sendMedia = async () => {
+    if (!previewData || !chatId) return
+    const { type, url, name, file } = previewData
     setPreviewData(null)
 
-    const sendingId = Date.now()
+    const sendingId = makeClientMessageId(`client-${type}`)
     const time = messageTime()
+    const loaderStartedAt = Date.now()
 
     setMessages(prev => [...prev, {
       id: sendingId,
+      clientMessageId: sendingId,
       type: 'sending',
       mediaType: type,
+      fileName: name,
       received: false,
       time,
     }])
-
-    setTimeout(() => {
+    schedulePendingState(sendingId)
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      if (cancelledMediaRef.current.has(sendingId)) {
+        cancelledMediaRef.current.delete(sendingId)
+        return
+      }
+      sendSocketPayload({
+        chatId,
+        clientMessageId: sendingId,
+        messageType: type,
+        dataUrl,
+        fileName: name,
+        time,
+        loaderStartedAt,
+      })
+    } catch {
+      clearPendingTimer(sendingId)
       setMessages(prev => prev.map(msg =>
         msg.id === sendingId
-          ? { ...msg, type, mediaUrl: url, fileName: name }
+          ? { ...msg, type: 'pending-media', mediaUrl: url, fileName: name }
           : msg
       ))
-    }, SEND_DELAY_MS)
+    }
   }
 
   useEffect(() => {
     let alive = true
 
-    const loadBotFlow = async () => {
+    const loadInitial = async () => {
       try {
-        const data = await api.get('/api/client/bot/flow')
-        const flow = data.flow
+        const [botData, messageData] = await Promise.all([
+          api.get('/api/client/bot/flow'),
+          chatId ? api.get(`/api/client/chats/${chatId}/messages`) : Promise.resolve({ messages: [] }),
+        ])
+        const flow = botData.flow
         const root = flow?.screens?.find(screen => screen.isRoot) || flow?.screens?.[0]
+        const currentScreen = flow?.screens?.find(screen => screen.id === botData.state?.currentScreenId) || root
+        const dbMessages = (messageData.messages || []).map(mapDbMessage)
+        const botMessages = dbMessages.length > 0
+          ? createBotButtonMessages(currentScreen, botData.state?.lastButtonId || 'state')
+          : createBotMessages(currentScreen, botData.state?.lastButtonId || 'state')
+        const queuedMessages = readOutbox(chatId)
         if (!alive) return
+        outboxRef.current = queuedMessages
         setBotFlow(flow || null)
-        setMessages(createBotMessages(root, 'root'))
+        setCurrentBotScreenId(currentScreen?.id || null)
+        setMessages([...dbMessages, ...queuedMessages.map(mapQueuedMessage), ...botMessages])
+        markOutboundDelivered()
+        markOutboundReadSoon()
       } catch {
         if (!alive) return
         setMessages([{
@@ -437,10 +827,122 @@ const ChatView = ({ onClose, client }) => {
       }
     }
 
-    loadBotFlow()
+    loadInitial()
     return () => { alive = false }
-  }, [])
+  }, [chatId, markOutboundDelivered, markOutboundReadSoon])
+
+  useEffect(() => {
+    if (!chatId) return
+    const socket = getSocket('client')
+    socket.emit('chat:join', { chatId })
+    const onNewMessage = (message) => {
+      if (Number(message.chatId) !== Number(chatId)) return
+      setMessages(mergeDbMessage(message))
+      if (message.senderType !== 'client') {
+        window.clearTimeout(adminTypingTimerRef.current)
+        setAdminTyping(false)
+        markOutboundDelivered()
+        markOutboundReadSoon()
+      }
+    }
+    const onTyping = (event) => {
+      if (Number(event.chatId) !== Number(chatId) || event.senderType === 'client') return
+      window.clearTimeout(adminTypingTimerRef.current)
+      const isTyping = Boolean(event.isTyping)
+      setAdminTyping(isTyping)
+      if (isTyping) {
+        adminTypingTimerRef.current = window.setTimeout(() => setAdminTyping(false), TYPING_IDLE_MS + 1600)
+      }
+    }
+    socket.on('message:new', onNewMessage)
+    socket.on('typing', onTyping)
+    return () => {
+      socket.off('message:new', onNewMessage)
+      socket.off('typing', onTyping)
+      socket.emit('chat:leave', { chatId })
+    }
+  }, [chatId, markOutboundDelivered, markOutboundReadSoon])
+
+  useEffect(() => {
+    const socket = getSocket('client')
+    let watchdogTimer = null
+
+    const requestConnect = () => {
+      const now = Date.now()
+      const engineState = socket.io?.engine?.readyState
+      const managerConnecting = Boolean(socket.io?._reconnecting)
+      if (socket.connected || managerConnecting || engineState === 'opening') return
+      if (now - lastManualConnectRef.current < MANUAL_CONNECT_COOLDOWN_MS) return
+      lastManualConnectRef.current = now
+      socket.connect()
+    }
+
+    const markOffline = () => {
+      window.clearTimeout(connectionTimerRef.current)
+      setConnectionStatus('offline')
+    }
+    const markReconnecting = () => {
+      window.clearTimeout(connectionTimerRef.current)
+      setConnectionStatus('reconnecting')
+    }
+    const markConnected = () => {
+      markConnectionRestored()
+      flushOutbox()
+    }
+    const syncConnection = () => {
+      if (!navigator.onLine) {
+        markOffline()
+        return
+      }
+
+      if (socket.connected) {
+        if (connectionStatusRef.current === 'offline' || connectionStatusRef.current === 'reconnecting') {
+          markConnected()
+        } else if (outboxRef.current.length > 0) {
+          flushOutbox()
+        }
+        return
+      }
+
+      markReconnecting()
+      requestConnect()
+    }
+
+    syncConnection()
+    watchdogTimer = window.setInterval(syncConnection, RECONNECT_WATCHDOG_MS)
+
+    socket.on('connect', markConnected)
+    socket.on('disconnect', markOffline)
+    socket.on('connect_error', markReconnecting)
+    socket.io.on('reconnect', markConnected)
+    socket.io.on('reconnect_attempt', markReconnecting)
+    window.addEventListener('offline', markOffline)
+    window.addEventListener('online', syncConnection)
+
+    return () => {
+      window.clearInterval(watchdogTimer)
+      window.clearTimeout(connectionTimerRef.current)
+      socket.off('connect', markConnected)
+      socket.off('disconnect', markOffline)
+      socket.off('connect_error', markReconnecting)
+      socket.io.off('reconnect', markConnected)
+      socket.io.off('reconnect_attempt', markReconnecting)
+      window.removeEventListener('offline', markOffline)
+      window.removeEventListener('online', syncConnection)
+    }
+  }, [chatId, flushOutbox, markConnectionRestored])
+
   useEffect(() => { scrollToBottom() }, [messages])
+  useEffect(() => () => {
+    window.clearTimeout(readTimerRef.current)
+    window.clearTimeout(typingTimerRef.current)
+    window.clearTimeout(adminTypingTimerRef.current)
+    pendingTimersRef.current.forEach(timer => window.clearTimeout(timer))
+    pendingTimersRef.current.clear()
+    if (typingActiveRef.current) getSocket('client').emit('typing', { chatId, isTyping: false })
+  }, [chatId])
+  const { normalMessages, botButtonMessages } = splitBotButtons(messages)
+  const orderedMessages = [...normalMessages, ...botButtonMessages.slice(-1)]
 
   return (
     <ChatViewContainer>
@@ -473,6 +975,12 @@ const ChatView = ({ onClose, client }) => {
             <HeaderPillText>{username}</HeaderPillText>
             <HeaderPillBadge>{onlineLabel}</HeaderPillBadge>
           </HeaderPill>
+          <ConnectionBanner
+            $visible={showConnectionBanner}
+            $tone={connectionStatus === 'connected' ? 'ok' : connectionStatus === 'reconnecting' ? 'warn' : 'danger'}
+          >
+            {connectionBanner}
+          </ConnectionBanner>
         </ChatHeaderCenter>
 
         <ChatHeaderSide $right />
@@ -481,7 +989,7 @@ const ChatView = ({ onClose, client }) => {
       {/* messages */}
       <MessagesArea>
         <ChatMessages ref={messagesRef} onScroll={handleScroll}>
-          {messages.map(msg => (
+          {orderedMessages.map(msg => (
             <MessageRow key={msg.id} $received={msg.received}>
               {msg.received && <MessageAvatar>{msg.avatar}</MessageAvatar>}
               <MessageContent $received={msg.received} $wide={msg.type === 'bot-buttons'}>
@@ -489,6 +997,23 @@ const ChatView = ({ onClose, client }) => {
                   <SendingBubbleWrap>
                     <SendingLoader mediaType={msg.mediaType} />
                   </SendingBubbleWrap>
+                ) : msg.type === 'pending-media' ? (
+                  <PendingMediaWrap>
+                    <PendingMediaTitle>
+                      {msg.mediaType === 'pdf' ? 'Documento pendiente' : 'Imagen pendiente'}
+                    </PendingMediaTitle>
+                    <PendingMediaHint>
+                      No se pudo completar el envio.
+                    </PendingMediaHint>
+                    <PendingMediaActions>
+                      <PendingMediaBtn type="button" onClick={() => retryQueuedMedia(msg.clientMessageId)}>
+                        Reintentar
+                      </PendingMediaBtn>
+                      <PendingMediaBtn type="button" $danger onClick={() => cancelQueuedMedia(msg.clientMessageId)}>
+                        Cancelar
+                      </PendingMediaBtn>
+                    </PendingMediaActions>
+                  </PendingMediaWrap>
                 ) : msg.type === 'bot-buttons' ? (
                   <BotButtonsWrap>
                     {msg.buttons.map(button => (
@@ -523,6 +1048,14 @@ const ChatView = ({ onClose, client }) => {
               </MessageContent>
             </MessageRow>
           ))}
+          {adminTyping && (
+            <TypingBubble>
+              <TypingDot $delay={0} />
+              <TypingDot $delay={140} />
+              <TypingDot $delay={280} />
+              <TypingText>Soporte escribiendo</TypingText>
+            </TypingBubble>
+          )}
           <div ref={bottomRef} />
         </ChatMessages>
 
@@ -567,7 +1100,7 @@ const ChatView = ({ onClose, client }) => {
 
           <ChatInput
             value={input}
-            onChange={e => setInput(e.target.value)}
+            onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             placeholder="Escribe un mensaje..."
           />

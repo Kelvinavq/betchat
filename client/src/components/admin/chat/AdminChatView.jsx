@@ -18,11 +18,14 @@ import PersonOffOutlinedIcon from '@mui/icons-material/BlockOutlined'
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import DropUpload from '../../common/DropUpload'
+import { api, resolveApiAsset } from '../../../utils/api'
+import { getSocket, makeClientMessageId } from '../../../utils/socket'
 import {
   Wrap, EmptyState,
   Header, BackBtn, HeaderAvatar, OnlineDot, HeaderInfo, HeaderName, HeaderStatus,
   HeaderMenuWrap, HeaderMenuBtn, DropdownMenu, DropdownItem,
-  MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgBubble, MsgTime,
+  MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgBubble, MsgMeta, MsgStatus, MsgTime,
+  TypingBubble, TypingDot, TypingText,
   ScrollDownBtn, MediaMsgImg, MediaMsgPdf,
   BottomArea,
   EmojiPanel, EmojiCategoryBar, EmojiCategoryBtn, EmojiGrid, EmojiBtn,
@@ -61,13 +64,36 @@ const EMOJI_GROUPS = [
   },
 ]
 
-const SEND_DELAY_MS = 10000
+const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
 
-const INITIAL_MSGS = [
-  { id: 1, type: 'text', text: '¡Hola! ¿En qué puedo ayudarte?', sent: false, time: '12:00' },
-  { id: 2, type: 'text', text: 'Buenas, necesito hacer un retiro', sent: true, time: '12:01' },
-  { id: 3, type: 'text', text: 'Claro, te ayudo con eso. ¿Cuál es el monto?', sent: false, time: '12:02' },
-]
+const fileToDataUrl = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader()
+  reader.onload = () => resolve(reader.result)
+  reader.onerror = () => reject(new Error('No se pudo leer el archivo'))
+  reader.readAsDataURL(file)
+})
+
+const mapDbMessage = (msg) => ({
+  id: `db-${msg.id}`,
+  dbId: msg.id,
+  clientMessageId: msg.clientMessageId || '',
+  type: msg.messageType === 'image' ? 'image' : msg.messageType === 'pdf' ? 'pdf' : 'text',
+  text: msg.content,
+  mediaUrl: resolveApiAsset(msg.fileUrl),
+  fileName: msg.fileName,
+  sent: msg.senderType !== 'client',
+  time: msg.time,
+  deliveredAt: msg.deliveredAt || null,
+  readAt: msg.readAt || null,
+  deliveryState: msg.readAt ? 'read' : msg.deliveredAt ? 'delivered' : 'sent',
+})
+
+const deliveryLabel = (msg) => {
+  if (!msg.sent) return ''
+  if (msg.readAt || msg.deliveryState === 'read') return 'Visto'
+  if (msg.deliveredAt || msg.deliveryState === 'delivered') return 'Entregado'
+  return 'Enviado'
+}
 
 /* ── voice waveform pattern (visual only) ── */
 const WAVEFORM = [
@@ -92,6 +118,7 @@ const LOADER_TEXTS = {
   image: ['Enviando imagen', 'Ya casi terminamos', 'Un momento más'],
   pdf:   ['Enviando archivo', 'Ya casi terminamos', 'Un momento más'],
 }
+const TYPING_IDLE_MS = 1400
 
 const SendingLoader = ({ mediaType }) => {
   const texts = LOADER_TEXTS[mediaType] ?? LOADER_TEXTS.image
@@ -201,13 +228,14 @@ const MediaViewer = ({ data, onClose }) => {
 /* ── main component ── */
 const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const [input, setInput]           = useState('')
-  const [messages, setMessages]     = useState(INITIAL_MSGS)
+  const [messages, setMessages]     = useState([])
   const [dropOpen, setDropOpen]     = useState(false)
   const [emojiOpen, setEmojiOpen]   = useState(false)
   const [emojiGroup, setEmojiGroup] = useState(0)
   const [showScroll, setShowScroll] = useState(false)
   const [viewerData, setViewerData] = useState(null)
   const [menuOpen, setMenuOpen]     = useState(false)
+  const [clientTyping, setClientTyping] = useState(false)
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -221,6 +249,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const bottomRef = useRef(null)
   const inputRef  = useRef(null)
   const menuRef   = useRef(null)
+  const typingTimerRef = useRef(null)
+  const clientTypingTimerRef = useRef(null)
+  const typingActiveRef = useRef(false)
 
   const scrollToBottom = (smooth = true) => {
     const el = listRef.current
@@ -255,7 +286,89 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   }, [])
 
   useEffect(() => {
-    if (chat) { setMessages(INITIAL_MSGS); setDropOpen(false) }
+    if (!chat?.id) {
+      return undefined
+    }
+
+    let alive = true
+    const socket = getSocket('admin')
+    const chatId = chat.id
+
+    socket.emit('chat:join', { chatId })
+
+    const replaceOrAppend = (incoming) => {
+      setMessages(prev => {
+        const mapped = mapDbMessage(incoming)
+        if (mapped.clientMessageId) {
+          const index = prev.findIndex(item =>
+            item.id === mapped.clientMessageId || item.clientMessageId === mapped.clientMessageId
+          )
+          if (index !== -1) {
+            const next = [...prev]
+            next[index] = mapped
+            return next
+          }
+        }
+        if (prev.some(item => item.dbId && Number(item.dbId) === Number(incoming.id))) return prev
+        return [...prev, mapped]
+      })
+    }
+
+    const onNewMessage = (message) => {
+      if (Number(message.chatId) !== Number(chatId)) return
+      replaceOrAppend(message)
+      if (message.senderType === 'client') {
+        window.clearTimeout(clientTypingTimerRef.current)
+        setClientTyping(false)
+        api.put(`/api/chats/${chatId}/read`, {}).catch(() => {})
+      }
+    }
+    const onTyping = (event) => {
+      if (Number(event.chatId) !== Number(chatId) || event.senderType !== 'client') return
+      window.clearTimeout(clientTypingTimerRef.current)
+      const isTyping = Boolean(event.isTyping)
+      setClientTyping(isTyping)
+      if (isTyping) {
+        clientTypingTimerRef.current = window.setTimeout(() => setClientTyping(false), TYPING_IDLE_MS + 1600)
+      }
+    }
+    const onMessageStatus = ({ chatId: statusChatId, statuses } = {}) => {
+      if (Number(statusChatId) !== Number(chatId)) return
+      setMessages(prev => prev.map(message => {
+        const status = statuses?.find(item => Number(item.id) === Number(message.dbId))
+        if (!status) return message
+        return {
+          ...message,
+          deliveredAt: status.deliveredAt || message.deliveredAt,
+          readAt: status.readAt || message.readAt,
+          deliveryState: status.readAt ? 'read' : status.deliveredAt ? 'delivered' : message.deliveryState,
+        }
+      }))
+    }
+
+    const loadMessages = async () => {
+      try {
+        const data = await api.get(`/api/chats/${chatId}/messages`)
+        if (!alive) return
+        setMessages((data.messages || []).map(mapDbMessage))
+        await api.put(`/api/chats/${chatId}/read`, {})
+      } catch {
+        if (alive) setMessages([])
+      }
+    }
+
+    socket.on('message:new', onNewMessage)
+    socket.on('typing', onTyping)
+    socket.on('messages:status', onMessageStatus)
+    loadMessages()
+
+    return () => {
+      alive = false
+      socket.off('message:new', onNewMessage)
+      socket.off('typing', onTyping)
+      socket.off('messages:status', onMessageStatus)
+      socket.emit('chat:leave', { chatId })
+    }
   }, [chat?.id])
 
   /* cleanup on unmount */
@@ -265,17 +378,50 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
       if (mediaRecRef.current?.state === 'recording') {
         mediaRecRef.current.stream?.getTracks().forEach(t => t.stop())
       }
+      window.clearTimeout(typingTimerRef.current)
+      window.clearTimeout(clientTypingTimerRef.current)
+      if (typingActiveRef.current && chat?.id) getSocket('admin').emit('typing', { chatId: chat.id, isTyping: false })
     }
-  }, [])
+  }, [chat?.id])
+
+  const emitTyping = (isTyping) => {
+    if (!chat?.id) return
+    typingActiveRef.current = isTyping
+    getSocket('admin').emit('typing', { chatId: chat.id, isTyping })
+  }
+
+  const handleInputChange = (event) => {
+    const nextValue = event.target.value
+    setInput(nextValue)
+    if (nextValue.trim()) {
+      if (!typingActiveRef.current) emitTyping(true)
+    } else {
+      emitTyping(false)
+    }
+    window.clearTimeout(typingTimerRef.current)
+    typingTimerRef.current = window.setTimeout(() => emitTyping(false), TYPING_IDLE_MS)
+  }
 
   /* ── text send ── */
   const sendText = () => {
     const text = input.trim()
-    if (!text) return
-    const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
-    setMessages(prev => [...prev, { id: Date.now(), type: 'text', text, sent: true, time }])
+    if (!text || !chat?.id) return
+    const clientMessageId = makeClientMessageId('admin-text')
+    setMessages(prev => [...prev, { id: clientMessageId, clientMessageId, type: 'text', text, sent: true, time: messageTime(), deliveryState: 'sent' }])
     setInput('')
     setEmojiOpen(false)
+    emitTyping(false)
+    getSocket('admin').emit('message:send', {
+      chatId: chat.id,
+      clientMessageId,
+      messageType: 'text',
+      content: text,
+    }, (ack) => {
+      if (!ack?.ok) return
+      setMessages(prev => prev.map(msg =>
+        msg.id === clientMessageId || msg.clientMessageId === clientMessageId ? mapDbMessage(ack.message) : msg
+      ))
+    })
   }
 
   const handleKeyDown = (e) => {
@@ -301,16 +447,30 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     if (e.dataTransfer?.types?.includes('Files') && !dropOpen) setDropOpen(true)
   }
 
-  const sendMedia = (type, url, name) => {
+  const sendMedia = async (type, url, name, file) => {
+    if (!chat?.id || !file) return
     setDropOpen(false)
-    const sendingId = Date.now()
-    const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
-    setMessages(prev => [...prev, { id: sendingId, type: 'sending', mediaType: type, sent: true, time }])
-    setTimeout(() => {
-      setMessages(prev => prev.map(m =>
-        m.id === sendingId ? { ...m, type, mediaUrl: url, fileName: name } : m
+    const sendingId = makeClientMessageId(`admin-${type}`)
+    setMessages(prev => [...prev, { id: sendingId, clientMessageId: sendingId, type: 'sending', mediaType: type, sent: true, time: messageTime(), deliveryState: 'sent' }])
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      getSocket('admin').emit('message:send', {
+        chatId: chat.id,
+        clientMessageId: sendingId,
+        messageType: type,
+        dataUrl,
+        fileName: name,
+      }, (ack) => {
+        if (!ack?.ok) return
+        setMessages(prev => prev.map(msg =>
+          msg.id === sendingId || msg.clientMessageId === sendingId ? mapDbMessage(ack.message) : msg
+        ))
+      })
+    } catch {
+      setMessages(prev => prev.map(msg =>
+        msg.id === sendingId ? { ...msg, type, mediaUrl: url, fileName: name } : msg
       ))
-    }, SEND_DELAY_MS)
+    }
   }
 
   /* ── voice recording ── */
@@ -360,6 +520,17 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     mr.stop()
   }
 
+  const archiveCurrentChat = async () => {
+    if (!chat?.id) return
+    try {
+      await api.put(`/api/chats/${chat.id}/archive`, { archived: true })
+      setMenuOpen(false)
+      onBack?.()
+    } catch {
+      setMenuOpen(false)
+    }
+  }
+
   if (!chat) {
     return (
       <Wrap>
@@ -389,12 +560,12 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         </BackBtn>
 
         <HeaderAvatar>
-          {chat.username[0].toUpperCase()}
+          {chat.username?.[0]?.toUpperCase() || '?'}
           <OnlineDot $online={chat.online} />
         </HeaderAvatar>
 
         <HeaderInfo>
-          <HeaderName>{chat.username}</HeaderName>
+          <HeaderName>{chat.username || 'Cliente'}</HeaderName>
           <HeaderStatus $online={chat.online}>
             {chat.online ? 'En línea' : 'Desconectado'}
           </HeaderStatus>
@@ -412,7 +583,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
           </HeaderMenuBtn>
           {menuOpen && (
             <DropdownMenu>
-              <DropdownItem onClick={() => setMenuOpen(false)}>
+              <DropdownItem onClick={archiveCurrentChat}>
                 <ArchiveOutlinedIcon />Archivar conversación
               </DropdownItem>
               <DropdownItem onClick={() => setMenuOpen(false)}>
@@ -431,7 +602,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         <MessagesList ref={listRef} onScroll={handleScroll}>
           {messages.map(msg => (
             <MsgRow key={msg.id} $sent={msg.sent}>
-              {!msg.sent && <MsgAvatar>{chat.username[0].toUpperCase()}</MsgAvatar>}
+              {!msg.sent && <MsgAvatar>{chat.username?.[0]?.toUpperCase() || '?'}</MsgAvatar>}
               <MsgContent $sent={msg.sent}>
                 {msg.type === 'sending' ? (
                   <SendingBubbleWrap><SendingLoader mediaType={msg.mediaType} /></SendingBubbleWrap>
@@ -449,10 +620,21 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
                 ) : (
                   <MsgBubble $sent={msg.sent}>{msg.text}</MsgBubble>
                 )}
-                <MsgTime>{msg.time}</MsgTime>
+                <MsgMeta>
+                  <MsgTime>{msg.time}</MsgTime>
+                  {msg.sent && <MsgStatus $state={msg.deliveryState}>{deliveryLabel(msg)}</MsgStatus>}
+                </MsgMeta>
               </MsgContent>
             </MsgRow>
           ))}
+          {clientTyping && (
+            <TypingBubble>
+              <TypingDot $delay={0} />
+              <TypingDot $delay={140} />
+              <TypingDot $delay={280} />
+              <TypingText>{chat.username || 'Cliente'} escribiendo</TypingText>
+            </TypingBubble>
+          )}
           <div ref={bottomRef} />
         </MessagesList>
 
@@ -536,7 +718,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
             <FooterInput
               ref={inputRef}
               value={input}
-              onChange={e => setInput(e.target.value)}
+              onChange={handleInputChange}
               onKeyDown={handleKeyDown}
               placeholder="Escribe un mensaje..."
             />

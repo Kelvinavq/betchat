@@ -27,7 +27,7 @@ const DropUpload = ({ onSend, onClose }) => {
     const isImage = file.type.startsWith('image/')
     const isPdf   = file.type === 'application/pdf'
     if (!isImage && !isPdf) { setError('Solo se permiten imágenes o archivos PDF'); return }
-    setPreview({ type: isImage ? 'image' : 'pdf', url: URL.createObjectURL(file), name: file.name })
+    setPreview({ type: isImage ? 'image' : 'pdf', url: URL.createObjectURL(file), name: file.name, file })
   }
 
   const handleDragEnter = (e) => {
@@ -81,7 +81,7 @@ const DropUpload = ({ onSend, onClose }) => {
 
           <PreviewActions>
             <ActionBtn type="button" onClick={() => setPreview(null)}>Cancelar</ActionBtn>
-            <ActionBtn type="button" $primary onClick={() => onSend(preview.type, preview.url, preview.name)}>
+            <ActionBtn type="button" $primary onClick={() => onSend(preview.type, preview.url, preview.name, preview.file)}>
               <SendIcon />Enviar
             </ActionBtn>
           </PreviewActions>

@@ -20,6 +20,9 @@ import clientsRoutes from './routes/clientsRoutes.js';
 import clientAuthRoutes from './routes/clientAuthRoutes.js';
 import botBuilderRoutes from './routes/botBuilderRoutes.js';
 import clientBotRoutes from './routes/clientBotRoutes.js';
+import chatRoutes from './routes/chatRoutes.js';
+import clientChatRoutes from './routes/clientChatRoutes.js';
+import { setupChatSockets } from './socket/chatSocket.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -27,6 +30,7 @@ const __dirname = dirname(__filename);
 const app = express();
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
+  maxHttpBufferSize: 16 * 1024 * 1024,
   cors: {
     origin: getCorsOrigins(),
     methods: ['GET', 'POST'],
@@ -60,6 +64,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/auth', authRoutes);
 app.use('/api/client/auth', clientAuthRoutes);
 app.use('/api/client/bot', clientBotRoutes);
+app.use('/api/client/chats', clientChatRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/commands', commandRoutes);
 app.use('/api/modals', modalRoutes);
@@ -67,6 +72,7 @@ app.use('/api/bank-accounts', bankAccountRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/bot-builder', botBuilderRoutes);
+app.use('/api/chats', chatRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {
@@ -138,6 +144,8 @@ app.use((err, req, res, next) => {
     requestId: req.id,
   });
 });
+
+setupChatSockets(io);
 
 // 404
 app.use((req, res) => {

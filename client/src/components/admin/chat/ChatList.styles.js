@@ -1,5 +1,5 @@
-import styled, { css, keyframes } from 'styled-components'
-import { gradients, colors, shadows } from '../../../styles/theme'
+import styled from 'styled-components'
+import { gradients, colors } from '../../../styles/theme'
 
 export const Wrap = styled.div`
   width: ${({ $width, $fullWidth }) => $fullWidth ? '100%' : $width ? `${$width}px` : '320px'};
@@ -82,6 +82,45 @@ export const DropdownItem = styled.button`
   &:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff; }
 `
 
+export const QuickMenu = styled.div`
+  position: fixed;
+  left: ${({ $x }) => `${$x}px`};
+  top: ${({ $y }) => `${$y}px`};
+  min-width: 190px;
+  padding: 6px;
+  background: rgba(12, 12, 26, 0.98);
+  border: 1px solid rgba(40, 140, 255, 0.18);
+  border-radius: 12px;
+  box-shadow: 0 16px 42px rgba(0, 0, 0, 0.55);
+  z-index: 80;
+`
+
+export const QuickMenuItem = styled.button`
+  width: 100%;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: rgba(255,255,255,0.74);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  svg { font-size: 17px; color: rgba(255,255,255,0.42); }
+
+  &:hover {
+    background: rgba(30, 133, 255, 0.12);
+    color: #ffffff;
+  }
+`
+
 /* ── search ── */
 export const SearchWrap = styled.div`
   padding: 4px 12px 10px;
@@ -114,6 +153,50 @@ export const SearchInput = styled.input`
   transition: border-color 0.2s;
   &::placeholder { color: rgba(255, 255, 255, 0.22); }
   &:focus { border-color: rgba(30, 133, 255, 0.40); }
+`
+
+export const ProcessFilters = styled.div`
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 10px;
+  overflow-x: auto;
+  flex-shrink: 0;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+`
+
+export const ProcessChip = styled.button`
+  min-height: 30px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid ${({ $active, $color }) => $active ? $color : 'rgba(255,255,255,0.08)'};
+  background: ${({ $active, $bg }) => $active ? $bg : 'rgba(255,255,255,0.045)'};
+  color: ${({ $active, $color }) => $active ? $color : 'rgba(255,255,255,0.50)'};
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s, transform 0.14s;
+
+  &:hover {
+    color: ${({ $color }) => $color};
+    border-color: ${({ $color }) => $color};
+    background: ${({ $bg }) => $bg};
+  }
+
+  &:active { transform: scale(0.98); }
+`
+
+export const ProcessDot = styled.span`
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: ${({ $color }) => $color};
+  box-shadow: 0 0 14px ${({ $color }) => $color};
 `
 
 /* ── list ── */
@@ -209,6 +292,24 @@ export const ChatLastMsg = styled.span`
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+`
+
+export const AssignedPill = styled.span`
+  max-width: 128px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: ${({ $own }) => $own ? 'rgba(34,197,94,0.12)' : 'rgba(245,158,11,0.12)'};
+  border: 1px solid ${({ $own }) => $own ? 'rgba(34,197,94,0.26)' : 'rgba(245,158,11,0.26)'};
+  color: ${({ $own }) => $own ? '#86efac' : '#facc15'};
+  font-size: 10px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
 `
 
 export const TagEl = styled.span`

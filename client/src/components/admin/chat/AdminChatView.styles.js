@@ -1,7 +1,5 @@
 import styled, { keyframes, css } from 'styled-components'
-import { gradients, colors, shadows } from '../../../styles/theme'
-
-const MOBILE = '@media (max-width: 768px)'
+import { gradients, colors } from '../../../styles/theme'
 
 /* ── layout ── */
 export const Wrap = styled.div`
@@ -249,6 +247,53 @@ export const MsgTime = styled.span`
   font-size: 10px;
   color: rgba(255, 255, 255, 0.26);
   padding: 0 3px;
+`
+
+export const MsgMeta = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 3px;
+`
+
+export const MsgStatus = styled.span`
+  font-size: 10px;
+  font-weight: 700;
+  color: ${({ $state }) => $state === 'read' ? '#60a5fa' : $state === 'delivered' ? 'rgba(255,255,255,0.42)' : 'rgba(255,255,255,0.24)'};
+`
+
+export const TypingBubble = styled.div`
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 11px;
+  margin-left: 36px;
+  border-radius: 4px 16px 16px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+`
+
+export const TypingText = styled.span`
+  margin-left: 4px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+`
+
+export const TypingDot = styled.span`
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.88);
+  animation: adminTypingPulse 1s ease-in-out infinite;
+  animation-delay: ${({ $delay }) => `${$delay}ms`};
+
+  @keyframes adminTypingPulse {
+    0%, 100% { transform: translateY(0); opacity: 0.35; }
+    50% { transform: translateY(-3px); opacity: 1; }
+  }
 `
 
 const scrollBtnIn = keyframes`

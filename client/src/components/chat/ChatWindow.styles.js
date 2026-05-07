@@ -326,9 +326,11 @@ export const ChatHeaderSide = styled.div`
 export const ChatHeaderCenter = styled.div`
   flex: 1;
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 6px;
+  min-width: 0;
 `
 
 export const ChatHeaderAvatar = styled.div`
@@ -378,6 +380,22 @@ export const HeaderPillBadge = styled.span`
   border-radius: 8px;
   padding: 2px 7px;
   letter-spacing: 0.04em;
+`
+
+export const ConnectionBanner = styled.div`
+  width: min(230px, 100%);
+  min-height: 22px;
+  display: ${({ $visible }) => $visible ? 'flex' : 'none'};
+  align-items: center;
+  justify-content: center;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid ${({ $tone }) => $tone === 'ok' ? 'rgba(34, 197, 94, 0.28)' : $tone === 'warn' ? 'rgba(245, 158, 11, 0.30)' : 'rgba(248, 113, 113, 0.30)'};
+  background: ${({ $tone }) => $tone === 'ok' ? 'rgba(34, 197, 94, 0.12)' : $tone === 'warn' ? 'rgba(245, 158, 11, 0.12)' : 'rgba(248, 113, 113, 0.12)'};
+  color: ${({ $tone }) => $tone === 'ok' ? '#86efac' : $tone === 'warn' ? '#facc15' : '#fecaca'};
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
 `
 
 export const ChatHeaderBtn = styled.button`
@@ -503,6 +521,40 @@ export const MessageTime = styled.span`
   font-size: 10px;
   color: rgba(255, 255, 255, 0.26);
   padding: 0 3px;
+`
+
+export const TypingBubble = styled.div`
+  width: fit-content;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 8px 11px;
+  margin-left: 33px;
+  border-radius: 4px 16px 16px 16px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+`
+
+export const TypingText = styled.span`
+  margin-left: 4px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+`
+
+export const TypingDot = styled.span`
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(96, 165, 250, 0.88);
+  animation: typingPulse 1s ease-in-out infinite;
+  animation-delay: ${({ $delay }) => `${$delay}ms`};
+
+  @keyframes typingPulse {
+    0%, 100% { transform: translateY(0); opacity: 0.35; }
+    50% { transform: translateY(-3px); opacity: 1; }
+  }
 `
 
 export const BotButtonsWrap = styled.div`
@@ -827,6 +879,56 @@ export const SendingBubbleWrap = styled.div`
   align-items: center;
   justify-content: center;
   padding: 8px;
+`
+
+export const PendingMediaWrap = styled.div`
+  width: 210px;
+  padding: 12px;
+  border-radius: 16px 4px 16px 16px;
+  background: rgba(245, 158, 11, 0.10);
+  border: 1px solid rgba(245, 158, 11, 0.24);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.20);
+`
+
+export const PendingMediaTitle = styled.div`
+  color: rgba(255, 255, 255, 0.90);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.25;
+`
+
+export const PendingMediaHint = styled.div`
+  margin-top: 4px;
+  color: rgba(255, 255, 255, 0.48);
+  font-size: 11px;
+  line-height: 1.35;
+`
+
+export const PendingMediaActions = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 10px;
+`
+
+export const PendingMediaBtn = styled.button`
+  min-height: 30px;
+  border-radius: 10px;
+  border: 1px solid ${({ $danger }) => $danger ? 'rgba(248, 113, 113, 0.28)' : 'rgba(96, 165, 250, 0.30)'};
+  background: ${({ $danger }) => $danger ? 'rgba(248, 113, 113, 0.10)' : 'rgba(30, 133, 255, 0.16)'};
+  color: ${({ $danger }) => $danger ? '#fecaca' : colors.primaryLighter};
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  transition: opacity 0.18s, transform 0.14s, border-color 0.18s;
+
+  &:hover {
+    opacity: 0.88;
+    border-color: ${({ $danger }) => $danger ? 'rgba(248, 113, 113, 0.44)' : 'rgba(96, 165, 250, 0.48)'};
+  }
+
+  &:active { transform: scale(0.97); }
 `
 
 export const AuthLoadingScreen = styled.div`
