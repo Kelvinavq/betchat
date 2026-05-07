@@ -244,6 +244,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `created_at`      DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   KEY `idx_msg_chat`        (`chat_id`),
+  KEY `idx_msg_chat_created_at` (`chat_id`, `created_at`, `id`),
   KEY `idx_msg_client`      (`client_id`),
   KEY `idx_msg_sender_user` (`sender_user_id`),
   KEY `idx_msg_created_at`  (`created_at`),

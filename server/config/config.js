@@ -117,6 +117,15 @@ export const config = {
     apiKey: process.env.OPENROUTER_API_KEY,
   },
 
+  // Redis cache (opcional)
+  redis: {
+    enabled: process.env.REDIS_ENABLED === 'true' || Boolean(process.env.REDIS_URL),
+    url: process.env.REDIS_URL || 'redis://localhost:6379',
+    messageTtlSeconds: Math.max(30, parseInt(process.env.REDIS_MESSAGE_TTL_SECONDS || '300', 10) || 300),
+    chatListTtlSeconds: Math.max(5, parseInt(process.env.REDIS_CHAT_LIST_TTL_SECONDS || '30', 10) || 30),
+    logCache: process.env.REDIS_LOG_CACHE === 'true',
+  },
+
   // Logging
   logLevel: process.env.LOG_LEVEL || 'info',
 };

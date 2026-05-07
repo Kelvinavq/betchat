@@ -28,7 +28,7 @@ import {
   ConnectionBanner,
   MessagesArea, ChatMessages,
   MessageRow, MessageAvatar, MessageContent, MessageBubble, MessageTime,
-  TypingBubble, TypingDot, TypingText,
+  LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   BotButtonsWrap, BotOptionBtn,
   ScrollDownBtn,
   BottomArea, AttachPanel, AttachGrid, AttachOption,
@@ -272,6 +272,12 @@ const RECONNECT_WATCHDOG_MS = 5000
 const MANUAL_CONNECT_COOLDOWN_MS = 10000
 
 const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+const formatPreviousDayLabel = (dateString) => {
+  if (!dateString) return 'Cargar dia anterior'
+  const [year, month, day] = dateString.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  return `Cargar ${date.toLocaleDateString('es', { day: '2-digit', month: 'short' })}`
+}
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
   reader.onload = () => resolve(reader.result)
@@ -416,6 +422,8 @@ const mergeDbMessage = (incoming) => (prev) => {
 const ChatView = ({ onClose, client }) => {
   const [input, setInput]             = useState('')
   const [messages, setMessages]       = useState([])
+  const [messagePage, setMessagePage] = useState({ previousDate: null, hasPrevious: false })
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [botFlow, setBotFlow]         = useState(null)
   const [currentBotScreenId, setCurrentBotScreenId] = useState(null)
   const [botActionPending, setBotActionPending] = useState(false)
@@ -441,6 +449,7 @@ const ChatView = ({ onClose, client }) => {
   const typingTimerRef = useRef(null)
   const adminTypingTimerRef = useRef(null)
   const typingActiveRef = useRef(false)
+  const shouldScrollBottomRef = useRef(false)
   const username = client?.fullName || client?.username || 'Cliente'
   const onlineLabel = connectionStatus === 'offline'
     ? 'Sin conexion'
@@ -647,6 +656,7 @@ const ChatView = ({ onClose, client }) => {
       content: text,
       time,
     }
+    shouldScrollBottomRef.current = true
     setMessages(prev => [...prev, { id: clientMessageId, clientMessageId, type: 'text', text, received: false, time }])
     setInput('')
     setAttachOpen(false)
@@ -690,6 +700,7 @@ const ChatView = ({ onClose, client }) => {
     const botMessageIds = botTextMessages.map(() => makeClientMessageId('bot-auto'))
 
     setCurrentBotScreenId(target?.id || currentBotScreenId)
+    shouldScrollBottomRef.current = true
     setMessages(prev => [
       ...prev.filter(message => message.type !== 'bot-buttons'),
       {
@@ -721,6 +732,7 @@ const ChatView = ({ onClose, client }) => {
       .then((data) => {
         markConnectionRestored()
         setCurrentBotScreenId(data.state?.currentScreenId || target.id)
+        shouldScrollBottomRef.current = true
         for (const message of data.messages || []) {
           setMessages(mergeDbMessage(message))
         }
@@ -755,6 +767,7 @@ const ChatView = ({ onClose, client }) => {
     const time = messageTime()
     const loaderStartedAt = Date.now()
 
+    shouldScrollBottomRef.current = true
     setMessages(prev => [...prev, {
       id: sendingId,
       clientMessageId: sendingId,
@@ -797,7 +810,7 @@ const ChatView = ({ onClose, client }) => {
       try {
         const [botData, messageData] = await Promise.all([
           api.get('/api/client/bot/flow'),
-          chatId ? api.get(`/api/client/chats/${chatId}/messages`) : Promise.resolve({ messages: [] }),
+          chatId ? api.get(`/api/client/chats/${chatId}/messages?mode=day`) : Promise.resolve({ messages: [] }),
         ])
         const flow = botData.flow
         const root = flow?.screens?.find(screen => screen.isRoot) || flow?.screens?.[0]
@@ -811,11 +824,15 @@ const ChatView = ({ onClose, client }) => {
         outboxRef.current = queuedMessages
         setBotFlow(flow || null)
         setCurrentBotScreenId(currentScreen?.id || null)
+        shouldScrollBottomRef.current = true
+        setMessagePage(messageData.pagination || { previousDate: null, hasPrevious: false })
         setMessages([...dbMessages, ...queuedMessages.map(mapQueuedMessage), ...botMessages])
         markOutboundDelivered()
         markOutboundReadSoon()
       } catch {
         if (!alive) return
+        setMessagePage({ previousDate: null, hasPrevious: false })
+        shouldScrollBottomRef.current = true
         setMessages([{
           id: 'bot-fallback',
           type: 'text',
@@ -831,12 +848,40 @@ const ChatView = ({ onClose, client }) => {
     return () => { alive = false }
   }, [chatId, markOutboundDelivered, markOutboundReadSoon])
 
+  const loadEarlierMessages = async () => {
+    if (!chatId || loadingEarlier || !messagePage?.hasPrevious || !messagePage?.previousDate) return
+    const el = messagesRef.current
+    const previousScrollHeight = el?.scrollHeight || 0
+    const previousScrollTop = el?.scrollTop || 0
+    setLoadingEarlier(true)
+    try {
+      const data = await api.get(`/api/client/chats/${chatId}/messages?mode=day&date=${messagePage.previousDate}`)
+      const earlierMessages = (data.messages || []).map(mapDbMessage)
+      shouldScrollBottomRef.current = false
+      setMessages(prev => {
+        const seen = new Set(prev.map(message => message.dbId || message.id))
+        return [...earlierMessages.filter(message => !seen.has(message.dbId || message.id)), ...prev]
+      })
+      setMessagePage(data.pagination || { previousDate: null, hasPrevious: false })
+      window.requestAnimationFrame(() => {
+        const nextEl = messagesRef.current
+        if (!nextEl) return
+        nextEl.scrollTop = nextEl.scrollHeight - previousScrollHeight + previousScrollTop
+      })
+    } catch {
+      // Keep the current day loaded; the button can be retried.
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }
+
   useEffect(() => {
     if (!chatId) return
     const socket = getSocket('client')
     socket.emit('chat:join', { chatId })
     const onNewMessage = (message) => {
       if (Number(message.chatId) !== Number(chatId)) return
+      shouldScrollBottomRef.current = true
       setMessages(mergeDbMessage(message))
       if (message.senderType !== 'client') {
         window.clearTimeout(adminTypingTimerRef.current)
@@ -932,7 +977,11 @@ const ChatView = ({ onClose, client }) => {
     }
   }, [chatId, flushOutbox, markConnectionRestored])
 
-  useEffect(() => { scrollToBottom() }, [messages])
+  useEffect(() => {
+    if (!shouldScrollBottomRef.current) return
+    shouldScrollBottomRef.current = false
+    scrollToBottom()
+  }, [messages])
   useEffect(() => () => {
     window.clearTimeout(readTimerRef.current)
     window.clearTimeout(typingTimerRef.current)
@@ -989,6 +1038,11 @@ const ChatView = ({ onClose, client }) => {
       {/* messages */}
       <MessagesArea>
         <ChatMessages ref={messagesRef} onScroll={handleScroll}>
+          {messagePage?.hasPrevious && (
+            <LoadEarlierBtn type="button" onClick={loadEarlierMessages} disabled={loadingEarlier}>
+              {loadingEarlier ? 'Cargando...' : formatPreviousDayLabel(messagePage.previousDate)}
+            </LoadEarlierBtn>
+          )}
           {orderedMessages.map(msg => (
             <MessageRow key={msg.id} $received={msg.received}>
               {msg.received && <MessageAvatar>{msg.avatar}</MessageAvatar>}

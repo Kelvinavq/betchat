@@ -475,6 +475,32 @@ export const MessageRow = styled.div`
   ${({ $received }) => !$received && 'justify-content: flex-end;'}
 `
 
+export const LoadEarlierBtn = styled.button`
+  align-self: center;
+  min-height: 32px;
+  padding: 7px 13px;
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.56);
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.18s, color 0.18s, border-color 0.18s;
+
+  &:hover:not(:disabled) {
+    background: rgba(30, 133, 255, 0.13);
+    border-color: rgba(30, 133, 255, 0.24);
+    color: ${colors.primaryLighter};
+  }
+
+  &:disabled {
+    opacity: 0.48;
+    cursor: default;
+  }
+`
+
 export const MessageAvatar = styled.div`
   width: 26px;
   height: 26px;

@@ -7,3 +7,6 @@ ALTER TABLE `chats`
 ALTER TABLE `messages`
   ADD COLUMN `delivered_at` DATETIME DEFAULT NULL COMMENT 'when recipient received the message' AFTER `is_read`,
   ADD COLUMN `read_at` DATETIME DEFAULT NULL COMMENT 'when recipient viewed the message' AFTER `delivered_at`;
+
+ALTER TABLE `messages`
+  ADD INDEX `idx_msg_chat_created_at` (`chat_id`, `created_at`, `id`);

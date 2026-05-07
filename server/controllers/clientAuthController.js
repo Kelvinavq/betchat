@@ -224,7 +224,7 @@ async function createExternalUser(apiUrl, apiKey, username, password) {
 
 async function findLocalClient(username) {
   const { rows, error } = await query(
-    `SELECT id, username, full_name, password_hash, external_id, is_active, is_online
+    `SELECT id, username, full_name, password, external_id, is_active, is_online
      FROM clients
      WHERE LOWER(username) = LOWER(?)
      LIMIT 1`,
@@ -237,7 +237,7 @@ async function findLocalClient(username) {
 async function ensureClientAndChat({ username, password, externalId }) {
   return transaction(async (connection) => {
     const [clientRows] = await connection.execute(
-      `SELECT id, username, full_name, password_hash, external_id, is_active, is_online
+      `SELECT id, username, full_name, password, external_id, is_active, is_online
        FROM clients
        WHERE LOWER(username) = LOWER(?)
        LIMIT 1`,
@@ -248,7 +248,7 @@ async function ensureClientAndChat({ username, password, externalId }) {
 
     if (!client) {
       const [clientResult] = await connection.execute(
-        `INSERT INTO clients (username, full_name, password_hash, external_id, is_active, is_online, registered_at)
+        `INSERT INTO clients (username, full_name, password, external_id, is_active, is_online, registered_at)
          VALUES (?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP)`,
         [username, username, password, externalId || null]
       )
@@ -257,7 +257,7 @@ async function ensureClientAndChat({ username, password, externalId }) {
         id: clientResult.insertId,
         username,
         full_name: username,
-        password_hash: password,
+        password: password,
         external_id: externalId || null,
         is_active: 1,
         is_online: 1,

@@ -25,7 +25,7 @@ import {
   Header, BackBtn, HeaderAvatar, OnlineDot, HeaderInfo, HeaderName, HeaderStatus,
   HeaderMenuWrap, HeaderMenuBtn, DropdownMenu, DropdownItem,
   MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgBubble, MsgMeta, MsgStatus, MsgTime,
-  TypingBubble, TypingDot, TypingText,
+  LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   ScrollDownBtn, MediaMsgImg, MediaMsgPdf,
   BottomArea,
   EmojiPanel, EmojiCategoryBar, EmojiCategoryBtn, EmojiGrid, EmojiBtn,
@@ -65,6 +65,13 @@ const EMOJI_GROUPS = [
 ]
 
 const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+
+const formatPreviousDayLabel = (dateString) => {
+  if (!dateString) return 'Cargar dia anterior'
+  const [year, month, day] = dateString.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+  return `Cargar ${date.toLocaleDateString('es', { day: '2-digit', month: 'short' })}`
+}
 
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -229,6 +236,8 @@ const MediaViewer = ({ data, onClose }) => {
 const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const [input, setInput]           = useState('')
   const [messages, setMessages]     = useState([])
+  const [messagePage, setMessagePage] = useState({ previousDate: null, hasPrevious: false })
+  const [loadingEarlier, setLoadingEarlier] = useState(false)
   const [dropOpen, setDropOpen]     = useState(false)
   const [emojiOpen, setEmojiOpen]   = useState(false)
   const [emojiGroup, setEmojiGroup] = useState(0)
@@ -252,6 +261,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const typingTimerRef = useRef(null)
   const clientTypingTimerRef = useRef(null)
   const typingActiveRef = useRef(false)
+  const shouldScrollBottomRef = useRef(false)
 
   const scrollToBottom = (smooth = true) => {
     const el = listRef.current
@@ -267,7 +277,11 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   }
 
   useEffect(() => { scrollToBottom(false) }, [])
-  useEffect(() => { scrollToBottom() }, [messages])
+  useEffect(() => {
+    if (!shouldScrollBottomRef.current) return
+    shouldScrollBottomRef.current = false
+    scrollToBottom()
+  }, [messages])
 
   useEffect(() => {
     const vv = window.visualViewport
@@ -310,6 +324,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
           }
         }
         if (prev.some(item => item.dbId && Number(item.dbId) === Number(incoming.id))) return prev
+        shouldScrollBottomRef.current = true
         return [...prev, mapped]
       })
     }
@@ -348,12 +363,17 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
 
     const loadMessages = async () => {
       try {
-        const data = await api.get(`/api/chats/${chatId}/messages`)
+        const data = await api.get(`/api/chats/${chatId}/messages?mode=day`)
         if (!alive) return
+        shouldScrollBottomRef.current = true
         setMessages((data.messages || []).map(mapDbMessage))
+        setMessagePage(data.pagination || { previousDate: null, hasPrevious: false })
         await api.put(`/api/chats/${chatId}/read`, {})
       } catch {
-        if (alive) setMessages([])
+        if (alive) {
+          setMessages([])
+          setMessagePage({ previousDate: null, hasPrevious: false })
+        }
       }
     }
 
@@ -390,6 +410,33 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     getSocket('admin').emit('typing', { chatId: chat.id, isTyping })
   }
 
+  const loadEarlierMessages = async () => {
+    if (!chat?.id || loadingEarlier || !messagePage?.hasPrevious || !messagePage?.previousDate) return
+    const el = listRef.current
+    const previousScrollHeight = el?.scrollHeight || 0
+    const previousScrollTop = el?.scrollTop || 0
+    setLoadingEarlier(true)
+    try {
+      const data = await api.get(`/api/chats/${chat.id}/messages?mode=day&date=${messagePage.previousDate}`)
+      const earlierMessages = (data.messages || []).map(mapDbMessage)
+      shouldScrollBottomRef.current = false
+      setMessages(prev => {
+        const seen = new Set(prev.map(message => message.dbId || message.id))
+        return [...earlierMessages.filter(message => !seen.has(message.dbId || message.id)), ...prev]
+      })
+      setMessagePage(data.pagination || { previousDate: null, hasPrevious: false })
+      window.requestAnimationFrame(() => {
+        const nextEl = listRef.current
+        if (!nextEl) return
+        nextEl.scrollTop = nextEl.scrollHeight - previousScrollHeight + previousScrollTop
+      })
+    } catch {
+      // Keep the current day loaded; the button can be retried.
+    } finally {
+      setLoadingEarlier(false)
+    }
+  }
+
   const handleInputChange = (event) => {
     const nextValue = event.target.value
     setInput(nextValue)
@@ -407,6 +454,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     const text = input.trim()
     if (!text || !chat?.id) return
     const clientMessageId = makeClientMessageId('admin-text')
+    shouldScrollBottomRef.current = true
     setMessages(prev => [...prev, { id: clientMessageId, clientMessageId, type: 'text', text, sent: true, time: messageTime(), deliveryState: 'sent' }])
     setInput('')
     setEmojiOpen(false)
@@ -451,6 +499,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     if (!chat?.id || !file) return
     setDropOpen(false)
     const sendingId = makeClientMessageId(`admin-${type}`)
+    shouldScrollBottomRef.current = true
     setMessages(prev => [...prev, { id: sendingId, clientMessageId: sendingId, type: 'sending', mediaType: type, sent: true, time: messageTime(), deliveryState: 'sent' }])
     try {
       const dataUrl = await fileToDataUrl(file)
@@ -510,6 +559,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         const blob = new Blob(audioChunks.current, { type: 'audio/webm' })
         const url  = URL.createObjectURL(blob)
         const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+        shouldScrollBottomRef.current = true
         setMessages(prev => [...prev, {
           id: Date.now(), type: 'voice', audioUrl: url, duration: dur, sent: true, time,
         }])
@@ -600,6 +650,11 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
       {/* messages */}
       <MessagesArea>
         <MessagesList ref={listRef} onScroll={handleScroll}>
+          {messagePage?.hasPrevious && (
+            <LoadEarlierBtn type="button" onClick={loadEarlierMessages} disabled={loadingEarlier}>
+              {loadingEarlier ? 'Cargando...' : formatPreviousDayLabel(messagePage.previousDate)}
+            </LoadEarlierBtn>
+          )}
           {messages.map(msg => (
             <MsgRow key={msg.id} $sent={msg.sent}>
               {!msg.sent && <MsgAvatar>{chat.username?.[0]?.toUpperCase() || '?'}</MsgAvatar>}

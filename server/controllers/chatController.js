@@ -4,15 +4,18 @@ import path from 'path'
 import jwt from 'jsonwebtoken'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
+import moment from 'moment-timezone'
 import { query, transaction } from '../config/database.js'
 import { config } from '../config/config.js'
 import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { io } from '../app.js'
+import { deleteCache, deleteCachePattern, getCacheJson, setCacheJson } from '../utils/redisCache.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const PUBLIC_DIR = path.resolve(__dirname, '../public')
 const MAX_FILE_BYTES = 10 * 1024 * 1024
+const MESSAGE_DAY_TIMEZONE = process.env.MESSAGE_DAY_TIMEZONE || 'America/Caracas'
 const IMAGE_TYPES = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -23,6 +26,7 @@ const IMAGE_TYPES = {
 const emitChatUpdate = (chat) => {
   io.to('admins').emit('chat:updated', chat)
   io.to(`chat:${chat.id}`).emit('chat:updated', chat)
+  void invalidateChatListCache('chat_updated')
 }
 
 export { emitChatUpdate }
@@ -39,6 +43,57 @@ const emitMessageStatus = (chatId, statuses) => {
 
 function timeOf(date) {
   return new Date(date).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+}
+
+function dayOf(date) {
+  return moment(date).tz(MESSAGE_DAY_TIMEZONE).format('YYYY-MM-DD')
+}
+
+function normalizeMessageDay(value) {
+  const raw = String(value || '').trim()
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
+  return moment().tz(MESSAGE_DAY_TIMEZONE).format('YYYY-MM-DD')
+}
+
+function dayRangeUtc(day) {
+  const start = moment.tz(day, 'YYYY-MM-DD', MESSAGE_DAY_TIMEZONE).utc()
+  return {
+    start: start.format('YYYY-MM-DD HH:mm:ss'),
+    end: start.clone().add(1, 'day').format('YYYY-MM-DD HH:mm:ss'),
+  }
+}
+
+function messageDayCacheKey(chatId, day) {
+  return `messages:v1:chat:${Number(chatId)}:day:${day}`
+}
+
+function chatListCacheKey({ archived, search, page, limit }) {
+  return `chats:v1:admin:archived:${archived ? 1 : 0}:search:${encodeURIComponent(search.toLowerCase())}:page:${page}:limit:${limit}`
+}
+
+function logMessageCache(event, details) {
+  if (!config.redis.logCache) return
+  console.info(`[redis:messages] ${event}`, details)
+}
+
+function logChatListCache(event, details) {
+  if (!config.redis.logCache) return
+  console.info(`[redis:chat-list] ${event}`, details)
+}
+
+async function invalidateMessageCache(chatId, day = '') {
+  if (day) {
+    await deleteCache(messageDayCacheKey(chatId, day))
+    logMessageCache('DEL', { chatId: Number(chatId), day })
+    return
+  }
+  await deleteCachePattern(`messages:v1:chat:${Number(chatId)}:day:*`)
+  logMessageCache('DEL_PATTERN', { chatId: Number(chatId) })
+}
+
+async function invalidateChatListCache(reason = '') {
+  await deleteCachePattern('chats:v1:admin:*')
+  logChatListCache('DEL_PATTERN', { reason })
 }
 
 function previewFor(payload) {
@@ -176,6 +231,14 @@ export async function getAdminChats(req, res, next) {
       params.push(`%${search}%`)
     }
 
+    const cacheKey = chatListCacheKey({ archived, search, page, limit })
+    const cached = await getCacheJson(cacheKey)
+    if (cached) {
+      logChatListCache('HIT', { archived, search, page, limit, source: 'redis' })
+      return res.json(cached)
+    }
+    logChatListCache('MISS', { archived, search, page, limit, source: 'mysql' })
+
     const { rows, error } = await query(
       `SELECT ch.*, c.username, c.full_name, c.cuil, c.external_id, c.is_active, c.is_online, c.registered_at,
               u.username AS assigned_username, u.full_name AS assigned_full_name
@@ -201,7 +264,7 @@ export async function getAdminChats(req, res, next) {
     const total = Number(totalRows?.[0]?.total || 0)
     const totalPages = Math.max(1, Math.ceil(total / limit))
 
-    res.json({
+    const payload = {
       chats: (rows || []).map(sanitizeChat),
       pagination: {
         page,
@@ -210,7 +273,10 @@ export async function getAdminChats(req, res, next) {
         totalPages,
         hasMore: page < totalPages,
       },
-    })
+    }
+    await setCacheJson(cacheKey, payload, config.redis.chatListTtlSeconds)
+    logChatListCache('SET', { archived, search, page, limit, chats: payload.chats.length, ttlSeconds: config.redis.chatListTtlSeconds })
+    res.json(payload)
   } catch (error) {
     next(error)
   }
@@ -219,6 +285,51 @@ export async function getAdminChats(req, res, next) {
 export async function getMessages(req, res, next) {
   try {
     const chatId = Number(req.params.chatId)
+    const dayMode = req.query.mode === 'day' || req.query.date
+
+    if (dayMode) {
+      const date = normalizeMessageDay(req.query.date)
+      const cached = await getCacheJson(messageDayCacheKey(chatId, date))
+      if (cached) {
+        logMessageCache('HIT', { chatId, date, source: 'redis' })
+        return res.json(cached)
+      }
+      logMessageCache('MISS', { chatId, date, source: 'mysql' })
+
+      const range = dayRangeUtc(date)
+      const { rows, error } = await query(
+        `SELECT * FROM messages
+         WHERE chat_id = ? AND created_at >= ? AND created_at < ?
+         ORDER BY created_at ASC, id ASC`,
+        [chatId, range.start, range.end]
+      )
+      if (error) return next(error)
+
+      const { rows: previousRows, error: previousError } = await query(
+        `SELECT created_at FROM messages
+         WHERE chat_id = ? AND created_at < ?
+         ORDER BY created_at DESC, id DESC
+         LIMIT 1`,
+        [chatId, range.start]
+      )
+      if (previousError) return next(previousError)
+
+      const previousDate = previousRows?.[0]?.created_at ? dayOf(previousRows[0].created_at) : null
+      const payload = {
+        messages: (rows || []).map(sanitizeMessage),
+        pagination: {
+          mode: 'day',
+          date,
+          previousDate,
+          hasPrevious: Boolean(previousDate),
+          timezone: MESSAGE_DAY_TIMEZONE,
+        },
+      }
+      await setCacheJson(messageDayCacheKey(chatId, date), payload)
+      logMessageCache('SET', { chatId, date, messages: payload.messages.length, ttlSeconds: config.redis.messageTtlSeconds })
+      return res.json(payload)
+    }
+
     const { rows, error } = await query(
       `SELECT * FROM messages
        WHERE chat_id = ?
@@ -252,7 +363,7 @@ export async function getClientMessages(req, res, next) {
 }
 
 async function markOutboundMessagesViewed(chatId) {
-  await query(
+  const { rows: updateResult } = await query(
     `UPDATE messages
      SET delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP),
          read_at = COALESCE(read_at, CURRENT_TIMESTAMP),
@@ -272,11 +383,12 @@ async function markOutboundMessagesViewed(chatId) {
   if (error) throw error
   const statuses = (rows || []).map(sanitizeMessageStatus)
   if (statuses.length > 0) emitMessageStatus(chatId, statuses)
+  if (Number(updateResult?.affectedRows || 0) > 0) await invalidateMessageCache(chatId)
   return statuses
 }
 
 async function markOutboundMessagesDelivered(chatId) {
-  await query(
+  const { rows: updateResult } = await query(
     `UPDATE messages
      SET delivered_at = COALESCE(delivered_at, CURRENT_TIMESTAMP)
      WHERE chat_id = ?
@@ -294,6 +406,7 @@ async function markOutboundMessagesDelivered(chatId) {
   if (error) throw error
   const statuses = (rows || []).map(sanitizeMessageStatus)
   if (statuses.length > 0) emitMessageStatus(chatId, statuses)
+  if (Number(updateResult?.affectedRows || 0) > 0) await invalidateMessageCache(chatId)
   return statuses
 }
 
@@ -380,6 +493,7 @@ export async function persistMessage({
 
   const message = sanitizeMessage(result)
   message.clientMessageId = clientMessageId || ''
+  await invalidateMessageCache(chatId, dayOf(message.createdAt))
   const chat = sanitizeChat(await getChat(chatId))
   emitMessage(chatId, message)
   emitChatUpdate(chat)
@@ -433,11 +547,12 @@ export async function sendAdminMessage(req, res, next) {
 export async function markChatRead(req, res, next) {
   try {
     const chatId = Number(req.params.chatId)
-    await query(
+    const { rows: updateResult } = await query(
       'UPDATE messages SET is_read = 1, read_at = COALESCE(read_at, CURRENT_TIMESTAMP) WHERE chat_id = ? AND sender_type = "client"',
       [chatId]
     )
     await query('UPDATE chats SET unread_count = 0 WHERE id = ?', [chatId])
+    if (Number(updateResult?.affectedRows || 0) > 0) await invalidateMessageCache(chatId)
     const chat = sanitizeChat(await getChat(chatId))
     emitChatUpdate(chat)
     res.json({ success: true, chat })

@@ -1,0 +1,77 @@
+Redis en Windows para BetChat
+=============================
+
+Opcion recomendada: Docker Desktop
+----------------------------------
+1. Instalar Docker Desktop:
+   https://www.docker.com/products/docker-desktop/
+
+2. Abrir PowerShell y crear un contenedor Redis:
+   docker run --name betchat-redis -p 6379:6379 -d redis:7-alpine
+
+3. Verificar que Redis responde:
+   docker exec -it betchat-redis redis-cli ping
+
+   Debe responder:
+   PONG
+
+4. En server/.env agregar:
+   REDIS_ENABLED=true
+   REDIS_URL=redis://localhost:6379
+   REDIS_MESSAGE_TTL_SECONDS=300
+   REDIS_CHAT_LIST_TTL_SECONDS=30
+   REDIS_LOG_CACHE=true
+
+5. Instalar el cliente de Redis para Node en el backend:
+   cd server
+   npm install redis
+
+6. Reiniciar el backend.
+
+
+Comandos utiles
+---------------
+Detener Redis:
+  docker stop betchat-redis
+
+Iniciar Redis:
+  docker start betchat-redis
+
+Ver logs:
+  docker logs betchat-redis
+
+Entrar a redis-cli:
+  docker exec -it betchat-redis redis-cli
+
+
+Alternativa: WSL2 Ubuntu
+------------------------
+1. Instalar WSL2 si no lo tenes:
+   wsl --install
+
+2. Abrir Ubuntu y ejecutar:
+   sudo apt update
+   sudo apt install redis-server
+   sudo service redis-server start
+   redis-cli ping
+
+3. Usar el mismo .env:
+   REDIS_ENABLED=true
+   REDIS_URL=redis://localhost:6379
+   REDIS_MESSAGE_TTL_SECONDS=300
+
+
+Notas del proyecto
+------------------
+- Redis es opcional. Si no esta instalado o apagado, BetChat sigue usando MySQL.
+- El cache de mensajes se invalida cuando entra un mensaje nuevo o cuando cambian estados de lectura/entrega.
+- Con REDIS_LOG_CACHE=true, el backend imprime logs como:
+  [redis:messages] MISS { chatId: 1, date: '2026-05-07', source: 'mysql' }
+  [redis:messages] SET { chatId: 1, date: '2026-05-07', messages: 12, ttlSeconds: 300 }
+  [redis:messages] HIT { chatId: 1, date: '2026-05-07', source: 'redis' }
+  [redis:chat-list] MISS { archived: false, search: '', page: 1, limit: 50, source: 'mysql' }
+  [redis:chat-list] SET { archived: false, search: '', page: 1, limit: 50, chats: 50, ttlSeconds: 30 }
+  [redis:chat-list] HIT { archived: false, search: '', page: 1, limit: 50, source: 'redis' }
+- Para mejor rendimiento en MySQL, aplicar el indice:
+  ALTER TABLE `messages`
+    ADD INDEX `idx_msg_chat_created_at` (`chat_id`, `created_at`, `id`);
