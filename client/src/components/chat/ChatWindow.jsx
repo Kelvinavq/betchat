@@ -12,6 +12,7 @@ import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 import DescriptionIcon from '@mui/icons-material/Description'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
+import ReplyIcon from '@mui/icons-material/Reply'
 import { ChatContext } from '../../context/ChatContext'
 import { api, resolveApiAsset } from '../../utils/api'
 import { getSocket, makeClientMessageId } from '../../utils/socket'
@@ -28,11 +29,13 @@ import {
   ConnectionBanner,
   MessagesArea, ChatMessages,
   MessageRow, MessageAvatar, MessageContent, MessageBubble, MessageTime,
+  MessageActionMenu, MessageActionItem, ReplyQuote, ReplyAuthor, ReplyText,
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   BotButtonsWrap, BotOptionBtn,
   ScrollDownBtn,
   BottomArea, AttachPanel, AttachGrid, AttachOption,
   ChatFooter, PlusBtn, ChatInput, SendBtn,
+  ReplyComposer, ReplyComposerText, ReplyComposerTitle, ReplyComposerBody, ReplyComposerClose,
   PreviewOverlay, PreviewTitle, PreviewImg, PreviewPdfCard,
   PreviewActions, PreviewBtn,
   SendingBubbleWrap,
@@ -272,6 +275,17 @@ const RECONNECT_WATCHDOG_MS = 5000
 const MANUAL_CONNECT_COOLDOWN_MS = 10000
 
 const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+const replyPreviewText = (message) => {
+  if (!message) return ''
+  if (message.type === 'image' || message.messageType === 'image') return message.fileName ? `Imagen: ${message.fileName}` : 'Imagen'
+  if (message.type === 'pdf' || message.messageType === 'pdf') return message.fileName ? `PDF: ${message.fileName}` : 'Documento PDF'
+  return message.text || message.content || ''
+}
+const replyAuthorLabel = (reply, currentReceived = false) => {
+  if (!reply) return ''
+  if (reply.senderType) return reply.senderType === 'client' ? 'Tu' : 'Soporte'
+  return currentReceived ? 'Soporte' : 'Tu'
+}
 const formatPreviousDayLabel = (dateString) => {
   if (!dateString) return 'Cargar dia anterior'
   const [year, month, day] = dateString.split('-').map(Number)
@@ -297,6 +311,7 @@ const mapDbMessage = (msg) => ({
   time: msg.time,
   avatarUrl: resolveApiAsset(msg.senderAvatarUrl),
   avatar: BOT_AVATAR,
+  replyTo: msg.replyTo,
 })
 
 const splitBotButtons = (items) => {
@@ -337,6 +352,7 @@ const mapQueuedMessage = (payload) => ({
   mediaType: payload.messageType,
   text: payload.content || '',
   fileName: payload.fileName || '',
+  replyTo: payload.replyTo || null,
   received: false,
   time: payload.time || messageTime(),
 })
@@ -434,6 +450,8 @@ const ChatView = ({ onClose, client }) => {
   const [previewData, setPreviewData] = useState(null)
   const [viewerData, setViewerData]   = useState(null)
   const [adminTyping, setAdminTyping] = useState(false)
+  const [replyingTo, setReplyingTo] = useState(null)
+  const [messageMenu, setMessageMenu] = useState(null)
 
   const messagesRef  = useRef(null)
   const bottomRef    = useRef(null)
@@ -451,6 +469,8 @@ const ChatView = ({ onClose, client }) => {
   const adminTypingTimerRef = useRef(null)
   const typingActiveRef = useRef(false)
   const shouldScrollBottomRef = useRef(false)
+  const messageMenuRef = useRef(null)
+  const pointerStartRef = useRef(null)
   const username = client?.fullName || client?.username || 'Cliente'
   const onlineLabel = connectionStatus === 'offline'
     ? 'Sin conexion'
@@ -650,16 +670,40 @@ const ChatView = ({ onClose, client }) => {
     if (!text || !chatId) return
     const time = messageTime()
     const clientMessageId = makeClientMessageId('client-text')
+    const replyToMessageId = replyingTo?.dbId || null
     const payload = {
       chatId,
       clientMessageId,
       messageType: 'text',
       content: text,
       time,
+      replyToMessageId,
+      replyTo: replyingTo ? {
+        id: replyingTo.dbId,
+        senderType: replyingTo.received ? 'admin' : 'client',
+        messageType: replyingTo.type,
+        content: replyingTo.text || '',
+        fileName: replyingTo.fileName || '',
+      } : null,
     }
     shouldScrollBottomRef.current = true
-    setMessages(prev => [...prev, { id: clientMessageId, clientMessageId, type: 'text', text, received: false, time }])
+    setMessages(prev => [...prev, {
+      id: clientMessageId,
+      clientMessageId,
+      type: 'text',
+      text,
+      received: false,
+      time,
+      replyTo: replyingTo ? {
+        id: replyingTo.dbId,
+        senderType: replyingTo.received ? 'admin' : 'client',
+        messageType: replyingTo.type,
+        content: replyingTo.text || '',
+        fileName: replyingTo.fileName || '',
+      } : null,
+    }])
     setInput('')
+    setReplyingTo(null)
     setAttachOpen(false)
     sendSocketPayload(payload)
     emitTyping(false)
@@ -767,6 +811,7 @@ const ChatView = ({ onClose, client }) => {
     const sendingId = makeClientMessageId(`client-${type}`)
     const time = messageTime()
     const loaderStartedAt = Date.now()
+    const replyToMessageId = replyingTo?.dbId || null
 
     shouldScrollBottomRef.current = true
     setMessages(prev => [...prev, {
@@ -777,7 +822,15 @@ const ChatView = ({ onClose, client }) => {
       fileName: name,
       received: false,
       time,
+      replyTo: replyingTo ? {
+        id: replyingTo.dbId,
+        senderType: replyingTo.received ? 'admin' : 'client',
+        messageType: replyingTo.type,
+        content: replyingTo.text || '',
+        fileName: replyingTo.fileName || '',
+      } : null,
     }])
+    setReplyingTo(null)
     schedulePendingState(sendingId)
     try {
       const dataUrl = await fileToDataUrl(file)
@@ -793,6 +846,14 @@ const ChatView = ({ onClose, client }) => {
         fileName: name,
         time,
         loaderStartedAt,
+        replyToMessageId,
+        replyTo: replyingTo ? {
+          id: replyingTo.dbId,
+          senderType: replyingTo.received ? 'admin' : 'client',
+          messageType: replyingTo.type,
+          content: replyingTo.text || '',
+          fileName: replyingTo.fileName || '',
+        } : null,
       })
     } catch {
       clearPendingTimer(sendingId)
@@ -991,6 +1052,57 @@ const ChatView = ({ onClose, client }) => {
     pendingTimersRef.current.clear()
     if (typingActiveRef.current) getSocket('client').emit('typing', { chatId, isTyping: false })
   }, [chatId])
+
+  useEffect(() => {
+    const handler = (event) => {
+      if (messageMenuRef.current && !messageMenuRef.current.contains(event.target)) setMessageMenu(null)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const beginReply = (message) => {
+    if (!message?.dbId || message.type === 'bot-buttons') return
+    setReplyingTo(message)
+    setMessageMenu(null)
+  }
+
+  const openMessageMenu = (event, message) => {
+    event.preventDefault()
+    if (!message?.dbId || message.type === 'bot-buttons') return
+    const menuWidth = 150
+    const menuHeight = 48
+    setMessageMenu({
+      message,
+      x: Math.min(event.clientX, window.innerWidth - menuWidth - 10),
+      y: Math.min(event.clientY, window.innerHeight - menuHeight - 10),
+    })
+  }
+
+  const handleMessagePointerDown = (event, message) => {
+    if (!message?.dbId || message.type === 'bot-buttons') return
+    pointerStartRef.current = { x: event.clientX, y: event.clientY, messageId: message.id }
+  }
+
+  const handleMessagePointerUp = (event, message) => {
+    const start = pointerStartRef.current
+    pointerStartRef.current = null
+    if (!start || start.messageId !== message.id || !message?.dbId) return
+    const dx = event.clientX - start.x
+    const dy = Math.abs(event.clientY - start.y)
+    if (Math.abs(dx) > 58 && dy < 32) beginReply(message)
+  }
+
+  const renderReplyQuote = (reply, received) => {
+    if (!reply) return null
+    return (
+      <ReplyQuote $received={received}>
+        <ReplyAuthor $received={received}>{replyAuthorLabel(reply, received)}</ReplyAuthor>
+        <ReplyText>{replyPreviewText(reply)}</ReplyText>
+      </ReplyQuote>
+    )
+  }
+
   const { normalMessages, botButtonMessages } = splitBotButtons(messages)
   const orderedMessages = [...normalMessages, ...botButtonMessages.slice(-1)]
 
@@ -1009,6 +1121,14 @@ const ChatView = ({ onClose, client }) => {
       {/* viewer lightbox — rendered via portal to escape Window overflow */}
       {viewerData && createPortal(
         <MediaViewer data={viewerData} onClose={() => setViewerData(null)} />,
+        document.body
+      )}
+      {messageMenu && createPortal(
+        <MessageActionMenu ref={messageMenuRef} $x={messageMenu.x} $y={messageMenu.y}>
+          <MessageActionItem type="button" onClick={() => beginReply(messageMenu.message)}>
+            <ReplyIcon />Responder
+          </MessageActionItem>
+        </MessageActionMenu>,
         document.body
       )}
 
@@ -1045,7 +1165,13 @@ const ChatView = ({ onClose, client }) => {
             </LoadEarlierBtn>
           )}
           {orderedMessages.map(msg => (
-            <MessageRow key={msg.id} $received={msg.received}>
+            <MessageRow
+              key={msg.id}
+              $received={msg.received}
+              onContextMenu={event => openMessageMenu(event, msg)}
+              onPointerDown={event => handleMessagePointerDown(event, msg)}
+              onPointerUp={event => handleMessagePointerUp(event, msg)}
+            >
               {msg.received && (
                 <MessageAvatar>
                   {msg.avatarUrl ? <img src={msg.avatarUrl} alt="" /> : msg.avatar}
@@ -1088,20 +1214,29 @@ const ChatView = ({ onClose, client }) => {
                     ))}
                   </BotButtonsWrap>
                 ) : msg.type === 'image' ? (
-                  <MediaMsgImg
-                    src={msg.mediaUrl}
-                    alt={msg.fileName}
-                    onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
-                  />
+                  <>
+                    {renderReplyQuote(msg.replyTo, msg.received)}
+                    <MediaMsgImg
+                      src={msg.mediaUrl}
+                      alt={msg.fileName}
+                      onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
+                    />
+                  </>
                 ) : msg.type === 'pdf' ? (
-                  <MediaMsgPdf
-                    onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}
-                  >
-                    <DescriptionIcon />
-                    <span>{msg.fileName}</span>
-                  </MediaMsgPdf>
+                  <>
+                    {renderReplyQuote(msg.replyTo, msg.received)}
+                    <MediaMsgPdf
+                      onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}
+                    >
+                      <DescriptionIcon />
+                      <span>{msg.fileName}</span>
+                    </MediaMsgPdf>
+                  </>
                 ) : (
-                  <MessageBubble $received={msg.received}>{msg.text}</MessageBubble>
+                  <MessageBubble $received={msg.received}>
+                    {renderReplyQuote(msg.replyTo, msg.received)}
+                    {msg.text}
+                  </MessageBubble>
                 )}
                 <MessageTime>{msg.time}</MessageTime>
               </MessageContent>
@@ -1145,6 +1280,18 @@ const ChatView = ({ onClose, client }) => {
               </AttachOption>
             </AttachGrid>
           </AttachPanel>
+        )}
+
+        {replyingTo && (
+          <ReplyComposer>
+            <ReplyComposerText>
+              <ReplyComposerTitle>Respondiendo a {replyingTo.received ? 'soporte' : 'ti'}</ReplyComposerTitle>
+              <ReplyComposerBody>{replyPreviewText(replyingTo)}</ReplyComposerBody>
+            </ReplyComposerText>
+            <ReplyComposerClose type="button" onClick={() => setReplyingTo(null)} aria-label="Cancelar respuesta">
+              <CloseIcon />
+            </ReplyComposerClose>
+          </ReplyComposer>
         )}
 
         <ChatFooter>

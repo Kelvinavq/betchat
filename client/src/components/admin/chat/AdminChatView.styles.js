@@ -154,6 +154,40 @@ export const DropdownItem = styled.button`
   &:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff; }
 `
 
+export const MessageActionMenu = styled.div`
+  position: fixed;
+  left: ${({ $x }) => `${$x}px`};
+  top: ${({ $y }) => `${$y}px`};
+  min-width: 148px;
+  padding: 6px;
+  background: rgba(12, 12, 26, 0.98);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.20);
+  border-radius: 12px;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.58);
+  z-index: 120;
+`
+
+export const MessageActionItem = styled.button`
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: rgba(255,255,255,0.76);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+
+  svg { font-size: 16px; color: ${colors.primaryLighter}; }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.13); color: #ffffff; }
+`
+
 /* ── messages ── */
 export const MessagesArea = styled.div`
   flex: 1;
@@ -249,6 +283,33 @@ export const MsgContent = styled.div`
   gap: 3px;
   max-width: 68%;
   align-items: ${({ $sent }) => $sent ? 'flex-end' : 'flex-start'};
+`
+
+export const ReplyQuote = styled.div`
+  width: 100%;
+  max-width: 260px;
+  padding: 7px 9px 7px 10px;
+  border-radius: 10px;
+  border-left: 3px solid ${({ $sent }) => $sent ? 'rgba(255,255,255,0.72)' : colors.primaryLight};
+  background: ${({ $sent }) => $sent ? 'rgba(255,255,255,0.16)' : 'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.12)'};
+  color: rgba(255,255,255,0.78);
+  overflow: hidden;
+`
+
+export const ReplyAuthor = styled.div`
+  font-size: 10px;
+  font-weight: 800;
+  color: ${({ $sent }) => $sent ? 'rgba(255,255,255,0.84)' : colors.primaryLighter};
+  margin-bottom: 2px;
+`
+
+export const ReplyText = styled.div`
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: rgba(255,255,255,0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `
 
 export const MsgBubble = styled.div`
@@ -641,6 +702,54 @@ export const Footer = styled.div`
   gap: 8px;
   padding: 10px 14px 13px;
   background: var(--bc-admin-content-bg, #0d0d1a);
+`
+
+export const ReplyComposer = styled.div`
+  margin: 8px 14px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px 9px 12px;
+  border-radius: 14px;
+  background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.10);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.18);
+  border-left: 3px solid ${colors.primaryLight};
+`
+
+export const ReplyComposerText = styled.div`
+  flex: 1;
+  min-width: 0;
+`
+
+export const ReplyComposerTitle = styled.div`
+  font-size: 11px;
+  font-weight: 800;
+  color: ${colors.primaryLighter};
+`
+
+export const ReplyComposerBody = styled.div`
+  margin-top: 1px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.58);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const ReplyComposerClose = styled.button`
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  svg { font-size: 15px; }
+  &:hover { background: rgba(255,255,255,0.10); color: #ffffff; }
 `
 
 export const FooterBtn = styled.button`

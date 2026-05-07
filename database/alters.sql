@@ -10,3 +10,11 @@ ALTER TABLE `messages`
 
 ALTER TABLE `messages`
   ADD INDEX `idx_msg_chat_created_at` (`chat_id`, `created_at`, `id`);
+
+ALTER TABLE `messages`
+  ADD COLUMN `reply_to_message_id` BIGINT UNSIGNED DEFAULT NULL AFTER `file_size`,
+  ADD INDEX `idx_msg_reply_to` (`reply_to_message_id`);
+
+ALTER TABLE `messages`
+  ADD CONSTRAINT `fk_msg_reply_to`
+    FOREIGN KEY (`reply_to_message_id`) REFERENCES `messages` (`id`) ON DELETE SET NULL;

@@ -238,6 +238,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `file_url`        VARCHAR(512)     DEFAULT NULL,
   `file_name`       VARCHAR(255)     DEFAULT NULL,
   `file_size`       INT UNSIGNED     DEFAULT NULL COMMENT 'bytes',
+  `reply_to_message_id` BIGINT UNSIGNED DEFAULT NULL,
   `is_read`         TINYINT(1)       NOT NULL DEFAULT 0,
   `delivered_at`    DATETIME         DEFAULT NULL COMMENT 'when recipient received the message',
   `read_at`         DATETIME         DEFAULT NULL COMMENT 'when recipient viewed the message',
@@ -247,10 +248,12 @@ CREATE TABLE IF NOT EXISTS `messages` (
   KEY `idx_msg_chat_created_at` (`chat_id`, `created_at`, `id`),
   KEY `idx_msg_client`      (`client_id`),
   KEY `idx_msg_sender_user` (`sender_user_id`),
+  KEY `idx_msg_reply_to`    (`reply_to_message_id`),
   KEY `idx_msg_created_at`  (`created_at`),
   CONSTRAINT `fk_msg_chat`        FOREIGN KEY (`chat_id`)        REFERENCES `chats`   (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_msg_client`      FOREIGN KEY (`client_id`)      REFERENCES `clients` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `fk_msg_sender_user` FOREIGN KEY (`sender_user_id`) REFERENCES `users`   (`id`) ON DELETE SET NULL
+  CONSTRAINT `fk_msg_sender_user` FOREIGN KEY (`sender_user_id`) REFERENCES `users`   (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_msg_reply_to`    FOREIGN KEY (`reply_to_message_id`) REFERENCES `messages` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================

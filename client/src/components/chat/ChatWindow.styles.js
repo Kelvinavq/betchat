@@ -533,6 +533,68 @@ export const MessageContent = styled.div`
   align-items: ${({ $received }) => $received ? 'flex-start' : 'flex-end'};
 `
 
+export const MessageActionMenu = styled.div`
+  position: fixed;
+  left: ${({ $x }) => `${$x}px`};
+  top: ${({ $y }) => `${$y}px`};
+  min-width: 148px;
+  padding: 6px;
+  background: rgba(8, 8, 20, 0.98);
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.22);
+  border-radius: 12px;
+  box-shadow: 0 14px 42px rgba(0, 0, 0, 0.58);
+  z-index: 2200;
+`
+
+export const MessageActionItem = styled.button`
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: rgba(255,255,255,0.76);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+
+  svg { font-size: 16px; color: var(--bc-client-accent, #46aaff); }
+  &:hover { background: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.13); color: #ffffff; }
+`
+
+export const ReplyQuote = styled.div`
+  width: 100%;
+  max-width: 246px;
+  padding: 7px 9px 7px 10px;
+  margin-bottom: 6px;
+  border-radius: 10px;
+  border-left: 3px solid ${({ $received }) => $received ? 'var(--bc-client-accent, #46aaff)' : 'rgba(255,255,255,0.74)'};
+  background: ${({ $received }) => $received ? 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.12)' : 'rgba(255,255,255,0.16)'};
+  color: rgba(255,255,255,0.78);
+  overflow: hidden;
+`
+
+export const ReplyAuthor = styled.div`
+  font-size: 10px;
+  font-weight: 800;
+  color: ${({ $received }) => $received ? 'var(--bc-client-accent, #46aaff)' : 'rgba(255,255,255,0.86)'};
+  margin-bottom: 2px;
+`
+
+export const ReplyText = styled.div`
+  font-size: 11.5px;
+  line-height: 1.25;
+  color: rgba(255,255,255,0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
 export const MessageBubble = styled.div`
   padding: 9px 13px;
   font-size: 13.5px;
@@ -734,6 +796,54 @@ export const ChatFooter = styled.div`
   gap: 8px;
   padding: 10px 12px 13px;
   background: var(--bc-client-body-bg, #0b0b18);
+`
+
+export const ReplyComposer = styled.div`
+  margin: 8px 12px 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px 9px 12px;
+  border-radius: 14px;
+  background: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.10);
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.18);
+  border-left: 3px solid var(--bc-client-accent, #46aaff);
+`
+
+export const ReplyComposerText = styled.div`
+  flex: 1;
+  min-width: 0;
+`
+
+export const ReplyComposerTitle = styled.div`
+  font-size: 11px;
+  font-weight: 800;
+  color: var(--bc-client-accent, #46aaff);
+`
+
+export const ReplyComposerBody = styled.div`
+  margin-top: 1px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.58);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const ReplyComposerClose = styled.button`
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: none;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  svg { font-size: 15px; }
+  &:hover { background: rgba(255,255,255,0.10); color: #ffffff; }
 `
 
 export const PlusBtn = styled.button`

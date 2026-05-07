@@ -14,6 +14,7 @@ import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown'
 import CloseIcon from '@mui/icons-material/Close'
 import DescriptionIcon from '@mui/icons-material/Description'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
+import ReplyIcon from '@mui/icons-material/Reply'
 import PersonOffOutlinedIcon from '@mui/icons-material/BlockOutlined'
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
@@ -25,11 +26,13 @@ import {
   Header, BackBtn, HeaderAvatar, OnlineDot, HeaderInfo, HeaderName, HeaderStatus,
   HeaderMenuWrap, HeaderMenuBtn, DropdownMenu, DropdownItem,
   MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgBubble, MsgMeta, MsgStatus, MsgTime,
+  MessageActionMenu, MessageActionItem, ReplyQuote, ReplyAuthor, ReplyText,
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   ScrollDownBtn, MediaMsgImg, MediaMsgPdf,
   BottomArea,
   EmojiPanel, EmojiCategoryBar, EmojiCategoryBtn, EmojiGrid, EmojiBtn,
   Footer, FooterBtn, FooterInput, SendBtn, MicBtn,
+  ReplyComposer, ReplyComposerText, ReplyComposerTitle, ReplyComposerBody, ReplyComposerClose,
   RecordFooter, RecordCancelBtn, RecordVisual, RecordDot,
   RecordBarsWrap, RecordBar, RecordTimer, RecordSendBtn,
   VoiceBubble, VoicePlayBtn, VoiceWave, VoiceBar, VoiceTime,
@@ -66,6 +69,19 @@ const EMOJI_GROUPS = [
 
 const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
 
+const replyPreviewText = (message) => {
+  if (!message) return ''
+  if (message.type === 'image' || message.messageType === 'image') return message.fileName ? `Imagen: ${message.fileName}` : 'Imagen'
+  if (message.type === 'pdf' || message.messageType === 'pdf') return message.fileName ? `PDF: ${message.fileName}` : 'Documento PDF'
+  return message.text || message.content || ''
+}
+
+const replyAuthorLabel = (reply, currentUserSent = false) => {
+  if (!reply) return ''
+  if (reply.senderType) return reply.senderType === 'client' ? 'Cliente' : 'Soporte'
+  return currentUserSent ? 'Tu' : 'Cliente'
+}
+
 const formatPreviousDayLabel = (dateString) => {
   if (!dateString) return 'Cargar dia anterior'
   const [year, month, day] = dateString.split('-').map(Number)
@@ -93,6 +109,7 @@ const mapDbMessage = (msg) => ({
   deliveredAt: msg.deliveredAt || null,
   readAt: msg.readAt || null,
   deliveryState: msg.readAt ? 'read' : msg.deliveredAt ? 'delivered' : 'sent',
+  replyTo: msg.replyTo,
 })
 
 const deliveryLabel = (msg) => {
@@ -245,6 +262,8 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const [viewerData, setViewerData] = useState(null)
   const [menuOpen, setMenuOpen]     = useState(false)
   const [clientTyping, setClientTyping] = useState(false)
+  const [replyingTo, setReplyingTo] = useState(null)
+  const [messageMenu, setMessageMenu] = useState(null)
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -258,6 +277,8 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const bottomRef = useRef(null)
   const inputRef  = useRef(null)
   const menuRef   = useRef(null)
+  const messageMenuRef = useRef(null)
+  const pointerStartRef = useRef(null)
   const typingTimerRef = useRef(null)
   const clientTypingTimerRef = useRef(null)
   const typingActiveRef = useRef(false)
@@ -294,6 +315,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   useEffect(() => {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
+      if (messageMenuRef.current && !messageMenuRef.current.contains(e.target)) setMessageMenu(null)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -454,9 +476,26 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     const text = input.trim()
     if (!text || !chat?.id) return
     const clientMessageId = makeClientMessageId('admin-text')
+    const replyToMessageId = replyingTo?.dbId || null
     shouldScrollBottomRef.current = true
-    setMessages(prev => [...prev, { id: clientMessageId, clientMessageId, type: 'text', text, sent: true, time: messageTime(), deliveryState: 'sent' }])
+    setMessages(prev => [...prev, {
+      id: clientMessageId,
+      clientMessageId,
+      type: 'text',
+      text,
+      sent: true,
+      time: messageTime(),
+      deliveryState: 'sent',
+      replyTo: replyingTo ? {
+        id: replyingTo.dbId,
+        senderType: replyingTo.sent ? 'admin' : 'client',
+        messageType: replyingTo.type,
+        content: replyingTo.text || '',
+        fileName: replyingTo.fileName || '',
+      } : null,
+    }])
     setInput('')
+    setReplyingTo(null)
     setEmojiOpen(false)
     emitTyping(false)
     getSocket('admin').emit('message:send', {
@@ -464,6 +503,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
       clientMessageId,
       messageType: 'text',
       content: text,
+      replyToMessageId,
     }, (ack) => {
       if (!ack?.ok) return
       setMessages(prev => prev.map(msg =>
@@ -499,8 +539,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     if (!chat?.id || !file) return
     setDropOpen(false)
     const sendingId = makeClientMessageId(`admin-${type}`)
+    const replyToMessageId = replyingTo?.dbId || null
     shouldScrollBottomRef.current = true
-    setMessages(prev => [...prev, { id: sendingId, clientMessageId: sendingId, type: 'sending', mediaType: type, sent: true, time: messageTime(), deliveryState: 'sent' }])
+    setMessages(prev => [...prev, { id: sendingId, clientMessageId: sendingId, type: 'sending', mediaType: type, sent: true, time: messageTime(), deliveryState: 'sent', replyTo: replyingTo }])
+    setReplyingTo(null)
     try {
       const dataUrl = await fileToDataUrl(file)
       getSocket('admin').emit('message:send', {
@@ -509,6 +551,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         messageType: type,
         dataUrl,
         fileName: name,
+        replyToMessageId,
       }, (ack) => {
         if (!ack?.ok) return
         setMessages(prev => prev.map(msg =>
@@ -581,6 +624,49 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     }
   }
 
+  const beginReply = (message) => {
+    if (!message?.dbId) return
+    setReplyingTo(message)
+    setMessageMenu(null)
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  const openMessageMenu = (event, message) => {
+    event.preventDefault()
+    if (!message?.dbId) return
+    const menuWidth = 150
+    const menuHeight = 48
+    setMessageMenu({
+      message,
+      x: Math.min(event.clientX, window.innerWidth - menuWidth - 10),
+      y: Math.min(event.clientY, window.innerHeight - menuHeight - 10),
+    })
+  }
+
+  const handleMessagePointerDown = (event, message) => {
+    if (!message?.dbId) return
+    pointerStartRef.current = { x: event.clientX, y: event.clientY, messageId: message.id }
+  }
+
+  const handleMessagePointerUp = (event, message) => {
+    const start = pointerStartRef.current
+    pointerStartRef.current = null
+    if (!start || start.messageId !== message.id || !message?.dbId) return
+    const dx = event.clientX - start.x
+    const dy = Math.abs(event.clientY - start.y)
+    if (Math.abs(dx) > 58 && dy < 32) beginReply(message)
+  }
+
+  const renderReplyQuote = (reply, sent) => {
+    if (!reply) return null
+    return (
+      <ReplyQuote $sent={sent}>
+        <ReplyAuthor $sent={sent}>{replyAuthorLabel(reply, sent)}</ReplyAuthor>
+        <ReplyText>{replyPreviewText(reply)}</ReplyText>
+      </ReplyQuote>
+    )
+  }
+
   if (!chat) {
     return (
       <Wrap>
@@ -600,6 +686,14 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
 
       {viewerData && createPortal(
         <MediaViewer data={viewerData} onClose={() => setViewerData(null)} />,
+        document.body
+      )}
+      {messageMenu && createPortal(
+        <MessageActionMenu ref={messageMenuRef} $x={messageMenu.x} $y={messageMenu.y}>
+          <MessageActionItem type="button" onClick={() => beginReply(messageMenu.message)}>
+            <ReplyIcon />Responder
+          </MessageActionItem>
+        </MessageActionMenu>,
         document.body
       )}
 
@@ -656,24 +750,42 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
             </LoadEarlierBtn>
           )}
           {messages.map(msg => (
-            <MsgRow key={msg.id} $sent={msg.sent}>
+            <MsgRow
+              key={msg.id}
+              $sent={msg.sent}
+              onContextMenu={event => openMessageMenu(event, msg)}
+              onPointerDown={event => handleMessagePointerDown(event, msg)}
+              onPointerUp={event => handleMessagePointerUp(event, msg)}
+            >
               {!msg.sent && <MsgAvatar>{chat.username?.[0]?.toUpperCase() || '?'}</MsgAvatar>}
               <MsgContent $sent={msg.sent}>
                 {msg.type === 'sending' ? (
-                  <SendingBubbleWrap><SendingLoader mediaType={msg.mediaType} /></SendingBubbleWrap>
+                  <>
+                    {renderReplyQuote(msg.replyTo, msg.sent)}
+                    <SendingBubbleWrap><SendingLoader mediaType={msg.mediaType} /></SendingBubbleWrap>
+                  </>
                 ) : msg.type === 'image' ? (
-                  <MediaMsgImg
-                    src={msg.mediaUrl} alt={msg.fileName}
-                    onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
-                  />
+                  <>
+                    {renderReplyQuote(msg.replyTo, msg.sent)}
+                    <MediaMsgImg
+                      src={msg.mediaUrl} alt={msg.fileName}
+                      onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
+                    />
+                  </>
                 ) : msg.type === 'pdf' ? (
-                  <MediaMsgPdf onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}>
-                    <DescriptionIcon /><span>{msg.fileName}</span>
-                  </MediaMsgPdf>
+                  <>
+                    {renderReplyQuote(msg.replyTo, msg.sent)}
+                    <MediaMsgPdf onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}>
+                      <DescriptionIcon /><span>{msg.fileName}</span>
+                    </MediaMsgPdf>
+                  </>
                 ) : msg.type === 'voice' ? (
                   <VoiceMessage audioUrl={msg.audioUrl} duration={msg.duration} sent={msg.sent} />
                 ) : (
-                  <MsgBubble $sent={msg.sent}>{msg.text}</MsgBubble>
+                  <MsgBubble $sent={msg.sent}>
+                    {renderReplyQuote(msg.replyTo, msg.sent)}
+                    {msg.text}
+                  </MsgBubble>
                 )}
                 <MsgMeta>
                   <MsgTime>{msg.time}</MsgTime>
@@ -760,6 +872,18 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
 
         {/* ── normal footer ── */}
         {!isRecording && (
+          <>
+          {replyingTo && (
+            <ReplyComposer>
+              <ReplyComposerText>
+                <ReplyComposerTitle>Respondiendo a {replyingTo.sent ? 'ti' : chat.username || 'cliente'}</ReplyComposerTitle>
+                <ReplyComposerBody>{replyPreviewText(replyingTo)}</ReplyComposerBody>
+              </ReplyComposerText>
+              <ReplyComposerClose type="button" onClick={() => setReplyingTo(null)} aria-label="Cancelar respuesta">
+                <CloseIcon />
+              </ReplyComposerClose>
+            </ReplyComposer>
+          )}
           <Footer>
             <FooterBtn
               type="button"
@@ -798,6 +922,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
               </MicBtn>
             )}
           </Footer>
+          </>
         )}
       </BottomArea>
     </Wrap>

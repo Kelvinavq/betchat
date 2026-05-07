@@ -64,7 +64,7 @@ function dayRangeUtc(day) {
 }
 
 function messageDayCacheKey(chatId, day) {
-  return `messages:v2:chat:${Number(chatId)}:day:${day}`
+  return `messages:v3:chat:${Number(chatId)}:day:${day}`
 }
 
 function chatListCacheKey({ archived, search, labelId, page, limit }) {
@@ -87,7 +87,7 @@ async function invalidateMessageCache(chatId, day = '') {
     logMessageCache('DEL', { chatId: Number(chatId), day })
     return
   }
-  await deleteCachePattern(`messages:v2:chat:${Number(chatId)}:day:*`)
+  await deleteCachePattern(`messages:v3:chat:${Number(chatId)}:day:*`)
   logMessageCache('DEL_PATTERN', { chatId: Number(chatId) })
 }
 
@@ -149,6 +149,13 @@ async function saveMedia({ dataUrl, messageType, fileName }) {
 
 function sanitizeMessage(row) {
   const senderAvatarUrl = row.sender_avatar_url || row.avatar_url || ''
+  const replyTo = row.reply_to_message_id ? {
+    id: Number(row.reply_to_message_id),
+    senderType: row.reply_sender_type || '',
+    messageType: row.reply_message_type || 'text',
+    content: row.reply_content || '',
+    fileName: row.reply_file_name || '',
+  } : null
   return {
     id: Number(row.id),
     chatId: Number(row.chat_id),
@@ -164,15 +171,21 @@ function sanitizeMessage(row) {
     deliveredAt: row.delivered_at || null,
     readAt: row.read_at || null,
     senderAvatarUrl,
+    replyTo,
     createdAt: row.created_at,
     time: timeOf(row.created_at),
   }
 }
 
 function messageSelectSql(whereClause) {
-  return `SELECT m.*, u.avatar_url AS sender_avatar_url
+  return `SELECT m.*, u.avatar_url AS sender_avatar_url,
+                 r.sender_type AS reply_sender_type,
+                 r.message_type AS reply_message_type,
+                 r.content AS reply_content,
+                 r.file_name AS reply_file_name
           FROM messages m
           LEFT JOIN users u ON u.id = m.sender_user_id
+          LEFT JOIN messages r ON r.id = m.reply_to_message_id
           ${whereClause}`
 }
 
@@ -676,6 +689,7 @@ export async function persistMessage({
   dataUrl = '',
   fileName = '',
   clientMessageId = '',
+  replyToMessageId = null,
 }) {
   if (messageType === 'text' && !String(content || '').trim()) {
     const error = new Error('El mensaje no puede estar vacio')
@@ -697,11 +711,24 @@ export async function persistMessage({
       throw error
     }
 
+    const numericReplyToMessageId = Number(replyToMessageId) || null
+    if (numericReplyToMessageId) {
+      const [replyRows] = await connection.execute(
+        'SELECT id FROM messages WHERE id = ? AND chat_id = ? LIMIT 1',
+        [numericReplyToMessageId, chatId]
+      )
+      if (!replyRows?.length) {
+        const error = new Error('Mensaje a responder no encontrado')
+        error.status = 400
+        throw error
+      }
+    }
+
     const isAdminSender = senderType === 'admin' || senderType === 'cashier'
     const [insertResult] = await connection.execute(
       `INSERT INTO messages
-        (chat_id, client_id, sender_type, sender_user_id, message_type, content, file_url, file_name, file_size, is_read)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (chat_id, client_id, sender_type, sender_user_id, message_type, content, file_url, file_name, file_size, is_read, reply_to_message_id)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         chatId,
         senderType === 'client' ? chat.client_id : clientId,
@@ -713,6 +740,7 @@ export async function persistMessage({
         filePayload.fileName || null,
         filePayload.fileSize || null,
         isAdminSender ? 0 : 0,
+        numericReplyToMessageId,
       ]
     )
 
@@ -764,6 +792,7 @@ export async function sendClientMessage(req, res, next) {
       dataUrl: req.body?.dataUrl || '',
       fileName: req.body?.fileName || '',
       clientMessageId: req.body?.clientMessageId || '',
+      replyToMessageId: req.body?.replyToMessageId || null,
     })
     res.status(201).json(result)
   } catch (error) {
@@ -782,6 +811,7 @@ export async function sendAdminMessage(req, res, next) {
       dataUrl: req.body?.dataUrl || '',
       fileName: req.body?.fileName || '',
       clientMessageId: req.body?.clientMessageId || '',
+      replyToMessageId: req.body?.replyToMessageId || null,
     })
     res.status(201).json(result)
   } catch (error) {

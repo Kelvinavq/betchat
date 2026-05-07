@@ -161,6 +161,7 @@ export function setupChatSockets(io) {
           dataUrl: payloadData.dataUrl || '',
           fileName: payloadData.fileName || '',
           clientMessageId,
+          replyToMessageId: payloadData.replyToMessageId || null,
         })
 
         if (clientMessageId) {
