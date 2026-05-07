@@ -1,8 +1,9 @@
-import { useState } from 'react'
+import { useContext } from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import ChatWindow from './ChatWindow'
+import { ChatContext } from '../../context/ChatContext'
 import { gradients, shadows } from '../../styles/theme'
 import '../../css/chat.css'
 
@@ -77,7 +78,7 @@ const BubbleText = styled.span`
 `
 
 const ChatBubble = () => {
-  const [isOpen, setIsOpen] = useState(false)
+  const { isOpen, setIsOpen } = useContext(ChatContext)
 
   return (
     <>

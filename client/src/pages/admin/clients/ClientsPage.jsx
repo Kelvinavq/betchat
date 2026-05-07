@@ -34,6 +34,21 @@ import {
 } from './ClientsPage.styles'
 
 const PER_PAGE = 10
+const hasWhitespace = (value) => /\s/.test(value)
+const hasUppercase = (value) => /[A-Z]/.test(value)
+
+const validateClientCredentials = ({ username, password, includeUsername = true }) => {
+  const cleanUsername = String(username || '').trim()
+  const cleanPassword = String(password || '')
+
+  if (includeUsername && (!cleanUsername || hasWhitespace(cleanUsername) || hasUppercase(cleanUsername))) {
+    return 'El usuario no puede tener espacios ni mayusculas.'
+  }
+  if (!cleanPassword || cleanPassword.length < 4 || hasWhitespace(cleanPassword) || hasUppercase(cleanPassword)) {
+    return 'La contrasena debe tener minimo 4 caracteres, sin espacios ni mayusculas.'
+  }
+  return ''
+}
 
 const todayStr = () =>
   new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -431,8 +446,17 @@ const ClientsPage = ({ onMenuOpen }) => {
   const handleSave = async (form) => {
     try {
       if (modal.mode === 'add') {
-        await api.post('/api/clients', {
+        const validationError = validateClientCredentials({
           username: form.username,
+          password: form.password,
+        })
+        if (validationError) {
+          notify(validationError, 'danger')
+          return
+        }
+
+        await api.post('/api/clients', {
+          username: form.username.trim(),
           password: form.password,
         })
         notify('Cliente creado exitosamente.', 'success')
@@ -470,6 +494,15 @@ const ClientsPage = ({ onMenuOpen }) => {
 
   const handlePwdSave = async (newPwd) => {
     try {
+      const validationError = validateClientCredentials({
+        password: newPwd,
+        includeUsername: false,
+      })
+      if (validationError) {
+        notify(validationError, 'danger')
+        return
+      }
+
       await api.put(`/api/clients/${pwdModal.client.id}/password`, { password: newPwd })
       notify('Contraseña actualizada exitosamente.', 'success')
       setPwdModal(null)

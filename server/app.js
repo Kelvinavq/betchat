@@ -17,6 +17,7 @@ import modalRoutes from './routes/modalRoutes.js';
 import bankAccountRoutes from './routes/bankAccountRoutes.js';
 import settingsRoutes from './routes/settingsRoutes.js';
 import clientsRoutes from './routes/clientsRoutes.js';
+import clientAuthRoutes from './routes/clientAuthRoutes.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -55,6 +56,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 // Rutas de autenticación
 app.use('/api/auth', authRoutes);
+app.use('/api/client/auth', clientAuthRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/commands', commandRoutes);
 app.use('/api/modals', modalRoutes);
@@ -116,10 +118,19 @@ io.on('connection', (socket) => {
 // ============================================================
 
 app.use((err, req, res, next) => {
-  console.error('Error no manejado:', err);
-  res.status(500).json({
-    error: 'Error interno del servidor',
-    message: config.isProduction ? 'Error' : err.message,
+  const status = Number(err.status || err.statusCode || 500);
+  const safeStatus = status >= 400 && status < 600 ? status : 500;
+  if (safeStatus >= 500) console.error('Error no manejado:', err);
+  else console.warn('Error controlado:', err.message);
+
+  const publicMessage = safeStatus < 500
+    ? err.message
+    : (err.expose ? err.message : 'Error interno del servidor');
+
+  res.status(safeStatus).json({
+    error: publicMessage,
+    message: config.isProduction && safeStatus >= 500 ? 'Error' : err.message,
+    code: err.code,
     requestId: req.id,
   });
 });

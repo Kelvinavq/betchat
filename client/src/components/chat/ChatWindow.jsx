@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useContext, useState, useRef, useEffect } from 'react'
 import { createPortal } from 'react-dom'
 import CloseIcon from '@mui/icons-material/Close'
 import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined'
@@ -12,13 +12,14 @@ import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
 import AttachFileIcon from '@mui/icons-material/AttachFile'
 import DescriptionIcon from '@mui/icons-material/Description'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
-import googleIcon from '../../assets/google.svg'
-import fingerprintIcon from '../../assets/fingerprint.svg'
+import { ChatContext } from '../../context/ChatContext'
+import { api } from '../../utils/api'
 import {
   Window, VisualSection, CloseBtn, VisualLogo, AppLabel,
   FormSection, FormTitle, FormHint, FormGroup, InputLabel,
+  ErrorBanner,
   StyledInput, PasswordWrapper, PasswordInput, PasswordToggle,
-  ForgotLink, ActionBtn, OrDivider, SocialRow, SocialBtn, SwitchText,
+  ForgotLink, ActionBtn, OrDivider, SwitchText,
   ChatViewContainer,
   ChatHeader, ChatHeaderSide, ChatHeaderCenter,
   ChatHeaderBtn,
@@ -34,21 +35,35 @@ import {
   MediaMsgImg, MediaMsgPdf,
   ViewerOverlay, ViewerContent, ViewerFileName, ViewerImg,
   ViewerEmbed, ViewerActions, ViewerBtn,
+  AuthLoadingScreen,
 } from './ChatWindow.styles'
 
 /* ── login view ── */
 
-const LoginView = ({ onLogin, onRegister }) => {
+const LoginView = ({ onLogin, onRegister, loading }) => {
   const [showPwd, setShowPwd] = useState(false)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+
+  const submitLogin = (event) => {
+    event.preventDefault()
+    onLogin({ username, password })
+  }
 
   return (
-    <>
+    <form onSubmit={submitLogin}>
       <FormTitle align="center">Iniciar sesión</FormTitle>
       <FormHint align="center">Bienvenido de vuelta</FormHint>
 
       <FormGroup>
         <InputLabel>Nombre de usuario</InputLabel>
-        <StyledInput type="text" placeholder="Nombre de usuario" />
+        <StyledInput
+          type="text"
+          placeholder="Nombre de usuario"
+          value={username}
+          onChange={event => setUsername(event.target.value)}
+          autoComplete="username"
+        />
       </FormGroup>
 
       <FormGroup>
@@ -58,6 +73,8 @@ const LoginView = ({ onLogin, onRegister }) => {
             type={showPwd ? 'text' : 'password'}
             placeholder="••••••••"
             autoComplete="current-password"
+            value={password}
+            onChange={event => setPassword(event.target.value)}
           />
           <PasswordToggle type="button" onClick={() => setShowPwd(p => !p)}>
             {showPwd ? <VisibilityOffIcon /> : <VisibilityIcon />}
@@ -66,29 +83,44 @@ const LoginView = ({ onLogin, onRegister }) => {
       </FormGroup>
 
       <ForgotLink href="#">¿Olvidaste tu contraseña?</ForgotLink>
-      <ActionBtn type="button" onClick={onLogin}>Ingresar</ActionBtn>
+      <ActionBtn type="submit" disabled={loading}>
+        {loading ? 'Ingresando...' : 'Ingresar'}
+      </ActionBtn>
       <OrDivider>O</OrDivider>
 
       <SwitchText>
         ¿No tienes cuenta? <a onClick={onRegister}>Regístrate</a>
       </SwitchText>
-    </>
+    </form>
   )
 }
 
 /* ── register view ── */
 
-const RegisterView = ({ onRegister, onLogin }) => {
+const RegisterView = ({ onRegister, onLogin, loading }) => {
   const [showPwd, setShowPwd] = useState(false)
+  const [username, setUsername] = useState('')
+  const [password, setPassword] = useState('')
+
+  const submitRegister = (event) => {
+    event.preventDefault()
+    onRegister({ username, password })
+  }
 
   return (
-    <>
+    <form onSubmit={submitRegister}>
       <FormTitle align="center">Crear cuenta</FormTitle>
       <FormHint align="center">Únete para chatear con soporte</FormHint>
 
       <FormGroup>
-        <InputLabel>Nombre</InputLabel>
-        <StyledInput type="text" placeholder="Tu nombre" autoComplete="name" />
+        <InputLabel>Nombre de usuario</InputLabel>
+        <StyledInput
+          type="text"
+          placeholder="usuario"
+          autoComplete="username"
+          value={username}
+          onChange={event => setUsername(event.target.value)}
+        />
       </FormGroup>
 
       <FormGroup>
@@ -96,8 +128,10 @@ const RegisterView = ({ onRegister, onLogin }) => {
         <PasswordWrapper>
           <PasswordInput
             type={showPwd ? 'text' : 'password'}
-            placeholder="••••••••"
+            placeholder="****"
             autoComplete="new-password"
+            value={password}
+            onChange={event => setPassword(event.target.value)}
           />
           <PasswordToggle type="button" onClick={() => setShowPwd(p => !p)}>
             {showPwd ? <VisibilityOffIcon /> : <VisibilityIcon />}
@@ -105,13 +139,15 @@ const RegisterView = ({ onRegister, onLogin }) => {
         </PasswordWrapper>
       </FormGroup>
 
-      <ActionBtn type="button" onClick={onRegister}>Crear cuenta</ActionBtn>
+      <ActionBtn type="submit" disabled={loading}>
+        {loading ? 'Creando cuenta...' : 'Crear cuenta'}
+      </ActionBtn>
       <OrDivider>O</OrDivider>
 
       <SwitchText>
         ¿Ya tienes cuenta? <a onClick={onLogin}>Inicia sesión</a>
       </SwitchText>
-    </>
+    </form>
   )
 }
 
@@ -120,6 +156,7 @@ const RegisterView = ({ onRegister, onLogin }) => {
 const LOADER_TEXTS = {
   image: ['Enviando imagen', 'Ya casi terminamos', 'Un momento más'],
   pdf:   ['Enviando archivo', 'Ya casi terminamos', 'Un momento más'],
+  login: ['Ingresando al chat', 'Preparando sesión', 'Ya casi terminamos'],
 }
 
 const SendingLoader = ({ mediaType }) => {
@@ -149,6 +186,12 @@ const SendingLoader = ({ mediaType }) => {
     </div>
   )
 }
+
+const ChatAuthLoader = () => (
+  <AuthLoadingScreen>
+    <SendingLoader mediaType="login" />
+  </AuthLoadingScreen>
+)
 
 /* ── media preview modal (before sending) ── */
 
@@ -446,8 +489,88 @@ const ChatView = ({ onClose, username = 'Juan García' }) => {
 /* ── main window ── */
 
 const ChatWindow = ({ onClose }) => {
-  const [view, setView] = useState('login')
-  const isChat = view === 'chat'
+  const { clientSession, setClientSession, clientAuthLoading, setClientAuthLoading } = useContext(ChatContext)
+  const [view, setView] = useState(clientSession ? 'chat' : 'login')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const isAuthLoading = loading || clientAuthLoading
+  const activeView = clientSession ? 'chat' : view
+  const isChat = activeView === 'chat' || isAuthLoading
+
+  const handleLogin = async ({ username, password }) => {
+    if (!username?.trim() || !password) {
+      setError('Completa usuario y contrasena.')
+      return
+    }
+
+    setLoading(true)
+    setClientAuthLoading(true)
+    setView('loading')
+    setError('')
+
+    try {
+      const session = await api.post('/api/client/auth/login', {
+        username: username.trim(),
+        password,
+      })
+      setClientSession(session.client)
+      localStorage.setItem('clientUsername', session.client.username)
+      localStorage.setItem('clientId', String(session.client.id))
+      localStorage.setItem('chatId', String(session.client.chatId || ''))
+      setView('chat')
+    } catch (loginError) {
+      setError(loginError.payload?.error || loginError.message || 'No se pudo iniciar sesion.')
+      setView('login')
+    } finally {
+      setLoading(false)
+      setClientAuthLoading(false)
+    }
+  }
+
+  const validateRegistration = ({ username, password }) => {
+    const cleanUsername = String(username || '').trim()
+    const cleanPassword = String(password || '')
+
+    if (!cleanUsername || !cleanPassword) return 'Completa usuario y contrasena.'
+    if (/\s/.test(cleanUsername) || /[A-Z]/.test(cleanUsername)) {
+      return 'El usuario no puede tener espacios ni mayusculas.'
+    }
+    if (cleanPassword.length < 4 || /\s/.test(cleanPassword) || /[A-Z]/.test(cleanPassword)) {
+      return 'La contrasena debe tener minimo 4 caracteres, sin espacios ni mayusculas.'
+    }
+    return ''
+  }
+
+  const handleRegister = async ({ username, password }) => {
+    const validationError = validateRegistration({ username, password })
+    if (validationError) {
+      setError(validationError)
+      return
+    }
+
+    setLoading(true)
+    setClientAuthLoading(true)
+    setView('loading')
+    setError('')
+
+    try {
+      const session = await api.post('/api/client/auth/register', {
+        username: username.trim(),
+        password,
+      })
+      setClientSession(session.client)
+      localStorage.setItem('clientUsername', session.client.username)
+      localStorage.setItem('clientId', String(session.client.id))
+      localStorage.setItem('chatId', String(session.client.chatId || ''))
+      setView('chat')
+    } catch (registerError) {
+      setError(registerError.payload?.error || registerError.message || 'No se pudo crear la cuenta.')
+      setView('register')
+    } finally {
+      setLoading(false)
+      setClientAuthLoading(false)
+    }
+  }
 
   return (
     <Window>
@@ -464,19 +587,23 @@ const ChatWindow = ({ onClose }) => {
       )}
 
       <FormSection $isChat={isChat}>
-        {view === 'login' && (
+        {isAuthLoading && <ChatAuthLoader />}
+        {error && !isChat && <ErrorBanner role="alert">{error}</ErrorBanner>}
+        {!isAuthLoading && activeView === 'login' && (
           <LoginView
-            onLogin={() => setView('chat')}
+            onLogin={handleLogin}
             onRegister={() => setView('register')}
+            loading={loading}
           />
         )}
-        {view === 'register' && (
+        {!isAuthLoading && activeView === 'register' && (
           <RegisterView
-            onRegister={() => setView('chat')}
+            onRegister={handleRegister}
             onLogin={() => setView('login')}
+            loading={loading}
           />
         )}
-        {view === 'chat' && (
+        {!isAuthLoading && activeView === 'chat' && (
           <ChatView onClose={onClose} username="Juan García" />
         )}
       </FormSection>

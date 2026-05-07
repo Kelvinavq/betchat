@@ -1,5 +1,11 @@
 import { query } from '../config/database.js'
-import { hashPassword } from '../utils/password.js'
+
+const hasWhitespace = (value) => /\s/.test(value)
+const hasUppercase = (value) => /[A-Z]/.test(value)
+const getExternalErrorMessage = (data) => {
+  const message = data?.errorMessage || data?.message || data?.error
+  return typeof message === 'string' ? message.trim() : ''
+}
 
 // Función para buscar usuario en API externa
 async function searchUserInExternalAPI(apiUrl, apiKey, username) {
@@ -95,7 +101,15 @@ async function createUserInExternalAPI(apiUrl, apiKey, username, password) {
 
     // Verificar si la creación fue exitosa
     if (!createData || !createData.success) {
-      throw new Error('Error al crear usuario en la plataforma externa.')
+      const externalMessage = getExternalErrorMessage(createData)
+      const isUnavailable = /existe|exist|disponible|available/i.test(externalMessage)
+      const error = new Error(isUnavailable
+        ? 'Ese usuario no esta disponible.'
+        : externalMessage || 'Error al crear usuario en la plataforma externa.'
+      )
+      error.status = isUnavailable ? 409 : 502
+      error.code = isUnavailable ? 'USERNAME_UNAVAILABLE' : 'EXTERNAL_CREATE_FAILED'
+      throw error
     }
 
     // Extraer el ID del usuario creado
@@ -217,11 +231,24 @@ export async function getClients(req, res, next) {
 
 export async function createClient(req, res, next) {
   try {
-    const { username, password } = req.body
+    const username = String(req.body?.username || '').trim()
+    const password = String(req.body?.password || '')
 
     if (!username || !password) {
       return res.status(400).json({
         error: 'El nombre de usuario y la contraseña son obligatorios.',
+      })
+    }
+
+    if (hasWhitespace(username) || hasUppercase(username)) {
+      return res.status(400).json({
+        error: 'El usuario no puede tener espacios ni mayusculas.',
+      })
+    }
+
+    if (password.length < 4 || hasWhitespace(password) || hasUppercase(password)) {
+      return res.status(400).json({
+        error: 'La contrasena debe tener minimo 4 caracteres, sin espacios ni mayusculas.',
       })
     }
 
@@ -233,7 +260,7 @@ export async function createClient(req, res, next) {
 
     if (existingRows && existingRows.length > 0) {
       return res.status(409).json({
-        error: 'El cliente ya existe en la base de datos local.',
+        error: 'Ese usuario no esta disponible.',
       })
     }
 
@@ -244,19 +271,17 @@ export async function createClient(req, res, next) {
     const searchResult = await searchUserInExternalAPI(apiUrl, apiKey, username)
     if (searchResult.found) {
       return res.status(409).json({
-        error: 'El usuario ya existe en la plataforma externa.',
+        error: 'Ese usuario no esta disponible.',
       })
     }
 
     // Crear usuario en la API externa
     const createResult = await createUserInExternalAPI(apiUrl, apiKey, username, password)
 
-    const passwordHash = await hashPassword(password)
-
     const { rows, error: insertError } = await query(`
       INSERT INTO clients (username, full_name, password_hash, external_id, is_active)
       VALUES (?, ?, ?, ?, 1)
-    `, [username, username, passwordHash, createResult.externalId])
+    `, [username, username, password, createResult.externalId])
     if (insertError) return next(insertError)
 
     const clientId = rows.insertId
@@ -316,19 +341,23 @@ export async function deleteClient(req, res, next) {
 export async function updateClientPassword(req, res, next) {
   try {
     const { id } = req.params
-    const { password } = req.body
+    const password = String(req.body?.password || '')
 
     if (!password) {
       return res.status(400).json({ error: 'La contraseña es obligatoria.' })
     }
 
-    const passwordHash = await hashPassword(password)
+    if (password.length < 4 || hasWhitespace(password) || hasUppercase(password)) {
+      return res.status(400).json({
+        error: 'La contrasena debe tener minimo 4 caracteres, sin espacios ni mayusculas.',
+      })
+    }
 
     const { rows } = await query(`
       UPDATE clients
       SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
-    `, [passwordHash, id])
+    `, [password, id])
 
     if (rows.affectedRows === 0) {
       return res.status(404).json({ error: 'Cliente no encontrado.' })

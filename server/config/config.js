@@ -89,6 +89,7 @@ export const config = {
   jwtExpiresInSeconds: parseDuration(process.env.JWT_EXPIRES_IN || '24h'),
   jwtIssuer: process.env.JWT_ISSUER || 'BetChat',
   jwtCookieName: process.env.JWT_COOKIE_NAME || 'betchat_session',
+  clientJwtCookieName: process.env.CLIENT_JWT_COOKIE_NAME || 'betchat_client_session',
   jwtCookieOptions: {
     httpOnly: true,
     secure: isProduction,

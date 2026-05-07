@@ -114,12 +114,17 @@ export const FormSection = styled.div`
   ` : css`
     overflow-y: auto;
     border-radius: 28px 28px 0 0;
-    padding: 26px 22px 30px;
-    gap: 14px;
+    padding: 32px 24px 34px;
+    gap: 18px;
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
     &::-webkit-scrollbar { width: 6px; }
     ${MOBILE} {
       border-radius: 32px 32px 0 0;
-      padding: 30px 24px 36px;
+      padding: 36px 26px 40px;
     }
   `}
 `
@@ -137,10 +142,23 @@ export const FormHint = styled.p`
   margin-top: -6px;
 `
 
+export const ErrorBanner = styled.div`
+  width: 100%;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: rgba(255, 69, 58, 0.14);
+  border: 1px solid rgba(255, 109, 100, 0.34);
+  color: rgba(255, 228, 226, 0.96);
+  font-size: 12px;
+  line-height: 1.4;
+  text-align: center;
+  box-shadow: 0 10px 30px rgba(255, 69, 58, 0.10);
+`
+
 export const FormGroup = styled.div`
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
 `
 
 export const InputLabel = styled.label`
@@ -217,7 +235,7 @@ export const ActionBtn = styled.button`
   letter-spacing: 0.04em;
   border: none;
   cursor: pointer;
-  margin-top: 2px;
+  margin-top: 8px;
   transition: opacity 0.2s, transform 0.15s;
   &:hover { opacity: 0.88; }
   &:active { transform: scale(0.98); opacity: 0.80; }
@@ -770,6 +788,18 @@ export const SendingBubbleWrap = styled.div`
   align-items: center;
   justify-content: center;
   padding: 8px;
+`
+
+export const AuthLoadingScreen = styled.div`
+  flex: 1;
+  min-height: 0;
+  background:
+    radial-gradient(ellipse at 50% 34%, rgba(20, 70, 220, 0.16) 0%, transparent 68%),
+    #0b0b18;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
 `
 
 /* ── media messages (image / pdf in chat) ── */
