@@ -364,6 +364,7 @@ export const LoadMoreBtn = styled.button`
   transition: background 0.2s, color 0.2s;
   flex-shrink: 0;
   &:hover { background: rgba(255, 255, 255, 0.09); color: rgba(255, 255, 255, 0.80); }
+  &:disabled { opacity: 0.45; cursor: default; }
 `
 
 export const EmptyState = styled.div`

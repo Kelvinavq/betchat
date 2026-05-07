@@ -166,6 +166,9 @@ export async function getAdminChats(req, res, next) {
   try {
     const archived = String(req.query.archived || 'false') === 'true'
     const search = String(req.query.search || '').trim()
+    const page = Math.max(1, parseInt(req.query.page || '1', 10) || 1)
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '50', 10) || 50))
+    const offset = (page - 1) * limit
     const params = [archived ? 1 : 0]
     let where = 'WHERE ch.is_archived = ?'
     if (search) {
@@ -181,11 +184,33 @@ export async function getAdminChats(req, res, next) {
        LEFT JOIN users u ON u.id = ch.assigned_user_id
        ${where}
        ORDER BY COALESCE(ch.last_message_at, ch.created_at) DESC
-       LIMIT 100`,
+       LIMIT ${limit} OFFSET ${offset}`,
       params
     )
     if (error) return next(error)
-    res.json({ chats: (rows || []).map(sanitizeChat) })
+
+    const { rows: totalRows, error: totalError } = await query(
+      `SELECT COUNT(*) AS total
+       FROM chats ch
+       JOIN clients c ON c.id = ch.client_id
+       ${where}`,
+      params
+    )
+    if (totalError) return next(totalError)
+
+    const total = Number(totalRows?.[0]?.total || 0)
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+
+    res.json({
+      chats: (rows || []).map(sanitizeChat),
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+    })
   } catch (error) {
     next(error)
   }

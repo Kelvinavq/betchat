@@ -19,8 +19,10 @@ import {
   ListScroll, ChatItem, ChatAvatar, OnlineDot, ChatBody,
   AssignedPill, ChatRow, ChatUsername, ChatTime, ChatLastMsg,
   TagEl, UnreadBadge, TAG_CONFIG,
-  EmptyState,
+  LoadMoreBtn, EmptyState,
 } from './ChatList.styles'
+
+const CHAT_PAGE_SIZE = 50
 
 const TagChip = ({ archived }) => {
   if (!archived) return null
@@ -61,6 +63,15 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   const [quickMenu, setQuickMenu] = useState(null)
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [page, setPage] = useState(1)
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: CHAT_PAGE_SIZE,
+    total: 0,
+    totalPages: 1,
+    hasMore: false,
+  })
   const menuRef = useRef(null)
   const quickMenuRef = useRef(null)
 
@@ -86,12 +97,30 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   useEffect(() => {
     let alive = true
     const loadChats = async () => {
+      setPage(1)
       setLoading(true)
       try {
-        const data = await api.get(`/api/chats?archived=${archived ? 'true' : 'false'}&search=${encodeURIComponent(search)}`)
-        if (alive) setChats(data.chats || [])
+        const data = await api.get(`/api/chats?archived=${archived ? 'true' : 'false'}&search=${encodeURIComponent(search)}&page=1&limit=${CHAT_PAGE_SIZE}`)
+        if (!alive) return
+        setChats(data.chats || [])
+        setPagination(data.pagination || {
+          page: 1,
+          limit: CHAT_PAGE_SIZE,
+          total: data.chats?.length || 0,
+          totalPages: 1,
+          hasMore: false,
+        })
       } catch {
-        if (alive) setChats([])
+        if (alive) {
+          setChats([])
+          setPagination({
+            page: 1,
+            limit: CHAT_PAGE_SIZE,
+            total: 0,
+            totalPages: 1,
+            hasMore: false,
+          })
+        }
       } finally {
         if (alive) setLoading(false)
       }
@@ -99,6 +128,32 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
     const t = setTimeout(loadChats, 160)
     return () => { alive = false; clearTimeout(t) }
   }, [archived, search])
+
+  const loadMoreChats = async () => {
+    if (loading || loadingMore || !pagination.hasMore) return
+    const nextPage = page + 1
+    setLoadingMore(true)
+    try {
+      const data = await api.get(`/api/chats?archived=${archived ? 'true' : 'false'}&search=${encodeURIComponent(search)}&page=${nextPage}&limit=${CHAT_PAGE_SIZE}`)
+      const nextChats = data.chats || []
+      setChats(prev => {
+        const seen = new Set(prev.map(chat => chat.id))
+        return [...prev, ...nextChats.filter(chat => !seen.has(chat.id))]
+      })
+      setPage(data.pagination?.page || nextPage)
+      setPagination(data.pagination || {
+        page: nextPage,
+        limit: CHAT_PAGE_SIZE,
+        total: chats.length + nextChats.length,
+        totalPages: nextPage,
+        hasMore: nextChats.length === CHAT_PAGE_SIZE,
+      })
+    } catch {
+      // Keep the current page visible; the user can retry with the same button.
+    } finally {
+      setLoadingMore(false)
+    }
+  }
 
   useEffect(() => {
     let alive = true
@@ -302,6 +357,11 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
             </ChatItem>
             )
           })
+        )}
+        {pagination.hasMore && (
+          <LoadMoreBtn type="button" onClick={loadMoreChats} disabled={loadingMore}>
+            {loadingMore ? 'Cargando...' : 'Cargar mas'}
+          </LoadMoreBtn>
         )}
       </ListScroll>
 

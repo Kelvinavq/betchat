@@ -231,7 +231,7 @@ async function main() {
     const clientColumns = [
       'username',
       'full_name',
-      'password_hash',
+      'password',
       'note',
       'cuil',
       'external_id',
