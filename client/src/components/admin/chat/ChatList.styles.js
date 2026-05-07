@@ -5,7 +5,7 @@ export const Wrap = styled.div`
   width: ${({ $width, $fullWidth }) => $fullWidth ? '100%' : $width ? `${$width}px` : '320px'};
   min-width: ${({ $width, $fullWidth }) => $fullWidth ? 0 : $width ? `${$width}px` : '320px'};
   height: var(--app-height, 100dvh);
-  background: #0a0a16;
+  background: var(--bc-admin-sidebar-bg, #0a0a16);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -82,6 +82,53 @@ export const DropdownItem = styled.button`
   &:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff; }
 `
 
+export const DropdownSection = styled.div`
+  padding: 8px 8px 10px;
+  border-top: 1px solid rgba(255,255,255,0.07);
+`
+
+export const DropdownLabel = styled.div`
+  padding: 2px 6px 7px;
+  color: rgba(255,255,255,0.30);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+`
+
+export const LabelFilterBtn = styled.button`
+  width: 100%;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid ${({ $active, $color }) => $active ? `${$color || '#60a5fa'}66` : 'transparent'};
+  background: ${({ $active, $color }) => $active ? `${$color || '#60a5fa'}18` : 'transparent'};
+  color: ${({ $active, $color }) => $active ? ($color || '#60a5fa') : 'rgba(255,255,255,0.62)'};
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+
+  &:hover {
+    background: ${({ $color }) => `${$color || '#60a5fa'}14`};
+    color: ${({ $color }) => $color || '#60a5fa'};
+  }
+`
+
+export const LabelFilterDot = styled.span`
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: ${({ $color }) => $color || '#60a5fa'};
+  box-shadow: 0 0 12px ${({ $color }) => $color || '#60a5fa'};
+  flex-shrink: 0;
+`
+
 export const QuickMenu = styled.div`
   position: fixed;
   left: ${({ $x }) => `${$x}px`};
@@ -116,7 +163,7 @@ export const QuickMenuItem = styled.button`
   svg { font-size: 17px; color: rgba(255,255,255,0.42); }
 
   &:hover {
-    background: rgba(30, 133, 255, 0.12);
+    background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.12);
     color: #ffffff;
   }
 `
@@ -152,7 +199,7 @@ export const SearchInput = styled.input`
   outline: none;
   transition: border-color 0.2s;
   &::placeholder { color: rgba(255, 255, 255, 0.22); }
-  &:focus { border-color: rgba(30, 133, 255, 0.40); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.40); }
 `
 
 export const ProcessFilters = styled.div`
@@ -218,7 +265,7 @@ export const ChatItem = styled.button`
   gap: 10px;
   width: 100%;
   padding: 10px 14px;
-  background: ${({ $active }) => $active ? 'rgba(30, 133, 255, 0.10)' : 'none'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.10)' : 'none'};
   border: none;
   border-left: 2px solid ${({ $active }) => $active ? colors.primaryLight : 'transparent'};
   cursor: pointer;
@@ -252,7 +299,7 @@ export const OnlineDot = styled.span`
   height: 9px;
   border-radius: 50%;
   background: ${({ $online }) => $online ? '#22c55e' : 'rgba(255,255,255,0.20)'};
-  border: 1.5px solid #0a0a16;
+  border: 1.5px solid var(--bc-admin-sidebar-bg, #0a0a16);
 `
 
 /* item body */

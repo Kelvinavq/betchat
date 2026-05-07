@@ -194,7 +194,9 @@ export const FieldTextarea = styled.textarea`
   font-size: 13px;
   font-family: inherit;
   outline: none;
-  resize: none;
+  resize: vertical;
+  min-height: 92px;
+  max-height: 240px;
   line-height: 1.5;
   margin-top: 2px;
   &:focus { border-color: ${colors.primaryLight}; }
@@ -202,7 +204,7 @@ export const FieldTextarea = styled.textarea`
 
 export const EditHint = styled.span`
   font-size: 10px;
-  color: rgba(30, 133, 255, 0.50);
+  color: ${({ $error }) => $error ? '#f87171' : 'rgba(30, 133, 255, 0.50)'};
   margin-top: 1px;
 `
 
@@ -212,6 +214,56 @@ export const TagsSection = styled.div`
   flex-wrap: wrap;
   gap: 6px;
   padding: 8px 14px 10px;
+`
+
+export const TagCreateRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 34px 72px;
+  gap: 6px;
+  padding: 0 14px 12px;
+`
+
+export const TagInput = styled.input`
+  min-width: 0;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.05);
+  color: #ffffff;
+  font-size: 12px;
+  font-family: inherit;
+  outline: none;
+
+  &::placeholder { color: rgba(255,255,255,0.24); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.42); }
+`
+
+export const ColorInput = styled.input`
+  width: 34px;
+  height: 34px;
+  padding: 3px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  cursor: pointer;
+`
+
+export const TagCreateBtn = styled.button`
+  height: 34px;
+  border-radius: 8px;
+  border: none;
+  background: ${gradients.btn};
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.12s;
+
+  &:hover { opacity: 0.86; }
+  &:active { transform: scale(0.98); }
+  &:disabled { opacity: 0.42; cursor: default; transform: none; }
 `
 
 export const ClientTag = styled.button`

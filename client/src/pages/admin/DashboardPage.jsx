@@ -35,7 +35,7 @@ const Layout = styled.div`
   height: var(--app-height, 100dvh);
   display: flex;
   overflow: hidden;
-  background: #08080f;
+  background: var(--bc-admin-content-bg, #08080f);
   cursor: ${({ $resizing }) => $resizing ? 'col-resize' : 'auto'};
   user-select: ${({ $resizing }) => $resizing ? 'none' : 'auto'};
 `
@@ -51,8 +51,8 @@ const ResizeHandle = styled.div`
   z-index: 20;
   transition: background 0.15s;
   &::before { content: ''; position: absolute; inset: 0 -6px; }
-  &:hover   { background: rgba(30, 133, 255, 0.45); }
-  &:active  { background: rgba(30, 133, 255, 0.70); }
+  &:hover   { background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.45); }
+  &:active  { background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.70); }
 `
 
 /* ── mobile drawer ── */

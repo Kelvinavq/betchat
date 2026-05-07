@@ -9,7 +9,7 @@ import { hashPassword, verifyPassword } from '../utils/password.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const PROFILE_DIR = join(__dirname, '..', 'public', 'profiles')
-const PUBLIC_PROFILE_PREFIX = '/profiles/'
+const PUBLIC_PROFILE_PREFIX = process.env.PROFILE_PUBLIC_PATH || '/profiles/'
 const IMAGE_TYPES = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -201,7 +201,7 @@ async function getChatBank() {
   }
 }
 
-async function getThemeConfig() {
+export async function getThemeConfig() {
   const { rows, error } = await query(
     'SELECT client_theme, admin_theme FROM theme_config WHERE id = 1 LIMIT 1',
     []
@@ -211,6 +211,85 @@ async function getThemeConfig() {
   return {
     clientTheme: rows?.[0]?.client_theme || 'betchat-dark',
     adminTheme: rows?.[0]?.admin_theme || 'dark-blue',
+    customThemes: await getCustomThemes(),
+  }
+}
+
+function sanitizeThemeRow(row) {
+  const config = parseJson(row.config)
+  return {
+    ...config,
+    id: `${row.scope}-custom-${row.id}`,
+    dbId: Number(row.id),
+    name: row.name,
+    custom: true,
+  }
+}
+
+async function getCustomThemes() {
+  const { rows, error } = await query(
+    'SELECT id, name, scope, config FROM themes WHERE is_custom = 1 ORDER BY updated_at DESC, id DESC',
+    []
+  )
+  if (error) throw error
+
+  return {
+    client: (rows || []).filter(row => row.scope === 'client').map(sanitizeThemeRow),
+    admin: (rows || []).filter(row => row.scope === 'admin').map(sanitizeThemeRow),
+  }
+}
+
+function normalizeThemePayload(scope, rawTheme) {
+  const theme = parseJson(rawTheme)
+  const name = normalizeText(theme.name)
+  if (!name) {
+    const error = new Error('Nombre de tema requerido')
+    error.status = 400
+    throw error
+  }
+
+  if (scope === 'client') {
+    return {
+      name,
+      config: {
+        desc: theme.desc || 'Tema personalizado',
+        headerBg: theme.headerBg || '#0f1122',
+        headerColor: theme.headerColor || '#ffffff',
+        bodyBg: theme.bodyBg || '#08080f',
+        sentBubble: theme.sentBubble || '#1e40af',
+        sentText: theme.sentText || '#dbeafe',
+        recvBubble: theme.recvBubble || '#1a1a2e',
+        recvText: theme.recvText || '#e2e8f0',
+        inputBg: theme.inputBg || '#111124',
+        accent: theme.accent || '#2563eb',
+        waTheme: false,
+      },
+    }
+  }
+
+  return {
+    name,
+    config: {
+      desc: theme.desc || name,
+      sidebarBg: theme.sidebarBg || '#0b0b18',
+      sidebarAccent: theme.sidebarAccent || '#1e85ff',
+      topbarBg: theme.topbarBg || '#0d0d1f',
+      contentBg: theme.contentBg || '#08080f',
+      cardBg: theme.cardBg || '#111124',
+      swatches: [
+        theme.sidebarBg || '#0b0b18',
+        theme.sidebarAccent || '#1e85ff',
+        theme.contentBg || '#08080f',
+      ],
+    },
+  }
+}
+
+export async function getPublicThemeConfig(req, res, next) {
+  try {
+    res.json({ themeConfig: await getThemeConfig() })
+  } catch (err) {
+    next(err)
   }
 }
 
@@ -608,6 +687,87 @@ export async function updateThemeConfig(req, res, next) {
       [clientTheme, adminTheme]
     )
     if (error) return next(error)
+
+    res.json({ themeConfig: await getThemeConfig() })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function createCustomTheme(req, res, next) {
+  try {
+    const scope = normalizeText(req.body.scope).toLowerCase()
+    if (!['client', 'admin'].includes(scope)) {
+      return res.status(400).json({ error: 'Scope de tema invalido', code: 'INVALID_THEME_SCOPE' })
+    }
+
+    const payload = normalizeThemePayload(scope, req.body.theme)
+    const { rows, error } = await query(
+      'INSERT INTO themes (name, scope, is_custom, config, created_by) VALUES (?, ?, 1, ?, ?)',
+      [payload.name, scope, JSON.stringify(payload.config), req.user?.sub || null]
+    )
+    if (error) return next(error)
+
+    const theme = {
+      ...payload.config,
+      id: `${scope}-custom-${rows.insertId}`,
+      dbId: Number(rows.insertId),
+      name: payload.name,
+      custom: true,
+    }
+    res.status(201).json({ theme, themeConfig: await getThemeConfig() })
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: 'INVALID_THEME' })
+    next(err)
+  }
+}
+
+export async function updateCustomTheme(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10)
+    const scope = normalizeText(req.body.scope).toLowerCase()
+    if (!id || !['client', 'admin'].includes(scope)) {
+      return res.status(400).json({ error: 'Tema invalido', code: 'INVALID_THEME' })
+    }
+
+    const payload = normalizeThemePayload(scope, req.body.theme)
+    const { error } = await query(
+      'UPDATE themes SET name = ?, config = ? WHERE id = ? AND scope = ? AND is_custom = 1',
+      [payload.name, JSON.stringify(payload.config), id, scope]
+    )
+    if (error) return next(error)
+
+    res.json({
+      theme: { ...payload.config, id: `${scope}-custom-${id}`, dbId: id, name: payload.name, custom: true },
+      themeConfig: await getThemeConfig(),
+    })
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message, code: 'INVALID_THEME' })
+    next(err)
+  }
+}
+
+export async function deleteCustomTheme(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10)
+    const scope = normalizeText(req.query.scope).toLowerCase()
+    if (!id || !['client', 'admin'].includes(scope)) {
+      return res.status(400).json({ error: 'Tema invalido', code: 'INVALID_THEME' })
+    }
+
+    await query('DELETE FROM themes WHERE id = ? AND scope = ? AND is_custom = 1', [id, scope])
+    const themeConfig = await getThemeConfig()
+    const fallback = scope === 'client' ? 'betchat-dark' : 'dark-blue'
+    if ((scope === 'client' && themeConfig.clientTheme === `client-custom-${id}`) || (scope === 'admin' && themeConfig.adminTheme === `admin-custom-${id}`)) {
+      await query(
+        `INSERT INTO theme_config (id, client_theme, admin_theme)
+         VALUES (1, ?, ?)
+         ON DUPLICATE KEY UPDATE ${scope === 'client' ? 'client_theme' : 'admin_theme'} = ?`,
+        scope === 'client'
+          ? [fallback, themeConfig.adminTheme, fallback]
+          : [themeConfig.clientTheme, fallback, fallback]
+      )
+    }
 
     res.json({ themeConfig: await getThemeConfig() })
   } catch (err) {

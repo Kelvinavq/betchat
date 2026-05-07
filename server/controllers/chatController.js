@@ -64,11 +64,11 @@ function dayRangeUtc(day) {
 }
 
 function messageDayCacheKey(chatId, day) {
-  return `messages:v1:chat:${Number(chatId)}:day:${day}`
+  return `messages:v2:chat:${Number(chatId)}:day:${day}`
 }
 
-function chatListCacheKey({ archived, search, page, limit }) {
-  return `chats:v1:admin:archived:${archived ? 1 : 0}:search:${encodeURIComponent(search.toLowerCase())}:page:${page}:limit:${limit}`
+function chatListCacheKey({ archived, search, labelId, page, limit }) {
+  return `chats:v1:admin:archived:${archived ? 1 : 0}:label:${Number(labelId || 0)}:search:${encodeURIComponent(search.toLowerCase())}:page:${page}:limit:${limit}`
 }
 
 function logMessageCache(event, details) {
@@ -87,7 +87,7 @@ async function invalidateMessageCache(chatId, day = '') {
     logMessageCache('DEL', { chatId: Number(chatId), day })
     return
   }
-  await deleteCachePattern(`messages:v1:chat:${Number(chatId)}:day:*`)
+  await deleteCachePattern(`messages:v2:chat:${Number(chatId)}:day:*`)
   logMessageCache('DEL_PATTERN', { chatId: Number(chatId) })
 }
 
@@ -148,6 +148,7 @@ async function saveMedia({ dataUrl, messageType, fileName }) {
 }
 
 function sanitizeMessage(row) {
+  const senderAvatarUrl = row.sender_avatar_url || row.avatar_url || ''
   return {
     id: Number(row.id),
     chatId: Number(row.chat_id),
@@ -162,9 +163,17 @@ function sanitizeMessage(row) {
     isRead: Boolean(row.is_read),
     deliveredAt: row.delivered_at || null,
     readAt: row.read_at || null,
+    senderAvatarUrl,
     createdAt: row.created_at,
     time: timeOf(row.created_at),
   }
+}
+
+function messageSelectSql(whereClause) {
+  return `SELECT m.*, u.avatar_url AS sender_avatar_url
+          FROM messages m
+          LEFT JOIN users u ON u.id = m.sender_user_id
+          ${whereClause}`
 }
 
 function sanitizeMessageStatus(row) {
@@ -178,11 +187,19 @@ function sanitizeMessageStatus(row) {
 }
 
 function sanitizeChat(row) {
+  const clientTags = String(row.client_labels || '')
+    .split('||')
+    .map(item => {
+      const [id, name, color] = item.split('::')
+      return name ? { id: Number(id), name, color: color || '#2563eb' } : null
+    })
+    .filter(Boolean)
+
   return {
     id: Number(row.id),
     clientId: Number(row.client_id),
     username: row.username,
-    fullName: row.full_name || row.username,
+    fullName: row.full_name || '',
     cuil: row.cuil || '',
     externalId: row.external_id || '',
     active: Boolean(row.is_active),
@@ -202,7 +219,7 @@ function sanitizeChat(row) {
     time: row.last_message_at ? timeOf(row.last_message_at) : '',
     joinDate: row.registered_at,
     files: [],
-    clientTags: [],
+    clientTags,
   }
 }
 
@@ -221,6 +238,7 @@ export async function getAdminChats(req, res, next) {
   try {
     const archived = String(req.query.archived || 'false') === 'true'
     const search = String(req.query.search || '').trim()
+    const labelId = Math.max(0, parseInt(req.query.labelId || '0', 10) || 0)
     const page = Math.max(1, parseInt(req.query.page || '1', 10) || 1)
     const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || '50', 10) || 50))
     const offset = (page - 1) * limit
@@ -230,18 +248,32 @@ export async function getAdminChats(req, res, next) {
       where += ' AND LOWER(c.username) LIKE LOWER(?)'
       params.push(`%${search}%`)
     }
+    if (labelId) {
+      where += ` AND EXISTS (
+        SELECT 1
+        FROM client_labels clf
+        WHERE clf.client_id = c.id AND clf.label_id = ?
+      )`
+      params.push(labelId)
+    }
 
-    const cacheKey = chatListCacheKey({ archived, search, page, limit })
+    const cacheKey = chatListCacheKey({ archived, search, labelId, page, limit })
     const cached = await getCacheJson(cacheKey)
     if (cached) {
-      logChatListCache('HIT', { archived, search, page, limit, source: 'redis' })
+      logChatListCache('HIT', { archived, search, labelId, page, limit, source: 'redis' })
       return res.json(cached)
     }
-    logChatListCache('MISS', { archived, search, page, limit, source: 'mysql' })
+    logChatListCache('MISS', { archived, search, labelId, page, limit, source: 'mysql' })
 
     const { rows, error } = await query(
       `SELECT ch.*, c.username, c.full_name, c.cuil, c.external_id, c.is_active, c.is_online, c.registered_at,
-              u.username AS assigned_username, u.full_name AS assigned_full_name
+              u.username AS assigned_username, u.full_name AS assigned_full_name,
+              (
+                SELECT GROUP_CONCAT(CONCAT(l.id, '::', l.name, '::', COALESCE(l.color, '#2563eb')) ORDER BY l.name SEPARATOR '||')
+                FROM client_labels cl
+                INNER JOIN labels l ON l.id = cl.label_id
+                WHERE cl.client_id = c.id
+              ) AS client_labels
        FROM chats ch
        JOIN clients c ON c.id = ch.client_id
        LEFT JOIN users u ON u.id = ch.assigned_user_id
@@ -275,11 +307,97 @@ export async function getAdminChats(req, res, next) {
       },
     }
     await setCacheJson(cacheKey, payload, config.redis.chatListTtlSeconds)
-    logChatListCache('SET', { archived, search, page, limit, chats: payload.chats.length, ttlSeconds: config.redis.chatListTtlSeconds })
+    logChatListCache('SET', { archived, search, labelId, page, limit, chats: payload.chats.length, ttlSeconds: config.redis.chatListTtlSeconds })
     res.json(payload)
   } catch (error) {
     next(error)
   }
+}
+
+export async function getChatLabels(req, res, next) {
+  try {
+    const { rows, error } = await query(
+      `SELECT l.id, l.name, l.color, COUNT(DISTINCT cl.client_id) AS clients
+       FROM labels l
+       LEFT JOIN client_labels cl ON cl.label_id = l.id
+       GROUP BY l.id, l.name, l.color
+       ORDER BY l.name ASC`
+    )
+    if (error) return next(error)
+    res.json({ labels: (rows || []).map(row => ({ ...sanitizeClientLabel(row), clients: Number(row.clients || 0) })) })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function createChatLabel(req, res, next) {
+  try {
+    const name = String(req.body?.name || '').trim().slice(0, 80)
+    const color = /^#[0-9a-f]{6}$/i.test(String(req.body?.color || '')) ? req.body.color : '#2563eb'
+    if (!name) return res.status(400).json({ error: 'El nombre de la etiqueta es requerido', code: 'LABEL_NAME_REQUIRED' })
+
+    const { error } = await query(
+      `INSERT INTO labels (name, color)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE color = VALUES(color)`,
+      [name, color]
+    )
+    if (error) return next(error)
+
+    const { rows, error: selectError } = await query(
+      'SELECT id, name, color FROM labels WHERE name = ? LIMIT 1',
+      [name]
+    )
+    if (selectError) return next(selectError)
+
+    res.status(201).json({ label: sanitizeClientLabel(rows?.[0] || { id: 0, name, color }) })
+  } catch (error) {
+    next(error)
+  }
+}
+
+function formatPanelFile(row) {
+  return {
+    id: Number(row.id),
+    type: row.message_type === 'image' ? 'image' : 'pdf',
+    name: row.file_name || (row.message_type === 'image' ? 'Imagen' : 'Documento PDF'),
+    url: row.file_url || '',
+    date: row.created_at ? new Date(row.created_at).toISOString() : null,
+  }
+}
+
+function sanitizeClientLabel(row) {
+  return {
+    id: Number(row.id),
+    name: row.name,
+    color: row.color || '#2563eb',
+  }
+}
+
+function validateClientPanelPayload(body = {}) {
+  const fullName = String(body.fullName ?? '').trim()
+  const cuil = String(body.cuil ?? '').replace(/\D/g, '')
+  const note = String(body.note ?? '')
+
+  if (fullName.length > 50) {
+    const error = new Error('El nombre del titular no puede superar 50 caracteres')
+    error.status = 400
+    throw error
+  }
+
+  if (cuil && cuil.length !== 11) {
+    const error = new Error('El CUIL debe tener 11 digitos o quedar vacio')
+    error.status = 400
+    throw error
+  }
+
+  if (note.length > 5000) {
+    const error = new Error('La nota no puede superar 5000 caracteres')
+    error.status = 400
+    throw error
+  }
+
+  return { fullName, cuil, note }
 }
 
 export async function getMessages(req, res, next) {
@@ -298,9 +416,8 @@ export async function getMessages(req, res, next) {
 
       const range = dayRangeUtc(date)
       const { rows, error } = await query(
-        `SELECT * FROM messages
-         WHERE chat_id = ? AND created_at >= ? AND created_at < ?
-         ORDER BY created_at ASC, id ASC`,
+        `${messageSelectSql('WHERE m.chat_id = ? AND m.created_at >= ? AND m.created_at < ?')}
+         ORDER BY m.created_at ASC, m.id ASC`,
         [chatId, range.start, range.end]
       )
       if (error) return next(error)
@@ -331,9 +448,8 @@ export async function getMessages(req, res, next) {
     }
 
     const { rows, error } = await query(
-      `SELECT * FROM messages
-       WHERE chat_id = ?
-       ORDER BY created_at ASC, id ASC
+      `${messageSelectSql('WHERE m.chat_id = ?')}
+       ORDER BY m.created_at ASC, m.id ASC
        LIMIT 500`,
       [chatId]
     )
@@ -387,6 +503,125 @@ async function markOutboundMessagesViewed(chatId) {
   return statuses
 }
 
+export async function getChatClientDetails(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    const chat = await getChat(chatId)
+    if (!chat) return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
+
+    const clientId = Number(chat.client_id)
+    const [labelResult, fileResult] = await Promise.all([
+      query(
+        `SELECT l.id, l.name, l.color
+         FROM client_labels cl
+         INNER JOIN labels l ON l.id = cl.label_id
+         WHERE cl.client_id = ?
+         ORDER BY l.name ASC`,
+        [clientId]
+      ),
+      query(
+        `SELECT m.id, m.message_type, m.file_name, m.file_url, m.created_at
+         FROM messages m
+         INNER JOIN chats ch ON ch.id = m.chat_id
+         WHERE ch.client_id = ? AND m.message_type IN ('image','pdf') AND m.file_url IS NOT NULL
+         ORDER BY m.created_at DESC, m.id DESC
+         LIMIT 200`,
+        [clientId]
+      ),
+    ])
+    if (labelResult.error) return next(labelResult.error)
+    if (fileResult.error) return next(fileResult.error)
+
+    res.json({
+      client: {
+        id: clientId,
+        username: chat.username,
+        fullName: chat.full_name || '',
+        cuil: chat.cuil || '',
+        note: chat.note || '',
+        registeredAt: chat.registered_at,
+        labels: (labelResult.rows || []).map(sanitizeClientLabel),
+        files: (fileResult.rows || []).map(formatPanelFile),
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function updateChatClientDetails(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    const chat = await getChat(chatId)
+    if (!chat) return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
+
+    const payload = validateClientPanelPayload(req.body)
+    const { error } = await query(
+      `UPDATE clients
+       SET full_name = ?, cuil = NULLIF(?, ''), note = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [payload.fullName, payload.cuil, payload.note, chat.client_id]
+    )
+    if (error) return next(error)
+
+    res.json({ success: true, client: { ...payload, id: Number(chat.client_id) } })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function updateChatClientLabels(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    const chat = await getChat(chatId)
+    if (!chat) return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
+
+    const labels = Array.isArray(req.body?.labels) ? req.body.labels : []
+    const normalized = labels
+      .map(label => ({
+        name: String(label.name || label.label || '').trim().slice(0, 80),
+        color: /^#[0-9a-f]{6}$/i.test(String(label.color || '')) ? label.color : '#2563eb',
+      }))
+      .filter(label => label.name)
+      .slice(0, 20)
+
+    await transaction(async (connection) => {
+      await connection.execute('DELETE FROM client_labels WHERE client_id = ?', [chat.client_id])
+      for (const label of normalized) {
+        await connection.execute(
+          `INSERT INTO labels (name, color)
+           VALUES (?, ?)
+           ON DUPLICATE KEY UPDATE color = VALUES(color)`,
+          [label.name, label.color]
+        )
+        const [rows] = await connection.execute('SELECT id FROM labels WHERE name = ? LIMIT 1', [label.name])
+        const labelId = rows?.[0]?.id
+        if (labelId) {
+          await connection.execute(
+            'INSERT IGNORE INTO client_labels (client_id, label_id) VALUES (?, ?)',
+            [chat.client_id, labelId]
+          )
+        }
+      }
+    })
+    await invalidateChatListCache('client_labels_updated')
+
+    const { rows, error } = await query(
+      `SELECT l.id, l.name, l.color
+       FROM client_labels cl
+       INNER JOIN labels l ON l.id = cl.label_id
+       WHERE cl.client_id = ?
+       ORDER BY l.name ASC`,
+      [chat.client_id]
+    )
+    if (error) return next(error)
+    emitChatUpdate(sanitizeChat(await getChat(chatId)))
+    res.json({ labels: (rows || []).map(sanitizeClientLabel) })
+  } catch (error) {
+    next(error)
+  }
+}
+
 async function markOutboundMessagesDelivered(chatId) {
   const { rows: updateResult } = await query(
     `UPDATE messages
@@ -412,8 +647,14 @@ async function markOutboundMessagesDelivered(chatId) {
 
 async function getChat(chatId) {
   const { rows, error } = await query(
-    `SELECT ch.*, c.username, c.full_name, c.cuil, c.external_id, c.is_active, c.is_online, c.registered_at,
-            u.username AS assigned_username, u.full_name AS assigned_full_name
+    `SELECT ch.*, c.username, c.full_name, c.cuil, c.note, c.external_id, c.is_active, c.is_online, c.registered_at,
+            u.username AS assigned_username, u.full_name AS assigned_full_name,
+            (
+              SELECT GROUP_CONCAT(CONCAT(l.id, '::', l.name, '::', COALESCE(l.color, '#2563eb')) ORDER BY l.name SEPARATOR '||')
+              FROM client_labels cl
+              INNER JOIN labels l ON l.id = cl.label_id
+              WHERE cl.client_id = c.id
+            ) AS client_labels
      FROM chats ch
      JOIN clients c ON c.id = ch.client_id
      LEFT JOIN users u ON u.id = ch.assigned_user_id
@@ -487,7 +728,11 @@ export async function persistMessage({
       [senderType === 'client' ? 1 : 0, preview.slice(0, 500), messageType, chatId]
     )
 
-    const [messageRows] = await connection.execute('SELECT * FROM messages WHERE id = ? LIMIT 1', [insertResult.insertId])
+    const [messageRows] = await connection.execute(
+      `${messageSelectSql('WHERE m.id = ?')}
+       LIMIT 1`,
+      [insertResult.insertId]
+    )
     return messageRows[0]
   })
 
@@ -624,7 +869,13 @@ export async function setClientOnlineStatus(clientId, online) {
 
   const { rows, error } = await query(
     `SELECT ch.*, c.username, c.full_name, c.cuil, c.external_id, c.is_active, c.is_online, c.registered_at,
-            u.username AS assigned_username, u.full_name AS assigned_full_name
+            u.username AS assigned_username, u.full_name AS assigned_full_name,
+            (
+              SELECT GROUP_CONCAT(CONCAT(l.id, '::', l.name, '::', COALESCE(l.color, '#2563eb')) ORDER BY l.name SEPARATOR '||')
+              FROM client_labels cl
+              INNER JOIN labels l ON l.id = cl.label_id
+              WHERE cl.client_id = c.id
+            ) AS client_labels
      FROM chats ch
      JOIN clients c ON c.id = ch.client_id
      LEFT JOIN users u ON u.id = ch.assigned_user_id

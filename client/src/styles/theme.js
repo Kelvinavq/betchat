@@ -1,14 +1,14 @@
 export const colors = {
   // Brand
-  primary:        '#2563eb',   // admin, chat UI
-  primaryLight:   '#1e85ff',   // login glassmorphism
-  primaryLighter: '#46aaff',   // hovers
+  primary:        'var(--bc-admin-accent, #2563eb)',   // admin, chat UI
+  primaryLight:   'var(--bc-admin-accent, #1e85ff)',   // login glassmorphism
+  primaryLighter: 'var(--bc-admin-accent, #46aaff)',   // hovers
   primaryAccent:  '#e8f4ff',   // muy claro (texto sobre botón)
 
   // Fondos
   bgBlack: '#000000',
-  bgDark:  '#1e293b',   // sidebar admin
-  bgLight: '#f8fafc',   // panel admin
+  bgDark:  'var(--bc-admin-sidebar-bg, #1e293b)',   // sidebar admin
+  bgLight: 'var(--bc-admin-card-bg, #f8fafc)',   // panel admin
   bgPage:  '#f5f5f5',
   white:   '#ffffff',
 
@@ -23,12 +23,12 @@ export const colors = {
 
   // Glassmorphism (login)
   glass: {
-    bg:          'rgba(20, 100, 255, 0.05)',
-    bgHover:     'rgba(20, 100, 255, 0.09)',
-    bgFocus:     'rgba(20, 100, 255, 0.11)',
-    border:      'rgba(30, 130, 255, 0.12)',
-    borderHover: 'rgba(30, 130, 255, 0.22)',
-    divider:     'rgba(40, 140, 255, 0.18)',
+    bg:          'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.05)',
+    bgHover:     'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.09)',
+    bgFocus:     'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.11)',
+    border:      'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.12)',
+    borderHover: 'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.22)',
+    divider:     'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.18)',
     text:        'rgba(80, 160, 255, 0.40)',
     textInput:   'rgba(80, 160, 255, 0.42)',
     textSubtle:  'rgba(80, 160, 255, 0.38)',
@@ -39,9 +39,9 @@ export const colors = {
 }
 
 export const gradients = {
-  btn:       'linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%)',
-  btnHover:  'linear-gradient(135deg, #16538d 0%, #1a5ef5 100%)',
-  btnActive: 'linear-gradient(135deg, #1a8aee 0%, #0840cc 100%)',
+  btn:       'var(--bc-admin-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%))',
+  btnHover:  'var(--bc-admin-button-gradient, linear-gradient(135deg, #16538d 0%, #1a5ef5 100%))',
+  btnActive: 'var(--bc-admin-button-gradient, linear-gradient(135deg, #1a8aee 0%, #0840cc 100%))',
   loginBg:   'radial-gradient(ellipse at center, #000000 0%, #000000 70%)',
   card:      'radial-gradient(ellipse at 50% 0%, rgba(37, 45, 76, 0.52), rgba(2, 4, 18, 0.44))',
 }

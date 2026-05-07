@@ -1,7 +1,6 @@
 import { useContext, useState, useRef, useEffect } from 'react'
 import SearchIcon from '@mui/icons-material/Search'
 import MoreVertIcon from '@mui/icons-material/MoreVert'
-import FilterListIcon from '@mui/icons-material/FilterList'
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined'
 import UnarchiveOutlinedIcon from '@mui/icons-material/UnarchiveOutlined'
 import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined'
@@ -13,7 +12,8 @@ import { api } from '../../../utils/api'
 import { getSocket } from '../../../utils/socket'
 import {
   Wrap, ListHeader, ListTitle, HeaderActions, IconBtn,
-  DropdownMenu, DropdownItem, QuickMenu, QuickMenuItem,
+  DropdownMenu, DropdownItem, DropdownSection, DropdownLabel, LabelFilterBtn, LabelFilterDot,
+  QuickMenu, QuickMenuItem,
   SearchWrap, SearchIcon as SearchIconWrap, SearchInput,
   ProcessChip, ProcessDot, ProcessFilters,
   ListScroll, ChatItem, ChatAvatar, OnlineDot, ChatBody,
@@ -31,7 +31,6 @@ const TagChip = ({ archived }) => {
 }
 
 const MENU_ITEMS = [
-  { id: 'filter',  label: 'Filtrar por estado',  icon: <FilterListIcon /> },
   { id: 'archive', label: 'Ver archivados',      icon: <ArchiveOutlinedIcon /> },
   { id: 'block',   label: 'Bloquear seleccion',  icon: <BlockOutlinedIcon /> },
 ]
@@ -60,6 +59,8 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   const [archived, setArchived] = useState(false)
   const [activeProcess, setActiveProcess] = useState('all')
   const [processOptions, setProcessOptions] = useState([])
+  const [activeLabel, setActiveLabel] = useState('all')
+  const [labelOptions, setLabelOptions] = useState([])
   const [quickMenu, setQuickMenu] = useState(null)
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
@@ -100,7 +101,8 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
       setPage(1)
       setLoading(true)
       try {
-        const data = await api.get(`/api/chats?archived=${archived ? 'true' : 'false'}&search=${encodeURIComponent(search)}&page=1&limit=${CHAT_PAGE_SIZE}`)
+        const labelParam = activeLabel === 'all' ? '' : `&labelId=${encodeURIComponent(activeLabel)}`
+        const data = await api.get(`/api/chats?archived=${archived ? 'true' : 'false'}&search=${encodeURIComponent(search)}&page=1&limit=${CHAT_PAGE_SIZE}${labelParam}`)
         if (!alive) return
         setChats(data.chats || [])
         setPagination(data.pagination || {
@@ -127,14 +129,15 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
     }
     const t = setTimeout(loadChats, 160)
     return () => { alive = false; clearTimeout(t) }
-  }, [archived, search])
+  }, [archived, search, activeLabel])
 
   const loadMoreChats = async () => {
     if (loading || loadingMore || !pagination.hasMore) return
     const nextPage = page + 1
     setLoadingMore(true)
     try {
-      const data = await api.get(`/api/chats?archived=${archived ? 'true' : 'false'}&search=${encodeURIComponent(search)}&page=${nextPage}&limit=${CHAT_PAGE_SIZE}`)
+      const labelParam = activeLabel === 'all' ? '' : `&labelId=${encodeURIComponent(activeLabel)}`
+      const data = await api.get(`/api/chats?archived=${archived ? 'true' : 'false'}&search=${encodeURIComponent(search)}&page=${nextPage}&limit=${CHAT_PAGE_SIZE}${labelParam}`)
       const nextChats = data.chats || []
       setChats(prev => {
         const seen = new Set(prev.map(chat => chat.id))
@@ -154,6 +157,20 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
       setLoadingMore(false)
     }
   }
+
+  useEffect(() => {
+    let alive = true
+    const loadLabels = async () => {
+      try {
+        const data = await api.get('/api/chats/labels')
+        if (alive) setLabelOptions(data.labels || [])
+      } catch {
+        if (alive) setLabelOptions([])
+      }
+    }
+    loadLabels()
+    return () => { alive = false }
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -188,8 +205,16 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   useEffect(() => {
     const socket = getSocket('admin')
     const onChatUpdated = (chat) => {
+      if (Array.isArray(chat.clientTags) && chat.clientTags.length > 0) {
+        setLabelOptions(prev => {
+          const seen = new Set(prev.map(label => Number(label.id)))
+          const fresh = chat.clientTags.filter(label => label?.id && !seen.has(Number(label.id)))
+          return fresh.length ? [...prev, ...fresh].sort((a, b) => String(a.name).localeCompare(String(b.name))) : prev
+        })
+      }
       setChats(prev => {
         const belongs = Boolean(chat.isArchived) === archived
+          && (activeLabel === 'all' || (chat.clientTags || []).some(label => Number(label.id) === Number(activeLabel)))
         const without = prev.filter(item => item.id !== chat.id)
         if (!belongs) return without
         return [chat, ...without].sort((a, b) => new Date(b.lastMessageAt || b.createdAt || 0) - new Date(a.lastMessageAt || a.createdAt || 0))
@@ -197,7 +222,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
     }
     socket.on('chat:updated', onChatUpdated)
     return () => socket.off('chat:updated', onChatUpdated)
-  }, [archived])
+  }, [archived, activeLabel])
 
   const visibleChats = activeProcess === 'all'
     ? chats
@@ -252,7 +277,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
             <MenuIcon />
           </IconBtn>
         )}
-        <ListTitle>{archived ? 'Archivados' : 'Chat'}</ListTitle>
+        <ListTitle>{archived ? 'Archivados' : 'Chats'}</ListTitle>
         <HeaderActions ref={menuRef}>
           <IconBtn onClick={() => setMenuOpen(p => !p)} aria-label="Mas opciones">
             <MoreVertIcon />
@@ -271,6 +296,40 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
                   {item.id === 'archive' ? (archived ? 'Ver activos' : item.label) : item.label}
                 </DropdownItem>
               ))}
+              <DropdownSection>
+                <DropdownLabel>Filtrar por etiqueta</DropdownLabel>
+                <LabelFilterBtn
+                  type="button"
+                  $active={activeLabel === 'all'}
+                  $color="#60a5fa"
+                  onClick={() => {
+                    setActiveLabel('all')
+                    setMenuOpen(false)
+                  }}
+                >
+                  <LabelFilterDot $color="#60a5fa" />
+                  Todas las etiquetas
+                </LabelFilterBtn>
+                {labelOptions.length === 0 ? (
+                  <LabelFilterBtn type="button" disabled>
+                    Sin etiquetas
+                  </LabelFilterBtn>
+                ) : labelOptions.map(label => (
+                  <LabelFilterBtn
+                    key={label.id}
+                    type="button"
+                    $active={Number(activeLabel) === Number(label.id)}
+                    $color={label.color || '#60a5fa'}
+                    onClick={() => {
+                      setActiveLabel(String(label.id))
+                      setMenuOpen(false)
+                    }}
+                  >
+                    <LabelFilterDot $color={label.color || '#60a5fa'} />
+                    {label.name}
+                  </LabelFilterBtn>
+                ))}
+              </DropdownSection>
             </DropdownMenu>
           )}
         </HeaderActions>

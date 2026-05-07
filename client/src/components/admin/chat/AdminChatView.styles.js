@@ -6,7 +6,7 @@ export const Wrap = styled.div`
   flex: 1;
   min-width: 0;
   height: var(--app-height, 100dvh);
-  background: #0d0d1a;
+  background: var(--bc-admin-content-bg, #0d0d1a);
   display: flex;
   flex-direction: column;
   position: relative;
@@ -33,7 +33,7 @@ export const Header = styled.div`
   padding: 10px 14px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
-  background: #0d0d1a;
+  background: var(--bc-admin-topbar-bg, #0d0d1a);
   position: relative;
 `
 
@@ -78,7 +78,7 @@ export const OnlineDot = styled.span`
   height: 9px;
   border-radius: 50%;
   background: ${({ $online }) => $online ? '#22c55e' : 'rgba(255,255,255,0.20)'};
-  border: 1.5px solid #0d0d1a;
+  border: 1.5px solid var(--bc-admin-topbar-bg, #0d0d1a);
 `
 
 export const HeaderInfo = styled.div`
@@ -169,8 +169,8 @@ export const MessagesArea = styled.div`
     pointer-events: none;
     z-index: 2;
   }
-  &::before { top: 0; background: linear-gradient(to bottom, #0d0d1a 0%, transparent 100%); }
-  &::after  { bottom: 0; background: linear-gradient(to top, #0d0d1a 0%, transparent 100%); }
+  &::before { top: 0; background: linear-gradient(to bottom, var(--bc-admin-content-bg, #0d0d1a) 0%, transparent 100%); }
+  &::after  { bottom: 0; background: linear-gradient(to top, var(--bc-admin-content-bg, #0d0d1a) 0%, transparent 100%); }
 `
 
 const msgIn = keyframes`
@@ -186,8 +186,8 @@ export const MessagesList = styled.div`
   flex-direction: column;
   gap: 10px;
   background:
-    radial-gradient(ellipse at 50% 30%, rgba(20, 70, 220, 0.10) 0%, transparent 68%),
-    #0d0d1a;
+    radial-gradient(ellipse at 50% 30%, rgba(var(--bc-admin-accent-rgb, 20, 70, 220), 0.10) 0%, transparent 68%),
+    var(--bc-admin-content-bg, #0d0d1a);
 
   &::-webkit-scrollbar { width: 3px; }
   &::-webkit-scrollbar-track { background: transparent; }
@@ -217,8 +217,8 @@ export const LoadEarlierBtn = styled.button`
   transition: background 0.18s, color 0.18s, border-color 0.18s;
 
   &:hover:not(:disabled) {
-    background: rgba(30, 133, 255, 0.13);
-    border-color: rgba(30, 133, 255, 0.24);
+    background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.13);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.24);
     color: ${colors.primaryLighter};
   }
 
@@ -232,8 +232,8 @@ export const MsgAvatar = styled.div`
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: rgba(30, 133, 255, 0.20);
-  border: 1px solid rgba(30, 133, 255, 0.28);
+  background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.20);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -339,9 +339,9 @@ export const ScrollDownBtn = styled.button`
   gap: 3px;
   padding: 5px 12px 5px 8px;
   border-radius: 20px;
-  background: rgba(30, 133, 255, 0.18);
+  background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.18);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(30, 133, 255, 0.30);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.30);
   color: ${colors.primaryLighter};
   font-size: 11px;
   font-weight: 500;
@@ -349,7 +349,7 @@ export const ScrollDownBtn = styled.button`
   cursor: pointer;
   white-space: nowrap;
   svg { font-size: 17px; }
-  &:hover { background: rgba(30, 133, 255, 0.26); }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.26); }
 `
 
 /* ── media messages ── */
@@ -539,7 +539,7 @@ const sendGlow = keyframes`
 export const RecordFooter = styled.div`
   display: flex; align-items: center; gap: 10px;
   padding: 10px 14px 13px;
-  background: #0d0d1a;
+  background: var(--bc-admin-content-bg, #0d0d1a);
   animation: ${recSlide} 0.26s cubic-bezier(0.16,1,0.3,1) both;
 `
 export const RecordCancelBtn = styled.button`
@@ -640,7 +640,7 @@ export const Footer = styled.div`
   align-items: center;
   gap: 8px;
   padding: 10px 14px 13px;
-  background: #0d0d1a;
+  background: var(--bc-admin-content-bg, #0d0d1a);
 `
 
 export const FooterBtn = styled.button`
@@ -655,8 +655,8 @@ export const FooterBtn = styled.button`
   transition: background 0.2s, border-color 0.2s, color 0.2s, transform 0.25s;
 
   ${({ $active }) => $active ? css`
-    background: rgba(30, 133, 255, 0.18);
-    border: 1px solid rgba(30, 133, 255, 0.35);
+    background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.18);
+    border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.35);
     color: ${colors.primaryLight};
   ` : css`
     background: rgba(255, 255, 255, 0.06);

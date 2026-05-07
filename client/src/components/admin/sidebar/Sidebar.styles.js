@@ -1,4 +1,4 @@
-import styled, { css } from 'styled-components'
+import styled from 'styled-components'
 import { gradients, colors } from '../../../styles/theme'
 
 const W_COLLAPSED = '56px'
@@ -8,7 +8,7 @@ export const SidebarWrap = styled.aside`
   width: ${({ $expanded }) => $expanded ? W_EXPANDED : W_COLLAPSED};
   min-width: ${({ $expanded }) => $expanded ? W_EXPANDED : W_COLLAPSED};
   height: var(--app-height, 100dvh);
-  background: #060610;
+  background: var(--bc-admin-sidebar-bg, #060610);
   border-right: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   flex-direction: column;

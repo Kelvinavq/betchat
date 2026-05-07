@@ -4,7 +4,7 @@ import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import ChatWindow from './ChatWindow'
 import { ChatContext } from '../../context/ChatContext'
-import { gradients, shadows } from '../../styles/theme'
+import { shadows } from '../../styles/theme'
 import '../../css/chat.css'
 
 const popIn = keyframes`
@@ -30,8 +30,8 @@ const Bubble = styled.button`
   overflow: hidden;
   cursor: pointer;
 
-  background: ${gradients.btn};
-  border: 1px solid rgba(40, 140, 255, 0.16);
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.22);
   box-shadow: ${shadows.glassBubble};
 
   transition: width 0.4s, border-radius 0.4s, background 0.3s;
@@ -40,12 +40,12 @@ const Bubble = styled.button`
     &:hover {
       width: 136px;
       border-radius: 30px;
-      background: ${gradients.btnHover};
+      background: var(--bc-client-button-gradient, linear-gradient(135deg, #16538d 0%, #1a5ef5 100%));
     }
   `}
 
   &:active {
-    background: ${gradients.btnActive};
+    background: var(--bc-client-button-gradient, linear-gradient(135deg, #1a8aee 0%, #0840cc 100%));
     transform: scale(0.97);
   }
 `

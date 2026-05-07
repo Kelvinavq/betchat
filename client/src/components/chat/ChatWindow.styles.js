@@ -1,5 +1,5 @@
 import styled, { keyframes, css } from 'styled-components'
-import { colors, gradients, shadows } from '../../styles/theme'
+import { shadows } from '../../styles/theme'
 
 const MOBILE = '@media (max-width: 768px)'
 
@@ -25,8 +25,8 @@ export const Window = styled.div`
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  background: #000000;
-  border: 1px solid rgba(40, 140, 255, 0.16);
+  background: var(--bc-client-body-bg, #000000);
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.22);
   box-shadow: ${shadows.glassCard};
   animation: ${slideUpDesktop} 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
 
@@ -47,7 +47,7 @@ export const VisualSection = styled.div`
   flex-shrink: 0;
   height: 190px;
   background:
-    radial-gradient(ellipse at 50% 130%, rgba(30, 133, 255, 0.22) 0%, transparent 65%),
+    radial-gradient(ellipse at 50% 130%, rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.22) 0%, transparent 65%),
     #000000;
   display: flex;
   flex-direction: column;
@@ -81,9 +81,9 @@ export const VisualLogo = styled.div`
   width: 68px;
   height: 68px;
   border-radius: 50%;
-  background: ${gradients.btn};
-  border: 1px solid rgba(40, 140, 255, 0.30);
-  box-shadow: 0 0 36px rgba(30, 133, 255, 0.30), ${shadows.glassBubble};
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.30);
+  box-shadow: 0 0 36px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.30), ${shadows.glassBubble};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -102,7 +102,7 @@ export const AppLabel = styled.span`
 export const FormSection = styled.div`
   flex: 1;
   min-height: 0;
-  background: #0b0b18;
+  background: var(--bc-client-body-bg, #0b0b18);
   display: flex;
   flex-direction: column;
 
@@ -183,8 +183,8 @@ export const StyledInput = styled.input`
   transition: border-color 0.2s, box-shadow 0.2s;
   &::placeholder { color: rgba(255, 255, 255, 0.18); }
   &:focus {
-    border-color: ${colors.primaryLight};
-    box-shadow: 0 0 0 3px rgba(30, 133, 255, 0.14);
+    border-color: var(--bc-client-accent, #1e85ff);
+    box-shadow: 0 0 0 3px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.14);
   }
 `
 
@@ -216,7 +216,7 @@ export const PasswordToggle = styled.button`
 export const ForgotLink = styled.a`
   align-self: flex-end;
   font-size: 12px;
-  color: ${colors.primaryLight};
+  color: var(--bc-client-accent, #1e85ff);
   text-decoration: none;
   cursor: pointer;
   margin-top: -4px;
@@ -228,7 +228,7 @@ export const ActionBtn = styled.button`
   width: 100%;
   min-height: 50px;
   border-radius: 50px;
-  background: ${gradients.btn};
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
   color: #ffffff;
   font-size: 15px;
   font-weight: 600;
@@ -286,7 +286,7 @@ export const SwitchText = styled.p`
   font-size: 12px;
   color: rgba(255, 255, 255, 0.30);
   a {
-    color: ${colors.primaryLight};
+    color: var(--bc-client-accent, #1e85ff);
     font-weight: 500;
     cursor: pointer;
     text-decoration: none;
@@ -313,7 +313,7 @@ export const ChatHeader = styled.div`
   align-items: center;
   padding: 10px 12px;
   flex-shrink: 0;
-  background: #0b0b18;
+  background: var(--bc-client-header-bg, #0b0b18);
 `
 
 export const ChatHeaderSide = styled.div`
@@ -337,7 +337,7 @@ export const ChatHeaderAvatar = styled.div`
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: ${gradients.btn};
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -358,17 +358,17 @@ export const HeaderPill = styled.div`
   display: flex;
   align-items: center;
   gap: 7px;
-  background: ${gradients.btn};
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
   border-radius: 20px;
   padding: 6px 10px 6px 10px;
-  border: 1px solid rgba(40, 140, 255, 0.30);
-  box-shadow: 0 0 18px rgba(30, 133, 255, 0.22);
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.30);
+  box-shadow: 0 0 18px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.22);
 `
 
 export const HeaderPillText = styled.span`
   font-size: 13px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--bc-client-header-color, #ffffff);
   letter-spacing: 0.01em;
 `
 
@@ -434,12 +434,12 @@ export const MessagesArea = styled.div`
 
   &::before {
     top: 0;
-    background: linear-gradient(to bottom, #0b0b18 0%, transparent 100%);
+    background: linear-gradient(to bottom, var(--bc-client-body-bg, #0b0b18) 0%, transparent 100%);
   }
 
   &::after {
     bottom: 0;
-    background: linear-gradient(to top, #0b0b18 0%, transparent 100%);
+    background: linear-gradient(to top, var(--bc-client-body-bg, #0b0b18) 0%, transparent 100%);
   }
 `
 
@@ -456,8 +456,8 @@ export const ChatMessages = styled.div`
   flex-direction: column;
   gap: 10px;
   background:
-    radial-gradient(ellipse at 50% 30%, rgba(20, 70, 220, 0.13) 0%, transparent 68%),
-    #0b0b18;
+    radial-gradient(ellipse at 50% 30%, rgba(var(--bc-client-accent-rgb, 20, 70, 220), 0.13) 0%, transparent 68%),
+    var(--bc-client-body-bg, #0b0b18);
 
   &::-webkit-scrollbar { width: 3px; }
   &::-webkit-scrollbar-track { background: transparent; }
@@ -490,9 +490,9 @@ export const LoadEarlierBtn = styled.button`
   transition: background 0.18s, color 0.18s, border-color 0.18s;
 
   &:hover:not(:disabled) {
-    background: rgba(30, 133, 255, 0.13);
-    border-color: rgba(30, 133, 255, 0.24);
-    color: ${colors.primaryLighter};
+    background: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.13);
+    border-color: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.24);
+    color: var(--bc-client-accent, #46aaff);
   }
 
   &:disabled {
@@ -505,15 +505,23 @@ export const MessageAvatar = styled.div`
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: rgba(30, 133, 255, 0.20);
-  border: 1px solid rgba(30, 133, 255, 0.28);
+  background: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.20);
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.28);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 10px;
   font-weight: 700;
-  color: ${colors.primaryLighter};
+  color: var(--bc-client-accent, #46aaff);
   flex-shrink: 0;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 `
 
 export const MessageContent = styled.div`
@@ -532,14 +540,14 @@ export const MessageBubble = styled.div`
   word-break: break-word;
 
   ${({ $received }) => $received ? css`
-    background: rgba(255, 255, 255, 0.08);
+    background: var(--bc-client-recv-bubble, rgba(255, 255, 255, 0.08));
     border: 1px solid rgba(255, 255, 255, 0.06);
     border-radius: 4px 16px 16px 16px;
-    color: rgba(255, 255, 255, 0.88);
+    color: var(--bc-client-recv-text, rgba(255, 255, 255, 0.88));
   ` : css`
-    background: ${gradients.btn};
+    background: var(--bc-client-sent-bubble, #1e40af);
     border-radius: 16px 4px 16px 16px;
-    color: #ffffff;
+    color: var(--bc-client-sent-text, #ffffff);
   `}
 `
 
@@ -595,9 +603,9 @@ export const BotOptionBtn = styled.button`
   min-height: 38px;
   padding: 8px 12px;
   border-radius: 12px;
-  border: 1px solid ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.30)' : 'rgba(30, 133, 255, 0.28)'};
-  background: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.08)' : 'rgba(30, 133, 255, 0.10)'};
-  color: ${({ $isBack }) => $isBack ? '#f8b84e' : colors.primaryLighter};
+  border: 1px solid ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.30)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.28)'};
+  background: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.08)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.10)'};
+  color: ${({ $isBack }) => $isBack ? '#f8b84e' : 'var(--bc-client-accent, #46aaff)'};
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -607,8 +615,8 @@ export const BotOptionBtn = styled.button`
   transition: background 0.18s, border-color 0.18s, transform 0.14s;
 
   &:hover {
-    background: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.14)' : 'rgba(30, 133, 255, 0.17)'};
-    border-color: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.45)' : 'rgba(30, 133, 255, 0.42)'};
+    background: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.14)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.17)'};
+    border-color: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.45)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.42)'};
   }
 
   &:active { transform: scale(0.98); }
@@ -641,10 +649,10 @@ export const ScrollDownBtn = styled.button`
   gap: 3px;
   padding: 5px 12px 5px 8px;
   border-radius: 20px;
-  background: rgba(30, 133, 255, 0.18);
+  background: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.18);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(30, 133, 255, 0.30);
-  color: ${colors.primaryLighter};
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.30);
+  color: var(--bc-client-accent, #46aaff);
   font-size: 11px;
   font-weight: 500;
   font-family: inherit;
@@ -653,7 +661,7 @@ export const ScrollDownBtn = styled.button`
   transition: background 0.2s;
 
   svg { font-size: 17px; }
-  &:hover { background: rgba(30, 133, 255, 0.26); }
+  &:hover { background: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.26); }
 `
 
 /* ── bottom area (attach panel + footer) ── */
@@ -725,7 +733,7 @@ export const ChatFooter = styled.div`
   align-items: center;
   gap: 8px;
   padding: 10px 12px 13px;
-  background: #0b0b18;
+  background: var(--bc-client-body-bg, #0b0b18);
 `
 
 export const PlusBtn = styled.button`
@@ -741,11 +749,11 @@ export const PlusBtn = styled.button`
   transform: ${({ $isActive }) => $isActive ? 'rotate(45deg)' : 'rotate(0deg)'};
 
   background: ${({ $isActive }) =>
-    $isActive ? 'rgba(30, 133, 255, 0.18)' : 'rgba(255, 255, 255, 0.06)'};
+    $isActive ? 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.18)' : 'rgba(255, 255, 255, 0.06)'};
   border: 1px solid ${({ $isActive }) =>
-    $isActive ? 'rgba(30, 133, 255, 0.35)' : 'rgba(255, 255, 255, 0.09)'};
+    $isActive ? 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.35)' : 'rgba(255, 255, 255, 0.09)'};
   color: ${({ $isActive }) =>
-    $isActive ? colors.primaryLight : 'rgba(255, 255, 255, 0.50)'};
+    $isActive ? 'var(--bc-client-accent, #1e85ff)' : 'rgba(255, 255, 255, 0.50)'};
 
   svg { font-size: 19px; }
   &:hover { background: rgba(255, 255, 255, 0.10); }
@@ -755,7 +763,7 @@ export const ChatInput = styled.input`
   flex: 1;
   height: 36px;
   padding: 0 13px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--bc-client-input-bg, rgba(255, 255, 255, 0.05));
   border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: 18px;
   color: #ffffff;
@@ -764,7 +772,7 @@ export const ChatInput = styled.input`
   outline: none;
   transition: border-color 0.2s;
   &::placeholder { color: rgba(255, 255, 255, 0.22); }
-  &:focus { border-color: ${colors.primaryLight}; }
+  &:focus { border-color: var(--bc-client-accent, #1e85ff); }
 `
 
 export const SendBtn = styled.button`
@@ -779,7 +787,7 @@ export const SendBtn = styled.button`
   cursor: pointer;
   transition: opacity 0.2s, transform 0.15s, background 0.2s;
 
-  background: ${gradients.btn};
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
   svg { color: #ffffff; font-size: 16px; }
 
   &:hover:not(:disabled) { opacity: 0.85; }
@@ -850,11 +858,11 @@ export const PreviewPdfCard = styled.div`
   align-items: center;
   gap: 14px;
   padding: 36px 44px;
-  background: rgba(30, 133, 255, 0.07);
-  border: 1px solid rgba(30, 133, 255, 0.22);
+  background: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.07);
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.22);
   border-radius: 22px;
   box-shadow: 0 0 40px rgba(30,133,255,0.08);
-  svg { font-size: 3.2rem; color: ${colors.primaryLighter}; }
+  svg { font-size: 3.2rem; color: var(--bc-client-accent, #46aaff); }
   span {
     font-size: 13px;
     color: rgba(255, 255, 255, 0.72);
@@ -882,7 +890,7 @@ export const PreviewBtn = styled.button`
   transition: opacity 0.2s, transform 0.15s;
 
   ${({ $primary }) => $primary ? css`
-    background: ${gradients.btn};
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
     border: none;
     color: #ffffff;
   ` : css`
@@ -941,8 +949,8 @@ export const PendingMediaBtn = styled.button`
   min-height: 30px;
   border-radius: 10px;
   border: 1px solid ${({ $danger }) => $danger ? 'rgba(248, 113, 113, 0.28)' : 'rgba(96, 165, 250, 0.30)'};
-  background: ${({ $danger }) => $danger ? 'rgba(248, 113, 113, 0.10)' : 'rgba(30, 133, 255, 0.16)'};
-  color: ${({ $danger }) => $danger ? '#fecaca' : colors.primaryLighter};
+  background: ${({ $danger }) => $danger ? 'rgba(248, 113, 113, 0.10)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.16)'};
+  color: ${({ $danger }) => $danger ? '#fecaca' : 'var(--bc-client-accent, #46aaff)'};
   cursor: pointer;
   font-family: inherit;
   font-size: 11px;
@@ -994,7 +1002,7 @@ export const MediaMsgPdf = styled.div`
   max-width: 210px;
   transition: background 0.2s;
 
-  svg { font-size: 1.6rem; color: ${colors.primaryLighter}; flex-shrink: 0; }
+  svg { font-size: 1.6rem; color: var(--bc-client-accent, #46aaff); flex-shrink: 0; }
   span {
     font-size: 12px;
     color: rgba(255, 255, 255, 0.78);
@@ -1078,7 +1086,7 @@ export const ViewerBtn = styled.button`
   transition: opacity 0.2s;
 
   ${({ $download }) => $download ? css`
-    background: ${gradients.btn};
+    background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
     border: none;
     color: #ffffff;
     box-shadow: 0 4px 18px rgba(13, 79, 232, 0.42);

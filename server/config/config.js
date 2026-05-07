@@ -112,6 +112,11 @@ export const config = {
     s3Bucket: process.env.AWS_S3_BUCKET,
   },
 
+  // Public profile assets
+  profiles: {
+    publicPath: process.env.PROFILE_PUBLIC_PATH || '/profiles/',
+  },
+
   // OpenRouter LLM
   openrouter: {
     apiKey: process.env.OPENROUTER_API_KEY,

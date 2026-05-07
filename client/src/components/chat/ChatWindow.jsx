@@ -295,6 +295,7 @@ const mapDbMessage = (msg) => ({
   fileName: msg.fileName,
   received: msg.senderType !== 'client',
   time: msg.time,
+  avatarUrl: resolveApiAsset(msg.senderAvatarUrl),
   avatar: BOT_AVATAR,
 })
 
@@ -1045,7 +1046,11 @@ const ChatView = ({ onClose, client }) => {
           )}
           {orderedMessages.map(msg => (
             <MessageRow key={msg.id} $received={msg.received}>
-              {msg.received && <MessageAvatar>{msg.avatar}</MessageAvatar>}
+              {msg.received && (
+                <MessageAvatar>
+                  {msg.avatarUrl ? <img src={msg.avatarUrl} alt="" /> : msg.avatar}
+                </MessageAvatar>
+              )}
               <MessageContent $received={msg.received} $wide={msg.type === 'bot-buttons'}>
                 {msg.type === 'sending' ? (
                   <SendingBubbleWrap>

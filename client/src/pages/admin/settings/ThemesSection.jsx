@@ -8,6 +8,7 @@ import CloseIcon from '@mui/icons-material/Close'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import { api } from '../../../utils/api'
+import { applyThemeConfig } from '../../../styles/appThemes'
 import {
   ThemesWrap, SubTabBar, SubTab, SectionBanner,
   ThemeGrid, ThemeCard, ThemeCardPreview, CheckOverlay, ThemeCardInfo, ThemeNameRow,
@@ -394,6 +395,7 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
   const [editingId, setEditingId] = useState(null)
   const [clientForm, setClientForm] = useState({ ...DEFAULT_CLIENT_FORM })
   const [adminForm,  setAdminForm]  = useState({ ...DEFAULT_ADMIN_FORM })
+  const migratedThemeIdsRef = useRef(new Set())
 
   /* ── computed ── */
   const allClientThemes = [...CLIENT_THEMES, ...customClientThemes]
@@ -411,19 +413,75 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
 
   /* ── update state when themeConfig changes ── */
   useEffect(() => {
-    if (themeConfig) {
+    if (!themeConfig) return undefined
+    let cancelled = false
+    queueMicrotask(() => {
+      if (cancelled) return
       setPendingClient(themeConfig.clientTheme)
       setActiveClient(themeConfig.clientTheme)
       setPendingAdmin(themeConfig.adminTheme)
       setActiveAdmin(themeConfig.adminTheme)
-    }
+      setCustomClientThemes(themeConfig.customThemes?.client || loadCustom('custom_client_themes'))
+      setCustomAdminThemes(themeConfig.customThemes?.admin || loadCustom('custom_admin_themes'))
+    })
+    return () => { cancelled = true }
   }, [themeConfig])
+
+  useEffect(() => {
+    const migrateLegacyActiveThemes = async () => {
+      const nextConfig = { clientTheme: activeClient, adminTheme: activeAdmin }
+      let changed = false
+
+      const legacyClient = customClientThemes.find(theme => theme.id === activeClient && theme.custom && !theme.dbId)
+      if (legacyClient && !migratedThemeIdsRef.current.has(legacyClient.id)) {
+        migratedThemeIdsRef.current.add(legacyClient.id)
+        const created = await api.post('/api/settings/themes/custom', { scope: 'client', theme: legacyClient })
+        nextConfig.clientTheme = created.theme.id
+        setCustomClientThemes(prev => [...prev.filter(theme => theme.id !== legacyClient.id), created.theme])
+        changed = true
+      }
+
+      const legacyAdmin = customAdminThemes.find(theme => theme.id === activeAdmin && theme.custom && !theme.dbId)
+      if (legacyAdmin && !migratedThemeIdsRef.current.has(legacyAdmin.id)) {
+        migratedThemeIdsRef.current.add(legacyAdmin.id)
+        const created = await api.post('/api/settings/themes/custom', { scope: 'admin', theme: legacyAdmin })
+        nextConfig.adminTheme = created.theme.id
+        setCustomAdminThemes(prev => [...prev.filter(theme => theme.id !== legacyAdmin.id), created.theme])
+        changed = true
+      }
+
+      if (!changed) return
+      const data = await api.put('/api/settings/themes', nextConfig)
+      setPendingClient(data.themeConfig.clientTheme)
+      setActiveClient(data.themeConfig.clientTheme)
+      setPendingAdmin(data.themeConfig.adminTheme)
+      setActiveAdmin(data.themeConfig.adminTheme)
+      applyThemeConfig(data.themeConfig)
+      onThemeChange?.(data.themeConfig)
+    }
+
+    migrateLegacyActiveThemes().catch(() => {})
+  }, [activeAdmin, activeClient, customAdminThemes, customClientThemes, onThemeChange])
 
   /* ── apply theme ── */
   const handleApply = async () => {
     try {
-      const newClientTheme = isClient ? pendingClient : activeClient
-      const newAdminTheme = isClient ? activeAdmin : pendingAdmin
+      let newClientTheme = isClient ? pendingClient : activeClient
+      let newAdminTheme = isClient ? activeAdmin : pendingAdmin
+
+      const selectedClientTheme = allClientThemes.find(theme => theme.id === newClientTheme)
+      if (selectedClientTheme?.custom && !selectedClientTheme.dbId) {
+        const created = await api.post('/api/settings/themes/custom', { scope: 'client', theme: selectedClientTheme })
+        newClientTheme = created.theme.id
+        setCustomClientThemes(prev => [...prev.filter(theme => theme.id !== selectedClientTheme.id), created.theme])
+      }
+
+      const selectedAdminTheme = allAdminThemes.find(theme => theme.id === newAdminTheme)
+      if (selectedAdminTheme?.custom && !selectedAdminTheme.dbId) {
+        const created = await api.post('/api/settings/themes/custom', { scope: 'admin', theme: selectedAdminTheme })
+        newAdminTheme = created.theme.id
+        setCustomAdminThemes(prev => [...prev.filter(theme => theme.id !== selectedAdminTheme.id), created.theme])
+      }
 
       const data = await api.put('/api/settings/themes', {
         clientTheme: newClientTheme,
@@ -432,6 +490,7 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
 
       setActiveClient(newClientTheme)
       setActiveAdmin(newAdminTheme)
+      applyThemeConfig(data.themeConfig || { clientTheme: newClientTheme, adminTheme: newAdminTheme })
       setSaved(true)
       setTimeout(() => setSaved(false), 2200)
 
@@ -460,10 +519,15 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
   }
 
   /* ── save custom theme ── */
-  const handleSaveCustom = () => {
+  const handleSaveCustom = async () => {
     if (isClient) {
       if (!clientForm.name.trim()) return
-      const theme = { ...clientForm, id: editingId ?? `cc-${Date.now()}`, custom: true, waTheme: false }
+      const localEditing = editingId && !clientForm.dbId
+      const endpointId = clientForm.dbId
+      const saved = endpointId
+        ? await api.put(`/api/settings/themes/custom/${endpointId}`, { scope: 'client', theme: clientForm })
+        : await api.post('/api/settings/themes/custom', { scope: 'client', theme: clientForm })
+      const theme = saved.theme || { ...clientForm, id: localEditing ? editingId : `cc-${Date.now()}`, custom: true, waTheme: false }
       const updated = editingId
         ? customClientThemes.map(t => t.id === editingId ? theme : t)
         : [...customClientThemes, theme]
@@ -472,13 +536,17 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
       if (!editingId) setPendingClient(theme.id)
     } else {
       if (!adminForm.name.trim()) return
-      const theme = {
-        ...adminForm,
-        id: editingId ?? `ca-${Date.now()}`,
-        custom: true,
-        desc: adminForm.name,
-        swatches: [adminForm.sidebarBg, adminForm.sidebarAccent, adminForm.contentBg],
-      }
+      const endpointId = adminForm.dbId
+      const saved = endpointId
+        ? await api.put(`/api/settings/themes/custom/${endpointId}`, { scope: 'admin', theme: adminForm })
+        : await api.post('/api/settings/themes/custom', { scope: 'admin', theme: adminForm })
+      const theme = saved.theme || {
+          ...adminForm,
+          id: editingId ?? `ca-${Date.now()}`,
+          custom: true,
+          desc: adminForm.name,
+          swatches: [adminForm.sidebarBg, adminForm.sidebarAccent, adminForm.contentBg],
+        }
       const updated = editingId
         ? customAdminThemes.map(t => t.id === editingId ? theme : t)
         : [...customAdminThemes, theme]
@@ -492,12 +560,16 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
   /* ── delete custom theme ── */
   const handleDelete = (id) => {
     if (isClient) {
+      const theme = customClientThemes.find(item => item.id === id)
+      if (theme?.dbId) api.delete(`/api/settings/themes/custom/${theme.dbId}?scope=client`).catch(() => {})
       const updated = customClientThemes.filter(t => t.id !== id)
       setCustomClientThemes(updated)
       localStorage.setItem('custom_client_themes', JSON.stringify(updated))
       if (pendingClient === id) setPendingClient('betchat-dark')
       if (activeClient  === id) setActiveClient('betchat-dark')
     } else {
+      const theme = customAdminThemes.find(item => item.id === id)
+      if (theme?.dbId) api.delete(`/api/settings/themes/custom/${theme.dbId}?scope=admin`).catch(() => {})
       const updated = customAdminThemes.filter(t => t.id !== id)
       setCustomAdminThemes(updated)
       localStorage.setItem('custom_admin_themes', JSON.stringify(updated))
