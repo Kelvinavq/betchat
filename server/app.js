@@ -19,6 +19,7 @@ import settingsRoutes from './routes/settingsRoutes.js';
 import clientsRoutes from './routes/clientsRoutes.js';
 import clientAuthRoutes from './routes/clientAuthRoutes.js';
 import botBuilderRoutes from './routes/botBuilderRoutes.js';
+import clientBotRoutes from './routes/clientBotRoutes.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -58,6 +59,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Rutas de autenticación
 app.use('/api/auth', authRoutes);
 app.use('/api/client/auth', clientAuthRoutes);
+app.use('/api/client/bot', clientBotRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/commands', commandRoutes);
 app.use('/api/modals', modalRoutes);

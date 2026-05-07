@@ -476,6 +476,7 @@ export const MessageContent = styled.div`
   display: flex;
   flex-direction: column;
   gap: 3px;
+  width: ${({ $wide }) => $wide ? '74%' : 'auto'};
   max-width: 74%;
   align-items: ${({ $received }) => $received ? 'flex-start' : 'flex-end'};
 `
@@ -502,6 +503,44 @@ export const MessageTime = styled.span`
   font-size: 10px;
   color: rgba(255, 255, 255, 0.26);
   padding: 0 3px;
+`
+
+export const BotButtonsWrap = styled.div`
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`
+
+export const BotOptionBtn = styled.button`
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.30)' : 'rgba(30, 133, 255, 0.28)'};
+  background: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.08)' : 'rgba(30, 133, 255, 0.10)'};
+  color: ${({ $isBack }) => $isBack ? '#f8b84e' : colors.primaryLighter};
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, transform 0.14s;
+
+  &:hover {
+    background: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.14)' : 'rgba(30, 133, 255, 0.17)'};
+    border-color: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.45)' : 'rgba(30, 133, 255, 0.42)'};
+  }
+
+  &:active { transform: scale(0.98); }
+
+  &:disabled {
+    opacity: 0.48;
+    cursor: wait;
+    pointer-events: none;
+    transform: none;
+  }
 `
 
 /* ── scroll-to-bottom button ── */

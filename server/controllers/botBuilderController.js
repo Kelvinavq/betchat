@@ -126,6 +126,10 @@ export async function getBotFlow(req, res, next) {
   }
 }
 
+export async function getClientBotFlow(req, res, next) {
+  return getBotFlow(req, res, next)
+}
+
 export async function saveBotFlow(req, res, next) {
   try {
     const { errors, screens } = validateFlow(req.body?.flow || req.body)

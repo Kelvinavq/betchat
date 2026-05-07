@@ -26,6 +26,7 @@ import {
   HeaderPill, HeaderPillText, HeaderPillBadge,
   MessagesArea, ChatMessages,
   MessageRow, MessageAvatar, MessageContent, MessageBubble, MessageTime,
+  BotButtonsWrap, BotOptionBtn,
   ScrollDownBtn,
   BottomArea, AttachPanel, AttachGrid, AttachOption,
   ChatFooter, PlusBtn, ChatInput, SendBtn,
@@ -257,15 +258,63 @@ const MediaViewer = ({ data, onClose }) => {
 
 /* ── chat view ── */
 
-const INITIAL_MESSAGES = [
-  { id: 1, type: 'text', text: '¡Hola! ¿En qué puedo ayudarte hoy?', received: true, time: '12:00', avatar: 'A' },
-]
-
 const SEND_DELAY_MS = 10000
+const BOT_AVATAR = 'BC'
 
-const ChatView = ({ onClose, username = 'Juan García' }) => {
+const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+
+const createBotMessages = (screen, reason = 'screen') => {
+  const time = messageTime()
+
+  if (!screen) {
+    return [{
+      id: `bot-missing-${Date.now()}`,
+      type: 'text',
+      text: 'No encontramos esta opcion. Probemos de nuevo desde el inicio.',
+      received: true,
+      time,
+      avatar: BOT_AVATAR,
+    }]
+  }
+
+  const messages = screen.items
+    .filter(item => item.type === 'message' && item.text)
+    .map(item => ({
+      id: `bot-${reason}-${screen.id}-${item.id}-${Date.now()}`,
+      type: 'text',
+      text: item.text,
+      received: true,
+      time,
+      avatar: BOT_AVATAR,
+    }))
+
+  const buttons = screen.items.filter(item => item.type === 'button' && item.label)
+  if (buttons.length > 0) {
+    messages.push({
+      id: `bot-buttons-${reason}-${screen.id}-${Date.now()}`,
+      type: 'bot-buttons',
+      buttons,
+      received: true,
+      time,
+      avatar: BOT_AVATAR,
+    })
+  }
+
+  return messages.length > 0 ? messages : [{
+    id: `bot-empty-${screen.id}-${Date.now()}`,
+    type: 'text',
+    text: 'Esta seccion todavia no tiene contenido.',
+    received: true,
+    time,
+    avatar: BOT_AVATAR,
+  }]
+}
+
+const ChatView = ({ onClose, client }) => {
   const [input, setInput]             = useState('')
-  const [messages, setMessages]       = useState(INITIAL_MESSAGES)
+  const [messages, setMessages]       = useState([])
+  const [botFlow, setBotFlow]         = useState(null)
+  const [botActionPending, setBotActionPending] = useState(false)
   const [attachOpen, setAttachOpen]   = useState(false)
   const [showScroll, setShowScroll]   = useState(false)
   const [previewData, setPreviewData] = useState(null)
@@ -275,6 +324,9 @@ const ChatView = ({ onClose, username = 'Juan García' }) => {
   const bottomRef    = useRef(null)
   const imageInputRef = useRef(null)
   const pdfInputRef   = useRef(null)
+  const botActionPendingRef = useRef(false)
+  const username = client?.fullName || client?.username || 'Cliente'
+  const onlineLabel = client?.online === false ? 'Conectando' : 'En linea'
 
   const scrollToBottom = (smooth = true) => {
     const el = messagesRef.current
@@ -292,7 +344,7 @@ const ChatView = ({ onClose, username = 'Juan García' }) => {
   const sendMessage = () => {
     const text = input.trim()
     if (!text) return
-    const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+    const time = messageTime()
     setMessages(prev => [...prev, { id: Date.now(), type: 'text', text, received: false, time }])
     setInput('')
     setAttachOpen(false)
@@ -300,6 +352,31 @@ const ChatView = ({ onClose, username = 'Juan García' }) => {
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
+  }
+
+  const handleBotButton = (button) => {
+    if (botActionPendingRef.current) return
+    botActionPendingRef.current = true
+    setBotActionPending(true)
+
+    const target = botFlow?.screens?.find(screen => screen.id === button.actionScreenId)
+    const time = messageTime()
+
+    setTimeout(() => {
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `user-bot-${button.id}-${Date.now()}`,
+          type: 'text',
+          text: button.label,
+          received: false,
+          time,
+        },
+        ...createBotMessages(target, button.id),
+      ])
+      botActionPendingRef.current = false
+      setBotActionPending(false)
+    }, 260)
   }
 
   const handleFileSelect = (e, type) => {
@@ -317,7 +394,7 @@ const ChatView = ({ onClose, username = 'Juan García' }) => {
     setPreviewData(null)
 
     const sendingId = Date.now()
-    const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+    const time = messageTime()
 
     setMessages(prev => [...prev, {
       id: sendingId,
@@ -336,7 +413,33 @@ const ChatView = ({ onClose, username = 'Juan García' }) => {
     }, SEND_DELAY_MS)
   }
 
-  useEffect(() => { scrollToBottom(false) }, [])
+  useEffect(() => {
+    let alive = true
+
+    const loadBotFlow = async () => {
+      try {
+        const data = await api.get('/api/client/bot/flow')
+        const flow = data.flow
+        const root = flow?.screens?.find(screen => screen.isRoot) || flow?.screens?.[0]
+        if (!alive) return
+        setBotFlow(flow || null)
+        setMessages(createBotMessages(root, 'root'))
+      } catch {
+        if (!alive) return
+        setMessages([{
+          id: 'bot-fallback',
+          type: 'text',
+          text: 'Hola, ya estamos en linea. Escribinos y te ayudamos.',
+          received: true,
+          time: messageTime(),
+          avatar: BOT_AVATAR,
+        }])
+      }
+    }
+
+    loadBotFlow()
+    return () => { alive = false }
+  }, [])
   useEffect(() => { scrollToBottom() }, [messages])
 
   return (
@@ -368,7 +471,7 @@ const ChatView = ({ onClose, username = 'Juan García' }) => {
         <ChatHeaderCenter>
           <HeaderPill>
             <HeaderPillText>{username}</HeaderPillText>
-            <HeaderPillBadge>En línea</HeaderPillBadge>
+            <HeaderPillBadge>{onlineLabel}</HeaderPillBadge>
           </HeaderPill>
         </ChatHeaderCenter>
 
@@ -381,11 +484,25 @@ const ChatView = ({ onClose, username = 'Juan García' }) => {
           {messages.map(msg => (
             <MessageRow key={msg.id} $received={msg.received}>
               {msg.received && <MessageAvatar>{msg.avatar}</MessageAvatar>}
-              <MessageContent $received={msg.received}>
+              <MessageContent $received={msg.received} $wide={msg.type === 'bot-buttons'}>
                 {msg.type === 'sending' ? (
                   <SendingBubbleWrap>
                     <SendingLoader mediaType={msg.mediaType} />
                   </SendingBubbleWrap>
+                ) : msg.type === 'bot-buttons' ? (
+                  <BotButtonsWrap>
+                    {msg.buttons.map(button => (
+                      <BotOptionBtn
+                        key={button.id}
+                        type="button"
+                        $isBack={button.isBack}
+                        disabled={botActionPending}
+                        onClick={() => handleBotButton(button)}
+                      >
+                        {button.label}
+                      </BotOptionBtn>
+                    ))}
+                  </BotButtonsWrap>
                 ) : msg.type === 'image' ? (
                   <MediaMsgImg
                     src={msg.mediaUrl}
@@ -604,7 +721,7 @@ const ChatWindow = ({ onClose }) => {
           />
         )}
         {!isAuthLoading && activeView === 'chat' && (
-          <ChatView onClose={onClose} username="Juan García" />
+          <ChatView onClose={onClose} client={clientSession} />
         )}
       </FormSection>
     </Window>
