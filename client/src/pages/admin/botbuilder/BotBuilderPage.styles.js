@@ -123,6 +123,12 @@ export const HeaderBtn = styled.button`
     &:active { background: linear-gradient(135deg, #1a8aee 0%, #0840cc 100%); }
   `}
 
+  &:disabled {
+    opacity: 0.48;
+    cursor: not-allowed;
+    pointer-events: none;
+  }
+
   @media (max-width: 560px) {
     padding: 0 10px;
     gap: 0;
@@ -1081,10 +1087,10 @@ export const SaveToast = styled.div`
   align-items: center;
   gap: 8px;
   padding: 10px 18px;
-  background: rgba(16,185,129,0.12);
-  border: 1px solid rgba(16,185,129,0.28);
+  background: ${({ $type }) => $type === 'danger' ? 'rgba(239,68,68,0.13)' : 'rgba(16,185,129,0.12)'};
+  border: 1px solid ${({ $type }) => $type === 'danger' ? 'rgba(239,68,68,0.28)' : 'rgba(16,185,129,0.28)'};
   border-radius: 10px;
-  color: #10b981;
+  color: ${({ $type }) => $type === 'danger' ? '#f87171' : '#10b981'};
   font-size: 13px;
   font-weight: 500;
   box-shadow: 0 8px 24px rgba(0,0,0,0.40);

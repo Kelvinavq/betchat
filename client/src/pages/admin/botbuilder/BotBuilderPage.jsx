@@ -16,6 +16,7 @@ import CheckIcon              from '@mui/icons-material/Check'
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight'
 import ReplyIcon              from '@mui/icons-material/Reply'
 import InfoOutlinedIcon       from '@mui/icons-material/InfoOutlined'
+import { api } from '../../../utils/api'
 
 import {
   PageWrap, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, HeaderRight, HeaderBtn,
@@ -30,7 +31,7 @@ import {
   Overlay, ModalCard, ModalHead, ModalTitle, ModalSub, ModalClose, ModalBody,
   FieldGroup, FieldLabel, FieldHint, FieldInput, FieldTextarea, FieldSelect,
   FieldCheckRow, FieldCheckbox, FieldCheckInfo, FieldCheckTitle, FieldCheckSub,
-  ModalFoot, FootLeft, ModalBtn,
+  ModalFoot, ModalBtn,
   PreviewOverlay, PreviewContainer, PreviewTopBar, PreviewLabel, PreviewControls, PreviewCtrlBtn,
   PhoneFrame, PhoneChatHeader, PhoneChatAvatar, PhoneChatInfo, PhoneChatName, PhoneChatOnline,
   PhoneChatBody, BotBubble, BotTyping, TypingDot, ButtonsRow, PreviewButton,
@@ -412,15 +413,47 @@ const BotBuilderPage = ({ onMenuOpen }) => {
   const [modal, setModal]                       = useState(null)
   const [dragIndex, setDragIndex]               = useState(null)
   const [dragOverIndex, setDragOverIndex]       = useState(null)
-  const [showToast, setShowToast]               = useState(false)
+  const [toast, setToast]                       = useState(null)
+  const [loading, setLoading]                   = useState(true)
+  const [saving, setSaving]                     = useState(false)
   const [isMobile, setIsMobile]                 = useState(() => window.innerWidth < 768)
   const [mobilePanel, setMobilePanel]           = useState('flow')
+  const toastTimerRef = useRef(null)
+
+  const notify = useCallback((message, type = 'success') => {
+    setToast({ message, type })
+    window.clearTimeout(toastTimerRef.current)
+    toastTimerRef.current = window.setTimeout(() => setToast(null), 3200)
+  }, [])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768)
     window.addEventListener('resize', check)
     return () => window.removeEventListener('resize', check)
   }, [])
+
+  useEffect(() => {
+    let alive = true
+
+    const loadFlow = async () => {
+      setLoading(true)
+      try {
+        const data = await api.get('/api/bot-builder')
+        const nextFlow = data.flow?.screens?.length ? data.flow : INITIAL_FLOW
+        if (!alive) return
+        setFlow(nextFlow)
+        setSelectedScreenId(nextFlow.screens.find(s => s.isRoot)?.id || nextFlow.screens[0]?.id || 'root')
+      } catch (error) {
+        if (!alive) return
+        notify(error.payload?.error || error.message || 'No se pudo cargar el flujo del bot', 'danger')
+      } finally {
+        if (alive) setLoading(false)
+      }
+    }
+
+    loadFlow()
+    return () => { alive = false }
+  }, [notify])
 
   const selectedScreen = flow.screens.find(s => s.id === selectedScreenId) ?? null
 
@@ -436,10 +469,19 @@ const BotBuilderPage = ({ onMenuOpen }) => {
     updateScreen(screenId, s => ({ ...s, items }))
   }, [updateScreen])
 
-  /* ── save (mock) ── */
-  const handleSave = () => {
-    setShowToast(true)
-    setTimeout(() => setShowToast(false), 2400)
+  /* ── save ── */
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const data = await api.put('/api/bot-builder', { flow })
+      if (data.flow?.screens?.length) setFlow(data.flow)
+      notify('Flujo guardado correctamente', 'success')
+    } catch (error) {
+      const details = Array.isArray(error.payload?.details) ? `: ${error.payload.details.join(', ')}` : ''
+      notify(`${error.payload?.error || error.message || 'No se pudo guardar el flujo'}${details}`, 'danger')
+    } finally {
+      setSaving(false)
+    }
   }
 
   /* ── screen name editing ── */
@@ -592,7 +634,9 @@ const BotBuilderPage = ({ onMenuOpen }) => {
           )}
           <TitleBlock>
             <PageTitle>Constructor del Bot</PageTitle>
-            <PageSub>{flow.screens.length} pantallas · arrastrar para reordenar</PageSub>
+            <PageSub>
+              {loading ? 'Cargando flujo...' : `${flow.screens.length} pantallas · arrastrar para reordenar`}
+            </PageSub>
           </TitleBlock>
         </HeaderLeft>
 
@@ -601,9 +645,9 @@ const BotBuilderPage = ({ onMenuOpen }) => {
             <VisibilityOutlinedIcon style={{ fontSize: 15 }} />
             <span>Vista previa</span>
           </HeaderBtn>
-          <HeaderBtn $v="primary" onClick={handleSave}>
+          <HeaderBtn $v="primary" onClick={handleSave} disabled={saving || loading}>
             <SaveOutlinedIcon style={{ fontSize: 15 }} />
-            <span>Guardar</span>
+            <span>{saving ? 'Guardando...' : 'Guardar'}</span>
           </HeaderBtn>
         </HeaderRight>
       </PageHeader>
@@ -823,10 +867,10 @@ const BotBuilderPage = ({ onMenuOpen }) => {
       )}
 
       {/* ── save toast ── */}
-      {showToast && (
-        <SaveToast>
+      {toast && (
+        <SaveToast $type={toast.type}>
           <CheckIcon style={{ fontSize: 15 }} />
-          Flujo guardado correctamente
+          {toast.message}
         </SaveToast>
       )}
 
