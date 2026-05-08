@@ -16,6 +16,8 @@ import CloseIcon from '@mui/icons-material/Close'
 import DescriptionIcon from '@mui/icons-material/Description'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import ReplyIcon from '@mui/icons-material/Reply'
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined'
+import PushPinIcon from '@mui/icons-material/PushPin'
 import PersonOffOutlinedIcon from '@mui/icons-material/BlockOutlined'
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
@@ -27,6 +29,8 @@ import {
   Wrap, EmptyState,
   Header, BackBtn, HeaderAvatar, OnlineDot, HeaderInfo, HeaderName, HeaderStatus,
   HeaderMenuWrap, HeaderMenuBtn, DropdownMenu, DropdownItem,
+  PinnedMessageBar, PinnedMessageMain, PinnedMessageIcon, PinnedMessageText,
+  PinnedMessageTitle, PinnedMessagePreview, PinnedMessageClose,
   MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgBubble, MsgMeta, MsgStatus, MsgTime,
   MessageActionMenu, MessageActionItem, ReplyQuote, ReplyAuthor, ReplyText,
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
@@ -180,6 +184,20 @@ const LOADER_TEXTS = {
   pdf:   ['Enviando archivo', 'Ya casi terminamos', 'Un momento más'],
 }
 const TYPING_IDLE_MS = 1400
+const pinnedStorageKey = (chatId) => `admin-chat-pinned-message:${chatId}`
+
+const pinnedMessageSnapshot = (message) => ({
+  id: message.id,
+  dbId: message.dbId,
+  sent: Boolean(message.sent),
+  senderType: message.sent ? 'admin' : 'client',
+  type: message.type,
+  messageType: message.type === 'voice' ? 'audio' : message.type,
+  text: message.text || '',
+  content: message.text || '',
+  fileName: message.fileName || '',
+  time: message.time || '',
+})
 
 const SendingLoader = ({ mediaType }) => {
   const texts = LOADER_TEXTS[mediaType] ?? LOADER_TEXTS.image
@@ -380,6 +398,8 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const [commandDraft, setCommandDraft] = useState(null)
   const [commandIndex, setCommandIndex] = useState(0)
   const [swipeReply, setSwipeReply] = useState(null)
+  const [pinnedMessage, setPinnedMessage] = useState(null)
+  const [pinnedFlashId, setPinnedFlashId] = useState(null)
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -408,6 +428,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
       .slice(0, 6)
     : []
   const showCommandSuggestions = suggestedCommands.length > 0 && !commandDraft
+  const currentPinnedMessage = pinnedMessage
+    ? messages.find(message => message.dbId && Number(message.dbId) === Number(pinnedMessage.dbId)) || pinnedMessage
+    : null
 
   const scrollToBottom = (smooth = true) => {
     const el = listRef.current
@@ -445,6 +468,19 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  useEffect(() => {
+    if (!chat?.id) {
+      setPinnedMessage(null)
+      return
+    }
+    try {
+      const stored = window.localStorage.getItem(pinnedStorageKey(chat.id))
+      setPinnedMessage(stored ? JSON.parse(stored) : null)
+    } catch {
+      setPinnedMessage(null)
+    }
+  }, [chat?.id])
 
   useEffect(() => {
     let alive = true
@@ -851,11 +887,51 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     window.requestAnimationFrame(() => inputRef.current?.focus())
   }
 
+  const pinMessage = (message) => {
+    if (!chat?.id || !message?.dbId) return
+    const snapshot = pinnedMessageSnapshot(message)
+    setPinnedMessage(snapshot)
+    try {
+      window.localStorage.setItem(pinnedStorageKey(chat.id), JSON.stringify(snapshot))
+    } catch {
+      // The pinned message still works for this session if storage is unavailable.
+    }
+    setMessageMenu(null)
+  }
+
+  const unpinMessage = () => {
+    if (!chat?.id) return
+    setPinnedMessage(null)
+    try {
+      window.localStorage.removeItem(pinnedStorageKey(chat.id))
+    } catch {
+      // Ignore storage failures; the in-memory state is already cleared.
+    }
+    setMessageMenu(null)
+  }
+
+  const togglePinnedMessage = (message) => {
+    if (pinnedMessage?.dbId && Number(pinnedMessage.dbId) === Number(message?.dbId)) {
+      unpinMessage()
+      return
+    }
+    pinMessage(message)
+  }
+
+  const jumpToPinnedMessage = () => {
+    if (!currentPinnedMessage?.dbId) return
+    const target = listRef.current?.querySelector(`[data-db-id="${currentPinnedMessage.dbId}"]`)
+    if (!target) return
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setPinnedFlashId(currentPinnedMessage.dbId)
+    window.setTimeout(() => setPinnedFlashId(null), 1400)
+  }
+
   const openMessageMenu = (event, message) => {
     event.preventDefault()
     if (!message?.dbId) return
     const menuWidth = 150
-    const menuHeight = 48
+    const menuHeight = 92
     setMessageMenu({
       message,
       x: Math.min(event.clientX, window.innerWidth - menuWidth - 10),
@@ -945,6 +1021,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
           <MessageActionItem type="button" onClick={() => beginReply(messageMenu.message)}>
             <ReplyIcon />Responder
           </MessageActionItem>
+          <MessageActionItem type="button" onClick={() => togglePinnedMessage(messageMenu.message)}>
+            <PushPinOutlinedIcon />
+            {pinnedMessage?.dbId && Number(pinnedMessage.dbId) === Number(messageMenu.message.dbId) ? 'Desfijar' : 'Fijar'}
+          </MessageActionItem>
         </MessageActionMenu>,
         document.body
       )}
@@ -998,6 +1078,23 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         </HeaderMenuWrap>
       </Header>
 
+      {currentPinnedMessage && (
+        <PinnedMessageBar>
+          <PinnedMessageMain type="button" onClick={jumpToPinnedMessage}>
+            <PinnedMessageIcon><PushPinIcon /></PinnedMessageIcon>
+            <PinnedMessageText>
+              <PinnedMessageTitle>
+                Fijado por soporte · {replyAuthorLabel(currentPinnedMessage, currentPinnedMessage.sent)}
+              </PinnedMessageTitle>
+              <PinnedMessagePreview>{replyPreviewText(currentPinnedMessage)}</PinnedMessagePreview>
+            </PinnedMessageText>
+          </PinnedMessageMain>
+          <PinnedMessageClose type="button" onClick={unpinMessage} aria-label="Desfijar mensaje">
+            <CloseIcon />
+          </PinnedMessageClose>
+        </PinnedMessageBar>
+      )}
+
       {/* messages */}
       <MessagesArea>
         <MessagesList ref={listRef} onScroll={handleScroll}>
@@ -1009,7 +1106,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
           {messages.map(msg => (
             <MsgRow
               key={msg.id}
+              data-db-id={msg.dbId || undefined}
               $sent={msg.sent}
+              $pinnedFlash={pinnedFlashId && Number(pinnedFlashId) === Number(msg.dbId)}
               onContextMenu={event => openMessageMenu(event, msg)}
               onPointerDown={event => handleMessagePointerDown(event, msg)}
               onPointerMove={event => handleMessagePointerMove(event, msg)}

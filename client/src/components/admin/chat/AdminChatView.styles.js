@@ -189,6 +189,89 @@ export const MessageActionItem = styled.button`
 `
 
 /* ── messages ── */
+export const PinnedMessageBar = styled.div`
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  background: rgba(12, 12, 26, 0.96);
+  border-bottom: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.18);
+`
+
+export const PinnedMessageMain = styled.button`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font-family: inherit;
+  cursor: pointer;
+  text-align: left;
+`
+
+export const PinnedMessageIcon = styled.span`
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: ${colors.primaryLighter};
+  background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.14);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.20);
+
+  svg { font-size: 16px; }
+`
+
+export const PinnedMessageText = styled.span`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+`
+
+export const PinnedMessageTitle = styled.span`
+  font-size: 11px;
+  font-weight: 800;
+  color: ${colors.primaryLighter};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const PinnedMessagePreview = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.58);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const PinnedMessageClose = styled.button`
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.38);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  transition: background 0.16s, color 0.16s;
+
+  svg { font-size: 17px; }
+  &:hover { background: rgba(255, 255, 255, 0.07); color: #ffffff; }
+`
+
 export const MessagesArea = styled.div`
   flex: 1;
   min-height: 0;
@@ -229,6 +312,8 @@ export const MessagesList = styled.div`
 `
 
 export const MsgRow = styled.div`
+  position: relative;
+  z-index: 0;
   display: flex;
   align-items: flex-end;
   gap: 8px;
@@ -237,6 +322,19 @@ export const MsgRow = styled.div`
   touch-action: pan-y;
   transition: ${({ $swipeOffset }) => $swipeOffset ? 'none' : 'transform 0.18s ease'};
   ${({ $sent }) => $sent && 'justify-content: flex-end;'}
+
+  ${({ $pinnedFlash }) => $pinnedFlash && css`
+    &::before {
+      content: '';
+      position: absolute;
+      inset: -5px -8px;
+      border-radius: 16px;
+      background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.14);
+      border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.24);
+      pointer-events: none;
+      z-index: -1;
+    }
+  `}
 `
 
 export const LoadEarlierBtn = styled.button`
