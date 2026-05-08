@@ -15,6 +15,8 @@ import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined'
 import SendIcon from '@mui/icons-material/Send'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined'
+import { getPaginationItems } from '../../../utils/pagination'
+import { useSystemConfig } from '../../../context/SystemConfigContext'
 import {
   PageWrap, PageScroll,
   PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
@@ -134,6 +136,7 @@ const statusLabel = (s) =>
   s === 'enviada' ? 'Enviada' : s === 'programada' ? 'Programada' : 'Borrador'
 
 const NotificationsPage = ({ onMenuOpen }) => {
+  const { systemConfig } = useSystemConfig()
   const [notifs, setNotifs]             = useState(MOCK_NOTIFS)
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState('')
@@ -152,6 +155,7 @@ const NotificationsPage = ({ onMenuOpen }) => {
   }), [notifs, search, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const pageItems = getPaginationItems({ currentPage: page, totalPages })
   const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
 
   const stats = useMemo(() => ({
@@ -397,8 +401,10 @@ const NotificationsPage = ({ onMenuOpen }) => {
                 <PaginBtn onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
                   <ChevronLeftIcon />
                 </PaginBtn>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                  <PaginBtn key={p} $active={p === page} onClick={() => setPage(p)}>{p}</PaginBtn>
+                {pageItems.map(item => item.type === 'ellipsis' ? (
+                  <PaginBtn key={item.key} type="button" disabled>...</PaginBtn>
+                ) : (
+                  <PaginBtn key={item.key} type="button" $active={item.page === page} onClick={() => setPage(item.page)}>{item.page}</PaginBtn>
                 ))}
                 <PaginBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
                   <ChevronRightIcon />
@@ -437,7 +443,7 @@ const NotificationsPage = ({ onMenuOpen }) => {
                   <PreviewAppIcon><NotificationsOutlinedIcon /></PreviewAppIcon>
                   <PreviewContent>
                     <PreviewAppName>
-                      BetChat
+                      {systemConfig.appName}
                       <PreviewTime>ahora</PreviewTime>
                     </PreviewAppName>
                     <PreviewTitle>{form.title || 'Título de la notificación'}</PreviewTitle>

@@ -58,7 +58,14 @@ app.use(cors({
 // Body parser
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders: (res, filePath) => {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    if (normalizedPath.includes('/audios/') && normalizedPath.endsWith('.webm')) {
+      res.setHeader('Content-Type', 'audio/webm');
+    }
+  },
+}));
 
 // Rutas de autenticación
 app.use('/api/auth', authRoutes);

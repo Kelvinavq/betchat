@@ -233,6 +233,9 @@ export const MsgRow = styled.div`
   align-items: flex-end;
   gap: 8px;
   animation: ${msgIn} 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform: translateX(${({ $swipeOffset }) => `${$swipeOffset || 0}px`});
+  touch-action: pan-y;
+  transition: ${({ $swipeOffset }) => $swipeOffset ? 'none' : 'transform 0.18s ease'};
   ${({ $sent }) => $sent && 'justify-content: flex-end;'}
 `
 
@@ -657,7 +660,7 @@ export const RecordSendBtn = styled.button`
 /* ── voice message bubble ── */
 export const VoiceBubble = styled.div`
   display: flex; align-items: center; gap: 10px;
-  padding: 9px 12px; min-width: 185px; max-width: 260px;
+  padding: 9px 12px; min-width: 230px; max-width: 320px;
   ${({ $sent }) => $sent ? css`
     background: ${gradients.btn};
     border-radius: 16px 4px 16px 16px;
@@ -681,9 +684,32 @@ export const VoicePlayBtn = styled.button`
   &:active { transform: scale(0.92); }
 `
 export const VoiceWave = styled.div`
-  flex: 1; display: flex; align-items: center; gap: 2px; height: 28px;
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 3px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: ${({ $sent }) => $sent ? 'rgba(255,255,255,0.10)' : 'rgba(255,255,255,0.04)'};
+`
+export const VoiceProgress = styled.div`
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: ${({ $progress = 0 }) => `${Math.max(0, Math.min(1, $progress)) * 100}%`};
+  min-width: ${({ $progress = 0 }) => $progress > 0 ? '8px' : '0'};
+  border-radius: inherit;
+  background: ${({ $sent }) => $sent ? 'rgba(255,255,255,0.42)' : 'rgba(96,165,250,0.45)'};
+  box-shadow: ${({ $sent }) => $sent ? '0 0 14px rgba(255,255,255,0.18)' : '0 0 14px rgba(96,165,250,0.22)'};
+  transition: width 0.08s linear;
+  pointer-events: none;
 `
 export const VoiceBar = styled.div`
+  position: relative;
+  z-index: 1;
   width: 3px;
   height: ${({ $h }) => Math.max(3, Math.round($h * 24))}px;
   border-radius: 1.5px;
@@ -692,6 +718,69 @@ export const VoiceBar = styled.div`
     ? ($sent ? 'background: rgba(255,255,255,0.92);' : 'background: #60a5fa;')
     : ($sent ? 'background: rgba(255,255,255,0.26);' : 'background: rgba(255,255,255,0.15);')
   }
+`
+export const VoiceSeek = styled.input`
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+  appearance: none;
+  background: transparent;
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &::-webkit-slider-runnable-track {
+    height: 100%;
+    background: transparent;
+  }
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    margin-top: 9px;
+    border-radius: 50%;
+    background: ${({ $sent }) => $sent ? '#ffffff' : '#60a5fa'};
+    box-shadow: 0 0 0 3px ${({ $sent }) => $sent ? 'rgba(255,255,255,0.18)' : 'rgba(96,165,250,0.18)'};
+    opacity: ${({ $progress = 0 }) => $progress > 0 ? 1 : 0};
+  }
+
+  &::-moz-range-track {
+    height: 100%;
+    background: transparent;
+  }
+
+  &::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border: 0;
+    border-radius: 50%;
+    background: ${({ $sent }) => $sent ? '#ffffff' : '#60a5fa'};
+    box-shadow: 0 0 0 3px ${({ $sent }) => $sent ? 'rgba(255,255,255,0.18)' : 'rgba(96,165,250,0.18)'};
+    opacity: ${({ $progress = 0 }) => $progress > 0 ? 1 : 0};
+  }
+`
+export const VoiceSpeedBtn = styled.button`
+  height: 24px;
+  min-width: 34px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  color: #fff;
+  background: ${({ $sent }) => $sent ? 'rgba(255,255,255,0.18)' : 'rgba(96,165,250,0.28)'};
+  transition: opacity 0.16s, transform 0.14s;
+
+  &:hover { opacity: 0.84; }
+  &:active { transform: scale(0.94); }
 `
 export const VoiceTime = styled.span`
   font-size: 10px; font-weight: 500; letter-spacing: 0.03em;

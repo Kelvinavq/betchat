@@ -155,6 +155,7 @@ export function setupChatSockets(io) {
         const result = await persistMessage({
           chatId,
           senderType,
+          clientId: senderType === 'client' ? payload.sub : null,
           senderUserId: senderType === 'admin' || senderType === 'cashier' ? payload.sub : null,
           content: String(payloadData.content || '').trim(),
           messageType: payloadData.messageType || 'text',

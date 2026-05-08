@@ -16,11 +16,14 @@ import {
   updateThemeConfig,
   updatePassword,
   updateProfile,
+  getPublicSystemConfig,
+  updateSystemConfig,
 } from '../controllers/settingsController.js'
 
 const router = Router()
 
 router.get('/themes', getPublicThemeConfig)
+router.get('/public', getPublicSystemConfig)
 router.get('/', authenticateToken, requireRole('admin'), getSettings)
 router.get('/amounts', authenticateToken, requireRole('admin'), getAmountsListRoute)
 router.post('/amounts', authenticateToken, requireRole('admin'), createAmount)
@@ -28,6 +31,7 @@ router.put('/amounts', authenticateToken, requireRole('admin'), updateAmounts)
 router.put('/amounts/:currency/:operation', authenticateToken, requireRole('admin'), updateAmount)
 router.delete('/amounts/:currency/:operation', authenticateToken, requireRole('admin'), deleteAmount)
 router.put('/profile', authenticateToken, requireRole('admin'), updateProfile)
+router.put('/system', authenticateToken, requireRole('admin'), updateSystemConfig)
 router.put('/password', authenticateToken, requireRole('admin'), updatePassword)
 router.put('/apis/:provider', authenticateToken, requireRole('admin'), updateApiConfig)
 router.put('/chat-bank', authenticateToken, requireRole('admin'), updateChatBank)

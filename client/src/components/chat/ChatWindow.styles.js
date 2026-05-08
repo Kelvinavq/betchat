@@ -87,7 +87,9 @@ export const VisualLogo = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   svg { color: #ffffff; font-size: 1.9rem; }
+  img { width: 100%; height: 100%; object-fit: cover; display: block; }
 `
 
 export const AppLabel = styled.span`
@@ -472,6 +474,9 @@ export const MessageRow = styled.div`
   align-items: flex-end;
   gap: 7px;
   animation: ${msgIn} 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform: translateX(${({ $swipeOffset }) => `${$swipeOffset || 0}px`});
+  touch-action: pan-y;
+  transition: ${({ $swipeOffset }) => $swipeOffset ? 'none' : 'transform 0.18s ease'};
   ${({ $received }) => !$received && 'justify-content: flex-end;'}
 `
 
@@ -621,6 +626,162 @@ export const MessageTime = styled.span`
   font-size: 10px;
   color: rgba(255, 255, 255, 0.26);
   padding: 0 3px;
+`
+
+export const VoiceBubble = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  min-width: 230px;
+  max-width: 320px;
+
+  ${({ $received }) => $received ? css`
+    background: var(--bc-client-recv-bubble, rgba(255, 255, 255, 0.08));
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 4px 16px 16px 16px;
+  ` : css`
+    background: var(--bc-client-sent-bubble, #1e40af);
+    border-radius: 16px 4px 16px 16px;
+  `}
+`
+
+export const VoicePlayBtn = styled.button`
+  width: 34px;
+  height: 34px;
+  min-width: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.18s, transform 0.15s;
+
+  ${({ $received }) => $received ? css`
+    background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
+    color: #ffffff;
+  ` : css`
+    background: rgba(255,255,255,0.22);
+    color: #ffffff;
+  `}
+
+  svg { font-size: 19px; }
+  &:hover { opacity: 0.80; }
+  &:active { transform: scale(0.92); }
+`
+
+export const VoiceWave = styled.div`
+  flex: 1;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 28px;
+  padding: 0 3px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: ${({ $received }) => $received ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.10)'};
+`
+
+export const VoiceProgress = styled.div`
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 0;
+  width: ${({ $progress = 0 }) => `${Math.max(0, Math.min(1, $progress)) * 100}%`};
+  min-width: ${({ $progress = 0 }) => $progress > 0 ? '8px' : '0'};
+  border-radius: inherit;
+  background: ${({ $received }) => $received ? 'rgba(70,170,255,0.45)' : 'rgba(255,255,255,0.42)'};
+  box-shadow: ${({ $received }) => $received ? '0 0 14px rgba(70,170,255,0.22)' : '0 0 14px rgba(255,255,255,0.18)'};
+  transition: width 0.08s linear;
+  pointer-events: none;
+`
+
+export const VoiceBar = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 3px;
+  height: ${({ $h }) => Math.max(3, Math.round($h * 24))}px;
+  border-radius: 1.5px;
+  transition: background 0.10s;
+  ${({ $active, $received }) => $active
+    ? ($received ? 'background: var(--bc-client-accent, #46aaff);' : 'background: rgba(255,255,255,0.92);')
+    : ($received ? 'background: rgba(255,255,255,0.15);' : 'background: rgba(255,255,255,0.26);')
+  }
+`
+
+export const VoiceSeek = styled.input`
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  cursor: pointer;
+  appearance: none;
+  background: transparent;
+
+  &:disabled {
+    cursor: default;
+  }
+
+  &::-webkit-slider-runnable-track {
+    height: 100%;
+    background: transparent;
+  }
+
+  &::-webkit-slider-thumb {
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    margin-top: 9px;
+    border-radius: 50%;
+    background: ${({ $received }) => $received ? 'var(--bc-client-accent, #46aaff)' : '#ffffff'};
+    box-shadow: 0 0 0 3px ${({ $received }) => $received ? 'rgba(70,170,255,0.18)' : 'rgba(255,255,255,0.18)'};
+    opacity: ${({ $progress = 0 }) => $progress > 0 ? 1 : 0};
+  }
+
+  &::-moz-range-track {
+    height: 100%;
+    background: transparent;
+  }
+
+  &::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    border: 0;
+    border-radius: 50%;
+    background: ${({ $received }) => $received ? 'var(--bc-client-accent, #46aaff)' : '#ffffff'};
+    box-shadow: 0 0 0 3px ${({ $received }) => $received ? 'rgba(70,170,255,0.18)' : 'rgba(255,255,255,0.18)'};
+    opacity: ${({ $progress = 0 }) => $progress > 0 ? 1 : 0};
+  }
+`
+
+export const VoiceSpeedBtn = styled.button`
+  height: 24px;
+  min-width: 34px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1;
+  color: #ffffff;
+  background: ${({ $received }) => $received ? 'rgba(70,170,255,0.28)' : 'rgba(255,255,255,0.18)'};
+  transition: opacity 0.16s, transform 0.14s;
+
+  &:hover { opacity: 0.84; }
+  &:active { transform: scale(0.94); }
+`
+
+export const VoiceTime = styled.span`
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+  color: ${({ $received }) => $received ? 'rgba(255,255,255,0.36)' : 'rgba(255,255,255,0.72)'};
 `
 
 export const TypingBubble = styled.div`

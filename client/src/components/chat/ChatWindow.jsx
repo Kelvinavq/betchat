@@ -13,7 +13,10 @@ import AttachFileIcon from '@mui/icons-material/AttachFile'
 import DescriptionIcon from '@mui/icons-material/Description'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import ReplyIcon from '@mui/icons-material/Reply'
+import PlayArrowIcon from '@mui/icons-material/PlayArrow'
+import PauseIcon from '@mui/icons-material/Pause'
 import { ChatContext } from '../../context/ChatContext'
+import { useSystemConfig } from '../../context/SystemConfigContext'
 import { api, resolveApiAsset } from '../../utils/api'
 import { getSocket, makeClientMessageId } from '../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../utils/richText'
@@ -43,6 +46,7 @@ import {
   PendingMediaWrap, PendingMediaTitle, PendingMediaHint,
   PendingMediaActions, PendingMediaBtn,
   MediaMsgImg, MediaMsgPdf,
+  VoiceBubble, VoicePlayBtn, VoiceWave, VoiceProgress, VoiceBar, VoiceSeek, VoiceTime, VoiceSpeedBtn,
   ViewerOverlay, ViewerContent, ViewerFileName, ViewerImg,
   ViewerEmbed, ViewerActions, ViewerBtn,
   AuthLoadingScreen,
@@ -50,7 +54,7 @@ import {
 
 /* ── login view ── */
 
-const LoginView = ({ onLogin, onRegister, loading }) => {
+const LoginView = ({ onLogin, onRegister, loading, registrationEnabled }) => {
   const [showPwd, setShowPwd] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -96,11 +100,11 @@ const LoginView = ({ onLogin, onRegister, loading }) => {
       <ActionBtn type="submit" disabled={loading}>
         {loading ? 'Ingresando...' : 'Ingresar'}
       </ActionBtn>
-      <OrDivider>O</OrDivider>
+      {registrationEnabled && <OrDivider>O</OrDivider>}
 
-      <SwitchText>
+      {registrationEnabled && <SwitchText>
         ¿No tienes cuenta? <a onClick={onRegister}>Regístrate</a>
-      </SwitchText>
+      </SwitchText>}
     </form>
   )
 }
@@ -268,18 +272,33 @@ const MediaViewer = ({ data, onClose }) => {
 /* ── chat view ── */
 
 const BOT_AVATAR = 'BC'
+const appInitials = (name = 'BetChat') => {
+  const words = String(name || '').trim().split(/\s+/).filter(Boolean)
+  if (!words.length) return 'BC'
+  return words.slice(0, 2).map(word => word[0]).join('').toUpperCase()
+}
 const OUTBOX_PREFIX = 'betchat_outbox_'
 const MIN_MEDIA_LOADER_MS = 1200
 const MEDIA_PENDING_MS = 12000
 const TYPING_IDLE_MS = 1400
 const RECONNECT_WATCHDOG_MS = 5000
 const MANUAL_CONNECT_COOLDOWN_MS = 10000
+const WAVEFORM = [
+  0.40,0.65,0.85,0.50,0.95,0.75,0.42,0.88,0.60,1.00,
+  0.52,0.78,0.92,0.45,0.68,0.82,0.55,0.72,0.38,0.86,
+  0.62,0.90,0.48,0.74,0.56,0.80,0.58,0.42,0.70,0.50,
+]
 
 const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+const fmt = (s) => {
+  const n = Math.floor(s || 0)
+  return `${Math.floor(n / 60)}:${(n % 60).toString().padStart(2, '0')}`
+}
 const replyPreviewText = (message) => {
   if (!message) return ''
   if (message.type === 'image' || message.messageType === 'image') return message.fileName ? `Imagen: ${message.fileName}` : 'Imagen'
   if (message.type === 'pdf' || message.messageType === 'pdf') return message.fileName ? `PDF: ${message.fileName}` : 'Documento PDF'
+  if (message.type === 'voice' || message.type === 'audio' || message.messageType === 'audio') return 'Audio'
   const text = message.text || message.content || ''
   return hasRichText(text) ? htmlToPlainText(text) : text
 }
@@ -301,13 +320,18 @@ const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file)
 })
 
+const isInteractiveMessageTarget = (target) =>
+  Boolean(target?.closest?.('button,a,input,textarea,select,audio,video,[role="button"]'))
+
 const mapDbMessage = (msg) => ({
   id: `db-${msg.id}`,
   dbId: msg.id,
   clientMessageId: msg.clientMessageId || '',
-  type: msg.messageType === 'image' ? 'image' : msg.messageType === 'pdf' ? 'pdf' : 'text',
+  type: msg.messageType === 'image' ? 'image' : msg.messageType === 'pdf' ? 'pdf' : msg.messageType === 'audio' ? 'voice' : 'text',
   text: msg.content,
   mediaUrl: resolveApiAsset(msg.fileUrl),
+  audioUrl: resolveApiAsset(msg.fileUrl),
+  duration: msg.messageType === 'audio' ? Number(msg.content) || 0 : undefined,
   fileName: msg.fileName,
   received: msg.senderType !== 'client',
   time: msg.time,
@@ -315,6 +339,139 @@ const mapDbMessage = (msg) => ({
   avatar: BOT_AVATAR,
   replyTo: msg.replyTo,
 })
+
+const VoiceMessage = ({ audioUrl, duration, received }) => {
+  const audioRef = useRef(null)
+  const frameRef = useRef(0)
+  const [playing, setPlaying] = useState(false)
+  const [elapsed, setElapsed] = useState(0)
+  const [total, setTotal] = useState(duration ?? 0)
+  const [rate, setRate] = useState(1)
+  const [playbackError, setPlaybackError] = useState(false)
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (!audio) return
+    setPlaybackError(false)
+    const onPlay = () => setPlaying(true)
+    const onPause = () => setPlaying(false)
+    const onEnded = () => { setPlaying(false); setElapsed(0) }
+    const onTime = () => setElapsed(audio.currentTime)
+    const onMeta = () => { if (isFinite(audio.duration)) setTotal(audio.duration) }
+    const onError = () => setPlaybackError(true)
+    audio.addEventListener('play', onPlay)
+    audio.addEventListener('pause', onPause)
+    audio.addEventListener('ended', onEnded)
+    audio.addEventListener('timeupdate', onTime)
+    audio.addEventListener('loadedmetadata', onMeta)
+    audio.addEventListener('error', onError)
+    return () => {
+      audio.removeEventListener('play', onPlay)
+      audio.removeEventListener('pause', onPause)
+      audio.removeEventListener('ended', onEnded)
+      audio.removeEventListener('timeupdate', onTime)
+      audio.removeEventListener('loadedmetadata', onMeta)
+      audio.removeEventListener('error', onError)
+    }
+  }, [audioUrl])
+
+  useEffect(() => {
+    if (!playing) {
+      cancelAnimationFrame(frameRef.current)
+      return undefined
+    }
+    const tick = () => {
+      const audio = audioRef.current
+      if (audio) setElapsed(audio.currentTime)
+      frameRef.current = requestAnimationFrame(tick)
+    }
+    frameRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frameRef.current)
+  }, [playing])
+
+  useEffect(() => {
+    const audio = audioRef.current
+    if (audio) audio.playbackRate = rate
+  }, [rate, audioUrl])
+
+  const togglePlay = () => {
+    const audio = audioRef.current
+    if (!audio) return
+    if (playing) {
+      audio.pause()
+      return
+    }
+    audio.play().catch(() => setPlaybackError(true))
+  }
+
+  const progress = total > 0 ? elapsed / total : 0
+  const seekTo = (event) => {
+    const audio = audioRef.current
+    if (!audio || total <= 0) return
+    const next = (Number(event.target.value) / 100) * total
+    audio.currentTime = next
+    setElapsed(next)
+  }
+  const cycleRate = () => setRate(current => current === 1 ? 1.5 : current === 1.5 ? 2 : 1)
+
+  return (
+    <VoiceBubble $received={received}>
+      <audio ref={audioRef} src={audioUrl} preload="metadata" />
+      <VoicePlayBtn
+        type="button"
+        $received={received}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={togglePlay}
+        aria-label={playing ? 'Pausar' : 'Reproducir'}
+      >
+        {playing ? <PauseIcon /> : <PlayArrowIcon />}
+      </VoicePlayBtn>
+      <VoiceWave $progress={progress} $received={received}>
+        <VoiceProgress $progress={progress} $received={received} />
+        {WAVEFORM.map((h, i) => (
+          <VoiceBar
+            key={i}
+            $h={h}
+            $active={(i + 1) / WAVEFORM.length <= progress}
+            $received={received}
+          />
+        ))}
+        <VoiceSeek
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          value={Math.max(0, Math.min(100, progress * 100))}
+          disabled={total <= 0}
+          $progress={progress}
+          $received={received}
+          onPointerDown={event => event.stopPropagation()}
+          onChange={seekTo}
+          aria-label="Adelantar audio"
+        />
+      </VoiceWave>
+      <VoiceTime $received={received}>{fmt(playing ? elapsed : total)}</VoiceTime>
+      <VoiceSpeedBtn
+        type="button"
+        $received={received}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={cycleRate}
+        aria-label="Cambiar velocidad"
+      >
+        {rate}x
+      </VoiceSpeedBtn>
+      {playbackError && (
+        <audio
+          src={audioUrl}
+          controls
+          preload="metadata"
+          onPointerDown={event => event.stopPropagation()}
+          style={{ width: 220, maxWidth: '100%' }}
+        />
+      )}
+    </VoiceBubble>
+  )
+}
 
 const splitBotButtons = (items) => {
   const normalMessages = []
@@ -439,6 +596,7 @@ const mergeDbMessage = (incoming) => (prev) => {
 }
 
 const ChatView = ({ onClose, client }) => {
+  const { systemConfig } = useSystemConfig()
   const [input, setInput]             = useState('')
   const [messages, setMessages]       = useState([])
   const [messagePage, setMessagePage] = useState({ previousDate: null, hasPrevious: false })
@@ -454,6 +612,7 @@ const ChatView = ({ onClose, client }) => {
   const [adminTyping, setAdminTyping] = useState(false)
   const [replyingTo, setReplyingTo] = useState(null)
   const [messageMenu, setMessageMenu] = useState(null)
+  const [swipeReply, setSwipeReply] = useState(null)
 
   const messagesRef  = useRef(null)
   const bottomRef    = useRef(null)
@@ -1083,16 +1242,36 @@ const ChatView = ({ onClose, client }) => {
 
   const handleMessagePointerDown = (event, message) => {
     if (!message?.dbId || message.type === 'bot-buttons') return
+    if (isInteractiveMessageTarget(event.target)) return
     pointerStartRef.current = { x: event.clientX, y: event.clientY, messageId: message.id }
+    event.currentTarget?.setPointerCapture?.(event.pointerId)
+  }
+
+  const handleMessagePointerMove = (event, message) => {
+    const start = pointerStartRef.current
+    if (!start || start.messageId !== message.id || !message?.dbId || message.type === 'bot-buttons') return
+    const dx = event.clientX - start.x
+    const dy = Math.abs(event.clientY - start.y)
+    if (dx <= 0 || dy > 42) {
+      setSwipeReply(null)
+      return
+    }
+    setSwipeReply({ messageId: message.id, offset: Math.min(dx, 72) })
   }
 
   const handleMessagePointerUp = (event, message) => {
     const start = pointerStartRef.current
     pointerStartRef.current = null
+    setSwipeReply(null)
     if (!start || start.messageId !== message.id || !message?.dbId) return
     const dx = event.clientX - start.x
     const dy = Math.abs(event.clientY - start.y)
-    if (Math.abs(dx) > 58 && dy < 32) beginReply(message)
+    if (dx > 58 && dy < 36) beginReply(message)
+  }
+
+  const handleMessagePointerCancel = () => {
+    pointerStartRef.current = null
+    setSwipeReply(null)
   }
 
   const renderReplyQuote = (reply, received) => {
@@ -1172,11 +1351,18 @@ const ChatView = ({ onClose, client }) => {
               $received={msg.received}
               onContextMenu={event => openMessageMenu(event, msg)}
               onPointerDown={event => handleMessagePointerDown(event, msg)}
+              onPointerMove={event => handleMessagePointerMove(event, msg)}
               onPointerUp={event => handleMessagePointerUp(event, msg)}
+              onPointerCancel={handleMessagePointerCancel}
+              $swipeOffset={swipeReply?.messageId === msg.id ? swipeReply.offset : 0}
             >
               {msg.received && (
                 <MessageAvatar>
-                  {msg.avatarUrl ? <img src={msg.avatarUrl} alt="" /> : msg.avatar}
+                  {msg.avatarUrl
+                    ? <img src={msg.avatarUrl} alt="" />
+                    : systemConfig.logoUrl
+                      ? <img src={systemConfig.logoUrl} alt="" />
+                      : (msg.avatar === BOT_AVATAR ? appInitials(systemConfig.appName) : msg.avatar)}
                 </MessageAvatar>
               )}
               <MessageContent $received={msg.received} $wide={msg.type === 'bot-buttons'}>
@@ -1233,6 +1419,11 @@ const ChatView = ({ onClose, client }) => {
                       <DescriptionIcon />
                       <span>{msg.fileName}</span>
                     </MediaMsgPdf>
+                  </>
+                ) : msg.type === 'voice' ? (
+                  <>
+                    {renderReplyQuote(msg.replyTo, msg.received)}
+                    <VoiceMessage audioUrl={msg.audioUrl || msg.mediaUrl} duration={msg.duration} received={msg.received} />
                   </>
                 ) : (
                   <MessageBubble $received={msg.received}>
@@ -1350,6 +1541,7 @@ const ChatView = ({ onClose, client }) => {
 /* ── main window ── */
 
 const ChatWindow = ({ onClose }) => {
+  const { systemConfig } = useSystemConfig()
   const { clientSession, setClientSession, clientAuthLoading, setClientAuthLoading } = useContext(ChatContext)
   const [view, setView] = useState(clientSession ? 'chat' : 'login')
   const [loading, setLoading] = useState(false)
@@ -1357,6 +1549,12 @@ const ChatWindow = ({ onClose }) => {
   const isAuthLoading = loading || clientAuthLoading
   const activeView = clientSession ? 'chat' : view
   const isChat = activeView === 'chat' || isAuthLoading
+
+  useEffect(() => {
+    if (!systemConfig.clientRegistrationEnabled && view === 'register') {
+      setView('login')
+    }
+  }, [systemConfig.clientRegistrationEnabled, view])
 
   const handleLogin = async ({ username, password }) => {
     if (!username?.trim() || !password) {
@@ -1403,6 +1601,12 @@ const ChatWindow = ({ onClose }) => {
   }
 
   const handleRegister = async ({ username, password }) => {
+    if (!systemConfig.clientRegistrationEnabled) {
+      setView('login')
+      setError('El registro de clientes esta deshabilitado.')
+      return
+    }
+
     const validationError = validateRegistration({ username, password })
     if (validationError) {
       setError(validationError)
@@ -1436,14 +1640,14 @@ const ChatWindow = ({ onClose }) => {
   return (
     <Window>
       {!isChat && (
-        <VisualSection>
+      <VisualSection>
           <CloseBtn onClick={onClose} aria-label="Cerrar">
             <CloseIcon />
           </CloseBtn>
           <VisualLogo>
-            <ChatOutlinedIcon />
+            {systemConfig.logoUrl ? <img src={systemConfig.logoUrl} alt={systemConfig.appName} /> : <ChatOutlinedIcon />}
           </VisualLogo>
-          <AppLabel>Soporte en vivo</AppLabel>
+          <AppLabel>{systemConfig.appName}</AppLabel>
         </VisualSection>
       )}
 
@@ -1453,11 +1657,12 @@ const ChatWindow = ({ onClose }) => {
         {!isAuthLoading && activeView === 'login' && (
           <LoginView
             onLogin={handleLogin}
-            onRegister={() => setView('register')}
+            onRegister={() => systemConfig.clientRegistrationEnabled && setView('register')}
             loading={loading}
+            registrationEnabled={systemConfig.clientRegistrationEnabled}
           />
         )}
-        {!isAuthLoading && activeView === 'register' && (
+        {!isAuthLoading && activeView === 'register' && systemConfig.clientRegistrationEnabled && (
           <RegisterView
             onRegister={handleRegister}
             onLogin={() => setView('login')}

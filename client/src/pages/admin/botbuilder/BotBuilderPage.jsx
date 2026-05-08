@@ -17,6 +17,7 @@ import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight'
 import ReplyIcon              from '@mui/icons-material/Reply'
 import InfoOutlinedIcon       from '@mui/icons-material/InfoOutlined'
 import { api } from '../../../utils/api'
+import { useSystemConfig } from '../../../context/SystemConfigContext'
 
 import {
   PageWrap, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, HeaderRight, HeaderBtn,
@@ -304,6 +305,7 @@ const AddScreenModal = ({ onClose, onSave }) => {
    Preview Modal
 ═══════════════════════════════════ */
 const PreviewModal = ({ flow, onClose }) => {
+  const { systemConfig } = useSystemConfig()
   const [currentId, setCurrentId] = useState('root')
   const [history, setHistory]     = useState(['root'])
   const [typing, setTyping]       = useState(false)
@@ -356,9 +358,9 @@ const PreviewModal = ({ flow, onClose }) => {
 
         <PhoneFrame>
           <PhoneChatHeader>
-            <PhoneChatAvatar>BC</PhoneChatAvatar>
+            <PhoneChatAvatar>{systemConfig.logoUrl ? <img src={systemConfig.logoUrl} alt="" /> : systemConfig.appName.slice(0, 2).toUpperCase()}</PhoneChatAvatar>
             <PhoneChatInfo>
-              <PhoneChatName>BetChat Bot</PhoneChatName>
+              <PhoneChatName>{systemConfig.appName} Bot</PhoneChatName>
               <PhoneChatOnline>En línea</PhoneChatOnline>
             </PhoneChatInfo>
           </PhoneChatHeader>

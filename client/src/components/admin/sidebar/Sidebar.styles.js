@@ -54,6 +54,14 @@ export const LogoBadge = styled.div`
   font-weight: 800;
   color: #fff;
   letter-spacing: -0.03em;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 `
 
 export const LogoText = styled.span`

@@ -3,6 +3,7 @@ import logo from '../../../assets/apple.svg';
 import faceid from '../../../assets/faceid.svg';
 import googleIcon from '../../../assets/google.svg';
 import fingerprint from '../../../assets/fingerprint.svg';
+import { useSystemConfig } from '../../../context/SystemConfigContext';
 import { useWebGLBackground } from './useWebGLBackground';
 import {
   Section,
@@ -40,6 +41,7 @@ const Textbox = ({ id, type, label, value, onChange, error }) => (
 );
 
 const LoginAdmin = ({ onSubmit, status }) => {
+  const { systemConfig } = useSystemConfig();
   const canvasRef = useRef(null);
   const [deviceType, setDeviceType] = useState('other');
   const [username, setUsername] = useState('');
@@ -119,8 +121,8 @@ const LoginAdmin = ({ onSubmit, status }) => {
     <Section>
       <Canvas ref={canvasRef} />
       <Card>
-        <Logo src={logo} alt="logo" />
-        <Subtitle>Bienvenido de vuelta!</Subtitle>
+        <Logo src={systemConfig.logoUrl || logo} alt={systemConfig.appName} />
+        <Subtitle>{systemConfig.appName}</Subtitle>
         {status?.message && (
           <AlertBox $type={status.type}>{status.message}</AlertBox>
         )}
@@ -157,7 +159,7 @@ const LoginAdmin = ({ onSubmit, status }) => {
           </SubmitBtn>
         </Form>
         <ForgotLink href="#">¿Olvidaste tu contraseña?</ForgotLink>
-        <Footer>BetChat &copy; 2026. Todos los derechos reservados.</Footer>
+        <Footer>{systemConfig.appName} &copy; 2026. Todos los derechos reservados.</Footer>
       </Card>
     </Section>
   );

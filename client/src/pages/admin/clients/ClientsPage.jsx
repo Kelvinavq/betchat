@@ -15,6 +15,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import { api } from '../../../utils/api'
+import { getPaginationItems } from '../../../utils/pagination'
 import {
   PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub,
   HeaderActions, AddBtn, OutlineBtn,
@@ -516,7 +517,7 @@ const ClientsPage = ({ onMenuOpen }) => {
   const safePage   = Math.min(page, totalPages || 1)
   const from = totalClients > 0 ? (safePage - 1) * PER_PAGE + 1 : 0
   const to   = Math.min(safePage * PER_PAGE, totalClients)
-  const pageNums = Array.from({ length: totalPages }, (_, i) => i + 1)
+  const pageNums = getPaginationItems({ currentPage: safePage, totalPages })
 
   return (
     <PageWrap>
@@ -657,9 +658,13 @@ const ClientsPage = ({ onMenuOpen }) => {
               >
                 <ChevronLeftIcon />
               </PaginBtn>
-              {pageNums.map(n => (
-                <PaginBtn key={n} $active={n === safePage} onClick={() => setPage(n)}>
-                  {n}
+              {pageNums.map(item => item.type === 'ellipsis' ? (
+                <PaginBtn key={item.key} type="button" disabled>
+                  ...
+                </PaginBtn>
+              ) : (
+                <PaginBtn key={item.key} type="button" $active={item.page === safePage} onClick={() => setPage(item.page)}>
+                  {item.page}
                 </PaginBtn>
               ))}
               <PaginBtn

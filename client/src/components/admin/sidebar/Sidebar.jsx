@@ -11,6 +11,7 @@ import SmartToyOutlinedIcon   from '@mui/icons-material/SmartToyOutlined';
 import MenuIcon from '@mui/icons-material/Menu'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import useAuth from '../../../hooks/useAuth'
+import { useSystemConfig } from '../../../context/SystemConfigContext'
 import { canViewSection } from '../../../utils/adminPermissions'
 import {
   SidebarWrap, SidebarTop, LogoWrap, LogoBadge, LogoText, ToggleBtn,
@@ -85,6 +86,7 @@ const BOTTOM_ITEMS = [
 
 const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
   const { user } = useAuth()
+  const { systemConfig } = useSystemConfig()
   const [openItems, setOpenItems]   = useState({})
   const [darkMode, setDarkMode]     = useState(true)
   const activeItem = activeSection ?? 'chat'
@@ -98,6 +100,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
 
   const navItems = NAV_ITEMS.filter(item => canViewSection(user, item.id))
   const bottomItems = BOTTOM_ITEMS.filter(item => canViewSection(user, item.id))
+  const logoInitials = systemConfig.appName.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase() || 'BC'
 
   return (
     <SidebarWrap $expanded={expanded}>
@@ -105,8 +108,8 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
       {/* ── header ── */}
       <SidebarTop>
         <LogoWrap $expanded={expanded}>
-          <LogoBadge>BC</LogoBadge>
-          <LogoText>BetChat</LogoText>
+          <LogoBadge>{systemConfig.logoUrl ? <img src={systemConfig.logoUrl} alt="" /> : logoInitials}</LogoBadge>
+          <LogoText>{systemConfig.appName}</LogoText>
         </LogoWrap>
         <ToggleBtn onClick={onToggle} aria-label="Toggle sidebar">
           <MenuIcon />

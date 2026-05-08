@@ -198,7 +198,20 @@ CREATE TABLE IF NOT EXISTS `theme_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
---  13. CHATS
+--  14. SYSTEM CONFIG  (public branding and access)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `system_config` (
+  `id`                            INT UNSIGNED NOT NULL DEFAULT 1,
+  `app_name`                      VARCHAR(120) NOT NULL DEFAULT 'BetChat',
+  `logo_url`                      VARCHAR(512) DEFAULT NULL,
+  `client_registration_enabled`   TINYINT(1)   NOT NULL DEFAULT 1,
+  `updated_at`                    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `chk_system_config_singleton` CHECK (`id` = 1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  15. CHATS
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `chats` (
   `id`                INT UNSIGNED  NOT NULL AUTO_INCREMENT,
@@ -208,7 +221,7 @@ CREATE TABLE IF NOT EXISTS `chats` (
   `is_archived`       TINYINT(1)    NOT NULL DEFAULT 0,
   `unread_count`      INT UNSIGNED  NOT NULL DEFAULT 0,
   `last_message`      VARCHAR(500)  DEFAULT NULL COMMENT 'denormalized for list rendering',
-  `last_message_type` ENUM('text','image','pdf','file','system') DEFAULT 'text',
+  `last_message_type` ENUM('text','image','pdf','file','audio','system') DEFAULT 'text',
   `last_message_at`   DATETIME      DEFAULT NULL,
   `bot_screen_id`      VARCHAR(80)   DEFAULT NULL COMMENT 'current bot screen for the client',
   `bot_last_button_id` VARCHAR(80)   DEFAULT NULL COMMENT 'last selected bot option',
@@ -233,7 +246,7 @@ CREATE TABLE IF NOT EXISTS `messages` (
   `client_id`       INT UNSIGNED     DEFAULT NULL COMMENT 'NULL when sender is admin/cashier/system',
   `sender_type`     ENUM('client','admin','cashier','system') NOT NULL,
   `sender_user_id`  INT UNSIGNED     DEFAULT NULL COMMENT 'populated when sender_type = admin | cashier',
-  `message_type`    ENUM('text','image','pdf','file') NOT NULL DEFAULT 'text',
+  `message_type`    ENUM('text','image','pdf','file','audio') NOT NULL DEFAULT 'text',
   `content`         TEXT             DEFAULT NULL,
   `file_url`        VARCHAR(512)     DEFAULT NULL,
   `file_name`       VARCHAR(255)     DEFAULT NULL,
@@ -505,6 +518,7 @@ INSERT IGNORE INTO `config_aws`        (`id`) VALUES (1);
 INSERT IGNORE INTO `config_openrouter` (`id`) VALUES (1);
 INSERT IGNORE INTO `chat_processing_config` (`id`) VALUES (1);
 INSERT IGNORE INTO `theme_config`      (`id`) VALUES (1);
+INSERT IGNORE INTO `system_config`     (`id`) VALUES (1);
 
 -- Initial bot flow (mirrors INITIAL_FLOW in BotBuilderPage.jsx)
 INSERT IGNORE INTO `bot_screens` (`id`, `name`, `is_root`, `sort_order`) VALUES

@@ -4,6 +4,7 @@ import { query, transaction } from '../config/database.js'
 import { config } from '../config/config.js'
 import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { io } from '../app.js'
+import { getSystemConfig } from './settingsController.js'
 
 const normalizeUsername = (value) => String(value || '').trim()
 const hasWhitespace = (value) => /\s/.test(value)
@@ -388,6 +389,14 @@ export async function loginClient(req, res, next) {
 
 export async function registerClient(req, res, next) {
   try {
+    const systemConfig = await getSystemConfig()
+    if (!systemConfig.clientRegistrationEnabled) {
+      return res.status(403).json({
+        error: 'El registro de clientes esta deshabilitado.',
+        code: 'CLIENT_REGISTRATION_DISABLED',
+      })
+    }
+
     const username = normalizeUsername(req.body?.username)
     const password = String(req.body?.password || '')
 

@@ -9,7 +9,9 @@ import { hashPassword, verifyPassword } from '../utils/password.js'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const PROFILE_DIR = join(__dirname, '..', 'public', 'profiles')
+const BRANDING_DIR = join(__dirname, '..', 'public', 'branding')
 const PUBLIC_PROFILE_PREFIX = process.env.PROFILE_PUBLIC_PATH || '/profiles/'
+const PUBLIC_BRANDING_PREFIX = process.env.BRANDING_PUBLIC_PATH || '/branding/'
 const IMAGE_TYPES = {
   'image/jpeg': 'jpg',
   'image/png': 'png',
@@ -91,6 +93,12 @@ function dataUrlToFile(dataUrl) {
   return { buffer, filename, url: `${PUBLIC_PROFILE_PREFIX}${filename}` }
 }
 
+function dataUrlToBrandFile(dataUrl) {
+  const file = dataUrlToFile(dataUrl)
+  if (!file) return null
+  return { ...file, url: `${PUBLIC_BRANDING_PREFIX}${file.filename}` }
+}
+
 async function removeProfileFile(url) {
   if (!url || !url.startsWith(PUBLIC_PROFILE_PREFIX)) return
   const name = url.replace(PUBLIC_PROFILE_PREFIX, '')
@@ -101,6 +109,37 @@ async function removeProfileFile(url) {
   } catch {
     // Missing old avatars are harmless.
   }
+}
+
+async function removeBrandingFile(url) {
+  if (!url || !url.startsWith(PUBLIC_BRANDING_PREFIX)) return
+  const name = url.replace(PUBLIC_BRANDING_PREFIX, '')
+  if (!name || name.includes('/') || name.includes('\\')) return
+
+  try {
+    await unlink(join(BRANDING_DIR, name))
+  } catch {
+    // Missing old logos are harmless.
+  }
+}
+
+export async function getSystemConfig() {
+  const { rows, error } = await query(
+    'SELECT app_name, logo_url, client_registration_enabled FROM system_config WHERE id = 1 LIMIT 1',
+    []
+  )
+  if (error) throw error
+  const row = rows?.[0] || {}
+  return {
+    appName: row.app_name || 'BetChat',
+    logoUrl: row.logo_url || '',
+    clientRegistrationEnabled: row.client_registration_enabled !== 0,
+  }
+}
+
+async function ensureSystemConfig() {
+  const { error } = await query('INSERT IGNORE INTO system_config (id) VALUES (1)', [])
+  if (error) throw error
 }
 
 async function getProfile(userId) {
@@ -293,6 +332,15 @@ export async function getPublicThemeConfig(req, res, next) {
   }
 }
 
+export async function getPublicSystemConfig(req, res, next) {
+  try {
+    await ensureSystemConfig()
+    res.json({ system: await getSystemConfig() })
+  } catch (err) {
+    next(err)
+  }
+}
+
 async function getBankProviders() {
   const { rows, error } = await query(
     `SELECT
@@ -345,7 +393,8 @@ async function getBankProviders() {
 
 export async function getSettings(req, res, next) {
   try {
-    const [profile, amounts, amountsList, apis, chatBank, bankData, themeConfig] = await Promise.all([
+    await ensureSystemConfig()
+    const [profile, amounts, amountsList, apis, chatBank, bankData, themeConfig, systemConfig] = await Promise.all([
       getProfile(req.user.sub),
       getAmounts(),
       getAmountsList(),
@@ -353,6 +402,7 @@ export async function getSettings(req, res, next) {
       getChatBank(),
       getBankProviders(),
       getThemeConfig(),
+      getSystemConfig(),
     ])
 
     if (!profile) return res.status(404).json({ error: 'Usuario no encontrado', code: 'USER_NOT_FOUND' })
@@ -367,7 +417,45 @@ export async function getSettings(req, res, next) {
       bankProviders: bankData.providers,
       bankAccounts: bankData.accounts,
       themeConfig,
+      systemConfig,
     })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateSystemConfig(req, res, next) {
+  try {
+    await ensureSystemConfig()
+    const current = await getSystemConfig()
+    const appName = normalizeText(req.body.appName || req.body.app_name || current.appName) || 'BetChat'
+    const registrationValue = req.body.clientRegistrationEnabled ?? req.body.client_registration_enabled ?? current.clientRegistrationEnabled
+    const clientRegistrationEnabled = registrationValue === false || registrationValue === 0 || registrationValue === '0' ? 0 : 1
+    let logoUrl = normalizeText(req.body.logoUrl || req.body.logo_url || current.logoUrl)
+
+    if (req.body.logoDataUrl || req.body.logo_data_url) {
+      const image = dataUrlToBrandFile(req.body.logoDataUrl || req.body.logo_data_url)
+      if (!image) return res.status(400).json({ error: 'Logo invalido', code: 'INVALID_LOGO' })
+      await mkdir(BRANDING_DIR, { recursive: true })
+      await writeFile(join(BRANDING_DIR, image.filename), image.buffer)
+      await removeBrandingFile(current.logoUrl)
+      logoUrl = image.url
+    }
+
+    if (req.body.clearLogo) {
+      await removeBrandingFile(current.logoUrl)
+      logoUrl = ''
+    }
+
+    const { error } = await query(
+      `INSERT INTO system_config (id, app_name, logo_url, client_registration_enabled)
+       VALUES (1, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), client_registration_enabled = VALUES(client_registration_enabled)`,
+      [appName.slice(0, 120), logoUrl || null, clientRegistrationEnabled]
+    )
+    if (error) return next(error)
+
+    res.json({ systemConfig: await getSystemConfig() })
   } catch (err) {
     next(err)
   }

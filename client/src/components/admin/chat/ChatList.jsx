@@ -39,6 +39,7 @@ const lastPreview = (chat) => {
   if (!chat.lastMsg) return 'Sin mensajes'
   if (chat.lastMessageType === 'image') return `Imagen: ${chat.lastMsg}`
   if (chat.lastMessageType === 'pdf') return `PDF: ${chat.lastMsg}`
+  if (chat.lastMessageType === 'audio') return 'Audio'
   return chat.lastMsg
 }
 
@@ -397,7 +398,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
                   <ChatUsername>{chat.username}</ChatUsername>
                   {chat.assignedUserId ? (
                     <AssignedPill $own={isAssignedToMe}>
-                      {isAssignedToMe ? 'Atendido por mi' : `Atiende ${chat.assignedFullName || chat.assignedUsername}`}
+                      {isAssignedToMe ? 'Atendido por mi' : `Atendiendo ${chat.assignedUsername}`}
                     </AssignedPill>
                   ) : (
                     <ChatTime>{chat.time}</ChatTime>

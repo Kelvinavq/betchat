@@ -18,8 +18,10 @@ import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import HeadsetMicOutlinedIcon from '@mui/icons-material/HeadsetMicOutlined'
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
+import BrandingWatermarkOutlinedIcon from '@mui/icons-material/BrandingWatermarkOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import useAuth from '../../../hooks/useAuth'
+import { useSystemConfig } from '../../../context/SystemConfigContext'
 import { api } from '../../../utils/api'
 import TicketsSection from './TicketsSection'
 import ThemesSection from './ThemesSection'
@@ -38,6 +40,7 @@ import {
   ProviderGrid, ProviderCard, RadioCircle, ProviderAvatar, ProviderInfo, ProviderName, ProviderSub,
   AccountSelectCard, AccountSelectLabel, FieldSelect,
   ActiveProviderRow, ActiveProviderDot,
+  ToggleRow, ToggleText, ToggleTitle, ToggleSub, ToggleSwitch,
 } from './SettingsPage.styles'
 
 const TABS = [
@@ -46,6 +49,12 @@ const TABS = [
     label: 'Mi perfil',
     icon: <AccountCircleOutlinedIcon />,
     sub: 'Datos de tu cuenta',
+  },
+  {
+    id: 'sistema',
+    label: 'Sistema',
+    icon: <BrandingWatermarkOutlinedIcon />,
+    sub: 'Marca y registro',
   },
   {
     id: 'montos',
@@ -161,7 +170,9 @@ const BANK_STYLES = {
 
 const SettingsPage = ({ onMenuOpen }) => {
   const { user, setUser } = useAuth()
+  const { setSystemConfig: setGlobalSystemConfig } = useSystemConfig()
   const avatarInputRef = useRef(null)
+  const logoInputRef = useRef(null)
   const [activeTab, setActiveTab] = useState('perfil')
 
   /* ── profile form ── */
@@ -178,6 +189,16 @@ const SettingsPage = ({ onMenuOpen }) => {
   const [showPw, setShowPw] = useState({ current: false, next: false, confirm: false })
   const [profileSaved, setProfileSaved] = useState(false)
   const [pwSaved, setPwSaved] = useState(false)
+
+  const [systemForm, setSystemForm] = useState({
+    appName: 'BetChat',
+    logoUrl: '',
+    logoDataUrl: '',
+    clientRegistrationEnabled: true,
+    clearLogo: false,
+  })
+  const [logoPreview, setLogoPreview] = useState('')
+  const [systemSaved, setSystemSaved] = useState(false)
 
   /* ── montos form ── */
   const [montos, setMontos] = useState({
@@ -250,6 +271,17 @@ const SettingsPage = ({ onMenuOpen }) => {
         ...(BANK_STYLES[provider.id] || BANK_STYLES.manual),
       })))
       setThemeConfig(data.themeConfig || { clientTheme: 'betchat-dark', adminTheme: 'dark-blue' })
+      const system = data.systemConfig || {}
+      const nextSystem = {
+        appName: system.appName || 'BetChat',
+        logoUrl: system.logoUrl || '',
+        logoDataUrl: '',
+        clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
+        clearLogo: false,
+      }
+      setSystemForm(nextSystem)
+      setLogoPreview(system.logoUrl ? resolveAssetUrl(system.logoUrl) : '')
+      setGlobalSystemConfig(nextSystem)
     } catch (error) {
       window.alert(error.message || 'No se pudieron cargar los ajustes.')
     } finally {
@@ -277,6 +309,25 @@ const SettingsPage = ({ onMenuOpen }) => {
     } catch (error) {
       window.alert(error.message)
     }
+  }
+
+  const handleLogoFile = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    try {
+      const dataUrl = await optimizeAvatar(file)
+      setLogoPreview(dataUrl)
+      setSystemForm(prev => ({ ...prev, logoDataUrl: dataUrl, clearLogo: false }))
+    } catch (error) {
+      window.alert(error.message)
+    }
+  }
+
+  const clearLogo = () => {
+    setLogoPreview('')
+    setSystemForm(prev => ({ ...prev, logoUrl: '', logoDataUrl: '', clearLogo: true }))
   }
 
   const saveProfile = async () => {
@@ -325,6 +376,26 @@ const SettingsPage = ({ onMenuOpen }) => {
       triggerSaved(setBancoSaved)
     } catch (error) {
       window.alert(error.message || 'No se pudo guardar el banco de chat.')
+    }
+  }
+
+  const saveSystem = async () => {
+    try {
+      const data = await api.put('/api/settings/system', systemForm)
+      const system = data.systemConfig || {}
+      const nextSystem = {
+        appName: system.appName || 'BetChat',
+        logoUrl: system.logoUrl || '',
+        logoDataUrl: '',
+        clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
+        clearLogo: false,
+      }
+      setSystemForm(nextSystem)
+      setLogoPreview(system.logoUrl ? resolveAssetUrl(system.logoUrl) : '')
+      setGlobalSystemConfig(nextSystem)
+      triggerSaved(setSystemSaved)
+    } catch (error) {
+      window.alert(error.message || 'No se pudo guardar la configuracion del sistema.')
     }
   }
 
@@ -559,6 +630,81 @@ const SettingsPage = ({ onMenuOpen }) => {
           )}
 
           {/* ════════════════ MONTOS ════════════════ */}
+          {activeTab === 'sistema' && (
+            <Section>
+              <Card $delay="40ms">
+                <CardHead>
+                  <CardIcon>
+                    <BrandingWatermarkOutlinedIcon />
+                  </CardIcon>
+                  <CardHeadText>
+                    <CardTitle>Marca del sistema</CardTitle>
+                    <CardSub>Define el nombre, logo y acceso de registro para clientes</CardSub>
+                  </CardHeadText>
+                </CardHead>
+                <CardBody>
+                  <ProfileCard>
+                    <ProfileAvatar>
+                      {logoPreview ? <ProfileAvatarImg src={logoPreview} alt="" /> : (systemForm.appName || 'BetChat').slice(0, 2).toUpperCase()}
+                      <ProfileAvatarBtn type="button" onClick={() => logoInputRef.current?.click()} title="Subir logo">
+                        <PhotoCameraOutlinedIcon />
+                      </ProfileAvatarBtn>
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleLogoFile}
+                        style={{ display: 'none' }}
+                      />
+                    </ProfileAvatar>
+                    <ProfileInfo>
+                      <ProfileName>{systemForm.appName || 'BetChat'}</ProfileName>
+                      <ProfileRole>{logoPreview ? 'Logo personalizado activo' : 'Usando iniciales del sistema'}</ProfileRole>
+                      {logoPreview && (
+                        <ProfileBadge as="button" type="button" onClick={clearLogo}>
+                          Quitar logo
+                        </ProfileBadge>
+                      )}
+                    </ProfileInfo>
+                  </ProfileCard>
+
+                  <FormGrid>
+                    <Field>
+                      <FieldLabel>Nombre de la app</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder="BetChat"
+                          value={systemForm.appName}
+                          onChange={e => setSystemForm(f => ({ ...f, appName: e.target.value }))}
+                        />
+                      </InputWrap>
+                    </Field>
+                  </FormGrid>
+
+                  <ToggleRow>
+                    <ToggleText>
+                      <ToggleTitle>Registro de clientes</ToggleTitle>
+                      <ToggleSub>Si esta desactivado, se oculta el enlace de registro y el endpoint queda bloqueado.</ToggleSub>
+                    </ToggleText>
+                    <ToggleSwitch
+                      type="button"
+                      $active={systemForm.clientRegistrationEnabled}
+                      onClick={() => setSystemForm(f => ({ ...f, clientRegistrationEnabled: !f.clientRegistrationEnabled }))}
+                      aria-pressed={systemForm.clientRegistrationEnabled}
+                    />
+                  </ToggleRow>
+
+                  <SaveFooter>
+                    <SaveBtn type="button" $saved={systemSaved} onClick={saveSystem}>
+                      {systemSaved ? <><CheckIcon />Guardado</> : 'Guardar ajustes'}
+                    </SaveBtn>
+                  </SaveFooter>
+                </CardBody>
+              </Card>
+            </Section>
+          )}
+
           {activeTab === 'montos' && (
             <Section>
 

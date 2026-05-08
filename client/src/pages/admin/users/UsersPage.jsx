@@ -13,6 +13,7 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import { api } from '../../../utils/api'
 import useAuth from '../../../hooks/useAuth'
+import { getPaginationItems } from '../../../utils/pagination'
 import {
   PageWrap, PageScroll,
   PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
@@ -332,7 +333,7 @@ const UsersPage = ({ onMenuOpen }) => {
     await openSessions(sessionsUser, { online: false })
   }
 
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+  const pages = getPaginationItems({ currentPage: safePage, totalPages })
   const displayInitial = (u) => (u.full_name || u.username || '?')[0].toUpperCase()
 
   return (
@@ -501,9 +502,13 @@ const UsersPage = ({ onMenuOpen }) => {
               <PaginBtn type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
                 <ChevronLeftIcon />
               </PaginBtn>
-              {pages.map(p => (
-                <PaginBtn key={p} type="button" $active={p === safePage} onClick={() => setPage(p)}>
-                  {p}
+              {pages.map(item => item.type === 'ellipsis' ? (
+                <PaginBtn key={item.key} type="button" disabled>
+                  ...
+                </PaginBtn>
+              ) : (
+                <PaginBtn key={item.key} type="button" $active={item.page === safePage} onClick={() => setPage(item.page)}>
+                  {item.page}
                 </PaginBtn>
               ))}
               <PaginBtn type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>

@@ -22,6 +22,14 @@ const IMAGE_TYPES = {
   'image/webp': 'webp',
   'image/gif': 'gif',
 }
+const AUDIO_TYPES = {
+  'audio/webm': 'webm',
+  'audio/ogg': 'ogg',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+}
 
 const emitChatUpdate = (chat) => {
   io.to('admins').emit('chat:updated', chat)
@@ -49,10 +57,27 @@ function dayOf(date) {
   return moment(date).tz(MESSAGE_DAY_TIMEZONE).format('YYYY-MM-DD')
 }
 
+function dayOfDbUtc(value) {
+  return moment.utc(value).tz(MESSAGE_DAY_TIMEZONE).format('YYYY-MM-DD')
+}
+
 function normalizeMessageDay(value) {
   const raw = String(value || '').trim()
   if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw
   return moment().tz(MESSAGE_DAY_TIMEZONE).format('YYYY-MM-DD')
+}
+
+async function resolveInitialMessageDay(chatId) {
+  const { rows, error } = await query(
+    `SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at_utc
+     FROM messages
+     WHERE chat_id = ?
+     ORDER BY created_at DESC, id DESC
+     LIMIT 1`,
+    [chatId]
+  )
+  if (error) throw error
+  return rows?.[0]?.created_at_utc ? dayOfDbUtc(rows[0].created_at_utc) : normalizeMessageDay()
 }
 
 function dayRangeUtc(day) {
@@ -64,7 +89,7 @@ function dayRangeUtc(day) {
 }
 
 function messageDayCacheKey(chatId, day) {
-  return `messages:v3:chat:${Number(chatId)}:day:${day}`
+  return `messages:v4:chat:${Number(chatId)}:day:${day}`
 }
 
 function chatListCacheKey({ archived, search, labelId, page, limit }) {
@@ -87,7 +112,7 @@ async function invalidateMessageCache(chatId, day = '') {
     logMessageCache('DEL', { chatId: Number(chatId), day })
     return
   }
-  await deleteCachePattern(`messages:v3:chat:${Number(chatId)}:day:*`)
+  await deleteCachePattern(`messages:v4:chat:${Number(chatId)}:day:*`)
   logMessageCache('DEL_PATTERN', { chatId: Number(chatId) })
 }
 
@@ -99,6 +124,7 @@ async function invalidateChatListCache(reason = '') {
 function previewFor(payload) {
   if (payload.messageType === 'image') return payload.fileName || 'Imagen'
   if (payload.messageType === 'pdf') return payload.fileName || 'Documento PDF'
+  if (payload.messageType === 'audio') return 'Audio'
   if (payload.messageType === 'file') return payload.fileName || 'Archivo'
   return String(payload.content || '')
     .replace(/<br\s*\/?>/gi, ' ')
@@ -113,7 +139,7 @@ function publicUrl(filePath) {
 }
 
 function parseDataUrl(dataUrl) {
-  const match = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/)
+  const match = String(dataUrl || '').match(/^data:([^;,]+)(?:;[^,]+)*;base64,(.+)$/)
   if (!match) return null
   return { mime: match[1], buffer: Buffer.from(match[2], 'base64') }
 }
@@ -131,14 +157,23 @@ async function saveMedia({ dataUrl, messageType, fileName }) {
     throw error
   }
 
-  const ext = messageType === 'image' ? IMAGE_TYPES[parsed.mime] : parsed.mime === 'application/pdf' ? 'pdf' : null
-  if (!ext || (messageType === 'image' && !parsed.mime.startsWith('image/')) || (messageType === 'pdf' && parsed.mime !== 'application/pdf')) {
-    const error = new Error('Solo se permiten imagenes o archivos PDF')
+  const ext = messageType === 'image'
+    ? IMAGE_TYPES[parsed.mime]
+    : messageType === 'audio'
+      ? AUDIO_TYPES[parsed.mime]
+      : parsed.mime === 'application/pdf' ? 'pdf' : null
+  if (
+    !ext
+    || (messageType === 'image' && !parsed.mime.startsWith('image/'))
+    || (messageType === 'pdf' && parsed.mime !== 'application/pdf')
+    || (messageType === 'audio' && !parsed.mime.startsWith('audio/'))
+  ) {
+    const error = new Error('Solo se permiten imagenes, audios o archivos PDF')
     error.status = 400
     throw error
   }
 
-  const folder = messageType === 'image' ? 'images' : 'pdfs'
+  const folder = messageType === 'image' ? 'images' : messageType === 'audio' ? 'audios' : 'pdfs'
   const dir = path.join(PUBLIC_DIR, folder)
   await mkdir(dir, { recursive: true })
   const safeName = `${Date.now()}-${randomUUID()}.${ext}`
@@ -178,12 +213,14 @@ function sanitizeMessage(row) {
     senderAvatarUrl,
     replyTo,
     createdAt: row.created_at,
+    createdAtUtc: row.created_at_utc || null,
     time: timeOf(row.created_at),
   }
 }
 
 function messageSelectSql(whereClause) {
-  return `SELECT m.*, u.avatar_url AS sender_avatar_url,
+  return `SELECT m.*, DATE_FORMAT(m.created_at, '%Y-%m-%d %H:%i:%s') AS created_at_utc,
+                 u.avatar_url AS sender_avatar_url,
                  r.sender_type AS reply_sender_type,
                  r.message_type AS reply_message_type,
                  r.content AS reply_content,
@@ -424,7 +461,7 @@ export async function getMessages(req, res, next) {
     const dayMode = req.query.mode === 'day' || req.query.date
 
     if (dayMode) {
-      const date = normalizeMessageDay(req.query.date)
+      const date = req.query.date ? normalizeMessageDay(req.query.date) : await resolveInitialMessageDay(chatId)
       const cached = await getCacheJson(messageDayCacheKey(chatId, date))
       if (cached) {
         logMessageCache('HIT', { chatId, date, source: 'redis' })
@@ -441,7 +478,8 @@ export async function getMessages(req, res, next) {
       if (error) return next(error)
 
       const { rows: previousRows, error: previousError } = await query(
-        `SELECT created_at FROM messages
+        `SELECT DATE_FORMAT(created_at, '%Y-%m-%d %H:%i:%s') AS created_at_utc
+         FROM messages
          WHERE chat_id = ? AND created_at < ?
          ORDER BY created_at DESC, id DESC
          LIMIT 1`,
@@ -449,7 +487,7 @@ export async function getMessages(req, res, next) {
       )
       if (previousError) return next(previousError)
 
-      const previousDate = previousRows?.[0]?.created_at ? dayOf(previousRows[0].created_at) : null
+      const previousDate = previousRows?.[0]?.created_at_utc ? dayOfDbUtc(previousRows[0].created_at_utc) : null
       const payload = {
         messages: (rows || []).map(sanitizeMessage),
         pagination: {
@@ -703,7 +741,7 @@ export async function persistMessage({
   }
 
   let filePayload = {}
-  if (messageType === 'image' || messageType === 'pdf') {
+  if (messageType === 'image' || messageType === 'pdf' || messageType === 'audio') {
     filePayload = await saveMedia({ dataUrl, messageType, fileName })
   }
 
@@ -715,6 +753,15 @@ export async function persistMessage({
       error.status = 404
       throw error
     }
+
+    const chatClientId = Number(chat.client_id) || null
+    const payloadClientId = Number(clientId) || null
+    if (senderType === 'client' && payloadClientId && payloadClientId !== chatClientId) {
+      const error = new Error('El cliente no pertenece a este chat')
+      error.status = 403
+      throw error
+    }
+    const messageClientId = senderType === 'client' ? (payloadClientId || chatClientId) : null
 
     const numericReplyToMessageId = Number(replyToMessageId) || null
     if (numericReplyToMessageId) {
@@ -736,7 +783,7 @@ export async function persistMessage({
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         chatId,
-        senderType === 'client' ? chat.client_id : clientId,
+        messageClientId,
         senderType,
         senderUserId,
         messageType,
@@ -769,9 +816,10 @@ export async function persistMessage({
     return messageRows[0]
   })
 
+  const messageDay = result?.created_at_utc ? dayOfDbUtc(result.created_at_utc) : dayOf(result.created_at)
   const message = sanitizeMessage(result)
   message.clientMessageId = clientMessageId || ''
-  await invalidateMessageCache(chatId, dayOf(message.createdAt))
+  await invalidateMessageCache(chatId, messageDay)
   const chat = sanitizeChat(await getChat(chatId))
   emitMessage(chatId, message)
   emitChatUpdate(chat)
@@ -792,6 +840,7 @@ export async function sendClientMessage(req, res, next) {
     const result = await persistMessage({
       chatId,
       senderType: 'client',
+      clientId: client.sub,
       content: String(req.body?.content || '').trim(),
       messageType: req.body?.messageType || 'text',
       dataUrl: req.body?.dataUrl || '',

@@ -12,6 +12,7 @@ import PowerSettingsNewIcon       from '@mui/icons-material/PowerSettingsNew'
 import VisibilityOutlinedIcon     from '@mui/icons-material/VisibilityOutlined'
 import VisibilityOffOutlinedIcon  from '@mui/icons-material/VisibilityOffOutlined'
 import { api } from '../../../utils/api'
+import { getPaginationItems } from '../../../utils/pagination'
 import {
   PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
   BankTabsBar, BankTab, BankTabDot, BankTabCount,
@@ -274,6 +275,7 @@ const BanksPage = ({ onMenuOpen }) => {
 
   const totalPages = Math.max(1, pagination.totalPages || 1)
   const safePage = Math.min(page, totalPages)
+  const pageItems = getPaginationItems({ currentPage: safePage, totalPages })
 
   return (
     <PageWrap>
@@ -450,8 +452,10 @@ const BanksPage = ({ onMenuOpen }) => {
               <PaginBtn type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={safePage === 1}>
                 <ChevronLeftIcon />
               </PaginBtn>
-              {Array.from({ length: totalPages }, (_, i) => i + 1).map(p => (
-                <PaginBtn key={p} type="button" $active={p === safePage} onClick={() => setPage(p)}>{p}</PaginBtn>
+              {pageItems.map(item => item.type === 'ellipsis' ? (
+                <PaginBtn key={item.key} type="button" disabled>...</PaginBtn>
+              ) : (
+                <PaginBtn key={item.key} type="button" $active={item.page === safePage} onClick={() => setPage(item.page)}>{item.page}</PaginBtn>
               ))}
               <PaginBtn type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={safePage === totalPages}>
                 <ChevronRightIcon />

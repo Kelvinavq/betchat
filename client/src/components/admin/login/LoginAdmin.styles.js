@@ -51,6 +51,8 @@ export const Card = styled.div`
 
 export const Logo = styled.img`
   width: 120px;
+  height: 120px;
+  object-fit: contain;
   margin: 0 0 40px;
 `;
 

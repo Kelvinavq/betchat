@@ -226,6 +226,7 @@ export const ProfileRole = styled.p`
 export const ProfileBadge = styled.span`
   display: inline-flex; align-items: center; margin-top: 8px;
   padding: 3px 10px; border-radius: 6px; font-size: 11px; font-weight: 600;
+  font-family: inherit; cursor: pointer;
   ${({ $role }) => $role === 'admin' ? css`
     background: rgba(139,92,246,0.14); color: #a78bfa;
     border: 1px solid rgba(139,92,246,0.28);
@@ -236,6 +237,58 @@ export const ProfileBadge = styled.span`
 `
 
 /* ── generic card ── */
+export const ToggleRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.07);
+`
+
+export const ToggleText = styled.div`
+  min-width: 0;
+`
+
+export const ToggleTitle = styled.p`
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.88);
+`
+
+export const ToggleSub = styled.p`
+  margin-top: 3px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.34);
+`
+
+export const ToggleSwitch = styled.button`
+  width: 48px;
+  height: 28px;
+  min-width: 48px;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  position: relative;
+  background: ${({ $active }) => $active ? gradients.btn : 'rgba(255,255,255,0.12)'};
+  box-shadow: ${({ $active }) => $active ? '0 6px 18px rgba(13,79,232,0.24)' : 'none'};
+  transition: background 0.18s, box-shadow 0.18s;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    left: ${({ $active }) => $active ? '24px' : '4px'};
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    transition: left 0.18s;
+  }
+`
+
 export const Card = styled.div`
   background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.07);

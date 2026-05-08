@@ -40,7 +40,7 @@ import {
   ReplyComposer, ReplyComposerText, ReplyComposerTitle, ReplyComposerBody, ReplyComposerClose,
   RecordFooter, RecordCancelBtn, RecordVisual, RecordDot,
   RecordBarsWrap, RecordBar, RecordTimer, RecordSendBtn,
-  VoiceBubble, VoicePlayBtn, VoiceWave, VoiceBar, VoiceTime,
+  VoiceBubble, VoicePlayBtn, VoiceWave, VoiceProgress, VoiceBar, VoiceSeek, VoiceTime, VoiceSpeedBtn,
   SendingBubbleWrap,
   ViewerOverlay, ViewerContent, ViewerFileName, ViewerImg, ViewerEmbed, ViewerActions, ViewerBtn,
 } from './AdminChatView.styles'
@@ -78,6 +78,7 @@ const replyPreviewText = (message) => {
   if (!message) return ''
   if (message.type === 'image' || message.messageType === 'image') return message.fileName ? `Imagen: ${message.fileName}` : 'Imagen'
   if (message.type === 'pdf' || message.messageType === 'pdf') return message.fileName ? `PDF: ${message.fileName}` : 'Documento PDF'
+  if (message.type === 'voice' || message.type === 'audio' || message.messageType === 'audio') return 'Audio'
   const text = message.text || message.content || ''
   return hasRichText(text) ? htmlToPlainText(text) : text
 }
@@ -102,13 +103,35 @@ const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file)
 })
 
+const isInteractiveMessageTarget = (target) =>
+  Boolean(target?.closest?.('button,a,input,textarea,select,audio,video,[role="button"]'))
+
+const audioRecorderMimeType = () => [
+  'audio/mp4',
+  'audio/webm;codecs=opus',
+  'audio/webm',
+  'audio/ogg;codecs=opus',
+  'audio/ogg',
+].find(type => MediaRecorder.isTypeSupported(type)) || ''
+
+const audioExtensionFromMime = (mimeType = '') => {
+  const clean = mimeType.split(';')[0]
+  if (clean === 'audio/mp4') return 'm4a'
+  if (clean === 'audio/ogg') return 'ogg'
+  if (clean === 'audio/mpeg') return 'mp3'
+  if (clean === 'audio/wav' || clean === 'audio/x-wav') return 'wav'
+  return 'webm'
+}
+
 const mapDbMessage = (msg) => ({
   id: `db-${msg.id}`,
   dbId: msg.id,
   clientMessageId: msg.clientMessageId || '',
-  type: msg.messageType === 'image' ? 'image' : msg.messageType === 'pdf' ? 'pdf' : 'text',
+  type: msg.messageType === 'image' ? 'image' : msg.messageType === 'pdf' ? 'pdf' : msg.messageType === 'audio' ? 'voice' : 'text',
   text: msg.content,
   mediaUrl: resolveApiAsset(msg.fileUrl),
+  audioUrl: resolveApiAsset(msg.fileUrl),
+  duration: msg.messageType === 'audio' ? Number(msg.content) || 0 : undefined,
   fileName: msg.fileName,
   sent: msg.senderType !== 'client',
   time: msg.time,
@@ -182,59 +205,134 @@ const SendingLoader = ({ mediaType }) => {
 /* ── voice message player ── */
 const VoiceMessage = ({ audioUrl, duration, sent }) => {
   const audioRef             = useRef(null)
+  const frameRef             = useRef(0)
   const [playing, setPlaying] = useState(false)
   const [elapsed, setElapsed] = useState(0)
   const [total,   setTotal]   = useState(duration ?? 0)
+  const [rate, setRate] = useState(1)
+  const [playbackError, setPlaybackError] = useState(false)
 
   useEffect(() => {
     const a = audioRef.current
     if (!a) return
+    setPlaybackError(false)
     const onPlay  = () => setPlaying(true)
     const onPause = () => setPlaying(false)
     const onEnded = () => { setPlaying(false); setElapsed(0) }
     const onTime  = () => setElapsed(a.currentTime)
     const onMeta  = () => { if (isFinite(a.duration)) setTotal(a.duration) }
+    const onError = () => setPlaybackError(true)
     a.addEventListener('play',            onPlay)
     a.addEventListener('pause',           onPause)
     a.addEventListener('ended',           onEnded)
     a.addEventListener('timeupdate',      onTime)
     a.addEventListener('loadedmetadata',  onMeta)
+    a.addEventListener('error',           onError)
     return () => {
       a.removeEventListener('play',           onPlay)
       a.removeEventListener('pause',          onPause)
       a.removeEventListener('ended',          onEnded)
       a.removeEventListener('timeupdate',     onTime)
       a.removeEventListener('loadedmetadata', onMeta)
+      a.removeEventListener('error',          onError)
     }
   }, [audioUrl])
+
+  useEffect(() => {
+    if (!playing) {
+      cancelAnimationFrame(frameRef.current)
+      return undefined
+    }
+    const tick = () => {
+      const a = audioRef.current
+      if (a) setElapsed(a.currentTime)
+      frameRef.current = requestAnimationFrame(tick)
+    }
+    frameRef.current = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frameRef.current)
+  }, [playing])
+
+  useEffect(() => {
+    const a = audioRef.current
+    if (a) a.playbackRate = rate
+  }, [rate, audioUrl])
 
   const togglePlay = () => {
     const a = audioRef.current
     if (!a) return
-    playing ? a.pause() : a.play()
+    if (playing) {
+      a.pause()
+      return
+    }
+    a.play().catch(() => setPlaybackError(true))
   }
 
   const progress = total > 0 ? elapsed / total : 0
+  const seekTo = (event) => {
+    const a = audioRef.current
+    if (!a || total <= 0) return
+    const next = (Number(event.target.value) / 100) * total
+    a.currentTime = next
+    setElapsed(next)
+  }
+  const cycleRate = () => setRate(current => current === 1 ? 1.5 : current === 1.5 ? 2 : 1)
 
   return (
     <VoiceBubble $sent={sent}>
       <audio ref={audioRef} src={audioUrl} preload="metadata" />
-      <VoicePlayBtn $sent={sent} onClick={togglePlay} aria-label={playing ? 'Pausar' : 'Reproducir'}>
+      <VoicePlayBtn
+        $sent={sent}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={togglePlay}
+        aria-label={playing ? 'Pausar' : 'Reproducir'}
+      >
         {playing ? <PauseIcon /> : <PlayArrowIcon />}
       </VoicePlayBtn>
-      <VoiceWave>
+      <VoiceWave $progress={progress} $sent={sent}>
+        <VoiceProgress $progress={progress} $sent={sent} />
         {WAVEFORM.map((h, i) => (
           <VoiceBar
             key={i}
             $h={h}
-            $active={i / WAVEFORM.length <= progress}
+            $active={(i + 1) / WAVEFORM.length <= progress}
             $sent={sent}
           />
         ))}
+        <VoiceSeek
+          type="range"
+          min="0"
+          max="100"
+          step="0.1"
+          value={Math.max(0, Math.min(100, progress * 100))}
+          disabled={total <= 0}
+          $progress={progress}
+          $sent={sent}
+          onPointerDown={event => event.stopPropagation()}
+          onChange={seekTo}
+          aria-label="Adelantar audio"
+        />
       </VoiceWave>
       <VoiceTime $sent={sent}>
         {fmt(playing ? elapsed : total)}
       </VoiceTime>
+      <VoiceSpeedBtn
+        type="button"
+        $sent={sent}
+        onPointerDown={event => event.stopPropagation()}
+        onClick={cycleRate}
+        aria-label="Cambiar velocidad"
+      >
+        {rate}x
+      </VoiceSpeedBtn>
+      {playbackError && (
+        <audio
+          src={audioUrl}
+          controls
+          preload="metadata"
+          onPointerDown={event => event.stopPropagation()}
+          style={{ width: 220, maxWidth: '100%' }}
+        />
+      )}
     </VoiceBubble>
   )
 }
@@ -281,6 +379,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const [commands, setCommands] = useState([])
   const [commandDraft, setCommandDraft] = useState(null)
   const [commandIndex, setCommandIndex] = useState(0)
+  const [swipeReply, setSwipeReply] = useState(null)
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -651,7 +750,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       audioChunks.current = []
-      const mr = new MediaRecorder(stream)
+      const preferredMimeType = audioRecorderMimeType()
+      const mr = preferredMimeType
+        ? new MediaRecorder(stream, { mimeType: preferredMimeType })
+        : new MediaRecorder(stream)
       mr.ondataavailable = e => { if (e.data.size > 0) audioChunks.current.push(e.data) }
       mr.start(100)
       mediaRecRef.current = mr
@@ -677,15 +779,53 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     setRecTime(0)
     recTimeRef.current = 0
     if (!mr) return
-    mr.onstop = () => {
+    mr.onstop = async () => {
       if (send && dur >= 1) {
-        const blob = new Blob(audioChunks.current, { type: 'audio/webm' })
+        const blob = new Blob(audioChunks.current, { type: mr.mimeType || 'audio/webm' })
+        const extension = audioExtensionFromMime(blob.type)
         const url  = URL.createObjectURL(blob)
         const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+        const voiceId = makeClientMessageId('admin-audio')
+        const replyToMessageId = replyingTo?.dbId || null
         shouldScrollBottomRef.current = true
         setMessages(prev => [...prev, {
-          id: Date.now(), type: 'voice', audioUrl: url, duration: dur, sent: true, time,
+          id: voiceId,
+          clientMessageId: voiceId,
+          type: 'voice',
+          audioUrl: url,
+          duration: dur,
+          sent: true,
+          time,
+          deliveryState: 'sent',
+          replyTo: replyingTo ? {
+            id: replyingTo.dbId,
+            senderType: replyingTo.sent ? 'admin' : 'client',
+            messageType: replyingTo.type === 'voice' ? 'audio' : replyingTo.type,
+            content: replyingTo.text || '',
+            fileName: replyingTo.fileName || '',
+          } : null,
         }])
+        setReplyingTo(null)
+        try {
+          const dataUrl = await fileToDataUrl(blob)
+          getSocket('admin').emit('message:send', {
+            chatId: chat.id,
+            clientMessageId: voiceId,
+            messageType: 'audio',
+            content: String(dur),
+            dataUrl,
+            fileName: `${voiceId}.${extension}`,
+            replyToMessageId,
+          }, (ack) => {
+            if (!ack?.ok) return
+            setMessages(prev => prev.map(msg => {
+              if (msg.id !== voiceId && msg.clientMessageId !== voiceId) return msg
+              return { ...mapDbMessage(ack.message), duration: dur || msg.duration || 0 }
+            }))
+          })
+        } catch {
+          // Keep the local playback if the upload cannot be prepared.
+        }
       }
       mr.stream?.getTracks().forEach(t => t.stop())
       mediaRecRef.current = null
@@ -725,16 +865,36 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
 
   const handleMessagePointerDown = (event, message) => {
     if (!message?.dbId) return
+    if (isInteractiveMessageTarget(event.target)) return
     pointerStartRef.current = { x: event.clientX, y: event.clientY, messageId: message.id }
+    event.currentTarget?.setPointerCapture?.(event.pointerId)
+  }
+
+  const handleMessagePointerMove = (event, message) => {
+    const start = pointerStartRef.current
+    if (!start || start.messageId !== message.id || !message?.dbId) return
+    const dx = event.clientX - start.x
+    const dy = Math.abs(event.clientY - start.y)
+    if (dx <= 0 || dy > 42) {
+      setSwipeReply(null)
+      return
+    }
+    setSwipeReply({ messageId: message.id, offset: Math.min(dx, 72) })
   }
 
   const handleMessagePointerUp = (event, message) => {
     const start = pointerStartRef.current
     pointerStartRef.current = null
+    setSwipeReply(null)
     if (!start || start.messageId !== message.id || !message?.dbId) return
     const dx = event.clientX - start.x
     const dy = Math.abs(event.clientY - start.y)
-    if (Math.abs(dx) > 58 && dy < 32) beginReply(message)
+    if (dx > 58 && dy < 36) beginReply(message)
+  }
+
+  const handleMessagePointerCancel = () => {
+    pointerStartRef.current = null
+    setSwipeReply(null)
   }
 
   const renderReplyQuote = (reply, sent) => {
@@ -835,7 +995,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
               $sent={msg.sent}
               onContextMenu={event => openMessageMenu(event, msg)}
               onPointerDown={event => handleMessagePointerDown(event, msg)}
+              onPointerMove={event => handleMessagePointerMove(event, msg)}
               onPointerUp={event => handleMessagePointerUp(event, msg)}
+              onPointerCancel={handleMessagePointerCancel}
+              $swipeOffset={swipeReply?.messageId === msg.id ? swipeReply.offset : 0}
             >
               {!msg.sent && <MsgAvatar>{chat.username?.[0]?.toUpperCase() || '?'}</MsgAvatar>}
               <MsgContent $sent={msg.sent}>
@@ -860,7 +1023,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
                     </MediaMsgPdf>
                   </>
                 ) : msg.type === 'voice' ? (
-                  <VoiceMessage audioUrl={msg.audioUrl} duration={msg.duration} sent={msg.sent} />
+                  <>
+                    {renderReplyQuote(msg.replyTo, msg.sent)}
+                    <VoiceMessage audioUrl={msg.audioUrl || msg.mediaUrl} duration={msg.duration} sent={msg.sent} />
+                  </>
                 ) : (
                   <MsgBubble $sent={msg.sent}>
                     {renderReplyQuote(msg.replyTo, msg.sent)}

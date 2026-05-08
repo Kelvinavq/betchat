@@ -12,6 +12,7 @@ import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import SearchIcon from '@mui/icons-material/Search'
 import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined'
 import { api } from '../../../utils/api'
+import { getPaginationItems } from '../../../utils/pagination'
 import {
   PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, AddBtn, TitleBlock, PageTitle, PageSub,
   StatsStrip, StatCard, StatIconWrap, StatInfo, StatValue, StatLabel,
@@ -100,7 +101,7 @@ const ModalsPage = ({ onMenuOpen }) => {
   }, [loadModals])
 
   const totalPages = pagination.totalPages
-  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+  const pages = getPaginationItems({ currentPage: pagination.page, totalPages })
 
   const openNew = () => {
     setEditModal(null)
@@ -295,9 +296,13 @@ const ModalsPage = ({ onMenuOpen }) => {
               <PaginBtn type="button" onClick={() => setPage(current => Math.max(1, current - 1))} disabled={pagination.page === 1}>
                 <ChevronLeftIcon />
               </PaginBtn>
-              {pages.map(item => (
-                <PaginBtn key={item} type="button" $active={item === pagination.page} onClick={() => setPage(item)}>
-                  {item}
+              {pages.map(item => item.type === 'ellipsis' ? (
+                <PaginBtn key={item.key} type="button" disabled>
+                  ...
+                </PaginBtn>
+              ) : (
+                <PaginBtn key={item.key} type="button" $active={item.page === pagination.page} onClick={() => setPage(item.page)}>
+                  {item.page}
                 </PaginBtn>
               ))}
               <PaginBtn type="button" onClick={() => setPage(current => Math.min(totalPages, current + 1))} disabled={pagination.page === totalPages}>
