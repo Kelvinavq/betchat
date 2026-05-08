@@ -33,6 +33,8 @@ function sanitizeClient(client, chatId = null) {
     externalId: client.external_id || null,
     active: Boolean(client.is_active),
     online: Boolean(client.is_online),
+    temporary: Boolean(client.is_temporary),
+    tempSessionActive: client.temp_session_active !== 0,
     chatId,
   }
 }
@@ -317,6 +319,93 @@ async function startClientSession(res, client, chatId) {
   }
 }
 
+const HELP_REASONS = {
+  forgot_user: 'Olvido usuario',
+  forgot_password: 'Olvido contrasena',
+  register: 'Quiere registrarse',
+  other: 'Otra consulta',
+}
+
+export async function createHelpSession(req, res, next) {
+  try {
+    const rawReason = String(req.body?.reason || 'other').trim()
+    const reason = HELP_REASONS[rawReason] ? rawReason : 'other'
+    const note = String(req.body?.note || '').trim().slice(0, 1000)
+    if (reason === 'other' && !note) {
+      return res.status(400).json({ error: 'Contanos que necesitas para abrir el chat de ayuda.', code: 'HELP_NOTE_REQUIRED' })
+    }
+
+    const username = `ayuda_${Date.now()}_${randomUUID().slice(0, 6)}`
+    const fullName = `Ayuda - ${HELP_REASONS[reason]}`
+    const initialText = reason === 'other'
+      ? `Solicitud de ayuda: ${HELP_REASONS[reason]}\n${note}`
+      : `Solicitud de ayuda: ${HELP_REASONS[reason]}`
+
+    const result = await transaction(async (connection) => {
+      const [clientResult] = await connection.execute(
+        `INSERT INTO clients
+          (username, full_name, password, external_id, is_active, is_online, is_temporary, temp_session_active, registered_at)
+         VALUES (?, ?, ?, NULL, 1, 1, 1, 1, CURRENT_TIMESTAMP)`,
+        [username, fullName, randomUUID()]
+      )
+      const clientId = clientResult.insertId
+
+      const [chatResult] = await connection.execute(
+        `INSERT INTO chats
+          (client_id, is_open, is_archived, is_help_request, help_reason, help_note, unread_count, last_message, last_message_type, last_message_at, created_at)
+         VALUES (?, 1, 0, 1, ?, ?, 1, ?, 'text', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+        [clientId, reason, note || null, initialText]
+      )
+      const chatId = chatResult.insertId
+
+      await connection.execute(
+        `INSERT INTO messages (chat_id, client_id, sender_type, message_type, content, is_read, created_at)
+         VALUES (?, ?, 'client', 'text', ?, 0, CURRENT_TIMESTAMP)`,
+        [chatId, clientId, initialText]
+      )
+
+      return {
+        client: {
+          id: clientId,
+          username,
+          full_name: fullName,
+          external_id: null,
+          is_active: 1,
+          is_online: 1,
+          is_temporary: 1,
+          temp_session_active: 1,
+        },
+        chatId,
+      }
+    })
+
+    io.to('admins').emit('chat:updated', {
+      id: Number(result.chatId),
+      clientId: Number(result.client.id),
+      username: result.client.username,
+      fullName: result.client.full_name,
+      isHelpRequest: true,
+      helpReason: reason,
+      helpNote: note,
+      active: true,
+      online: true,
+      isOpen: true,
+      isArchived: false,
+      unread: 1,
+      lastMsg: initialText,
+      lastMessageType: 'text',
+      lastMessageAt: new Date().toISOString(),
+      time: new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' }),
+      files: [],
+      clientTags: [],
+    })
+
+    res.status(201).json(await startClientSession(res, result.client, result.chatId))
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function autoLoginClient(req, res, next) {
   try {
     const username = normalizeUsername(req.body?.username)
@@ -505,7 +594,7 @@ export async function meClient(req, res, next) {
     }
 
     const { rows, error } = await query(
-      `SELECT id, username, full_name, external_id, is_active, is_online
+      `SELECT id, username, full_name, external_id, is_active, is_online, is_temporary, temp_session_active
        FROM clients
        WHERE id = ?
        LIMIT 1`,
@@ -516,6 +605,10 @@ export async function meClient(req, res, next) {
     const client = rows?.[0]
     if (!client) {
       return res.status(404).json({ error: 'Cliente no encontrado.', code: 'CLIENT_NOT_FOUND' })
+    }
+    if (client.is_temporary && !client.temp_session_active) {
+      clearClientCookie(res)
+      return res.status(401).json({ error: 'La sesion temporal fue cerrada.', code: 'TEMP_CLIENT_SESSION_CLOSED' })
     }
 
     const { rows: chatRows, error: chatError } = await query(

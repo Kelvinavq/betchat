@@ -85,6 +85,9 @@ const ClientPage = () => {
         const session = await api.get('/api/client/auth/me')
         applySession(session)
       } catch {
+        localStorage.removeItem('clientUsername')
+        localStorage.removeItem('clientId')
+        localStorage.removeItem('chatId')
         setClientSession(null)
       }
     }

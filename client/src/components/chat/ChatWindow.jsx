@@ -26,6 +26,8 @@ import {
   ErrorBanner,
   StyledInput, PasswordWrapper, PasswordInput, PasswordToggle,
   ForgotLink, ActionBtn, OrDivider, SwitchText,
+  HelpOverlay, HelpCard, HelpHead, HelpTitle, HelpSub, HelpClose,
+  HelpOptionGrid, HelpOption, HelpTextarea, HelpActions, HelpBtn,
   ChatViewContainer,
   ChatHeader, ChatHeaderSide, ChatHeaderCenter,
   ChatHeaderBtn,
@@ -54,7 +56,14 @@ import {
 
 /* ── login view ── */
 
-const LoginView = ({ onLogin, onRegister, loading, registrationEnabled }) => {
+const HELP_OPTIONS = [
+  { id: 'forgot_user', label: 'Olvide mi usuario' },
+  { id: 'forgot_password', label: 'Olvide mi contrasena' },
+  { id: 'register', label: 'Quiero registrarme' },
+  { id: 'other', label: 'Otra consulta' },
+]
+
+const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled }) => {
   const [showPwd, setShowPwd] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -97,6 +106,7 @@ const LoginView = ({ onLogin, onRegister, loading, registrationEnabled }) => {
       </FormGroup>
 
       <ForgotLink href="#">¿Olvidaste tu contraseña?</ForgotLink>
+      <ForgotLink as="button" type="button" onClick={onHelp}>Necesito ayuda para ingresar</ForgotLink>
       <ActionBtn type="submit" disabled={loading}>
         {loading ? 'Ingresando...' : 'Ingresar'}
       </ActionBtn>
@@ -162,6 +172,51 @@ const RegisterView = ({ onRegister, onLogin, loading }) => {
         ¿Ya tienes cuenta? <a onClick={onLogin}>Inicia sesión</a>
       </SwitchText>
     </form>
+  )
+}
+
+const HelpDialog = ({ open, onClose, onStart, loading, registrationEnabled }) => {
+  const [reason, setReason] = useState('forgot_password')
+  const [note, setNote] = useState('')
+  if (!open) return null
+  const needsNote = reason === 'other'
+  const canSubmit = !loading && (!needsNote || note.trim().length > 0)
+
+  return createPortal(
+    <HelpOverlay>
+      <HelpCard role="dialog" aria-modal="true">
+        <HelpHead>
+          <div>
+            <HelpTitle>Necesitas ayuda?</HelpTitle>
+            <HelpSub>Elegi una opcion y abrimos un chat temporal con soporte.</HelpSub>
+          </div>
+          <HelpClose type="button" onClick={onClose} aria-label="Cerrar">
+            <CloseIcon />
+          </HelpClose>
+        </HelpHead>
+        <HelpOptionGrid>
+          {HELP_OPTIONS.map(option => (
+            <HelpOption key={option.id} type="button" $active={reason === option.id} onClick={() => setReason(option.id)}>
+              {option.label}
+            </HelpOption>
+          ))}
+        </HelpOptionGrid>
+        {needsNote && (
+          <HelpTextarea
+            placeholder="Contanos brevemente que necesitas..."
+            value={note}
+            onChange={event => setNote(event.target.value)}
+          />
+        )}
+        <HelpActions>
+          <HelpBtn type="button" onClick={onClose}>Cancelar</HelpBtn>
+          <HelpBtn type="button" $primary disabled={!canSubmit} onClick={() => onStart({ reason, note })}>
+            {loading ? 'Abriendo...' : 'Abrir chat'}
+          </HelpBtn>
+        </HelpActions>
+      </HelpCard>
+    </HelpOverlay>,
+    document.body
   )
 }
 
@@ -1545,6 +1600,7 @@ const ChatWindow = ({ onClose }) => {
   const { clientSession, setClientSession, clientAuthLoading, setClientAuthLoading } = useContext(ChatContext)
   const [view, setView] = useState(clientSession ? 'chat' : 'login')
   const [loading, setLoading] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const [error, setError] = useState('')
   const isAuthLoading = loading || clientAuthLoading
   const activeView = clientSession ? 'chat' : view
@@ -1555,6 +1611,20 @@ const ChatWindow = ({ onClose }) => {
       setView('login')
     }
   }, [systemConfig.clientRegistrationEnabled, view])
+
+  useEffect(() => {
+    const socket = getSocket('client')
+    const closeTemporarySession = () => {
+      localStorage.removeItem('clientUsername')
+      localStorage.removeItem('clientId')
+      localStorage.removeItem('chatId')
+      setClientSession(null)
+      setView('login')
+      setError('El chat temporal fue cerrado por soporte.')
+    }
+    socket.on('temp-session:closed', closeTemporarySession)
+    return () => socket.off('temp-session:closed', closeTemporarySession)
+  }, [setClientSession])
 
   const handleLogin = async ({ username, password }) => {
     if (!username?.trim() || !password) {
@@ -1637,6 +1707,28 @@ const ChatWindow = ({ onClose }) => {
     }
   }
 
+  const handleStartHelp = async ({ reason, note }) => {
+    setLoading(true)
+    setClientAuthLoading(true)
+    setView('loading')
+    setError('')
+    try {
+      const session = await api.post('/api/client/auth/help-session', { reason, note })
+      setClientSession(session.client)
+      localStorage.setItem('clientUsername', session.client.username)
+      localStorage.setItem('clientId', String(session.client.id))
+      localStorage.setItem('chatId', String(session.client.chatId || ''))
+      setHelpOpen(false)
+      setView('chat')
+    } catch (helpError) {
+      setError(helpError.payload?.error || helpError.message || 'No se pudo abrir el chat de ayuda.')
+      setView('login')
+    } finally {
+      setLoading(false)
+      setClientAuthLoading(false)
+    }
+  }
+
   return (
     <Window>
       {!isChat && (
@@ -1658,6 +1750,7 @@ const ChatWindow = ({ onClose }) => {
           <LoginView
             onLogin={handleLogin}
             onRegister={() => systemConfig.clientRegistrationEnabled && setView('register')}
+            onHelp={() => setHelpOpen(true)}
             loading={loading}
             registrationEnabled={systemConfig.clientRegistrationEnabled}
           />
@@ -1673,6 +1766,13 @@ const ChatWindow = ({ onClose }) => {
           <ChatView onClose={onClose} client={clientSession} />
         )}
       </FormSection>
+      <HelpDialog
+        open={helpOpen}
+        onClose={() => setHelpOpen(false)}
+        onStart={handleStartHelp}
+        loading={loading}
+        registrationEnabled={systemConfig.clientRegistrationEnabled}
+      />
     </Window>
   )
 }

@@ -217,6 +217,9 @@ export const PasswordToggle = styled.button`
 
 export const ForgotLink = styled.a`
   align-self: flex-end;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
   font-size: 12px;
   color: var(--bc-client-accent, #1e85ff);
   text-decoration: none;
@@ -224,6 +227,116 @@ export const ForgotLink = styled.a`
   margin-top: -4px;
   transition: opacity 0.2s;
   &:hover { opacity: 0.70; }
+  &[href="#"] { display: none; }
+`
+
+export const HelpOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  background: rgba(0,0,0,0.58);
+  backdrop-filter: blur(10px);
+`
+
+export const HelpCard = styled.div`
+  width: min(360px, 100%);
+  border-radius: 18px;
+  background: rgba(13, 13, 28, 0.96);
+  border: 1px solid rgba(255,255,255,0.10);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.45);
+  padding: 18px;
+`
+
+export const HelpHead = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+`
+
+export const HelpTitle = styled.p`
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+`
+
+export const HelpSub = styled.p`
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: rgba(255,255,255,0.42);
+`
+
+export const HelpClose = styled.button`
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border: 0;
+  border-radius: 9px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.55);
+  cursor: pointer;
+  svg { font-size: 17px; }
+`
+
+export const HelpOptionGrid = styled.div`
+  display: grid;
+  gap: 8px;
+`
+
+export const HelpOption = styled.button`
+  width: 100%;
+  border: 1px solid ${({ $active }) => $active ? 'rgba(var(--bc-client-accent-rgb, 70,170,255),0.45)' : 'rgba(255,255,255,0.08)'};
+  border-radius: 13px;
+  padding: 12px 13px;
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-client-accent-rgb, 70,170,255),0.14)' : 'rgba(255,255,255,0.04)'};
+  color: rgba(255,255,255,0.82);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+`
+
+export const HelpTextarea = styled.textarea`
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 13px;
+  padding: 12px;
+  margin-top: 10px;
+  background: rgba(255,255,255,0.05);
+  color: #fff;
+  font-family: inherit;
+  outline: none;
+  &::placeholder { color: rgba(255,255,255,0.24); }
+`
+
+export const HelpActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 14px;
+`
+
+export const HelpBtn = styled.button`
+  border: 0;
+  border-radius: 999px;
+  padding: 10px 15px;
+  background: ${({ $primary }) => $primary ? 'var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%))' : 'rgba(255,255,255,0.08)'};
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  &:disabled { opacity: 0.45; cursor: default; }
 `
 
 export const ActionBtn = styled.button`

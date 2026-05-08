@@ -43,6 +43,13 @@ const lastPreview = (chat) => {
   return chat.lastMsg
 }
 
+const HELP_REASON_LABELS = {
+  forgot_user: 'Ayuda: usuario',
+  forgot_password: 'Ayuda: contraseña',
+  register: 'Ayuda: registro',
+  other: 'Ayuda',
+}
+
 const PROCESS_PALETTE = [
   { bg: 'rgba(245,158,11,0.14)', color: '#f59e0b' },
   { bg: 'rgba(34,197,94,0.14)', color: '#22c55e' },
@@ -396,7 +403,11 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
               <ChatBody>
                 <ChatRow>
                   <ChatUsername>{chat.username}</ChatUsername>
-                  {chat.assignedUserId ? (
+                  {chat.isHelpRequest ? (
+                    <TagEl style={{ background: 'rgba(250,204,21,0.12)', color: '#facc15', border: '1px solid rgba(250,204,21,0.30)' }}>
+                      {HELP_REASON_LABELS[chat.helpReason] || 'Ayuda'}
+                    </TagEl>
+                  ) : chat.assignedUserId ? (
                     <AssignedPill $own={isAssignedToMe}>
                       {isAssignedToMe ? 'Atendido por mi' : `Atendiendo ${chat.assignedUsername}`}
                     </AssignedPill>

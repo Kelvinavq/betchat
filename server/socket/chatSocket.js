@@ -34,7 +34,15 @@ function verifyToken(token) {
 async function canAccessChat({ payload, chatId }) {
   if (!payload) return false
   if (payload.type === 'client') {
-    const { rows, error } = await query('SELECT id FROM chats WHERE id = ? AND client_id = ? LIMIT 1', [chatId, payload.sub])
+    const { rows, error } = await query(
+      `SELECT ch.id
+       FROM chats ch
+       INNER JOIN clients c ON c.id = ch.client_id
+       WHERE ch.id = ? AND ch.client_id = ?
+         AND (c.is_temporary = 0 OR c.temp_session_active = 1)
+       LIMIT 1`,
+      [chatId, payload.sub]
+    )
     if (error) throw error
     return Boolean(rows?.length)
   }

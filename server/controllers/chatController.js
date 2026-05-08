@@ -264,6 +264,10 @@ function sanitizeChat(row) {
     assignedFullName: row.assigned_full_name || row.assigned_username || '',
     isOpen: Boolean(row.is_open),
     isArchived: Boolean(row.is_archived),
+    isHelpRequest: Boolean(row.is_help_request),
+    helpReason: row.help_reason || null,
+    helpNote: row.help_note || '',
+    temporaryClient: Boolean(row.is_temporary),
     unread: Number(row.unread_count || 0),
     lastMsg: row.last_message || '',
     lastMessageType: row.last_message_type || 'text',
@@ -286,6 +290,14 @@ async function getClientFromRequest(req) {
     issuer: config.jwtIssuer,
   })
   if (payload?.type !== 'client' || !payload?.sub) return null
+  const { rows, error } = await query(
+    'SELECT is_temporary, temp_session_active FROM clients WHERE id = ? LIMIT 1',
+    [payload.sub]
+  )
+  if (error) throw error
+  const client = rows?.[0]
+  if (!client) return null
+  if (client.is_temporary && !client.temp_session_active) return null
   return payload
 }
 
@@ -321,7 +333,7 @@ export async function getAdminChats(req, res, next) {
     logChatListCache('MISS', { archived, search, labelId, page, limit, source: 'mysql' })
 
     const { rows, error } = await query(
-      `SELECT ch.*, c.username, c.full_name, c.cuil, c.external_id, c.is_active, c.is_online, c.registered_at,
+      `SELECT ch.*, c.username, c.full_name, c.cuil, c.external_id, c.is_active, c.is_online, c.is_temporary, c.registered_at,
               u.username AS assigned_username, u.full_name AS assigned_full_name,
               (
                 SELECT GROUP_CONCAT(CONCAT(l.id, '::', l.name, '::', COALESCE(l.color, '#2563eb')) ORDER BY l.name SEPARATOR '||')
@@ -703,7 +715,7 @@ async function markOutboundMessagesDelivered(chatId) {
 
 async function getChat(chatId) {
   const { rows, error } = await query(
-    `SELECT ch.*, c.username, c.full_name, c.cuil, c.note, c.external_id, c.is_active, c.is_online, c.registered_at,
+    `SELECT ch.*, c.username, c.full_name, c.cuil, c.note, c.external_id, c.is_active, c.is_online, c.is_temporary, c.registered_at,
             u.username AS assigned_username, u.full_name AS assigned_full_name,
             (
               SELECT GROUP_CONCAT(CONCAT(l.id, '::', l.name, '::', COALESCE(l.color, '#2563eb')) ORDER BY l.name SEPARATOR '||')
@@ -939,6 +951,38 @@ export async function archiveChat(req, res, next) {
   }
 }
 
+export async function closeHelpChat(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    const chat = await getChat(chatId)
+    if (!chat) return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
+    if (!chat.is_help_request) {
+      return res.status(400).json({ error: 'Este chat no es una solicitud de ayuda', code: 'NOT_HELP_CHAT' })
+    }
+
+    await query(
+      `UPDATE chats
+       SET is_open = 0, is_archived = 1, closed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [chatId]
+    )
+    await query(
+      `UPDATE clients
+       SET temp_session_active = 0, is_online = 0, last_seen_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND is_temporary = 1`,
+      [chat.client_id]
+    )
+    await invalidateChatListCache('close_help')
+    await invalidateMessageCache(chatId)
+    const updated = sanitizeChat(await getChat(chatId))
+    io.to(`client:${chat.client_id}`).emit('temp-session:closed', { chatId, reason: 'help_closed' })
+    emitChatUpdate(updated)
+    res.json({ success: true, chat: updated })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function setClientOnlineStatus(clientId, online) {
   const id = Number(clientId)
   if (!id) return
@@ -952,7 +996,7 @@ export async function setClientOnlineStatus(clientId, online) {
   })
 
   const { rows, error } = await query(
-    `SELECT ch.*, c.username, c.full_name, c.cuil, c.external_id, c.is_active, c.is_online, c.registered_at,
+    `SELECT ch.*, c.username, c.full_name, c.cuil, c.external_id, c.is_active, c.is_online, c.is_temporary, c.registered_at,
             u.username AS assigned_username, u.full_name AS assigned_full_name,
             (
               SELECT GROUP_CONCAT(CONCAT(l.id, '::', l.name, '::', COALESCE(l.color, '#2563eb')) ORDER BY l.name SEPARATOR '||')

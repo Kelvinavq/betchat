@@ -42,3 +42,13 @@ CREATE TABLE IF NOT EXISTS `system_config` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 INSERT IGNORE INTO `system_config` (`id`) VALUES (1);
+
+ALTER TABLE `clients`
+  ADD COLUMN `is_temporary` TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_online`,
+  ADD COLUMN `temp_session_active` TINYINT(1) NOT NULL DEFAULT 1 AFTER `is_temporary`;
+
+ALTER TABLE `chats`
+  ADD COLUMN `is_help_request` TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_archived`,
+  ADD COLUMN `help_reason` VARCHAR(40) DEFAULT NULL AFTER `is_help_request`,
+  ADD COLUMN `help_note` TEXT DEFAULT NULL AFTER `help_reason`,
+  ADD COLUMN `closed_at` DATETIME DEFAULT NULL AFTER `updated_at`;

@@ -870,6 +870,18 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     event.currentTarget?.setPointerCapture?.(event.pointerId)
   }
 
+  const closeHelpChat = async () => {
+    if (!chat?.id) return
+    try {
+      await api.put(`/api/chats/${chat.id}/help/close`, {})
+      setMenuOpen(false)
+      onBack?.()
+    } catch (error) {
+      window.alert(error.message || 'No se pudo cerrar la ayuda.')
+      setMenuOpen(false)
+    }
+  }
+
   const handleMessagePointerMove = (event, message) => {
     const start = pointerStartRef.current
     if (!start || start.messageId !== message.id || !message?.dbId) return
@@ -967,6 +979,11 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
           </HeaderMenuBtn>
           {menuOpen && (
             <DropdownMenu>
+              {chat.isHelpRequest && (
+                <DropdownItem onClick={closeHelpChat}>
+                  <CloseIcon />Cerrar ayuda temporal
+                </DropdownItem>
+              )}
               <DropdownItem onClick={archiveCurrentChat}>
                 <ArchiveOutlinedIcon />Archivar conversación
               </DropdownItem>

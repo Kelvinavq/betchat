@@ -2,6 +2,7 @@ import { Router } from 'express'
 import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js'
 import {
   archiveChat,
+  closeHelpChat,
   createChatLabel,
   getChatClientDetails,
   getChatLabels,
@@ -28,5 +29,6 @@ router.get('/:chatId/messages', getMessages)
 router.post('/:chatId/messages', sendAdminMessage)
 router.put('/:chatId/read', markChatRead)
 router.put('/:chatId/archive', archiveChat)
+router.put('/:chatId/help/close', closeHelpChat)
 
 export default router
