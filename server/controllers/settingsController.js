@@ -3,7 +3,7 @@ import { mkdir, unlink, writeFile } from 'fs/promises'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
-import { query } from '../config/database.js'
+import { query, transaction } from '../config/database.js'
 import { hashPassword, verifyPassword } from '../utils/password.js'
 
 const __filename = fileURLToPath(import.meta.url)
@@ -125,7 +125,7 @@ async function removeBrandingFile(url) {
 
 export async function getSystemConfig() {
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, client_registration_enabled FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, client_registration_enabled, client_logout_enabled FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -134,6 +134,7 @@ export async function getSystemConfig() {
     appName: row.app_name || 'BetChat',
     logoUrl: row.logo_url || '',
     clientRegistrationEnabled: row.client_registration_enabled !== 0,
+    clientLogoutEnabled: row.client_logout_enabled !== 0,
   }
 }
 
@@ -153,7 +154,10 @@ async function getProfile(userId) {
 
 async function getAmounts() {
   const { rows, error } = await query(
-    'SELECT currency, operation, min_amount, max_amount, is_active FROM amounts WHERE operation IN ("deposit", "withdrawal")',
+    `SELECT currency, operation, min_amount, max_amount, is_active
+     FROM amounts
+     WHERE operation IN ("deposit", "withdrawal")
+     ORDER BY operation, is_active DESC, updated_at DESC, id DESC`,
     []
   )
   if (error) throw error
@@ -162,14 +166,19 @@ async function getAmounts() {
     carga: { amount: '10', currency: 'USD' },
     retiro: { amount: '50', currency: 'USD' },
   }
+  const assigned = {
+    carga: false,
+    retiro: false,
+  }
 
   rows.forEach(row => {
     const key = row.operation === 'deposit' ? 'carga' : 'retiro'
-    if (row.is_active) {
+    if (row.is_active && !assigned[key]) {
       result[key] = {
         amount: String(row.min_amount ?? '0'),
         currency: row.currency || 'USD',
       }
+      assigned[key] = true
     }
   })
 
@@ -431,6 +440,8 @@ export async function updateSystemConfig(req, res, next) {
     const appName = normalizeText(req.body.appName || req.body.app_name || current.appName) || 'BetChat'
     const registrationValue = req.body.clientRegistrationEnabled ?? req.body.client_registration_enabled ?? current.clientRegistrationEnabled
     const clientRegistrationEnabled = registrationValue === false || registrationValue === 0 || registrationValue === '0' ? 0 : 1
+    const logoutValue = req.body.clientLogoutEnabled ?? req.body.client_logout_enabled ?? current.clientLogoutEnabled
+    const clientLogoutEnabled = logoutValue === false || logoutValue === 0 || logoutValue === '0' ? 0 : 1
     let logoUrl = normalizeText(req.body.logoUrl || req.body.logo_url || current.logoUrl)
 
     if (req.body.logoDataUrl || req.body.logo_data_url) {
@@ -448,10 +459,10 @@ export async function updateSystemConfig(req, res, next) {
     }
 
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, client_registration_enabled)
-       VALUES (1, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), client_registration_enabled = VALUES(client_registration_enabled)`,
-      [appName.slice(0, 120), logoUrl || null, clientRegistrationEnabled]
+      `INSERT INTO system_config (id, app_name, logo_url, client_registration_enabled, client_logout_enabled)
+       VALUES (1, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled)`,
+      [appName.slice(0, 120), logoUrl || null, clientRegistrationEnabled, clientLogoutEnabled]
     )
     if (error) return next(error)
 
@@ -556,22 +567,27 @@ export async function updateAmounts(req, res, next) {
       return validation.value
     })
 
-    for (const item of normalized) {
-      const { error } = await query(
+    await transaction(async (connection) => {
+      for (const item of normalized) {
+        await connection.execute(
+          'UPDATE amounts SET is_active = 0 WHERE operation = ? AND currency <> ?',
+          [item.operation, item.currency]
+        )
+        await connection.execute(
         `INSERT INTO amounts (currency, operation, min_amount, is_active)
          VALUES (?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE min_amount = VALUES(min_amount), is_active = VALUES(is_active)`,
-        [item.currency, item.operation, item.amount, item.is_active]
-      )
-      if (error) return next(error)
-    }
+         ON DUPLICATE KEY UPDATE min_amount = VALUES(min_amount), is_active = VALUES(is_active), updated_at = CURRENT_TIMESTAMP`,
+          [item.currency, item.operation, item.amount, item.is_active]
+        )
+      }
+    })
 
     res.json({ amounts: await getAmounts(), amountsList: await getAmountsList() })
   } catch (err) {
     if (err.message && err.message.startsWith('Moneda no soportada')) {
       return res.status(400).json({ error: err.message, code: 'INVALID_CURRENCY' })
     }
-    if (err.message === 'Operacion invalida' || err.message === 'Monto invalido') {
+    if ((err.message && err.message.startsWith('Operacion invalida')) || err.message === 'Monto invalido') {
       return res.status(400).json({ error: err.message, code: 'INVALID_AMOUNTS' })
     }
     next(err)

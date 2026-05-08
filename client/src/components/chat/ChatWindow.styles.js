@@ -527,9 +527,94 @@ export const ChatHeaderBtn = styled.button`
   transition: color 0.2s;
   svg { font-size: 18px; }
   &:hover { color: rgba(255, 255, 255, 0.85); }
+  &:disabled {
+    opacity: 0.45;
+    cursor: default;
+  }
 `
 
 /* ── messages area ── */
+
+const noticeIn = keyframes`
+  from { opacity: 0; transform: translateY(10px) scale(0.96); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+`
+
+export const LogoutNoticeOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 22px;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.20) 0%, transparent 62%),
+    rgba(0, 0, 0, 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+`
+
+export const LogoutNoticeCard = styled.div`
+  width: min(294px, 100%);
+  padding: 24px 20px 20px;
+  border-radius: 22px;
+  background: rgba(12, 12, 26, 0.96);
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.24);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.52);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  animation: ${noticeIn} 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+`
+
+export const LogoutNoticeIcon = styled.div`
+  width: 54px;
+  height: 54px;
+  border-radius: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 14px;
+  color: #ffffff;
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.36);
+  box-shadow: 0 0 34px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.24);
+
+  svg { font-size: 28px; }
+`
+
+export const LogoutNoticeTitle = styled.h3`
+  margin: 0;
+  color: #ffffff;
+  font-size: 20px;
+  font-weight: 800;
+`
+
+export const LogoutNoticeText = styled.p`
+  margin: 8px 0 18px;
+  max-width: 230px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 13px;
+  line-height: 1.45;
+`
+
+export const LogoutNoticeBtn = styled.button`
+  min-width: 104px;
+  height: 40px;
+  border-radius: 12px;
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.28);
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 10px 26px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.20);
+
+  &:hover { filter: brightness(1.08); }
+`
 
 export const MessagesArea = styled.div`
   flex: 1;
@@ -718,6 +803,7 @@ export const MessageBubble = styled.div`
   font-size: 13.5px;
   line-height: 1.45;
   word-break: break-word;
+  white-space: pre-wrap;
 
   p, div { margin: 0 0 5px; }
   p:last-child, div:last-child { margin-bottom: 0; }
@@ -989,6 +1075,91 @@ export const BotOptionBtn = styled.button`
 const scrollBtnIn = keyframes`
   from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(0.85); }
   to   { opacity: 1; transform: translateX(-50%) translateY(0)   scale(1);    }
+`
+
+export const BotFormCard = styled.form`
+  width: min(100%, 286px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.18);
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255,255,255,0.88);
+`
+
+export const BotFormTitle = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+`
+
+export const BotFormDesc = styled.div`
+  font-size: 12px;
+  line-height: 1.4;
+  color: rgba(255,255,255,0.54);
+`
+
+export const BotFormField = styled.label`
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.52);
+`
+
+export const BotFormInputRow = styled.div`
+  display: flex;
+  gap: 6px;
+`
+
+export const BotFormInput = styled.input`
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.20);
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+  &::placeholder { color: rgba(255,255,255,0.24); }
+  &:focus {
+    border-color: var(--bc-client-accent, #1e85ff);
+    box-shadow: 0 0 0 3px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.12);
+  }
+`
+
+export const BotFormPasteBtn = styled.button`
+  width: 38px;
+  height: 38px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.72);
+  font-size: 11px;
+  cursor: pointer;
+`
+
+export const BotFormSubmit = styled.button`
+  height: 38px;
+  border: none;
+  border-radius: 9px;
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  &:disabled {
+    opacity: 0.52;
+    cursor: not-allowed;
+  }
+`
+
+export const BotFormError = styled.div`
+  font-size: 11px;
+  color: #fca5a5;
+  line-height: 1.35;
 `
 
 export const ScrollDownBtn = styled.button`

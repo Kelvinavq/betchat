@@ -21,7 +21,10 @@ import PushPinIcon from '@mui/icons-material/PushPin'
 import PersonOffOutlinedIcon from '@mui/icons-material/BlockOutlined'
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import DropUpload from '../../common/DropUpload'
+import MovementDrawer from './MovementDrawer'
 import { api, resolveApiAsset } from '../../../utils/api'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../../utils/richText'
@@ -32,6 +35,7 @@ import {
   PinnedMessageBar, PinnedMessageMain, PinnedMessageIcon, PinnedMessageText,
   PinnedMessageTitle, PinnedMessagePreview, PinnedMessageClose,
   MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgBubble, MsgMeta, MsgStatus, MsgTime,
+  FormSubmissionCard, FormSubmissionTitle, FormSubmissionRow, FormSubmissionLabel, FormSubmissionValue, FormSubmissionCopy,
   MessageActionMenu, MessageActionItem, ReplyQuote, ReplyAuthor, ReplyText,
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   ScrollDownBtn, MediaMsgImg, MediaMsgPdf,
@@ -198,6 +202,20 @@ const pinnedMessageSnapshot = (message) => ({
   fileName: message.fileName || '',
   time: message.time || '',
 })
+
+const parseFormSubmission = (text = '') => {
+  const lines = String(text || '').split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+  if (!lines[0]?.toLowerCase().startsWith('formulario:')) return null
+  return {
+    title: lines[0].replace(/^formulario:\s*/i, '').trim() || 'Formulario',
+    rows: lines.slice(1).map(line => {
+      const index = line.indexOf(':')
+      return index === -1
+        ? { label: 'Dato', value: line }
+        : { label: line.slice(0, index).trim() || 'Dato', value: line.slice(index + 1).trim() }
+    }).filter(row => row.value),
+  }
+}
 
 const SendingLoader = ({ mediaType }) => {
   const texts = LOADER_TEXTS[mediaType] ?? LOADER_TEXTS.image
@@ -400,6 +418,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const [swipeReply, setSwipeReply] = useState(null)
   const [pinnedMessage, setPinnedMessage] = useState(null)
   const [pinnedFlashId, setPinnedFlashId] = useState(null)
+  const [movementDrawerOpen, setMovementDrawerOpen] = useState(false)
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -880,6 +899,25 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     }
   }
 
+  const completeWithdrawal = async () => {
+    if (!chat?.id) return
+    const clientMessageId = makeClientMessageId('withdrawal-complete')
+    try {
+      const result = await api.post(`/api/chats/${chat.id}/withdrawal/complete`, { clientMessageId })
+      if (result.message) {
+        setMessages(prev => {
+          const mapped = mapDbMessage(result.message)
+          if (prev.some(item => item.dbId && Number(item.dbId) === Number(mapped.dbId))) return prev
+          return [...prev, mapped]
+        })
+      }
+    } catch (error) {
+      window.alert(error.message || 'No se pudo marcar el retiro como completado.')
+    } finally {
+      setMenuOpen(false)
+    }
+  }
+
   const beginReply = (message) => {
     if (!message?.dbId) return
     setReplyingTo(message)
@@ -918,6 +956,26 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     pinMessage(message)
   }
 
+  const copyPlainText = async (text) => {
+    if (!text) return
+    try {
+      await navigator.clipboard.writeText(hasRichText(text) ? htmlToPlainText(text) : text)
+    } catch {
+      const area = document.createElement('textarea')
+      area.value = hasRichText(text) ? htmlToPlainText(text) : text
+      document.body.appendChild(area)
+      area.select()
+      document.execCommand('copy')
+      document.body.removeChild(area)
+    }
+  }
+
+  const copyMessageText = async (message) => {
+    const text = message?.text || message?.content || replyPreviewText(message)
+    await copyPlainText(text)
+    setMessageMenu(null)
+  }
+
   const jumpToPinnedMessage = () => {
     if (!currentPinnedMessage?.dbId) return
     const target = listRef.current?.querySelector(`[data-db-id="${currentPinnedMessage.dbId}"]`)
@@ -931,7 +989,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     event.preventDefault()
     if (!message?.dbId) return
     const menuWidth = 150
-    const menuHeight = 92
+    const menuHeight = 132
     setMessageMenu({
       message,
       x: Math.min(event.clientX, window.innerWidth - menuWidth - 10),
@@ -1016,6 +1074,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         <MediaViewer data={viewerData} onClose={() => setViewerData(null)} />,
         document.body
       )}
+      {movementDrawerOpen && createPortal(
+        <MovementDrawer chat={chat} onClose={() => setMovementDrawerOpen(false)} />,
+        document.body
+      )}
       {messageMenu && createPortal(
         <MessageActionMenu ref={messageMenuRef} $x={messageMenu.x} $y={messageMenu.y}>
           <MessageActionItem type="button" onClick={() => beginReply(messageMenu.message)}>
@@ -1024,6 +1086,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
           <MessageActionItem type="button" onClick={() => togglePinnedMessage(messageMenu.message)}>
             <PushPinOutlinedIcon />
             {pinnedMessage?.dbId && Number(pinnedMessage.dbId) === Number(messageMenu.message.dbId) ? 'Desfijar' : 'Fijar'}
+          </MessageActionItem>
+          <MessageActionItem type="button" onClick={() => copyMessageText(messageMenu.message)}>
+            <ContentCopyIcon />Copiar
           </MessageActionItem>
         </MessageActionMenu>,
         document.body
@@ -1053,6 +1118,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
           </HeaderMenuBtn>
         )}
 
+        <HeaderMenuBtn onClick={() => setMovementDrawerOpen(true)} aria-label="Movimientos del cliente">
+          <AccountBalanceWalletOutlinedIcon />
+        </HeaderMenuBtn>
+
         <HeaderMenuWrap ref={menuRef}>
           <HeaderMenuBtn onClick={() => setMenuOpen(p => !p)}>
             <MoreVertIcon />
@@ -1066,6 +1135,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
               )}
               <DropdownItem onClick={archiveCurrentChat}>
                 <ArchiveOutlinedIcon />Archivar conversación
+              </DropdownItem>
+              <DropdownItem onClick={completeWithdrawal}>
+                <CheckIcon />Marcar retiro completado
               </DropdownItem>
               <DropdownItem onClick={() => setMenuOpen(false)}>
                 <PersonOffOutlinedIcon />Bloquear usuario
@@ -1146,13 +1218,37 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
                     <VoiceMessage audioUrl={msg.audioUrl || msg.mediaUrl} duration={msg.duration} sent={msg.sent} />
                   </>
                 ) : (
-                  <MsgBubble $sent={msg.sent}>
-                    {renderReplyQuote(msg.replyTo, msg.sent)}
-                    {msg.sent && hasRichText(msg.text)
-                      ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
-                      : msg.text
+                  (() => {
+                    const formSubmission = !msg.sent ? parseFormSubmission(msg.text) : null
+                    if (formSubmission) {
+                      return (
+                        <FormSubmissionCard>
+                          {renderReplyQuote(msg.replyTo, msg.sent)}
+                          <FormSubmissionTitle>{formSubmission.title}</FormSubmissionTitle>
+                          {formSubmission.rows.map((row, index) => (
+                            <FormSubmissionRow key={`${row.label}-${index}`}>
+                              <div>
+                                <FormSubmissionLabel>{row.label}</FormSubmissionLabel>
+                                <FormSubmissionValue>{row.value}</FormSubmissionValue>
+                              </div>
+                              <FormSubmissionCopy type="button" onClick={() => copyPlainText(row.value)} title="Copiar dato">
+                                <ContentCopyIcon />
+                              </FormSubmissionCopy>
+                            </FormSubmissionRow>
+                          ))}
+                        </FormSubmissionCard>
+                      )
                     }
-                  </MsgBubble>
+                    return (
+                      <MsgBubble $sent={msg.sent}>
+                        {renderReplyQuote(msg.replyTo, msg.sent)}
+                        {msg.sent && hasRichText(msg.text)
+                          ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
+                          : msg.text
+                        }
+                      </MsgBubble>
+                    )
+                  })()
                 )}
                 <MsgMeta>
                   <MsgTime>{msg.time}</MsgTime>

@@ -4,9 +4,10 @@ import { config } from '../config/config.js'
 import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { persistMessage } from './chatController.js'
 
-const ITEM_TYPES = ['message', 'button']
+const ITEM_TYPES = ['message', 'button', 'form']
 const BUTTON_TYPES = ['navigate', 'receipt_request', 'messages_only']
 const RECEIPT_PROCESSING = ['auto', 'manual']
+const FORM_FIELD_TYPES = ['text', 'number']
 
 const SAFE_BANK_FIELDS = new Set(['nombre_titular', 'alias', 'cbu', 'email', 'cuit', 'currency'])
 
@@ -47,6 +48,44 @@ function parseJsonArray(value) {
   }
 }
 
+function parseJsonObject(value) {
+  if (!value) return {}
+  if (typeof value === 'object' && !Array.isArray(value)) return value
+  try {
+    const parsed = JSON.parse(value)
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+function normalizeFormConfig(rawConfig, fallbackTitle = '') {
+  const config = parseJsonObject(rawConfig)
+  const fields = Array.isArray(config.fields) ? config.fields : []
+  return {
+    title: String(config.title || fallbackTitle || 'Formulario').trim().slice(0, 120),
+    description: String(config.description || '').trim().slice(0, 500),
+    submitLabel: String(config.submitLabel || config.submit_label || 'Enviar').trim().slice(0, 60) || 'Enviar',
+    responseMessages: parseJsonArray(config.responseMessages || config.response_messages)
+      .map(message => String(message || '').trim())
+      .filter(Boolean)
+      .slice(0, 8),
+    fields: fields.map((field, index) => {
+      const type = FORM_FIELD_TYPES.includes(String(field.type || 'text')) ? String(field.type || 'text') : 'text'
+      const key = normalizeId(field.key || field.id || `campo_${index + 1}`).replace(/[^a-z0-9_-]/gi, '_').slice(0, 40) || `campo_${index + 1}`
+      const max = field.max === '' || field.max == null ? null : Number(field.max)
+      return {
+        key,
+        label: String(field.label || `Campo ${index + 1}`).trim().slice(0, 80),
+        type,
+        placeholder: String(field.placeholder || '').trim().slice(0, 120),
+        required: field.required !== false,
+        max: type === 'number' && !Number.isNaN(max) ? max : null,
+      }
+    }).filter(field => field.label).slice(0, 12),
+  }
+}
+
 const sanitizeScreen = (screen) => ({
   id: screen.id,
   name: screen.name,
@@ -59,6 +98,7 @@ const sanitizeItem = (item) => ({
   type: item.type,
   text: item.text || '',
   label: item.label || '',
+  formConfig: normalizeFormConfig(item.form_config, item.label || item.text),
   buttonType: item.button_type || 'navigate',
   receiptProcessing: item.receipt_processing || 'manual',
   receiptPrompt: item.receipt_prompt || '',
@@ -71,6 +111,35 @@ const sanitizeItem = (item) => ({
 
 function normalizeId(value) {
   return String(value || '').trim()
+}
+
+function formatFormSubmission(formConfig, values) {
+  const title = formConfig.title || 'Formulario'
+  const lines = [`Formulario: ${title}`]
+  for (const field of formConfig.fields || []) {
+    lines.push(`${field.label}: ${String(values?.[field.key] ?? '').trim()}`)
+  }
+  return lines.join('\n')
+}
+
+function validateFormValues(formConfig, values) {
+  const errors = []
+  for (const field of formConfig.fields || []) {
+    const raw = String(values?.[field.key] ?? '').trim()
+    if (field.required && !raw) {
+      errors.push(`Completa "${field.label}"`)
+      continue
+    }
+    if (field.type === 'number' && raw) {
+      const value = Number(raw)
+      if (Number.isNaN(value)) {
+        errors.push(`"${field.label}" debe ser numerico`)
+      } else if (field.max != null && value > Number(field.max)) {
+        errors.push(`"${field.label}" debe ser menor o igual a ${field.max}`)
+      }
+    }
+  }
+  return errors
 }
 
 function validateFlow(body) {
@@ -112,6 +181,7 @@ function validateFlow(body) {
         .slice(0, 8)
       const actionScreenId = normalizeId(item.actionScreenId || item.action_screen_id)
       const isBack = Boolean(item.isBack || item.is_back)
+      const formConfig = normalizeFormConfig(item.formConfig || item.form_config, label || text)
 
       if (!itemId) errors.push(`Hay un elemento sin ID en "${name || id}"`)
       else if (!/^[a-z0-9_-]+$/i.test(itemId)) errors.push(`El ID de elemento "${itemId}" no es valido`)
@@ -121,6 +191,7 @@ function validateFlow(body) {
       if (!ITEM_TYPES.includes(type)) errors.push(`Tipo de elemento invalido en "${name || id}"`)
       if (type === 'message' && !text) errors.push(`Hay un mensaje vacio en "${name || id}"`)
       if (type === 'button' && !label) errors.push(`Hay un boton sin texto en "${name || id}"`)
+      if (type === 'form' && formConfig.fields.length === 0) errors.push(`El formulario "${formConfig.title || itemId}" necesita al menos un campo`)
       if (type === 'button' && buttonType === 'receipt_request' && !receiptPrompt) errors.push(`El boton "${label || itemId}" necesita texto para solicitar comprobante`)
       if (type === 'button' && buttonType === 'messages_only' && showReceiptAfter && !receiptPrompt) errors.push(`El boton "${label || itemId}" necesita texto para solicitar comprobante`)
       return {
@@ -128,6 +199,7 @@ function validateFlow(body) {
         type,
         text,
         label,
+        formConfig,
         buttonType,
         receiptProcessing,
         receiptPrompt,
@@ -184,7 +256,7 @@ async function loadBotFlow() {
   if (screenError) throw screenError
 
   const { rows: itemRows, error: itemError } = await query(
-    `SELECT id, screen_id, type, text, label, button_type, receipt_processing, receipt_prompt, show_receipt_after, response_messages, action_screen_id, is_back, sort_order
+    `SELECT id, screen_id, type, text, label, form_config, button_type, receipt_processing, receipt_prompt, show_receipt_after, response_messages, action_screen_id, is_back, sort_order
        FROM bot_items
        ORDER BY screen_id ASC, sort_order ASC, created_at ASC`
   )
@@ -337,7 +409,7 @@ export async function selectClientBotOption(req, res, next) {
     const stayOnScreen = isReceiptRequest || isMessagesOnly
     const targetScreenId = stayOnScreen ? (chat.bot_screen_id || button.screen_id) : (button.action_screen_id || chat.bot_screen_id || button.screen_id)
     const { rows: itemRows, error: itemError } = await query(
-      `SELECT id, type, text, label, button_type, receipt_processing, receipt_prompt, response_messages, action_screen_id, is_back, sort_order
+      `SELECT id, type, text, label, form_config, button_type, receipt_processing, receipt_prompt, response_messages, action_screen_id, is_back, sort_order
        FROM bot_items
        WHERE screen_id = ?
        ORDER BY sort_order ASC, created_at ASC`,
@@ -414,6 +486,107 @@ export async function selectClientBotOption(req, res, next) {
   }
 }
 
+export async function submitClientBotForm(req, res, next) {
+  try {
+    const client = getClientPayload(req)
+    if (!client?.sub) {
+      return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
+    }
+
+    const chatId = Number(req.params.chatId || req.body?.chatId)
+    const formId = normalizeId(req.body?.formId)
+    const values = req.body?.values && typeof req.body.values === 'object' ? req.body.values : {}
+    const clientMessageId = normalizeId(req.body?.clientMessageId)
+    const botMessageIds = Array.isArray(req.body?.botMessageIds) ? req.body.botMessageIds.map(normalizeId) : []
+    if (!chatId || !formId) {
+      return res.status(400).json({ error: 'Formulario del bot invalido.', code: 'INVALID_BOT_FORM' })
+    }
+
+    const { rows: chatRows, error: chatError } = await query(
+      `SELECT id, bot_screen_id
+       FROM chats
+       WHERE id = ? AND client_id = ? AND is_archived = 0
+       LIMIT 1`,
+      [chatId, client.sub]
+    )
+    if (chatError) return next(chatError)
+    const chat = chatRows?.[0]
+    if (!chat) {
+      return res.status(404).json({ error: 'Chat no encontrado.', code: 'CHAT_NOT_FOUND' })
+    }
+
+    const { rows: formRows, error: formError } = await query(
+      `SELECT id, screen_id, label, form_config
+       FROM bot_items
+       WHERE id = ? AND type = 'form'
+       LIMIT 1`,
+      [formId]
+    )
+    if (formError) return next(formError)
+    const form = formRows?.[0]
+    if (!form) {
+      return res.status(404).json({ error: 'Formulario del bot no encontrado.', code: 'BOT_FORM_NOT_FOUND' })
+    }
+
+    const formConfig = normalizeFormConfig(form.form_config, form.label)
+    const validationErrors = validateFormValues(formConfig, values)
+    if (validationErrors.length) {
+      return res.status(400).json({ error: 'Formulario incompleto.', details: validationErrors, code: 'INVALID_BOT_FORM_VALUES' })
+    }
+
+    const created = []
+    const submitted = await persistMessage({
+      chatId,
+      senderType: 'client',
+      content: formatFormSubmission(formConfig, values),
+      messageType: 'text',
+      clientMessageId,
+    })
+    created.push(submitted.message)
+
+    for (const [index, text] of formConfig.responseMessages.entries()) {
+      const resolvedContent = await resolveBankPlaceholders(String(text || '').trim())
+      if (!resolvedContent) continue
+      const result = await persistMessage({
+        chatId,
+        senderType: 'system',
+        content: resolvedContent,
+        messageType: 'text',
+        clientMessageId: botMessageIds[index] || `bot-form-${formId}-response-${index}`,
+      })
+      created.push(result.message)
+    }
+
+    const targetScreenId = form.screen_id || chat.bot_screen_id
+    const { rows: updateRows, error: updateError } = await query(
+      `UPDATE chats
+       SET bot_screen_id = ?, bot_last_button_id = ?, updated_at = CURRENT_TIMESTAMP
+       WHERE id = ? AND client_id = ?`,
+      [targetScreenId, formId, chatId, client.sub]
+    )
+    if (updateError) return next(updateError)
+    if (!updateRows?.affectedRows) {
+      return res.status(404).json({ error: 'Chat no encontrado.', code: 'CHAT_NOT_FOUND' })
+    }
+
+    res.status(201).json({
+      success: true,
+      messages: created,
+      form: {
+        id: form.id,
+        responseMessages: formConfig.responseMessages,
+      },
+      state: {
+        chatId,
+        currentScreenId: targetScreenId,
+        lastButtonId: formId,
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function saveBotFlow(req, res, next) {
   try {
     const { errors, screens } = validateFlow(req.body?.flow || req.body)
@@ -441,14 +614,15 @@ export async function saveBotFlow(req, res, next) {
         for (const item of screen.items) {
           await connection.execute(
             `INSERT INTO bot_items
-              (id, screen_id, type, text, label, button_type, receipt_processing, receipt_prompt, show_receipt_after, response_messages, action_screen_id, is_back, sort_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, screen_id, type, text, label, form_config, button_type, receipt_processing, receipt_prompt, show_receipt_after, response_messages, action_screen_id, is_back, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               item.id,
               screen.id,
               item.type,
               item.type === 'message' ? item.text : null,
-              item.type === 'button' ? item.label : null,
+              item.type === 'button' ? item.label : item.type === 'form' ? item.formConfig.title : null,
+              item.type === 'form' ? JSON.stringify(item.formConfig) : null,
               item.type === 'button' ? item.buttonType : 'navigate',
               item.type === 'button' ? item.receiptProcessing : 'manual',
               item.type === 'button' && (item.buttonType === 'receipt_request' || item.showReceiptAfter) ? item.receiptPrompt : null,

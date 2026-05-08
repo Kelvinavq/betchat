@@ -188,6 +188,19 @@ CREATE TABLE IF NOT EXISTS `config_openrouter` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
+--  12. CHAT PROCESSING CONFIG
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `chat_processing_config` (
+  `id`              INT UNSIGNED NOT NULL DEFAULT 1,
+  `bank_account_id` INT UNSIGNED DEFAULT NULL COMMENT 'active account for incoming deposits',
+  `updated_at`      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `fk_cpc_bank_account` (`bank_account_id`),
+  CONSTRAINT `chk_chat_processing_config_singleton` CHECK (`id` = 1),
+  CONSTRAINT `fk_cpc_bank_account` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
 --  13. THEME CONFIG  (active theme selection)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS `theme_config` (
@@ -207,6 +220,7 @@ CREATE TABLE IF NOT EXISTS `system_config` (
   `app_name`                      VARCHAR(120) NOT NULL DEFAULT 'BetChat',
   `logo_url`                      VARCHAR(512) DEFAULT NULL,
   `client_registration_enabled`   TINYINT(1)   NOT NULL DEFAULT 1,
+  `client_logout_enabled`         TINYINT(1)   NOT NULL DEFAULT 1,
   `updated_at`                    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (`id`),
   CONSTRAINT `chk_system_config_singleton` CHECK (`id` = 1)
@@ -273,6 +287,161 @@ CREATE TABLE IF NOT EXISTS `messages` (
   CONSTRAINT `fk_msg_client`      FOREIGN KEY (`client_id`)      REFERENCES `clients` (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_msg_sender_user` FOREIGN KEY (`sender_user_id`) REFERENCES `users`   (`id`) ON DELETE SET NULL,
   CONSTRAINT `fk_msg_reply_to`    FOREIGN KEY (`reply_to_message_id`) REFERENCES `messages` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  15A. MANUAL PAYMENT MOVEMENTS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `manual_payment_movements` (
+  `id`                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `client_id`             INT UNSIGNED    NOT NULL,
+  `chat_id`               INT UNSIGNED    NOT NULL,
+  `message_id`            BIGINT UNSIGNED NOT NULL COMMENT 'receipt image/pdf message',
+  `bank_account_id`       INT UNSIGNED    DEFAULT NULL,
+  `status`                ENUM('pending','paid','rejected') NOT NULL DEFAULT 'pending',
+  `amount`                DECIMAL(18,2)   NOT NULL DEFAULT 0.00,
+  `ai_extracted_text`     JSON            DEFAULT NULL,
+  `ai_status`             ENUM('ok','error') DEFAULT NULL,
+  `transaction_id`        VARCHAR(160)    DEFAULT NULL,
+  `is_duplicate`          TINYINT(1)      NOT NULL DEFAULT 0,
+  `duplicate_of_id`       BIGINT UNSIGNED DEFAULT NULL,
+  `processed_by_user_id`  INT UNSIGNED    DEFAULT NULL COMMENT 'admin/cashier who paid/rejected/marked pending',
+  `processed_at`          DATETIME        DEFAULT NULL,
+  `status_updated_at`     DATETIME        DEFAULT NULL,
+  `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_mpm_client_created` (`client_id`, `created_at`),
+  KEY `idx_mpm_chat` (`chat_id`),
+  KEY `idx_mpm_message` (`message_id`),
+  KEY `idx_mpm_account` (`bank_account_id`),
+  KEY `idx_mpm_status` (`status`),
+  KEY `idx_mpm_transaction_amount` (`transaction_id`, `amount`),
+  KEY `idx_mpm_duplicate_of` (`duplicate_of_id`),
+  CONSTRAINT `fk_mpm_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mpm_chat` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mpm_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mpm_account` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_mpm_duplicate_of` FOREIGN KEY (`duplicate_of_id`) REFERENCES `manual_payment_movements` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_mpm_processed_by` FOREIGN KEY (`processed_by_user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  15B. HG CASH MOVEMENTS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `hgcash_movements` (
+  `id`                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `client_id`             INT UNSIGNED    NOT NULL,
+  `chat_id`               INT UNSIGNED    NOT NULL,
+  `message_id`            BIGINT UNSIGNED NOT NULL,
+  `bank_account_id`       INT UNSIGNED    DEFAULT NULL,
+  `cuit`                  VARCHAR(20)     DEFAULT NULL,
+  `receipt_date`          DATE            DEFAULT NULL,
+  `receipt_time`          TIME            DEFAULT NULL,
+  `amount`                DECIMAL(18,2)   NOT NULL DEFAULT 0.00,
+  `cbu_cvu`               VARCHAR(32)     DEFAULT NULL,
+  `bank_status`           VARCHAR(80)     DEFAULT NULL,
+  `coelsa_id`             VARCHAR(160)    DEFAULT NULL,
+  `status`                ENUM('pending','paid','rejected') NOT NULL DEFAULT 'pending',
+  `game_platform_load_id` VARCHAR(160)    DEFAULT NULL,
+  `game_load_date`        DATE            DEFAULT NULL,
+  `game_load_time`        TIME            DEFAULT NULL,
+  `game_load_amount`      DECIMAL(18,2)   DEFAULT NULL,
+  `sync_status`           ENUM('synced','not_synced','error') NOT NULL DEFAULT 'not_synced',
+  `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_hgc_client_created` (`client_id`, `created_at`),
+  KEY `idx_hgc_chat` (`chat_id`),
+  KEY `idx_hgc_message` (`message_id`),
+  KEY `idx_hgc_account` (`bank_account_id`),
+  KEY `idx_hgc_status` (`status`),
+  KEY `idx_hgc_coelsa` (`coelsa_id`),
+  KEY `idx_hgc_amount` (`amount`),
+  CONSTRAINT `fk_hgc_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_hgc_chat` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_hgc_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_hgc_account` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  15C. TELEPAGOS MOVEMENTS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `telepagos_movements` (
+  `id`                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `client_id`             INT UNSIGNED    NOT NULL,
+  `chat_id`               INT UNSIGNED    NOT NULL,
+  `message_id`            BIGINT UNSIGNED NOT NULL,
+  `bank_account_id`       INT UNSIGNED    DEFAULT NULL,
+  `cuit`                  VARCHAR(20)     DEFAULT NULL,
+  `receipt_date`          DATE            DEFAULT NULL,
+  `receipt_time`          TIME            DEFAULT NULL,
+  `amount`                DECIMAL(18,2)   NOT NULL DEFAULT 0.00,
+  `description`           VARCHAR(255)    DEFAULT NULL,
+  `account_holder`        VARCHAR(160)    DEFAULT NULL,
+  `cbu_cvu`               VARCHAR(32)     DEFAULT NULL,
+  `bank_status`           VARCHAR(80)     DEFAULT NULL,
+  `coelsa_id`             VARCHAR(160)    DEFAULT NULL,
+  `status`                ENUM('pending','paid','rejected') NOT NULL DEFAULT 'pending',
+  `game_platform_load_id` VARCHAR(160)    DEFAULT NULL,
+  `game_load_date`        DATE            DEFAULT NULL,
+  `game_load_time`        TIME            DEFAULT NULL,
+  `game_load_amount`      DECIMAL(18,2)   DEFAULT NULL,
+  `sync_status`           ENUM('synced','not_synced','error') NOT NULL DEFAULT 'not_synced',
+  `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_tpl_client_created` (`client_id`, `created_at`),
+  KEY `idx_tpl_chat` (`chat_id`),
+  KEY `idx_tpl_message` (`message_id`),
+  KEY `idx_tpl_account` (`bank_account_id`),
+  KEY `idx_tpl_status` (`status`),
+  KEY `idx_tpl_coelsa` (`coelsa_id`),
+  KEY `idx_tpl_amount` (`amount`),
+  CONSTRAINT `fk_tpl_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_tpl_chat` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_tpl_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_tpl_account` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  15D. MERCADO PAGO MOVEMENTS
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `mercadopago_movements` (
+  `id`                    BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `client_id`             INT UNSIGNED    NOT NULL,
+  `chat_id`               INT UNSIGNED    NOT NULL,
+  `message_id`            BIGINT UNSIGNED NOT NULL,
+  `bank_account_id`       INT UNSIGNED    DEFAULT NULL,
+  `cuit`                  VARCHAR(20)     DEFAULT NULL,
+  `receipt_date`          DATE            DEFAULT NULL,
+  `receipt_time`          TIME            DEFAULT NULL,
+  `amount`                DECIMAL(18,2)   NOT NULL DEFAULT 0.00,
+  `transaction_id`        VARCHAR(160)    DEFAULT NULL,
+  `transaction_id_type`   ENUM('numeric','alphanumeric','undefined') NOT NULL DEFAULT 'undefined',
+  `status`                ENUM('pending','paid','error') NOT NULL DEFAULT 'pending',
+  `mercadopago_id`        VARCHAR(160)    DEFAULT NULL,
+  `coelsa_id`             VARCHAR(160)    DEFAULT NULL,
+  `game_platform_load_id` VARCHAR(160)    DEFAULT NULL,
+  `game_load_date`        DATE            DEFAULT NULL,
+  `game_load_time`        TIME            DEFAULT NULL,
+  `game_load_amount`      DECIMAL(18,2)   DEFAULT NULL,
+  `sync_status`           ENUM('synced','not_synced','error') NOT NULL DEFAULT 'not_synced',
+  `created_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`            DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_mp_client_created` (`client_id`, `created_at`),
+  KEY `idx_mp_chat` (`chat_id`),
+  KEY `idx_mp_message` (`message_id`),
+  KEY `idx_mp_account` (`bank_account_id`),
+  KEY `idx_mp_status` (`status`),
+  KEY `idx_mp_transaction` (`transaction_id`),
+  KEY `idx_mp_coelsa` (`coelsa_id`),
+  KEY `idx_mp_amount` (`amount`),
+  CONSTRAINT `fk_mp_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mp_chat` FOREIGN KEY (`chat_id`) REFERENCES `chats` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mp_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_mp_account` FOREIGN KEY (`bank_account_id`) REFERENCES `bank_accounts` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================
@@ -410,9 +579,10 @@ CREATE TABLE IF NOT EXISTS `bot_screens` (
 CREATE TABLE IF NOT EXISTS `bot_items` (
   `id`               VARCHAR(60)   NOT NULL,
   `screen_id`        VARCHAR(60)   NOT NULL,
-  `type`             ENUM('message','button') NOT NULL,
+  `type`             ENUM('message','button','form') NOT NULL,
   `text`             TEXT          DEFAULT NULL COMMENT 'content for type=message',
   `label`            VARCHAR(255)  DEFAULT NULL COMMENT 'button label for type=button',
+  `form_config`      TEXT          DEFAULT NULL COMMENT 'JSON config for type=form',
   `button_type`      ENUM('navigate','receipt_request','messages_only') NOT NULL DEFAULT 'navigate',
   `receipt_processing` ENUM('auto','manual') NOT NULL DEFAULT 'manual',
   `receipt_prompt`   TEXT          DEFAULT NULL,

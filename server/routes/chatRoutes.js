@@ -3,6 +3,7 @@ import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js
 import {
   archiveChat,
   closeHelpChat,
+  completeWithdrawal,
   createChatLabel,
   getChatClientDetails,
   getChatLabels,
@@ -13,6 +14,10 @@ import {
   updateChatClientDetails,
   updateChatClientLabels,
 } from '../controllers/chatController.js'
+import {
+  getChatMovements,
+  updateManualMovementStatus,
+} from '../controllers/movementController.js'
 
 const router = Router()
 
@@ -25,8 +30,11 @@ router.post('/labels', createChatLabel)
 router.get('/:chatId/client', getChatClientDetails)
 router.put('/:chatId/client', updateChatClientDetails)
 router.put('/:chatId/client/labels', updateChatClientLabels)
+router.get('/:chatId/movements', getChatMovements)
+router.put('/:chatId/movements/manual/:id/status', updateManualMovementStatus)
 router.get('/:chatId/messages', getMessages)
 router.post('/:chatId/messages', sendAdminMessage)
+router.post('/:chatId/withdrawal/complete', completeWithdrawal)
 router.put('/:chatId/read', markChatRead)
 router.put('/:chatId/archive', archiveChat)
 router.put('/:chatId/help/close', closeHelpChat)

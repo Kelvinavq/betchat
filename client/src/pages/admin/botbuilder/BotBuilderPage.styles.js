@@ -466,6 +466,7 @@ export const ItemTypeIcon = styled.div`
   ${({ $type, $isBack }) => {
     if ($isBack) return css`background: rgba(245,158,11,0.11); color: #f59e0b;`
     if ($type === 'message') return css`background: rgba(30,133,255,0.10); color: #3b9eff;`
+    if ($type === 'form') return css`background: rgba(168,85,247,0.11); color: #a855f7;`
     return css`background: rgba(16,185,129,0.10); color: #10b981;`
   }}
 `
@@ -487,6 +488,7 @@ export const ItemTypeLabel = styled.span`
   ${({ $type, $isBack }) => {
     if ($isBack) return css`color: #b45309;`
     if ($type === 'message') return css`color: #2563c8;`
+    if ($type === 'form') return css`color: #8b5cf6;`
     return css`color: #0e9068;`
   }}
 `

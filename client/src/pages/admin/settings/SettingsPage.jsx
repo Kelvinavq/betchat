@@ -195,6 +195,7 @@ const SettingsPage = ({ onMenuOpen }) => {
     logoUrl: '',
     logoDataUrl: '',
     clientRegistrationEnabled: true,
+    clientLogoutEnabled: true,
     clearLogo: false,
   })
   const [logoPreview, setLogoPreview] = useState('')
@@ -277,6 +278,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         logoUrl: system.logoUrl || '',
         logoDataUrl: '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
+        clientLogoutEnabled: system.clientLogoutEnabled !== false,
         clearLogo: false,
       }
       setSystemForm(nextSystem)
@@ -388,6 +390,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         logoUrl: system.logoUrl || '',
         logoDataUrl: '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
+        clientLogoutEnabled: system.clientLogoutEnabled !== false,
         clearLogo: false,
       }
       setSystemForm(nextSystem)
@@ -692,6 +695,19 @@ const SettingsPage = ({ onMenuOpen }) => {
                       $active={systemForm.clientRegistrationEnabled}
                       onClick={() => setSystemForm(f => ({ ...f, clientRegistrationEnabled: !f.clientRegistrationEnabled }))}
                       aria-pressed={systemForm.clientRegistrationEnabled}
+                    />
+                  </ToggleRow>
+
+                  <ToggleRow>
+                    <ToggleText>
+                      <ToggleTitle>Boton de cerrar sesion</ToggleTitle>
+                      <ToggleSub>Controla si el cliente puede ver el boton para salir de su cuenta en el chat.</ToggleSub>
+                    </ToggleText>
+                    <ToggleSwitch
+                      type="button"
+                      $active={systemForm.clientLogoutEnabled}
+                      onClick={() => setSystemForm(f => ({ ...f, clientLogoutEnabled: !f.clientLogoutEnabled }))}
+                      aria-pressed={systemForm.clientLogoutEnabled}
                     />
                   </ToggleRow>
 

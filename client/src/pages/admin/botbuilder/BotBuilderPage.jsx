@@ -16,6 +16,7 @@ import CheckIcon              from '@mui/icons-material/Check'
 import KeyboardArrowRightIcon from '@mui/icons-material/KeyboardArrowRight'
 import ReplyIcon              from '@mui/icons-material/Reply'
 import InfoOutlinedIcon       from '@mui/icons-material/InfoOutlined'
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined'
 import { api } from '../../../utils/api'
 import { useSystemConfig } from '../../../context/SystemConfigContext'
 
@@ -48,6 +49,41 @@ import {
    Data helpers
 ───────────────────────────── */
 const makeId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`
+const makeFieldKey = (label, fallback) =>
+  (label || fallback || 'campo')
+    .toString()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .slice(0, 40) || fallback
+
+const defaultFormField = (index = 0) => ({
+  key: `campo_${index + 1}`,
+  label: '',
+  type: 'text',
+  placeholder: '',
+  required: true,
+  max: '',
+})
+
+const normalizeFormConfig = (config = {}) => ({
+  title: config.title || 'Formulario',
+  description: config.description || '',
+  submitLabel: config.submitLabel || 'Enviar',
+  responseMessages: Array.isArray(config.responseMessages) ? config.responseMessages : [],
+  fields: Array.isArray(config.fields) && config.fields.length
+    ? config.fields.map((field, index) => ({
+      key: field.key || field.id || `campo_${index + 1}`,
+      label: field.label || '',
+      type: field.type === 'number' ? 'number' : 'text',
+      placeholder: field.placeholder || '',
+      required: field.required !== false,
+      max: field.max ?? '',
+    }))
+    : [defaultFormField(0)],
+})
 
 function renderBotText(text) {
   if (!text || !text.includes('{{bank.')) return text
@@ -452,6 +488,160 @@ const EditButtonModal = ({ item, screens, currentScreenId, onClose, onSave }) =>
   )
 }
 
+const EditFormModal = ({ item, onClose, onSave }) => {
+  const [form, setForm] = useState(() => normalizeFormConfig(item?.formConfig))
+
+  const updateField = (index, patch) => {
+    setForm(current => ({
+      ...current,
+      fields: current.fields.map((field, i) => {
+        if (i !== index) return field
+        const next = { ...field, ...patch }
+        if (patch.label != null && (!field.key || field.key.startsWith('campo_'))) {
+          next.key = makeFieldKey(patch.label, `campo_${index + 1}`)
+        }
+        if (next.type !== 'number') {
+          next.max = ''
+        }
+        return next
+      }),
+    }))
+  }
+
+  const addField = () => setForm(current => ({
+    ...current,
+    fields: [...current.fields, defaultFormField(current.fields.length)],
+  }))
+
+  const removeField = (index) => setForm(current => ({
+    ...current,
+    fields: current.fields.length <= 1 ? current.fields : current.fields.filter((_, i) => i !== index),
+  }))
+
+  const updateResponseMessage = (index, value) => {
+    setForm(current => {
+      const next = [...current.responseMessages]
+      next[index] = value
+      return { ...current, responseMessages: next }
+    })
+  }
+
+  const removeResponseMessage = (index) => setForm(current => ({
+    ...current,
+    responseMessages: current.responseMessages.filter((_, i) => i !== index),
+  }))
+
+  const cleaned = {
+    ...form,
+    title: form.title.trim(),
+    description: form.description.trim(),
+    submitLabel: form.submitLabel.trim() || 'Enviar',
+    responseMessages: form.responseMessages.map(message => message.trim()).filter(Boolean),
+    fields: form.fields
+      .map((field, index) => ({
+        ...field,
+        key: makeFieldKey(field.key || field.label, `campo_${index + 1}`),
+        label: field.label.trim(),
+        placeholder: field.placeholder.trim(),
+        max: field.type === 'number' && field.max !== '' ? Number(field.max) : null,
+      }))
+      .filter(field => field.label),
+  }
+  const canSave = cleaned.title && cleaned.fields.length > 0
+
+  return (
+    <Overlay onClick={e => e.target === e.currentTarget && onClose()}>
+      <ModalCard onClick={e => e.stopPropagation()}>
+        <ModalHead>
+          <div>
+            <ModalTitle>{item ? 'Editar formulario' : 'Nuevo formulario'}</ModalTitle>
+            <ModalSub>Solicita datos al cliente con campos validados y boton de pegar</ModalSub>
+          </div>
+          <ModalClose onClick={onClose}><CloseIcon style={{ fontSize: 16 }} /></ModalClose>
+        </ModalHead>
+
+        <ModalBody>
+          <FieldGroup>
+            <FieldLabel>Titulo</FieldLabel>
+            <FieldInput value={form.title} onChange={e => setForm(current => ({ ...current, title: e.target.value }))} placeholder="Ej: Datos para retiro" />
+          </FieldGroup>
+          <FieldGroup>
+            <FieldLabel>Descripcion opcional</FieldLabel>
+            <FieldTextarea value={form.description} onChange={e => setForm(current => ({ ...current, description: e.target.value }))} placeholder="Ej: Completa estos datos para que podamos procesar tu solicitud." style={{ minHeight: 66 }} />
+          </FieldGroup>
+          <FieldGroup>
+            <FieldLabel>Campos</FieldLabel>
+            <MsgListWrap>
+              {form.fields.map((field, index) => (
+                <div key={index} style={{ display: 'grid', gap: 8, padding: 10, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, background: 'rgba(255,255,255,0.025)' }}>
+                  <MsgListItem>
+                    <FieldInput value={field.label} onChange={e => updateField(index, { label: e.target.value })} placeholder="Nombre del campo" style={{ flex: 1 }} />
+                    <FieldSelect value={field.type} onChange={e => updateField(index, { type: e.target.value })} style={{ width: 120 }}>
+                      <option value="text">Texto</option>
+                      <option value="number">Numero</option>
+                    </FieldSelect>
+                    <MsgListRemoveBtn type="button" onClick={() => removeField(index)} title="Eliminar campo">
+                      <CloseIcon style={{ fontSize: 13 }} />
+                    </MsgListRemoveBtn>
+                  </MsgListItem>
+                  <FieldInput value={field.placeholder} onChange={e => updateField(index, { placeholder: e.target.value })} placeholder="Placeholder opcional" />
+                  {field.type === 'number' && (
+                    <MsgListItem>
+                      <FieldInput type="number" value={field.max} onChange={e => updateField(index, { max: e.target.value })} placeholder="Max" />
+                    </MsgListItem>
+                  )}
+                  <FieldCheckRow style={{ padding: '7px 9px' }}>
+                    <FieldCheckbox type="checkbox" checked={field.required} onChange={e => updateField(index, { required: e.target.checked })} />
+                    <FieldCheckInfo><FieldCheckTitle>Campo requerido</FieldCheckTitle></FieldCheckInfo>
+                  </FieldCheckRow>
+                </div>
+              ))}
+              <MsgListAddBtn type="button" onClick={addField}>
+                <AddIcon style={{ fontSize: 13 }} />
+                Agregar campo
+              </MsgListAddBtn>
+            </MsgListWrap>
+          </FieldGroup>
+          <FieldGroup>
+            <FieldLabel>Texto del boton</FieldLabel>
+            <FieldInput value={form.submitLabel} onChange={e => setForm(current => ({ ...current, submitLabel: e.target.value }))} placeholder="Enviar" />
+          </FieldGroup>
+          <FieldGroup>
+            <FieldLabel>Mensajes despues de enviar</FieldLabel>
+            <MsgListWrap>
+              {form.responseMessages.map((msg, index) => (
+                <ResponseMsgRow
+                  key={index}
+                  value={msg}
+                  index={index}
+                  onChange={updateResponseMessage}
+                  onRemove={removeResponseMessage}
+                />
+              ))}
+              <MsgListAddBtn
+                type="button"
+                onClick={() => setForm(current => ({ ...current, responseMessages: [...current.responseMessages, ''] }))}
+              >
+                <AddIcon style={{ fontSize: 13 }} />
+                Agregar mensaje
+              </MsgListAddBtn>
+            </MsgListWrap>
+            <FieldHint>Opcional. El bot respondera automaticamente cuando el cliente envie este formulario.</FieldHint>
+          </FieldGroup>
+        </ModalBody>
+
+        <ModalFoot>
+          <ModalBtn $v="ghost" onClick={onClose}>Cancelar</ModalBtn>
+          <ModalBtn $v="primary" disabled={!canSave} onClick={() => onSave(cleaned)}>
+            <CheckIcon style={{ fontSize: 14 }} />
+            {item ? 'Guardar cambios' : 'Agregar formulario'}
+          </ModalBtn>
+        </ModalFoot>
+      </ModalCard>
+    </Overlay>
+  )
+}
+
 /* ═══════════════════════════════════
    Confirm Delete Modal
 ═══════════════════════════════════ */
@@ -584,7 +774,10 @@ const PreviewModal = ({ flow, onClose }) => {
     }
   }, [currentId, typing])
 
-  const messages = [...previewResponses, ...(showScreenMessages ? (currentScreen?.items.filter(i => i.type === 'message') ?? []) : [])]
+  const screenPreviewItems = showScreenMessages
+    ? (currentScreen?.items.filter(i => (i.type === 'message' && i.text) || (i.type === 'form' && i.formConfig?.fields?.length)) ?? [])
+    : []
+  const messages = [...previewResponses, ...screenPreviewItems.filter(i => i.type === 'message')]
   const buttons  = currentScreen?.items.filter(i => i.type === 'button')  ?? []
 
   const breadcrumb = history
@@ -618,8 +811,30 @@ const PreviewModal = ({ flow, onClose }) => {
           <PhoneChatBody ref={bodyRef}>
             <ScreenBreadcrumb>{breadcrumb}</ScreenBreadcrumb>
 
-            {messages.map(msg => (
+            {previewResponses.map(msg => (
               <BotBubble key={`${currentId}-${msg.id}`}>{renderBotText(msg.text)}</BotBubble>
+            ))}
+
+            {screenPreviewItems.map(item => item.type === 'message' ? (
+              <BotBubble key={`${currentId}-${item.id}`}>{renderBotText(item.text)}</BotBubble>
+            ) : (
+              <BotBubble key={`${currentId}-${item.id}`} style={{ width: '86%' }}>
+                <strong>{item.formConfig?.title || item.label || 'Formulario'}</strong>
+                {item.formConfig?.description && <div style={{ color: '#94a3b8', marginTop: 3 }}>{item.formConfig.description}</div>}
+                <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
+                  {(item.formConfig?.fields || []).map(field => (
+                    <div key={field.key} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '7px 9px', color: '#64748b' }}>
+                      {field.label}{field.required ? ' *' : ''}
+                    </div>
+                  ))}
+                </div>
+                <PreviewButton style={{ marginTop: 10 }}>{item.formConfig?.submitLabel || 'Enviar'}</PreviewButton>
+                {(item.formConfig?.responseMessages || []).length > 0 && (
+                  <div style={{ color: '#475569', marginTop: 8, fontSize: 11 }}>
+                    Responde con {item.formConfig.responseMessages.length} mensaje{item.formConfig.responseMessages.length === 1 ? '' : 's'}.
+                  </div>
+                )}
+              </BotBubble>
             ))}
 
             {typing && (
@@ -655,7 +870,7 @@ const PreviewModal = ({ flow, onClose }) => {
               </ButtonsRow>
             )}
 
-            {!typing && messages.length === 0 && buttons.length === 0 && (
+            {!typing && messages.length === 0 && screenPreviewItems.length === 0 && buttons.length === 0 && (
               <BotBubble style={{ color: '#475569', fontStyle: 'italic' }}>
                 Esta pantalla no tiene contenido aún.
               </BotBubble>
@@ -794,6 +1009,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
   /* ── item modals ── */
   const openEditMessage = (item = null) => setModal({ type: 'message', item })
   const openEditButton  = (item = null) => setModal({ type: 'button',  item })
+  const openEditForm    = (item = null) => setModal({ type: 'form',    item })
 
   const handleSaveMessage = (text) => {
     const items = [...selectedScreen.items]
@@ -814,6 +1030,18 @@ const BotBuilderPage = ({ onMenuOpen }) => {
       items[idx] = { ...items[idx], label, actionScreenId, isBack, buttonType, receiptProcessing, receiptPrompt, showReceiptAfter, responseMessages }
     } else {
       items.push({ id: makeId(), type: 'button', label, actionScreenId, isBack, buttonType, receiptProcessing, receiptPrompt, showReceiptAfter, responseMessages, order: items.length })
+    }
+    updateItems(selectedScreenId, items)
+    setModal(null)
+  }
+
+  const handleSaveForm = (formConfig) => {
+    const items = [...selectedScreen.items]
+    if (modal.item) {
+      const idx = items.findIndex(i => i.id === modal.item.id)
+      items[idx] = { ...items[idx], label: formConfig.title, formConfig }
+    } else {
+      items.push({ id: makeId(), type: 'form', label: formConfig.title, formConfig, order: items.length })
     }
     updateItems(selectedScreenId, items)
     setModal(null)
@@ -869,10 +1097,15 @@ const BotBuilderPage = ({ onMenuOpen }) => {
   /* ── render item label ── */
   const getItemLabel = (item) => {
     if (item.type === 'message') return item.text
+    if (item.type === 'form') return item.formConfig?.title || item.label || 'Formulario'
     return item.label
   }
 
   const getItemSubLabel = (item) => {
+    if (item.type === 'form') {
+      const count = item.formConfig?.fields?.length || 0
+      return `${count} campo${count === 1 ? '' : 's'}`
+    }
     if (item.type !== 'button') return null
     if (item.buttonType === 'receipt_request') {
       return item.receiptProcessing === 'auto' ? 'Solicita comprobante · Banco activo' : 'Solicita comprobante · Manual'
@@ -884,6 +1117,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
 
   const getItemTypeLabel = (item) => {
     if (item.type === 'message') return 'Mensaje'
+    if (item.type === 'form') return 'Formulario'
     return item.isBack ? 'Volver' : 'Botón'
   }
 
@@ -946,6 +1180,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
                     {screen.items.filter(i => i.type === 'message').length} mens.
                     {' · '}
                     {screen.items.filter(i => i.type === 'button').length} bot.
+                    {screen.items.some(i => i.type === 'form') && ` · ${screen.items.filter(i => i.type === 'form').length} form.`}
                   </ScreenCardMeta>
                 </ScreenCardInfo>
               </ScreenCard>
@@ -1029,6 +1264,8 @@ const BotBuilderPage = ({ onMenuOpen }) => {
                         <ItemTypeIcon $type={item.type} $isBack={item.isBack}>
                           {item.type === 'message'
                             ? <ChatBubbleOutlineIcon style={{ fontSize: 14 }} />
+                            : item.type === 'form'
+                              ? <AssignmentOutlinedIcon style={{ fontSize: 14 }} />
                             : item.isBack
                               ? <ReplyIcon style={{ fontSize: 14 }} />
                               : <TouchAppOutlinedIcon style={{ fontSize: 14 }} />
@@ -1054,7 +1291,9 @@ const BotBuilderPage = ({ onMenuOpen }) => {
                           <ItemActionBtn
                             onClick={() => item.type === 'message'
                               ? openEditMessage(item)
-                              : openEditButton(item)
+                              : item.type === 'form'
+                                ? openEditForm(item)
+                                : openEditButton(item)
                             }
                             title="Editar"
                           >
@@ -1082,6 +1321,10 @@ const BotBuilderPage = ({ onMenuOpen }) => {
                     <TouchAppOutlinedIcon style={{ fontSize: 13 }} />
                     Agregar botón
                   </AddItemBtn>
+                  <AddItemBtn $type="form" onClick={() => openEditForm()}>
+                    <AssignmentOutlinedIcon style={{ fontSize: 13 }} />
+                    Agregar formulario
+                  </AddItemBtn>
                 </AddItemsBar>
               </EditorScroll>
             </>
@@ -1106,6 +1349,14 @@ const BotBuilderPage = ({ onMenuOpen }) => {
           currentScreenId={selectedScreenId}
           onClose={() => setModal(null)}
           onSave={handleSaveButton}
+        />
+      )}
+
+      {modal?.type === 'form' && (
+        <EditFormModal
+          item={modal.item}
+          onClose={() => setModal(null)}
+          onSave={handleSaveForm}
         />
       )}
 

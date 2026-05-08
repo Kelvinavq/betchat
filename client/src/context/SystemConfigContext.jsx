@@ -5,6 +5,7 @@ const DEFAULT_SYSTEM_CONFIG = {
   appName: 'BetChat',
   logoUrl: '',
   clientRegistrationEnabled: true,
+  clientLogoutEnabled: true,
 }
 
 const SystemConfigContext = createContext({
@@ -13,10 +14,16 @@ const SystemConfigContext = createContext({
   setSystemConfig: () => {},
 })
 
+const configFlag = (value, fallback = true) => {
+  if (value === undefined || value === null) return fallback
+  return !(value === false || value === 0 || value === '0')
+}
+
 const normalizeSystemConfig = (config = {}) => ({
   appName: String(config.appName || config.app_name || DEFAULT_SYSTEM_CONFIG.appName).trim() || DEFAULT_SYSTEM_CONFIG.appName,
   logoUrl: resolveApiAsset(config.logoUrl || config.logo_url || ''),
-  clientRegistrationEnabled: Boolean(config.clientRegistrationEnabled ?? config.client_registration_enabled ?? true),
+  clientRegistrationEnabled: configFlag(config.clientRegistrationEnabled ?? config.client_registration_enabled, true),
+  clientLogoutEnabled: configFlag(config.clientLogoutEnabled ?? config.client_logout_enabled, true),
 })
 
 export const SystemConfigProvider = ({ children }) => {

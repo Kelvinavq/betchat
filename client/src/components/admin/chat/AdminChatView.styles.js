@@ -418,6 +418,7 @@ export const MsgBubble = styled.div`
   font-size: 13.5px;
   line-height: 1.45;
   word-break: break-word;
+  white-space: pre-wrap;
 
   p, div { margin: 0 0 5px; }
   p:last-child, div:last-child { margin-bottom: 0; }
@@ -439,6 +440,60 @@ export const MsgTime = styled.span`
   font-size: 10px;
   color: rgba(255, 255, 255, 0.26);
   padding: 0 3px;
+`
+
+export const FormSubmissionCard = styled.div`
+  min-width: min(280px, 72vw);
+  padding: 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.18);
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.88);
+`
+
+export const FormSubmissionTitle = styled.div`
+  font-size: 13px;
+  font-weight: 800;
+  margin-bottom: 8px;
+`
+
+export const FormSubmissionRow = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid rgba(255,255,255,0.07);
+`
+
+export const FormSubmissionLabel = styled.div`
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.42);
+`
+
+export const FormSubmissionValue = styled.div`
+  margin-top: 2px;
+  font-size: 13px;
+  color: #ffffff;
+  white-space: pre-wrap;
+`
+
+export const FormSubmissionCopy = styled.button`
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.24);
+  background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.10);
+  color: ${colors.primaryLighter};
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  svg { font-size: 15px; }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.18); }
 `
 
 export const MsgMeta = styled.div`

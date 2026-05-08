@@ -15,6 +15,8 @@ import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import ReplyIcon from '@mui/icons-material/Reply'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PauseIcon from '@mui/icons-material/Pause'
+import LogoutIcon from '@mui/icons-material/Logout'
+import WavingHandOutlinedIcon from '@mui/icons-material/WavingHandOutlined'
 import { ChatContext } from '../../context/ChatContext'
 import { useSystemConfig } from '../../context/SystemConfigContext'
 import { api, resolveApiAsset } from '../../utils/api'
@@ -32,12 +34,16 @@ import {
   ChatHeader, ChatHeaderSide, ChatHeaderCenter,
   ChatHeaderBtn,
   HeaderPill, HeaderPillText, HeaderPillBadge,
+  LogoutNoticeOverlay, LogoutNoticeCard, LogoutNoticeIcon, LogoutNoticeTitle,
+  LogoutNoticeText, LogoutNoticeBtn,
   ConnectionBanner,
   MessagesArea, ChatMessages,
   MessageRow, MessageAvatar, MessageContent, MessageBubble, MessageTime,
   MessageActionMenu, MessageActionItem, ReplyQuote, ReplyAuthor, ReplyText,
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   BotButtonsWrap, BotOptionBtn,
+  BotFormCard, BotFormTitle, BotFormDesc, BotFormField, BotFormInputRow,
+  BotFormInput, BotFormPasteBtn, BotFormSubmit, BotFormError,
   ScrollDownBtn,
   BottomArea, AttachPanel, AttachGrid, AttachOption,
   ChatFooter, PlusBtn, ChatInput, SendBtn,
@@ -573,7 +579,7 @@ const mapQueuedMessage = (payload) => ({
 
 const isMediaPayload = (payload) => payload?.messageType === 'image' || payload?.messageType === 'pdf'
 
-const createBotMessages = (screen, reason = 'screen') => {
+const createBotMessages = (screen, reason = 'screen', hiddenFormIds = []) => {
   const time = messageTime()
 
   if (!screen) {
@@ -587,16 +593,29 @@ const createBotMessages = (screen, reason = 'screen') => {
     }]
   }
 
-  const messages = screen.items
-    .filter(item => item.type === 'message' && item.text)
-    .map(item => ({
-      id: `bot-${reason}-${screen.id}-${item.id}-${Date.now()}`,
-      type: 'text',
-      text: item.text,
-      received: true,
-      time,
-      avatar: BOT_AVATAR,
-    }))
+  const messages = screen.items.flatMap(item => {
+    if (item.type === 'message' && item.text) {
+      return [{
+        id: `bot-${reason}-${screen.id}-${item.id}-${Date.now()}`,
+        type: 'text',
+        text: item.text,
+        received: true,
+        time,
+        avatar: BOT_AVATAR,
+      }]
+    }
+    if (item.type === 'form' && item.formConfig?.fields?.length && !hiddenFormIds.includes(item.id)) {
+      return [{
+        id: `bot-form-${reason}-${screen.id}-${item.id}-${Date.now()}`,
+        type: 'bot-form',
+        form: item,
+        received: true,
+        time,
+        avatar: BOT_AVATAR,
+      }]
+    }
+    return []
+  })
 
   const buttons = screen.items.filter(item => item.type === 'button' && item.label)
   if (buttons.length > 0) {
@@ -620,11 +639,21 @@ const createBotMessages = (screen, reason = 'screen') => {
   }]
 }
 
-const createBotButtonMessages = (screen, reason = 'screen') => {
+const createBotButtonMessages = (screen, reason = 'screen', hiddenFormIds = []) => {
   if (!screen) return []
+  const forms = screen.items
+    .filter(item => item.type === 'form' && item.formConfig?.fields?.length && !hiddenFormIds.includes(item.id))
+    .map(form => ({
+      id: `bot-form-${reason}-${screen.id}-${form.id}-${Date.now()}`,
+      type: 'bot-form',
+      form,
+      received: true,
+      time: messageTime(),
+      avatar: BOT_AVATAR,
+    }))
   const buttons = screen.items.filter(item => item.type === 'button' && item.label)
-  if (buttons.length === 0) return []
-  return [{
+  if (buttons.length === 0) return forms
+  return [...forms, {
     id: `bot-buttons-${reason}-${screen.id}-${Date.now()}`,
     type: 'bot-buttons',
     buttons,
@@ -646,6 +675,96 @@ const createButtonResponseMessages = (button, time = messageTime()) =>
     }))
     .filter(message => message.text)
 
+const createFormResponseMessages = (form, time = messageTime()) =>
+  (form?.formConfig?.responseMessages || [])
+    .map((text, index) => ({
+      id: `bot-form-response-${form.id}-${index}-${Date.now()}`,
+      type: 'text',
+      text,
+      received: true,
+      time,
+      avatar: BOT_AVATAR,
+    }))
+    .filter(message => message.text)
+
+const formatFormSubmission = (form, values) => {
+  const config = form?.formConfig || {}
+  const title = config.title || form?.label || 'Formulario'
+  const lines = [`Formulario: ${title}`]
+  for (const field of config.fields || []) {
+    lines.push(`${field.label}: ${String(values[field.key] ?? '').trim()}`)
+  }
+  return lines.join('\n')
+}
+
+const BotFormMessage = ({ form, disabled, onSubmit }) => {
+  const config = form?.formConfig || {}
+  const [values, setValues] = useState(() =>
+    Object.fromEntries((config.fields || []).map(field => [field.key, '']))
+  )
+  const [error, setError] = useState('')
+
+  const pasteInto = async (key) => {
+    try {
+      const text = await navigator.clipboard.readText()
+      setValues(current => ({ ...current, [key]: text }))
+    } catch {
+      setError('No se pudo leer el portapapeles.')
+    }
+  }
+
+  const submit = (event) => {
+    event.preventDefault()
+    for (const field of config.fields || []) {
+      const raw = String(values[field.key] ?? '').trim()
+      if (field.required && !raw) {
+        setError(`Completa "${field.label}".`)
+        return
+      }
+      if (field.type === 'number' && raw) {
+        const value = Number(raw)
+        if (Number.isNaN(value)) {
+          setError(`"${field.label}" debe ser numerico.`)
+          return
+        }
+        if (field.max != null && value > Number(field.max)) {
+          setError(`"${field.label}" debe ser menor o igual a ${field.max}.`)
+          return
+        }
+      }
+    }
+    setError('')
+    onSubmit(form, values)
+  }
+
+  return (
+    <BotFormCard onSubmit={submit}>
+      <BotFormTitle>{config.title || form?.label || 'Formulario'}</BotFormTitle>
+      {config.description && <BotFormDesc>{config.description}</BotFormDesc>}
+      {(config.fields || []).map(field => (
+        <BotFormField key={field.key}>
+          {field.label}{field.required ? ' *' : ''}
+          <BotFormInputRow>
+            <BotFormInput
+              type={field.type === 'number' ? 'number' : 'text'}
+              max={field.type === 'number' && field.max != null ? field.max : undefined}
+              placeholder={field.placeholder}
+              value={values[field.key] || ''}
+              disabled={disabled}
+              onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))}
+            />
+            <BotFormPasteBtn type="button" disabled={disabled} onClick={() => pasteInto(field.key)}>
+              Pegar
+            </BotFormPasteBtn>
+          </BotFormInputRow>
+        </BotFormField>
+      ))}
+      {error && <BotFormError>{error}</BotFormError>}
+      <BotFormSubmit type="submit" disabled={disabled}>{config.submitLabel || 'Enviar'}</BotFormSubmit>
+    </BotFormCard>
+  )
+}
+
 const mergeDbMessage = (incoming) => (prev) => {
   const mapped = mapDbMessage(incoming)
   if (mapped.clientMessageId) {
@@ -662,7 +781,7 @@ const mergeDbMessage = (incoming) => (prev) => {
   return [...prev, mapped]
 }
 
-const ChatView = ({ onClose, client }) => {
+const ChatView = ({ onClose, client, onLogout, loggingOut }) => {
   const { systemConfig } = useSystemConfig()
   const [input, setInput]             = useState('')
   const [messages, setMessages]       = useState([])
@@ -702,7 +821,7 @@ const ChatView = ({ onClose, client }) => {
   const shouldScrollBottomRef = useRef(false)
   const messageMenuRef = useRef(null)
   const pointerStartRef = useRef(null)
-  const username = client?.fullName || client?.username || 'Cliente'
+  const username = client?.username || 'Cliente'
   const onlineLabel = connectionStatus === 'offline'
     ? 'Sin conexion'
     : connectionStatus === 'reconnecting' ? 'Reconectando' : connectionStatus === 'connected' ? 'Conectado' : 'En linea'
@@ -938,6 +1057,68 @@ const ChatView = ({ onClose, client }) => {
     setAttachOpen(false)
     sendSocketPayload(payload)
     emitTyping(false)
+  }
+
+  const handleBotFormSubmit = (form, values) => {
+    if (!chatId || botActionPendingRef.current) return
+    botActionPendingRef.current = true
+    setBotActionPending(true)
+    const text = formatFormSubmission(form, values)
+    const time = messageTime()
+    const clientMessageId = makeClientMessageId('client-form')
+    const responseMessages = createFormResponseMessages(form, time)
+    const botMessageIds = responseMessages.map(() => makeClientMessageId('bot-form-auto'))
+    const optimisticResponses = responseMessages.map((message, index) => ({
+      ...message,
+      id: botMessageIds[index],
+      clientMessageId: botMessageIds[index],
+    }))
+    shouldScrollBottomRef.current = true
+    setMessages(prev => [
+      ...prev.filter(message => message.id !== form.__messageId),
+      {
+        id: clientMessageId,
+        clientMessageId,
+        type: 'text',
+        text,
+        received: false,
+        time,
+      },
+      ...optimisticResponses,
+    ])
+
+    api.post(`/api/client/bot/chats/${chatId}/forms`, {
+      formId: form.id,
+      values,
+      clientMessageId,
+      botMessageIds,
+    })
+      .then((data) => {
+        markConnectionRestored()
+        setCurrentBotScreenId(data.state?.currentScreenId || currentBotScreenId)
+        for (const message of data.messages || []) {
+          setMessages(mergeDbMessage(message))
+        }
+      })
+      .catch(() => {
+        setMessages(prev => [
+          ...prev.filter(message =>
+            message.clientMessageId !== clientMessageId && !botMessageIds.includes(message.clientMessageId)
+          ),
+          {
+            id: form.__messageId || `bot-form-restore-${form.id}-${Date.now()}`,
+            type: 'bot-form',
+            form,
+            received: true,
+            time: messageTime(),
+            avatar: BOT_AVATAR,
+          },
+        ])
+      })
+      .finally(() => {
+        botActionPendingRef.current = false
+        setBotActionPending(false)
+      })
   }
 
   const emitTyping = useCallback((isTyping) => {
@@ -1239,9 +1420,12 @@ const ChatView = ({ onClose, client }) => {
         const root = flow?.screens?.find(screen => screen.isRoot) || flow?.screens?.[0]
         const currentScreen = flow?.screens?.find(screen => screen.id === botData.state?.currentScreenId) || root
         const dbMessages = (messageData.messages || []).map(mapDbMessage)
+        const submittedFormIds = currentScreen?.items?.some(item => item.type === 'form' && item.id === botData.state?.lastButtonId)
+          ? [botData.state.lastButtonId]
+          : []
         const botMessages = dbMessages.length > 0
-          ? createBotButtonMessages(currentScreen, botData.state?.lastButtonId || 'state')
-          : createBotMessages(currentScreen, botData.state?.lastButtonId || 'state')
+          ? createBotButtonMessages(currentScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
+          : createBotMessages(currentScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
         const queuedMessages = readOutbox(chatId)
         if (!alive) return
         outboxRef.current = queuedMessages
@@ -1534,7 +1718,19 @@ const ChatView = ({ onClose, client }) => {
           </ConnectionBanner>
         </ChatHeaderCenter>
 
-        <ChatHeaderSide $right />
+        <ChatHeaderSide $right>
+          {systemConfig.clientLogoutEnabled && (
+            <ChatHeaderBtn
+              type="button"
+              onClick={onLogout}
+              disabled={loggingOut}
+              aria-label="Cerrar sesion"
+              title="Cerrar sesion"
+            >
+              <LogoutIcon />
+            </ChatHeaderBtn>
+          )}
+        </ChatHeaderSide>
       </ChatHeader>
 
       {/* messages */}
@@ -1602,6 +1798,12 @@ const ChatView = ({ onClose, client }) => {
                       </BotOptionBtn>
                     ))}
                   </BotButtonsWrap>
+                ) : msg.type === 'bot-form' ? (
+                  <BotFormMessage
+                    form={{ ...msg.form, __messageId: msg.id }}
+                    disabled={botActionPending}
+                    onSubmit={handleBotFormSubmit}
+                  />
                 ) : msg.type === 'image' ? (
                   <>
                     {renderReplyQuote(msg.replyTo, msg.received)}
@@ -1755,6 +1957,8 @@ const ChatWindow = ({ onClose }) => {
   const { clientSession, setClientSession, clientAuthLoading, setClientAuthLoading } = useContext(ChatContext)
   const [view, setView] = useState(clientSession ? 'chat' : 'login')
   const [loading, setLoading] = useState(false)
+  const [loggingOut, setLoggingOut] = useState(false)
+  const [logoutNotice, setLogoutNotice] = useState(null)
   const [helpOpen, setHelpOpen] = useState(false)
   const [error, setError] = useState('')
   const isAuthLoading = loading || clientAuthLoading
@@ -1884,8 +2088,52 @@ const ChatWindow = ({ onClose }) => {
     }
   }
 
+  const clearClientLocalSession = (chatId) => {
+    localStorage.removeItem('clientUsername')
+    localStorage.removeItem('clientId')
+    localStorage.removeItem('chatId')
+    localStorage.removeItem('__HOST_USERNAME__')
+    localStorage.removeItem('__HOST_TOKEN__')
+    if (chatId) localStorage.removeItem(outboxKey(chatId))
+  }
+
+  const handleLogout = async () => {
+    if (loggingOut) return
+    const name = clientSession?.username || 'Cliente'
+    const chatId = clientSession?.chatId
+    setLoggingOut(true)
+    setError('')
+    try {
+      await api.post('/api/client/auth/logout', {})
+    } catch (logoutError) {
+      console.error('[CLIENT] Error cerrando sesion:', logoutError)
+    } finally {
+      clearClientLocalSession(chatId)
+      setClientSession(null)
+      setView('login')
+      setLoggingOut(false)
+      setLogoutNotice({ name })
+    }
+  }
+
   return (
     <Window>
+      {logoutNotice && (
+        <LogoutNoticeOverlay>
+          <LogoutNoticeCard role="status" aria-live="polite">
+            <LogoutNoticeIcon>
+              <WavingHandOutlinedIcon />
+            </LogoutNoticeIcon>
+            <LogoutNoticeTitle>Sesion cerrada</LogoutNoticeTitle>
+            <LogoutNoticeText>
+              Gracias por visitarnos, {logoutNotice.name}. Te esperamos pronto.
+            </LogoutNoticeText>
+            <LogoutNoticeBtn type="button" onClick={() => setLogoutNotice(null)}>
+              Listo
+            </LogoutNoticeBtn>
+          </LogoutNoticeCard>
+        </LogoutNoticeOverlay>
+      )}
       {!isChat && (
       <VisualSection>
           <CloseBtn onClick={onClose} aria-label="Cerrar">
@@ -1918,7 +2166,12 @@ const ChatWindow = ({ onClose }) => {
           />
         )}
         {!isAuthLoading && activeView === 'chat' && (
-          <ChatView onClose={onClose} client={clientSession} />
+          <ChatView
+            onClose={onClose}
+            client={clientSession}
+            onLogout={handleLogout}
+            loggingOut={loggingOut}
+          />
         )}
       </FormSection>
       <HelpDialog

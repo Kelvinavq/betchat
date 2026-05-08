@@ -885,6 +885,25 @@ export async function sendAdminMessage(req, res, next) {
   }
 }
 
+export async function completeWithdrawal(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    const chat = await getChat(chatId)
+    if (!chat) return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
+
+    const result = await persistMessage({
+      chatId,
+      senderType: 'system',
+      content: 'Retiro completado. Ya procesamos tu solicitud.',
+      messageType: 'text',
+      clientMessageId: String(req.body?.clientMessageId || ''),
+    })
+    res.status(201).json(result)
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function markChatRead(req, res, next) {
   try {
     const chatId = Number(req.params.chatId)
