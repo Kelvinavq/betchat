@@ -7,6 +7,7 @@ import SendIcon from '@mui/icons-material/Send'
 import AddIcon from '@mui/icons-material/Add'
 import MicIcon from '@mui/icons-material/Mic'
 import CheckIcon from '@mui/icons-material/Check'
+import BoltIcon from '@mui/icons-material/Bolt'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PauseIcon from '@mui/icons-material/Pause'
 import EmojiEmotionsOutlinedIcon from '@mui/icons-material/EmojiEmotionsOutlined'
@@ -21,6 +22,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import DropUpload from '../../common/DropUpload'
 import { api, resolveApiAsset } from '../../../utils/api'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
+import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../../utils/richText'
 import {
   Wrap, EmptyState,
   Header, BackBtn, HeaderAvatar, OnlineDot, HeaderInfo, HeaderName, HeaderStatus,
@@ -30,6 +32,9 @@ import {
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   ScrollDownBtn, MediaMsgImg, MediaMsgPdf,
   BottomArea,
+  CommandSuggestions, CommandSuggestionBtn, CommandSuggestionMeta, CommandSuggestionName,
+  CommandSuggestionPreview, CommandSuggestionTrigger, CommandPreview, CommandPreviewHead,
+  CommandPreviewKicker, CommandPreviewTitle, CommandPreviewBody, CommandPreviewClose,
   EmojiPanel, EmojiCategoryBar, EmojiCategoryBtn, EmojiGrid, EmojiBtn,
   Footer, FooterBtn, FooterInput, SendBtn, MicBtn,
   ReplyComposer, ReplyComposerText, ReplyComposerTitle, ReplyComposerBody, ReplyComposerClose,
@@ -73,7 +78,8 @@ const replyPreviewText = (message) => {
   if (!message) return ''
   if (message.type === 'image' || message.messageType === 'image') return message.fileName ? `Imagen: ${message.fileName}` : 'Imagen'
   if (message.type === 'pdf' || message.messageType === 'pdf') return message.fileName ? `PDF: ${message.fileName}` : 'Documento PDF'
-  return message.text || message.content || ''
+  const text = message.text || message.content || ''
+  return hasRichText(text) ? htmlToPlainText(text) : text
 }
 
 const replyAuthorLabel = (reply, currentUserSent = false) => {
@@ -110,6 +116,14 @@ const mapDbMessage = (msg) => ({
   readAt: msg.readAt || null,
   deliveryState: msg.readAt ? 'read' : msg.deliveredAt ? 'delivered' : 'sent',
   replyTo: msg.replyTo,
+})
+
+const mapApiCommand = (command) => ({
+  id: command.id,
+  trigger: command.trigger,
+  response: command.response,
+  matchType: command.match_type,
+  active: Boolean(command.is_active),
 })
 
 const deliveryLabel = (msg) => {
@@ -264,6 +278,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const [clientTyping, setClientTyping] = useState(false)
   const [replyingTo, setReplyingTo] = useState(null)
   const [messageMenu, setMessageMenu] = useState(null)
+  const [commands, setCommands] = useState([])
+  const [commandDraft, setCommandDraft] = useState(null)
+  const [commandIndex, setCommandIndex] = useState(0)
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -283,6 +300,15 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   const clientTypingTimerRef = useRef(null)
   const typingActiveRef = useRef(false)
   const shouldScrollBottomRef = useRef(false)
+
+  const isCommandLookup = /^\/[a-z0-9_-]*$/i.test(input)
+  const commandQuery = isCommandLookup ? input.slice(1).toLowerCase() : ''
+  const suggestedCommands = isCommandLookup
+    ? commands
+      .filter(command => !commandQuery || command.trigger.includes(commandQuery))
+      .slice(0, 6)
+    : []
+  const showCommandSuggestions = suggestedCommands.length > 0 && !commandDraft
 
   const scrollToBottom = (smooth = true) => {
     const el = listRef.current
@@ -320,6 +346,26 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
+
+  useEffect(() => {
+    let alive = true
+    const loadCommands = async () => {
+      try {
+        const params = new URLSearchParams({ status: 'active', limit: '100' })
+        const data = await api.get('/api/commands?' + params.toString())
+        if (!alive) return
+        setCommands((data.commands || []).map(mapApiCommand).filter(command => command.active))
+      } catch {
+        if (alive) setCommands([])
+      }
+    }
+    loadCommands()
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    setCommandIndex(0)
+  }, [commandQuery])
 
   useEffect(() => {
     if (!chat?.id) {
@@ -461,6 +507,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
 
   const handleInputChange = (event) => {
     const nextValue = event.target.value
+    if (commandDraft && nextValue !== `/${commandDraft.trigger}`) setCommandDraft(null)
     setInput(nextValue)
     if (nextValue.trim()) {
       if (!typingActiveRef.current) emitTyping(true)
@@ -471,9 +518,23 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     typingTimerRef.current = window.setTimeout(() => emitTyping(false), TYPING_IDLE_MS)
   }
 
+  const selectCommand = (command) => {
+    setCommandDraft(command)
+    setInput(`/${command.trigger}`)
+    setEmojiOpen(false)
+    setDropOpen(false)
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
+  const clearCommandDraft = () => {
+    setCommandDraft(null)
+    setInput('')
+    window.requestAnimationFrame(() => inputRef.current?.focus())
+  }
+
   /* ── text send ── */
   const sendText = () => {
-    const text = input.trim()
+    const text = commandDraft ? String(commandDraft.response || '').trim() : input.trim()
     if (!text || !chat?.id) return
     const clientMessageId = makeClientMessageId('admin-text')
     const replyToMessageId = replyingTo?.dbId || null
@@ -495,6 +556,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
       } : null,
     }])
     setInput('')
+    setCommandDraft(null)
     setReplyingTo(null)
     setEmojiOpen(false)
     emitTyping(false)
@@ -513,6 +575,24 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
   }
 
   const handleKeyDown = (e) => {
+    if (showCommandSuggestions && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
+      e.preventDefault()
+      setCommandIndex(prev => {
+        const direction = e.key === 'ArrowDown' ? 1 : -1
+        return (prev + direction + suggestedCommands.length) % suggestedCommands.length
+      })
+      return
+    }
+    if (showCommandSuggestions && (e.key === 'Tab' || e.key === 'Enter')) {
+      e.preventDefault()
+      selectCommand(suggestedCommands[commandIndex] || suggestedCommands[0])
+      return
+    }
+    if ((showCommandSuggestions || commandDraft) && e.key === 'Escape') {
+      e.preventDefault()
+      setCommandDraft(null)
+      return
+    }
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendText() }
   }
 
@@ -784,7 +864,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
                 ) : (
                   <MsgBubble $sent={msg.sent}>
                     {renderReplyQuote(msg.replyTo, msg.sent)}
-                    {msg.text}
+                    {msg.sent && hasRichText(msg.text)
+                      ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
+                      : msg.text
+                    }
                   </MsgBubble>
                 )}
                 <MsgMeta>
@@ -873,6 +956,39 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         {/* ── normal footer ── */}
         {!isRecording && (
           <>
+          {showCommandSuggestions && (
+            <CommandSuggestions>
+              {suggestedCommands.map((command, index) => (
+                <CommandSuggestionBtn
+                  key={command.id}
+                  type="button"
+                  $active={index === commandIndex}
+                  onMouseDown={event => { event.preventDefault(); selectCommand(command) }}
+                >
+                  <BoltIcon />
+                  <CommandSuggestionMeta>
+                    <CommandSuggestionName>{htmlToPlainText(command.response) || `/${command.trigger}`}</CommandSuggestionName>
+                    <CommandSuggestionPreview>{htmlToPlainText(command.response)}</CommandSuggestionPreview>
+                  </CommandSuggestionMeta>
+                  <CommandSuggestionTrigger>/{command.trigger}</CommandSuggestionTrigger>
+                </CommandSuggestionBtn>
+              ))}
+            </CommandSuggestions>
+          )}
+          {commandDraft && (
+            <CommandPreview>
+              <CommandPreviewHead>
+                <div>
+                  <CommandPreviewKicker>Comando /{commandDraft.trigger}</CommandPreviewKicker>
+                  <CommandPreviewTitle>Vista previa del mensaje</CommandPreviewTitle>
+                </div>
+                <CommandPreviewClose type="button" onClick={clearCommandDraft} aria-label="Cancelar comando">
+                  <CloseIcon />
+                </CommandPreviewClose>
+              </CommandPreviewHead>
+              <CommandPreviewBody dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(commandDraft.response) }} />
+            </CommandPreview>
+          )}
           {replyingTo && (
             <ReplyComposer>
               <ReplyComposerText>

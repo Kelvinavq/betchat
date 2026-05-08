@@ -318,6 +318,10 @@ export const MsgBubble = styled.div`
   line-height: 1.45;
   word-break: break-word;
 
+  p, div { margin: 0 0 5px; }
+  p:last-child, div:last-child { margin-bottom: 0; }
+  ul, ol { margin: 4px 0 4px 18px; padding: 0; }
+
   ${({ $sent }) => $sent ? css`
     background: ${gradients.btn};
     border-radius: 16px 4px 16px 16px;
@@ -741,6 +745,157 @@ export const ReplyComposerClose = styled.button`
   height: 26px;
   border-radius: 8px;
   border: none;
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.56);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  svg { font-size: 15px; }
+  &:hover { background: rgba(255,255,255,0.10); color: #ffffff; }
+`
+
+export const CommandSuggestions = styled.div`
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: calc(100% + 8px);
+  z-index: 16;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border-radius: 14px;
+  background: rgba(8, 8, 20, 0.98);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.22);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+`
+
+export const CommandSuggestionBtn = styled.button`
+  width: 100%;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.34)' : 'transparent'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.14)' : 'transparent'};
+  color: rgba(255,255,255,0.76);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+
+  svg {
+    width: 28px;
+    height: 28px;
+    padding: 6px;
+    border-radius: 9px;
+    color: ${colors.primaryLighter};
+    background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.13);
+  }
+
+  &:hover {
+    background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.14);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.34);
+  }
+`
+
+export const CommandSuggestionMeta = styled.div`
+  min-width: 0;
+`
+
+export const CommandSuggestionName = styled.div`
+  font-size: 12.5px;
+  font-weight: 800;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const CommandSuggestionPreview = styled.div`
+  margin-top: 2px;
+  font-size: 11px;
+  line-height: 1.25;
+  color: rgba(255,255,255,0.42);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const CommandSuggestionTrigger = styled.span`
+  max-width: 110px;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+  color: ${colors.primaryLighter};
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const CommandPreview = styled.div`
+  margin: 8px 14px 0;
+  padding: 11px 12px;
+  border-radius: 14px;
+  background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.09);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.20);
+`
+
+export const CommandPreviewHead = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+`
+
+export const CommandPreviewKicker = styled.div`
+  font-size: 10px;
+  font-weight: 900;
+  color: ${colors.primaryLighter};
+`
+
+export const CommandPreviewTitle = styled.div`
+  margin-top: 1px;
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.86);
+`
+
+export const CommandPreviewBody = styled.div`
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(0,0,0,0.18);
+  color: rgba(255,255,255,0.78);
+  font-size: 12.5px;
+  line-height: 1.45;
+  word-break: break-word;
+
+  p, div { margin: 0 0 5px; }
+  p:last-child, div:last-child { margin-bottom: 0; }
+  ul, ol { margin: 4px 0 4px 18px; padding: 0; }
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 2px; }
+`
+
+export const CommandPreviewClose = styled.button`
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: none;
+  flex-shrink: 0;
   background: rgba(255,255,255,0.06);
   color: rgba(255,255,255,0.56);
   display: flex;

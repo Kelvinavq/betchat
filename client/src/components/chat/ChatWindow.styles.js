@@ -601,6 +601,10 @@ export const MessageBubble = styled.div`
   line-height: 1.45;
   word-break: break-word;
 
+  p, div { margin: 0 0 5px; }
+  p:last-child, div:last-child { margin-bottom: 0; }
+  ul, ol { margin: 4px 0 4px 18px; padding: 0; }
+
   ${({ $received }) => $received ? css`
     background: var(--bc-client-recv-bubble, rgba(255, 255, 255, 0.08));
     border: 1px solid rgba(255, 255, 255, 0.06);

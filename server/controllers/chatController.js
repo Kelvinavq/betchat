@@ -100,7 +100,12 @@ function previewFor(payload) {
   if (payload.messageType === 'image') return payload.fileName || 'Imagen'
   if (payload.messageType === 'pdf') return payload.fileName || 'Documento PDF'
   if (payload.messageType === 'file') return payload.fileName || 'Archivo'
-  return payload.content || ''
+  return String(payload.content || '')
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/(p|div|li)>/gi, ' ')
+    .replace(/<[^>]+>/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 function publicUrl(filePath) {

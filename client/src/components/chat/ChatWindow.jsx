@@ -16,6 +16,7 @@ import ReplyIcon from '@mui/icons-material/Reply'
 import { ChatContext } from '../../context/ChatContext'
 import { api, resolveApiAsset } from '../../utils/api'
 import { getSocket, makeClientMessageId } from '../../utils/socket'
+import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../utils/richText'
 import {
   Window, VisualSection, CloseBtn, VisualLogo, AppLabel,
   FormSection, FormTitle, FormHint, FormGroup, InputLabel,
@@ -279,7 +280,8 @@ const replyPreviewText = (message) => {
   if (!message) return ''
   if (message.type === 'image' || message.messageType === 'image') return message.fileName ? `Imagen: ${message.fileName}` : 'Imagen'
   if (message.type === 'pdf' || message.messageType === 'pdf') return message.fileName ? `PDF: ${message.fileName}` : 'Documento PDF'
-  return message.text || message.content || ''
+  const text = message.text || message.content || ''
+  return hasRichText(text) ? htmlToPlainText(text) : text
 }
 const replyAuthorLabel = (reply, currentReceived = false) => {
   if (!reply) return ''
@@ -1235,7 +1237,10 @@ const ChatView = ({ onClose, client }) => {
                 ) : (
                   <MessageBubble $received={msg.received}>
                     {renderReplyQuote(msg.replyTo, msg.received)}
-                    {msg.text}
+                    {msg.received && hasRichText(msg.text)
+                      ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
+                      : msg.text
+                    }
                   </MessageBubble>
                 )}
                 <MessageTime>{msg.time}</MessageTime>
