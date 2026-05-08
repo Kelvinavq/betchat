@@ -1048,23 +1048,33 @@ export const PreviewButton = styled.button`
   width: 100%;
   padding: 9px 14px;
   border-radius: 10px;
-  border: 1px solid ${({ $isBack }) =>
-    $isBack ? 'rgba(245,158,11,0.22)' : 'rgba(30,133,255,0.22)'};
-  background: ${({ $isBack }) =>
-    $isBack ? 'rgba(245,158,11,0.06)' : 'rgba(30,133,255,0.06)'};
-  color: ${({ $isBack }) =>
-    $isBack ? '#d97706' : '#60a5fa'};
+  border: 1px solid ${({ $isBack, $isUpload }) =>
+    $isBack   ? 'rgba(245,158,11,0.22)' :
+    $isUpload ? 'rgba(16,185,129,0.28)' :
+    'rgba(30,133,255,0.22)'};
+  background: ${({ $isBack, $isUpload }) =>
+    $isBack   ? 'rgba(245,158,11,0.06)' :
+    $isUpload ? 'rgba(16,185,129,0.07)' :
+    'rgba(30,133,255,0.06)'};
+  color: ${({ $isBack, $isUpload }) =>
+    $isBack   ? '#d97706' :
+    $isUpload ? '#10b981' :
+    '#60a5fa'};
   font-size: 12.5px;
   font-weight: 500;
-  cursor: pointer;
+  cursor: ${({ $isUpload }) => $isUpload ? 'default' : 'pointer'};
   transition: all 0.14s;
   text-align: center;
 
   &:hover {
-    background: ${({ $isBack }) =>
-      $isBack ? 'rgba(245,158,11,0.13)' : 'rgba(30,133,255,0.13)'};
-    border-color: ${({ $isBack }) =>
-      $isBack ? 'rgba(245,158,11,0.38)' : 'rgba(30,133,255,0.38)'};
+    background: ${({ $isBack, $isUpload }) =>
+      $isBack   ? 'rgba(245,158,11,0.13)' :
+      $isUpload ? 'rgba(16,185,129,0.12)' :
+      'rgba(30,133,255,0.13)'};
+    border-color: ${({ $isBack, $isUpload }) =>
+      $isBack   ? 'rgba(245,158,11,0.38)' :
+      $isUpload ? 'rgba(16,185,129,0.45)' :
+      'rgba(30,133,255,0.38)'};
   }
 `
 
@@ -1080,6 +1090,113 @@ export const ScreenBreadcrumb = styled.div`
   padding: 3px 0;
   text-align: center;
   justify-content: center;
+`
+
+/* ─────────────────────────────
+   BUTTON ACTION TYPE CARDS
+───────────────────────────── */
+export const ActionTypeGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+`
+
+export const ActionTypeCard = styled.button`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 12px;
+  border-radius: 10px;
+  border: 1.5px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.45)' : 'rgba(255,255,255,0.06)'};
+  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.07)' : 'rgba(255,255,255,0.02)'};
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.14s;
+  &:hover {
+    border-color: ${({ $active }) => $active ? 'rgba(30,133,255,0.60)' : 'rgba(255,255,255,0.12)'};
+    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.11)' : 'rgba(255,255,255,0.04)'};
+  }
+`
+
+export const ActionTypeCardIcon = styled.div`
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'rgba(255,255,255,0.05)'};
+  color: ${({ $active }) => $active ? '#1e85ff' : '#475569'};
+  font-size: 15px;
+`
+
+export const ActionTypeCardTitle = styled.span`
+  font-size: 12.5px;
+  font-weight: 600;
+  color: ${({ $active }) => $active ? '#d4dce8' : '#64748b'};
+  line-height: 1.2;
+`
+
+export const ActionTypeCardSub = styled.span`
+  font-size: 10.5px;
+  color: #2d3a4d;
+  line-height: 1.4;
+`
+
+/* ─────────────────────────────
+   MESSAGE LIST (button editor)
+───────────────────────────── */
+export const MsgListWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`
+
+export const MsgListItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+`
+
+export const MsgListRemoveBtn = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  min-width: 30px;
+  border-radius: 7px;
+  border: 1px solid rgba(239,68,68,0.14);
+  background: rgba(239,68,68,0.05);
+  color: rgba(239,68,68,0.45);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.14s;
+  &:hover {
+    border-color: rgba(239,68,68,0.32);
+    background: rgba(239,68,68,0.10);
+    color: #f87171;
+  }
+`
+
+export const MsgListAddBtn = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px dashed rgba(255,255,255,0.07);
+  background: transparent;
+  color: #334155;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: all 0.14s;
+  &:hover {
+    border-color: rgba(30,133,255,0.28);
+    color: #1e85ff;
+    background: rgba(30,133,255,0.04);
+  }
 `
 
 /* ─────────────────────────────
@@ -1104,4 +1221,89 @@ export const SaveToast = styled.div`
   box-shadow: 0 8px 24px rgba(0,0,0,0.40);
   animation: ${slideToast} 0.22s cubic-bezier(0.16, 1, 0.3, 1);
   pointer-events: none;
+`
+
+/* ─────────────────────────────
+   BANK FIELD PICKER
+───────────────────────────── */
+export const BankPickerWrap = styled.div`
+  position: relative;
+  display: inline-flex;
+`
+
+export const BankPickerBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(30,133,255,0.22);
+  background: rgba(30,133,255,0.06);
+  color: #3b82f6;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.13s;
+  &:hover {
+    background: rgba(30,133,255,0.12);
+    border-color: rgba(30,133,255,0.4);
+    color: #60a5fa;
+  }
+`
+
+export const BankPickerDrop = styled.div`
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 600;
+  min-width: 200px;
+  background: #0f1623;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.55);
+  overflow: hidden;
+`
+
+export const BankPickerHead = styled.div`
+  padding: 8px 12px 6px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+`
+
+export const BankPickerItem = styled.button`
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.12s;
+  &:hover { background: rgba(30,133,255,0.10); }
+`
+
+export const BankPickerItemLabel = styled.span`
+  font-size: 12px;
+  font-weight: 500;
+  color: #94a3b8;
+`
+
+export const BankPickerItemKey = styled.span`
+  font-size: 10.5px;
+  color: #334155;
+  font-family: monospace;
+`
+
+export const BankPlaceholder = styled.mark`
+  background: rgba(30,133,255,0.18);
+  color: #60a5fa;
+  border-radius: 3px;
+  padding: 0 2px;
+  font-style: normal;
 `

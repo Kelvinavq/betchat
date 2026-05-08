@@ -1027,6 +1027,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
                 ) : msg.type === 'image' ? (
                   <>
                     {renderReplyQuote(msg.replyTo, msg.sent)}
+                    {msg.text && <MsgBubble $sent={msg.sent}>{msg.text}</MsgBubble>}
                     <MediaMsgImg
                       src={msg.mediaUrl} alt={msg.fileName}
                       onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
@@ -1035,6 +1036,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
                 ) : msg.type === 'pdf' ? (
                   <>
                     {renderReplyQuote(msg.replyTo, msg.sent)}
+                    {msg.text && <MsgBubble $sent={msg.sent}>{msg.text}</MsgBubble>}
                     <MediaMsgPdf onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}>
                       <DescriptionIcon /><span>{msg.fileName}</span>
                     </MediaMsgPdf>

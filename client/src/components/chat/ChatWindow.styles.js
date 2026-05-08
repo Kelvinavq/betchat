@@ -943,9 +943,18 @@ export const BotOptionBtn = styled.button`
   min-height: 38px;
   padding: 8px 12px;
   border-radius: 12px;
-  border: 1px solid ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.30)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.28)'};
-  background: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.08)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.10)'};
-  color: ${({ $isBack }) => $isBack ? '#f8b84e' : 'var(--bc-client-accent, #46aaff)'};
+  border: 1px solid ${({ $isBack, $isUpload }) =>
+    $isBack   ? 'rgba(245, 158, 11, 0.30)' :
+    $isUpload ? 'rgba(16, 185, 129, 0.30)' :
+    'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.28)'};
+  background: ${({ $isBack, $isUpload }) =>
+    $isBack   ? 'rgba(245, 158, 11, 0.08)' :
+    $isUpload ? 'rgba(16, 185, 129, 0.08)' :
+    'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.10)'};
+  color: ${({ $isBack, $isUpload }) =>
+    $isBack   ? '#f8b84e' :
+    $isUpload ? '#10b981' :
+    'var(--bc-client-accent, #46aaff)'};
   font-family: inherit;
   font-size: 12.5px;
   font-weight: 600;
@@ -955,8 +964,14 @@ export const BotOptionBtn = styled.button`
   transition: background 0.18s, border-color 0.18s, transform 0.14s;
 
   &:hover {
-    background: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.14)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.17)'};
-    border-color: ${({ $isBack }) => $isBack ? 'rgba(245, 158, 11, 0.45)' : 'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.42)'};
+    background: ${({ $isBack, $isUpload }) =>
+      $isBack   ? 'rgba(245, 158, 11, 0.14)' :
+      $isUpload ? 'rgba(16, 185, 129, 0.14)' :
+      'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.17)'};
+    border-color: ${({ $isBack, $isUpload }) =>
+      $isBack   ? 'rgba(245, 158, 11, 0.45)' :
+      $isUpload ? 'rgba(16, 185, 129, 0.45)' :
+      'rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.42)'};
   }
 
   &:active { transform: scale(0.98); }

@@ -52,3 +52,13 @@ ALTER TABLE `chats`
   ADD COLUMN `help_reason` VARCHAR(40) DEFAULT NULL AFTER `is_help_request`,
   ADD COLUMN `help_note` TEXT DEFAULT NULL AFTER `help_reason`,
   ADD COLUMN `closed_at` DATETIME DEFAULT NULL AFTER `updated_at`;
+
+ALTER TABLE `bot_items`
+  ADD COLUMN `button_type` ENUM('navigate','receipt_request') NOT NULL DEFAULT 'navigate' AFTER `label`,
+  ADD COLUMN `receipt_processing` ENUM('auto','manual') NOT NULL DEFAULT 'manual' AFTER `button_type`,
+  ADD COLUMN `receipt_prompt` TEXT DEFAULT NULL AFTER `receipt_processing`,
+  ADD COLUMN `response_messages` TEXT DEFAULT NULL AFTER `receipt_prompt`;
+
+ALTER TABLE `bot_items`
+  MODIFY COLUMN `button_type` ENUM('navigate','receipt_request','messages_only') NOT NULL DEFAULT 'navigate',
+  ADD COLUMN `show_receipt_after` TINYINT(1) NOT NULL DEFAULT 0 AFTER `receipt_prompt`;

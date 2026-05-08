@@ -634,6 +634,18 @@ const createBotButtonMessages = (screen, reason = 'screen') => {
   }]
 }
 
+const createButtonResponseMessages = (button, time = messageTime()) =>
+  (button?.responseMessages || [])
+    .map((text, index) => ({
+      id: `bot-button-response-${button.id}-${index}-${Date.now()}`,
+      type: 'text',
+      text,
+      received: true,
+      time,
+      avatar: BOT_AVATAR,
+    }))
+    .filter(message => message.text)
+
 const mergeDbMessage = (incoming) => (prev) => {
   const mapped = mapDbMessage(incoming)
   if (mapped.clientMessageId) {
@@ -668,11 +680,14 @@ const ChatView = ({ onClose, client }) => {
   const [replyingTo, setReplyingTo] = useState(null)
   const [messageMenu, setMessageMenu] = useState(null)
   const [swipeReply, setSwipeReply] = useState(null)
+  const [receiptRequest, setReceiptRequest] = useState(null)
 
   const messagesRef  = useRef(null)
   const bottomRef    = useRef(null)
   const imageInputRef = useRef(null)
   const pdfInputRef   = useRef(null)
+  const receiptInputRef = useRef(null)
+  const receiptFileDialogRef = useRef(null)
   const botActionPendingRef = useRef(false)
   const outboxRef = useRef([])
   const pendingTimersRef = useRef(new Map())
@@ -947,16 +962,93 @@ const ChatView = ({ onClose, client }) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
+  const restoreReceiptButtons = useCallback((request) => {
+    if (!request) return
+    setMessages(prev => {
+      if (prev.some(message => message.type === 'bot-buttons')) return prev
+      return [...prev, {
+        id: `bot-receipt-restore-${request.buttonId || 'file'}-${Date.now()}`,
+        type: 'bot-buttons',
+        buttons: [
+          {
+            id: `receipt-upload-restore-${request.buttonId || 'file'}`,
+            label: '📎 Subir comprobante',
+            buttonType: 'receipt_upload',
+            receiptRequest: request,
+          },
+          ...(request.backButtons || []),
+        ],
+        received: true,
+        time: messageTime(),
+        avatar: BOT_AVATAR,
+      }]
+    })
+  }, [])
+
+  const watchReceiptFileDialog = useCallback((request) => {
+    receiptFileDialogRef.current = { request, active: true }
+    const handleFocus = () => {
+      window.setTimeout(() => {
+        const pending = receiptFileDialogRef.current
+        if (!pending?.active) return
+        receiptFileDialogRef.current = null
+        setReceiptRequest(null)
+        restoreReceiptButtons(pending.request)
+      }, 450)
+      window.removeEventListener('focus', handleFocus)
+    }
+    window.addEventListener('focus', handleFocus, { once: true })
+  }, [restoreReceiptButtons])
+
+  const handleReceiptUploadClick = useCallback((request) => {
+    const req = request || receiptRequest
+    if (!req) return
+    setReceiptRequest(req)
+    setMessages(prev => prev.filter(message => message.type !== 'bot-buttons'))
+    watchReceiptFileDialog(req)
+    receiptInputRef.current?.click()
+  }, [receiptRequest, watchReceiptFileDialog])
+
   const handleBotButton = (button) => {
+    if (button.buttonType === 'receipt_upload') {
+      handleReceiptUploadClick(button.receiptRequest)
+      return
+    }
     if (botActionPendingRef.current) return
     botActionPendingRef.current = true
     setBotActionPending(true)
+    if (receiptRequest) {
+      receiptFileDialogRef.current = null
+      setReceiptRequest(null)
+    }
 
     const currentScreen = botFlow?.screens?.find(screen => screen.id === currentBotScreenId)
-    const target = botFlow?.screens?.find(screen => screen.id === button.actionScreenId) || currentScreen
+    const isMessagesOnly = button.buttonType === 'messages_only' || button.buttonType === 'receipt_request'
+    const willShowReceipt = Boolean(button.showReceiptAfter) || button.buttonType === 'receipt_request'
+    const target = isMessagesOnly ? currentScreen : (botFlow?.screens?.find(screen => screen.id === button.actionScreenId) || currentScreen)
+    const targetBackButtons = (target?.items || []).filter(item => item.type === 'button' && item.isBack && item.label)
     const time = messageTime()
     const optionMessageId = makeClientMessageId('client-bot-option')
-    const botMessages = createBotMessages(target, button.id)
+    const responseMessages = createButtonResponseMessages(button, time)
+    const receiptPromptMsg = willShowReceipt ? {
+      id: `bot-receipt-${button.id}-${Date.now()}`,
+      type: 'text',
+      text: button.receiptPrompt || 'Subi una imagen o PDF del comprobante para continuar.',
+      received: true,
+      time,
+      avatar: BOT_AVATAR,
+    } : null
+    const botMessages = (() => {
+      if (responseMessages.length > 0) {
+        return willShowReceipt
+          ? [...responseMessages, receiptPromptMsg]
+          : [...responseMessages, ...createBotButtonMessages(target, button.id)]
+      }
+      if (willShowReceipt) {
+        return [receiptPromptMsg]
+      }
+      return createBotMessages(target, button.id)
+    })()
     const botTextMessages = botMessages.filter(message => message.type === 'text')
     const botMessageIds = botTextMessages.map(() => makeClientMessageId('bot-auto'))
 
@@ -993,6 +1085,36 @@ const ChatView = ({ onClose, client }) => {
       .then((data) => {
         markConnectionRestored()
         setCurrentBotScreenId(data.state?.currentScreenId || target.id)
+        if (data.button?.showReceiptAfter || (data.button?.buttonType === 'receipt_request')) {
+          const nextReceiptRequest = {
+            buttonId: button.id,
+            label: button.label,
+            processing: data.button?.receiptProcessing || button.receiptProcessing || 'manual',
+            screenId: target.id,
+            backButtons: targetBackButtons,
+          }
+          setReceiptRequest(nextReceiptRequest)
+          shouldScrollBottomRef.current = true
+          setMessages(prev => [
+            ...prev.filter(m => m.type !== 'bot-buttons'),
+            {
+              id: `bot-receipt-upload-${button.id}-${Date.now()}`,
+              type: 'bot-buttons',
+              buttons: [
+                {
+                  id: `receipt-upload-btn-${button.id}`,
+                  label: '📎 Subir comprobante',
+                  buttonType: 'receipt_upload',
+                  receiptRequest: nextReceiptRequest,
+                },
+                ...targetBackButtons,
+              ],
+              received: true,
+              time: messageTime(),
+              avatar: BOT_AVATAR,
+            },
+          ])
+        }
         shouldScrollBottomRef.current = true
         for (const message of data.messages || []) {
           setMessages(mergeDbMessage(message))
@@ -1019,10 +1141,30 @@ const ChatView = ({ onClose, client }) => {
     e.target.value = ''
   }
 
+  const handleReceiptFileSelect = (e) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    const pending = receiptFileDialogRef.current
+    if (pending) receiptFileDialogRef.current = { ...pending, active: false }
+    if (!file) {
+      restoreReceiptButtons(pending?.request || receiptRequest)
+      setReceiptRequest(null)
+      return
+    }
+    setMessages(prev => prev.filter(m =>
+      !(m.type === 'bot-buttons' && m.buttons?.some(b => b.buttonType === 'receipt_upload'))
+    ))
+    const type = file.type?.startsWith('image/') ? 'image' : 'pdf'
+    const url = URL.createObjectURL(file)
+    setPreviewData({ type, url, name: file.name, file, receiptRequest })
+    setAttachOpen(false)
+  }
+
   const sendMedia = async () => {
     if (!previewData || !chatId) return
-    const { type, url, name, file } = previewData
+    const { type, url, name, file, receiptRequest: mediaReceiptRequest } = previewData
     setPreviewData(null)
+    if (mediaReceiptRequest) setReceiptRequest(null)
 
     const sendingId = makeClientMessageId(`client-${type}`)
     const time = messageTime()
@@ -1058,6 +1200,9 @@ const ChatView = ({ onClose, client }) => {
         chatId,
         clientMessageId: sendingId,
         messageType: type,
+        content: mediaReceiptRequest
+          ? `Comprobante (${mediaReceiptRequest.processing === 'auto' ? 'procesamiento automatico por banco activo' : 'procesamiento manual'})`
+          : '',
         dataUrl,
         fileName: name,
         time,
@@ -1349,7 +1494,7 @@ const ChatView = ({ onClose, client }) => {
       {previewData && (
         <MediaPreviewModal
           data={previewData}
-          onClose={() => setPreviewData(null)}
+          onClose={() => { setPreviewData(null); if (previewData?.receiptRequest) setReceiptRequest(null) }}
           onSend={sendMedia}
         />
       )}
@@ -1449,7 +1594,8 @@ const ChatView = ({ onClose, client }) => {
                         key={button.id}
                         type="button"
                         $isBack={button.isBack}
-                        disabled={botActionPending}
+                        $isUpload={button.buttonType === 'receipt_upload'}
+                        disabled={button.buttonType !== 'receipt_upload' && botActionPending}
                         onClick={() => handleBotButton(button)}
                       >
                         {button.label}
@@ -1459,6 +1605,7 @@ const ChatView = ({ onClose, client }) => {
                 ) : msg.type === 'image' ? (
                   <>
                     {renderReplyQuote(msg.replyTo, msg.received)}
+                    {msg.text && <MessageBubble $received={msg.received}>{msg.text}</MessageBubble>}
                     <MediaMsgImg
                       src={msg.mediaUrl}
                       alt={msg.fileName}
@@ -1468,6 +1615,7 @@ const ChatView = ({ onClose, client }) => {
                 ) : msg.type === 'pdf' ? (
                   <>
                     {renderReplyQuote(msg.replyTo, msg.received)}
+                    {msg.text && <MessageBubble $received={msg.received}>{msg.text}</MessageBubble>}
                     <MediaMsgPdf
                       onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}
                     >
@@ -1587,6 +1735,13 @@ const ChatView = ({ onClose, client }) => {
         accept="application/pdf,.pdf"
         style={{ display: 'none' }}
         onChange={e => handleFileSelect(e, 'pdf')}
+      />
+      <input
+        ref={receiptInputRef}
+        type="file"
+        accept="image/*,application/pdf,.pdf"
+        style={{ display: 'none' }}
+        onChange={handleReceiptFileSelect}
       />
 
     </ChatViewContainer>

@@ -5,6 +5,47 @@ import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { persistMessage } from './chatController.js'
 
 const ITEM_TYPES = ['message', 'button']
+const BUTTON_TYPES = ['navigate', 'receipt_request', 'messages_only']
+const RECEIPT_PROCESSING = ['auto', 'manual']
+
+const SAFE_BANK_FIELDS = new Set(['nombre_titular', 'alias', 'cbu', 'email', 'cuit', 'currency'])
+
+async function resolveBankPlaceholders(text) {
+  if (!text || !text.includes('{{bank.')) return text
+  const { rows, error } = await query(
+    `SELECT ba.account_data, ba.currency
+     FROM chat_processing_config cpc
+     INNER JOIN bank_accounts ba ON ba.id = cpc.bank_account_id AND ba.is_active = 1
+     WHERE cpc.id = 1
+     LIMIT 1`,
+    []
+  )
+  if (error || !rows?.length) return text
+  const raw = rows[0].account_data
+  const data = typeof raw === 'object' ? raw : (() => { try { return JSON.parse(raw) } catch { return {} } })()
+  const fields = {
+    nombre_titular: data.nombre_titular || '',
+    alias: data.alias || '',
+    cbu: data.cbu || '',
+    email: data.email || '',
+    cuit: data.cuit || '',
+    currency: rows[0].currency || 'ARS',
+  }
+  return text.replace(/\{\{bank\.(\w+)\}\}/g, (match, key) =>
+    SAFE_BANK_FIELDS.has(key) ? (fields[key] || match) : match
+  )
+}
+
+function parseJsonArray(value) {
+  if (!value) return []
+  if (Array.isArray(value)) return value
+  try {
+    const parsed = JSON.parse(value)
+    return Array.isArray(parsed) ? parsed : []
+  } catch {
+    return []
+  }
+}
 
 const sanitizeScreen = (screen) => ({
   id: screen.id,
@@ -18,6 +59,11 @@ const sanitizeItem = (item) => ({
   type: item.type,
   text: item.text || '',
   label: item.label || '',
+  buttonType: item.button_type || 'navigate',
+  receiptProcessing: item.receipt_processing || 'manual',
+  receiptPrompt: item.receipt_prompt || '',
+  showReceiptAfter: Boolean(item.show_receipt_after) || item.button_type === 'receipt_request',
+  responseMessages: parseJsonArray(item.response_messages).map(message => String(message || '').trim()).filter(Boolean),
   actionScreenId: item.action_screen_id || '',
   isBack: Boolean(item.is_back),
   order: Number(item.sort_order || 0),
@@ -56,6 +102,14 @@ function validateFlow(body) {
       const type = String(item.type || '').trim()
       const text = String(item.text || '').trim()
       const label = String(item.label || '').trim()
+      const buttonType = BUTTON_TYPES.includes(String(item.buttonType || item.button_type || 'navigate')) ? String(item.buttonType || item.button_type || 'navigate') : 'navigate'
+      const receiptProcessing = RECEIPT_PROCESSING.includes(String(item.receiptProcessing || item.receipt_processing || 'manual')) ? String(item.receiptProcessing || item.receipt_processing || 'manual') : 'manual'
+      const receiptPrompt = String(item.receiptPrompt || item.receipt_prompt || '').trim()
+      const showReceiptAfter = Boolean(item.showReceiptAfter || item.show_receipt_after) || buttonType === 'receipt_request'
+      const responseMessages = parseJsonArray(item.responseMessages || item.response_messages)
+        .map(message => String(message || '').trim())
+        .filter(Boolean)
+        .slice(0, 8)
       const actionScreenId = normalizeId(item.actionScreenId || item.action_screen_id)
       const isBack = Boolean(item.isBack || item.is_back)
 
@@ -67,11 +121,18 @@ function validateFlow(body) {
       if (!ITEM_TYPES.includes(type)) errors.push(`Tipo de elemento invalido en "${name || id}"`)
       if (type === 'message' && !text) errors.push(`Hay un mensaje vacio en "${name || id}"`)
       if (type === 'button' && !label) errors.push(`Hay un boton sin texto en "${name || id}"`)
+      if (type === 'button' && buttonType === 'receipt_request' && !receiptPrompt) errors.push(`El boton "${label || itemId}" necesita texto para solicitar comprobante`)
+      if (type === 'button' && buttonType === 'messages_only' && showReceiptAfter && !receiptPrompt) errors.push(`El boton "${label || itemId}" necesita texto para solicitar comprobante`)
       return {
         id: itemId,
         type,
         text,
         label,
+        buttonType,
+        receiptProcessing,
+        receiptPrompt,
+        showReceiptAfter,
+        responseMessages,
         actionScreenId,
         isBack,
         order: itemIndex,
@@ -89,7 +150,7 @@ function validateFlow(body) {
 
   for (const screen of normalizedScreens) {
     for (const item of screen.items) {
-      if (item.type === 'button' && item.actionScreenId && !screenIds.has(item.actionScreenId)) {
+      if (item.type === 'button' && item.buttonType !== 'receipt_request' && item.actionScreenId && !screenIds.has(item.actionScreenId)) {
         errors.push(`El boton "${item.label}" apunta a una pantalla inexistente`)
       }
     }
@@ -123,7 +184,7 @@ async function loadBotFlow() {
   if (screenError) throw screenError
 
   const { rows: itemRows, error: itemError } = await query(
-    `SELECT id, screen_id, type, text, label, action_screen_id, is_back, sort_order
+    `SELECT id, screen_id, type, text, label, button_type, receipt_processing, receipt_prompt, show_receipt_after, response_messages, action_screen_id, is_back, sort_order
        FROM bot_items
        ORDER BY screen_id ASC, sort_order ASC, created_at ASC`
   )
@@ -258,7 +319,7 @@ export async function selectClientBotOption(req, res, next) {
     }
 
     const { rows: buttonRows, error: buttonError } = await query(
-      `SELECT bi.id, bi.label, bi.action_screen_id, bi.screen_id
+      `SELECT bi.id, bi.label, bi.button_type, bi.receipt_processing, bi.receipt_prompt, bi.show_receipt_after, bi.response_messages, bi.action_screen_id, bi.screen_id
        FROM bot_items bi
        WHERE bi.id = ? AND bi.type = 'button'
        LIMIT 1`,
@@ -270,9 +331,13 @@ export async function selectClientBotOption(req, res, next) {
       return res.status(404).json({ error: 'Opcion del bot no encontrada.', code: 'BOT_OPTION_NOT_FOUND' })
     }
 
-    const targetScreenId = button.action_screen_id || chat.bot_screen_id || button.screen_id
+    const isReceiptRequest = button.button_type === 'receipt_request'
+    const isMessagesOnly = button.button_type === 'messages_only'
+    const showReceiptAfter = Boolean(button.show_receipt_after) || isReceiptRequest
+    const stayOnScreen = isReceiptRequest || isMessagesOnly
+    const targetScreenId = stayOnScreen ? (chat.bot_screen_id || button.screen_id) : (button.action_screen_id || chat.bot_screen_id || button.screen_id)
     const { rows: itemRows, error: itemError } = await query(
-      `SELECT id, type, text, label, action_screen_id, is_back, sort_order
+      `SELECT id, type, text, label, button_type, receipt_processing, receipt_prompt, response_messages, action_screen_id, is_back, sort_order
        FROM bot_items
        WHERE screen_id = ?
        ORDER BY sort_order ASC, created_at ASC`,
@@ -290,12 +355,26 @@ export async function selectClientBotOption(req, res, next) {
     })
     created.push(selected.message)
 
-    const botTexts = (itemRows || []).filter(item => item.type === 'message' && item.text)
+    const responseMessages = parseJsonArray(button.response_messages)
+      .map((text, index) => ({ id: `${button.id}-response-${index}`, text: String(text || '').trim() }))
+      .filter(item => item.text)
+    const receiptPromptRaw = showReceiptAfter
+      ? await resolveBankPlaceholders(button.receipt_prompt || 'Subi el comprobante para continuar.')
+      : null
+    const receiptPromptItem = receiptPromptRaw
+      ? [{ id: `${button.id}-receipt-prompt`, text: receiptPromptRaw }]
+      : []
+    const botTexts = responseMessages.length > 0
+      ? [...responseMessages, ...receiptPromptItem]
+      : showReceiptAfter
+      ? receiptPromptItem
+      : (itemRows || []).filter(item => item.type === 'message' && item.text)
     for (const [index, item] of botTexts.entries()) {
+      const resolvedContent = await resolveBankPlaceholders(String(item.text || '').trim())
       const result = await persistMessage({
         chatId,
         senderType: 'system',
-        content: String(item.text || '').trim(),
+        content: resolvedContent,
         messageType: 'text',
         clientMessageId: botMessageIds[index] || `bot-${buttonId}-${item.id}`,
       })
@@ -316,6 +395,14 @@ export async function selectClientBotOption(req, res, next) {
     res.status(201).json({
       success: true,
       messages: created,
+      button: {
+        id: button.id,
+        buttonType: button.button_type || 'navigate',
+        receiptProcessing: button.receipt_processing || 'manual',
+        receiptPrompt: button.receipt_prompt || '',
+        showReceiptAfter,
+        responseMessages: parseJsonArray(button.response_messages),
+      },
       state: {
         chatId,
         currentScreenId: targetScreenId,
@@ -354,15 +441,20 @@ export async function saveBotFlow(req, res, next) {
         for (const item of screen.items) {
           await connection.execute(
             `INSERT INTO bot_items
-              (id, screen_id, type, text, label, action_screen_id, is_back, sort_order)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, screen_id, type, text, label, button_type, receipt_processing, receipt_prompt, show_receipt_after, response_messages, action_screen_id, is_back, sort_order)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               item.id,
               screen.id,
               item.type,
               item.type === 'message' ? item.text : null,
               item.type === 'button' ? item.label : null,
-              item.type === 'button' && item.actionScreenId ? item.actionScreenId : null,
+              item.type === 'button' ? item.buttonType : 'navigate',
+              item.type === 'button' ? item.receiptProcessing : 'manual',
+              item.type === 'button' && (item.buttonType === 'receipt_request' || item.showReceiptAfter) ? item.receiptPrompt : null,
+              item.type === 'button' && (item.buttonType === 'receipt_request' || item.showReceiptAfter) ? 1 : 0,
+              item.type === 'button' && item.responseMessages?.length ? JSON.stringify(item.responseMessages) : null,
+              item.type === 'button' && item.buttonType === 'navigate' && item.actionScreenId ? item.actionScreenId : null,
               item.isBack ? 1 : 0,
               item.order,
             ]
