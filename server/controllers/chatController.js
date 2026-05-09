@@ -10,6 +10,8 @@ import { config } from '../config/config.js'
 import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { io } from '../app.js'
 import { deleteCache, deleteCachePattern, getCacheJson, setCacheJson } from '../utils/redisCache.js'
+import { extractReceiptData } from '../services/receiptExtractor.js'
+import { getAutoMessage } from '../controllers/autoMessagesController.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -38,6 +40,52 @@ const emitChatUpdate = (chat) => {
 }
 
 export { emitChatUpdate }
+
+export async function emitChatRefresh(chatId) {
+  const chat = sanitizeChat(await getChat(chatId))
+  emitChatUpdate(chat)
+}
+
+export async function resetClientBot(chatId) {
+  const { rows: screenRows } = await query(
+    'SELECT id FROM bot_screens WHERE is_root = 1 ORDER BY sort_order ASC, created_at ASC LIMIT 1'
+  )
+  let rootId = screenRows?.[0]?.id || null
+  if (!rootId) {
+    const { rows: first } = await query(
+      'SELECT id FROM bot_screens ORDER BY sort_order ASC, created_at ASC LIMIT 1'
+    )
+    rootId = first?.[0]?.id || null
+  }
+
+  const { rows: chatRows } = await query(
+    'SELECT client_id FROM chats WHERE id = ? LIMIT 1',
+    [chatId]
+  )
+  const clientId = chatRows?.[0]?.client_id || null
+
+  await query(
+    'UPDATE chats SET bot_screen_id = ?, bot_last_button_id = NULL, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+    [rootId, chatId]
+  )
+
+  const chat = sanitizeChat(await getChat(chatId))
+  emitChatUpdate(chat)
+
+  if (clientId) {
+    io.to(`client:${clientId}`).emit('bot:reset', { chatId: Number(chatId), screenId: rootId })
+  }
+}
+
+export async function resetClientBotAdmin(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    await resetClientBot(chatId)
+    res.json({ success: true })
+  } catch (error) {
+    next(error)
+  }
+}
 
 const emitMessage = (chatId, message) => {
   io.to(`chat:${chatId}`).emit('message:new', message)
@@ -838,28 +886,173 @@ export async function persistMessage({
   return { message, chat }
 }
 
+async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId }) {
+  console.log(`[Receipt] Pipeline manual — chatId=${chatId} messageId=${messageId} bankAccountId=${bankAccountId}`)
+  const receivedMsg = await getAutoMessage('receipt_received')
+  if (receivedMsg) {
+    await persistMessage({ chatId, senderType: 'system', content: receivedMsg })
+  }
+
+  let extracted = null
+  let aiStatus = 'error'
+  try {
+    extracted = await extractReceiptData(dataUrl)
+    aiStatus = 'ok'
+  } catch (err) {
+    console.error('[Receipt] Error extracción IA:', err.message)
+  }
+
+  let isDuplicate = false
+  let duplicateOfId = null
+  if (extracted?.transaction_id) {
+    const { rows: dupRows } = await query(
+      'SELECT id FROM manual_payment_movements WHERE transaction_id = ? LIMIT 1',
+      [extracted.transaction_id]
+    )
+    if (dupRows?.length) {
+      isDuplicate = true
+      duplicateOfId = dupRows[0].id
+    }
+  }
+
+  await query(
+    `INSERT INTO manual_payment_movements
+     (client_id, chat_id, message_id, bank_account_id, status, amount, ai_extracted_text, ai_status, transaction_id, is_duplicate, duplicate_of_id)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`,
+    [
+      clientId,
+      chatId,
+      messageId,
+      bankAccountId,
+      extracted?.amount ?? 0,
+      JSON.stringify(extracted),
+      aiStatus,
+      extracted?.transaction_id ?? null,
+      isDuplicate ? 1 : 0,
+      duplicateOfId ?? null,
+    ]
+  )
+
+  let followUpEvent = null
+  if (isDuplicate) {
+    followUpEvent = 'receipt_duplicate'
+  } else if (aiStatus === 'error') {
+    followUpEvent = 'receipt_invalid'
+  } else if (!extracted?.amount || !extracted?.transaction_id) {
+    followUpEvent = 'receipt_insufficient_info'
+  }
+
+  if (followUpEvent) {
+    const followMsg = await getAutoMessage(followUpEvent)
+    if (followMsg) {
+      await persistMessage({ chatId, senderType: 'system', content: followMsg })
+    }
+  }
+}
+
+export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl }) {
+  try {
+    console.log(`[Receipt] Iniciando procesamiento — chatId=${chatId} clientId=${clientId} messageId=${messageId}`)
+
+    const { rows, error } = await query(
+      `SELECT bi.receipt_processing, cpc.bank_account_id, bp.slug AS active_provider
+       FROM chats ch
+       LEFT JOIN bot_items bi ON bi.id = ch.bot_last_button_id
+       LEFT JOIN chat_processing_config cpc ON cpc.id = 1
+       LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
+       LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
+       WHERE ch.id = ?
+       LIMIT 1`,
+      [chatId]
+    )
+    if (error) {
+      console.error('[Receipt] Error al consultar contexto del chat:', error.message)
+      return
+    }
+    if (!rows?.length) {
+      console.warn('[Receipt] Chat no encontrado para chatId=', chatId)
+      return
+    }
+
+    const { receipt_processing, bank_account_id, active_provider } = rows[0]
+    const bankAccountId = bank_account_id || null
+
+    console.log(`[Receipt] Contexto — receipt_processing=${receipt_processing} active_provider=${active_provider} bankAccountId=${bankAccountId}`)
+
+    // Manual por operador, o sin botón seleccionado (null → tratar como manual)
+    if (!receipt_processing || receipt_processing === 'manual') {
+      return await runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId })
+    }
+
+    // Automático: si el banco activo es "manual" o no hay banco → fallback al pipeline de IA
+    if (!active_provider || active_provider === 'manual') {
+      return await runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId })
+    }
+
+    // Banco activo es HGCash / Telepagos / MercadoPago → notificar y delegar al banco
+    console.log(`[Receipt] Modo automático con banco ${active_provider} — enviando mensaje de recepción`)
+    const receivedMsg = await getAutoMessage('receipt_received')
+    if (receivedMsg) {
+      await persistMessage({ chatId, senderType: 'system', content: receivedMsg })
+    }
+
+    // TODO: integración específica por banco
+    // switch (active_provider) {
+    //   case 'hgcash':      await processHgCashReceipt(...)     ; break
+    //   case 'telepagos':   await processTelePageReceipt(...)   ; break
+    //   case 'mercadopago': await processMercadopagoReceipt(...); break
+    // }
+  } catch (err) {
+    console.error('[Receipt] Error inesperado en procesamiento background:', err)
+  }
+}
+
 export async function sendClientMessage(req, res, next) {
   try {
     const client = await getClientFromRequest(req)
     if (!client) return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
 
     const chatId = Number(req.params.chatId)
+
+    // ── LOG: entrada a sendClientMessage ────────────────────────────────────
+    const _msgType = req.body?.messageType || 'text'
+    const _hasDataUrl = !!req.body?.dataUrl
+    const _dataUrlLen = req.body?.dataUrl?.length || 0
+    console.log(`[Chat] sendClientMessage — chatId=${chatId} messageType=${_msgType} hasDataUrl=${_hasDataUrl} dataUrlLen=${_dataUrlLen}`)
+    // ────────────────────────────────────────────────────────────────────────
+
     const chat = await getChat(chatId)
     if (!chat || Number(chat.client_id) !== Number(client.sub)) {
       return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
     }
+
+    const messageType = _msgType
+    const dataUrl = req.body?.dataUrl || ''
 
     const result = await persistMessage({
       chatId,
       senderType: 'client',
       clientId: client.sub,
       content: String(req.body?.content || '').trim(),
-      messageType: req.body?.messageType || 'text',
-      dataUrl: req.body?.dataUrl || '',
+      messageType,
+      dataUrl,
       fileName: req.body?.fileName || '',
       clientMessageId: req.body?.clientMessageId || '',
       replyToMessageId: req.body?.replyToMessageId || null,
     })
+
+    if ((messageType === 'image' || messageType === 'pdf') && dataUrl) {
+      console.log(`[Receipt] Disparando procesamiento async — chatId=${chatId} messageType=${messageType} messageId=${result.message.id}`)
+      void processReceiptAsync({
+        chatId,
+        clientId: client.sub,
+        messageId: result.message.id,
+        dataUrl,
+      })
+    } else if (messageType === 'image' || messageType === 'pdf') {
+      console.warn(`[Receipt] Imagen/PDF recibido pero sin dataUrl en body — messageType=${messageType} hasDataUrl=${_hasDataUrl}`)
+    }
+
     res.status(201).json(result)
   } catch (error) {
     next(error)

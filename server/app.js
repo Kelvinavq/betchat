@@ -22,6 +22,7 @@ import botBuilderRoutes from './routes/botBuilderRoutes.js';
 import clientBotRoutes from './routes/clientBotRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import clientChatRoutes from './routes/clientChatRoutes.js';
+import autoMessagesRoutes from './routes/autoMessagesRoutes.js';
 import { setupChatSockets } from './socket/chatSocket.js';
 
 // Variables globales
@@ -80,6 +81,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/bot-builder', botBuilderRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/settings/auto-messages', autoMessagesRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {

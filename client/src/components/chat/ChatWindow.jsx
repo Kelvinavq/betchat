@@ -1516,6 +1516,27 @@ const ChatView = ({ onClose, client, onLogout, loggingOut }) => {
   }, [chatId, markOutboundDelivered, markOutboundReadSoon])
 
   useEffect(() => {
+    if (!chatId) return
+    const socket = getSocket('client')
+    const onBotReset = ({ chatId: resetChatId, screenId }) => {
+      if (Number(resetChatId) !== Number(chatId)) return
+      const root = (botFlow?.screens || []).find(s => s.id === screenId)
+        || (botFlow?.screens || []).find(s => s.isRoot)
+        || (botFlow?.screens || [])[0]
+      if (!root) return
+      setCurrentBotScreenId(root.id)
+      setReceiptRequest(null)
+      shouldScrollBottomRef.current = true
+      setMessages(prev => [
+        ...prev.filter(m => m.type !== 'bot-buttons'),
+        ...createBotMessages(root, null),
+      ])
+    }
+    socket.on('bot:reset', onBotReset)
+    return () => socket.off('bot:reset', onBotReset)
+  }, [chatId, botFlow])
+
+  useEffect(() => {
     const socket = getSocket('client')
     let watchdogTimer = null
 

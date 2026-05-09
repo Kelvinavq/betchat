@@ -10,6 +10,7 @@ import {
   getAdminChats,
   getMessages,
   markChatRead,
+  resetClientBotAdmin,
   sendAdminMessage,
   updateChatClientDetails,
   updateChatClientLabels,
@@ -17,6 +18,7 @@ import {
 import {
   getChatMovements,
   updateManualMovementStatus,
+  resolveManualMovement,
 } from '../controllers/movementController.js'
 
 const router = Router()
@@ -32,6 +34,8 @@ router.put('/:chatId/client', updateChatClientDetails)
 router.put('/:chatId/client/labels', updateChatClientLabels)
 router.get('/:chatId/movements', getChatMovements)
 router.put('/:chatId/movements/manual/:id/status', updateManualMovementStatus)
+router.put('/:chatId/movements/manual/:id/resolve', resolveManualMovement)
+router.post('/:chatId/bot/reset', resetClientBotAdmin)
 router.get('/:chatId/messages', getMessages)
 router.post('/:chatId/messages', sendAdminMessage)
 router.post('/:chatId/withdrawal/complete', completeWithdrawal)

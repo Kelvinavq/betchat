@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken'
 import { config } from '../config/config.js'
 import { query } from '../config/database.js'
-import { assignChatIfUnassigned, persistMessage, setClientOnlineStatus } from '../controllers/chatController.js'
+import { assignChatIfUnassigned, persistMessage, processReceiptAsync, setClientOnlineStatus } from '../controllers/chatController.js'
 
 const recentMessages = new Map()
 const RECENT_TTL_MS = 60_000
@@ -160,14 +160,19 @@ export function setupChatSockets(io) {
           ? 'client'
           : payload?.role === 'cashier' ? 'cashier' : 'admin'
 
+        const messageType = payloadData.messageType || 'text'
+        const dataUrl = payloadData.dataUrl || ''
+
+        console.log(`[Socket:msg] chatId=${chatId} senderType=${senderType} messageType=${messageType} hasDataUrl=${!!payloadData.dataUrl} dataUrlLen=${dataUrl.length}`)
+
         const result = await persistMessage({
           chatId,
           senderType,
           clientId: senderType === 'client' ? payload.sub : null,
           senderUserId: senderType === 'admin' || senderType === 'cashier' ? payload.sub : null,
           content: String(payloadData.content || '').trim(),
-          messageType: payloadData.messageType || 'text',
-          dataUrl: payloadData.dataUrl || '',
+          messageType,
+          dataUrl,
           fileName: payloadData.fileName || '',
           clientMessageId,
           replyToMessageId: payloadData.replyToMessageId || null,
@@ -175,6 +180,17 @@ export function setupChatSockets(io) {
 
         if (clientMessageId) {
           recentMessages.set(dedupeKey, { createdAt: Date.now(), result })
+        }
+
+        // Procesamiento de comprobante cuando el cliente sube imagen o PDF
+        if (senderType === 'client' && (messageType === 'image' || messageType === 'pdf') && dataUrl) {
+          console.log(`[Receipt] Socket — disparando procesamiento async chatId=${chatId} messageId=${result.message.id}`)
+          void processReceiptAsync({
+            chatId,
+            clientId: payload.sub,
+            messageId: result.message.id,
+            dataUrl,
+          }).catch(err => console.error('[Receipt] Error background (socket):', err))
         }
 
         ack?.({ ok: true, ...result })

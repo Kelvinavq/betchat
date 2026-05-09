@@ -1,4 +1,6 @@
 import { query } from '../config/database.js'
+import { persistMessage, resetClientBot } from './chatController.js'
+import { getAutoMessage } from './autoMessagesController.js'
 
 const PROVIDERS = ['manual', 'hgcash', 'telepagos', 'mercadopago']
 const MANUAL_STATUSES = ['pending', 'paid', 'rejected']
@@ -71,6 +73,7 @@ function serializeMovement(row) {
     gameLoadTime: row.game_load_time || null,
     gameLoadAmount: row.game_load_amount == null ? null : formatAmount(row.game_load_amount),
     syncStatus: row.sync_status || '',
+    receiptUrl: row.receipt_url || '',
     createdAt: row.created_at || null,
     updatedAt: row.updated_at || null,
   }
@@ -81,19 +84,21 @@ function baseManualSelect(whereSql) {
     m.id, 'manual' AS provider, m.client_id, m.chat_id, m.message_id, m.bank_account_id,
     CONCAT(COALESCE(bp.name, 'Manual'), ' - ', COALESCE(ba.alias, JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.alias')), ba.id, '')) AS account_label,
     m.status, m.amount, NULL AS cuit, NULL AS receipt_date, NULL AS receipt_time,
-    NULL AS cbu_cvu, NULL AS bank_status, NULL AS coelsa_id,
+    NULL AS cbu_cvu, NULL AS bank_status, m.transaction_id AS coelsa_id,
     m.transaction_id, NULL AS transaction_id_type, NULL AS mercadopago_id,
     NULL AS description, NULL AS account_holder,
     m.ai_extracted_text, m.ai_status, m.is_duplicate, m.duplicate_of_id,
     IF(dup.id IS NULL, '', CONCAT('#', dup.id, ' - ', COALESCE(dup.transaction_id, 'sin transaction id'), ' - $', dup.amount)) AS duplicate_summary,
     COALESCE(u.full_name, u.username, '') AS processed_by, m.processed_at,
     NULL AS game_platform_load_id, NULL AS game_load_date, NULL AS game_load_time, NULL AS game_load_amount, NULL AS sync_status,
-    m.created_at, m.updated_at
+    m.created_at, m.updated_at,
+    msg.file_url AS receipt_url
     FROM manual_payment_movements m
     LEFT JOIN bank_accounts ba ON ba.id = m.bank_account_id
     LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
     LEFT JOIN manual_payment_movements dup ON dup.id = m.duplicate_of_id
     LEFT JOIN users u ON u.id = m.processed_by_user_id
+    LEFT JOIN messages msg ON msg.id = m.message_id
     ${whereSql}`
 }
 
@@ -113,7 +118,8 @@ function baseBankSelect(provider, table, whereSql) {
     NULL AS ai_extracted_text, NULL AS ai_status, 0 AS is_duplicate, NULL AS duplicate_of_id, '' AS duplicate_summary,
     '' AS processed_by, NULL AS processed_at,
     m.game_platform_load_id, m.game_load_date, m.game_load_time, m.game_load_amount, m.sync_status,
-    m.created_at, m.updated_at
+    m.created_at, m.updated_at,
+    NULL AS receipt_url
     FROM ${table} m
     LEFT JOIN bank_accounts ba ON ba.id = m.bank_account_id
     LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
@@ -192,7 +198,7 @@ async function getActiveAccount() {
 
 async function getClientAccounts(clientId) {
   const { rows, error } = await query(
-    `SELECT DISTINCT ba.id, ba.alias, ba.account_data, bp.slug AS provider
+    `SELECT DISTINCT ba.id, ba.alias, ba.account_data, bp.slug AS provider, bp.name AS provider_name
      FROM bank_accounts ba
      INNER JOIN bank_providers bp ON bp.id = ba.provider_id
      WHERE ba.is_active = 1
@@ -202,7 +208,7 @@ async function getClientAccounts(clientId) {
         OR EXISTS (SELECT 1 FROM telepagos_movements m WHERE m.client_id = ? AND m.bank_account_id = ba.id)
         OR EXISTS (SELECT 1 FROM mercadopago_movements m WHERE m.client_id = ? AND m.bank_account_id = ba.id)
        )
-     ORDER BY bp.name ASC, ba.alias ASC`,
+     ORDER BY provider_name ASC, ba.alias ASC`,
     [clientId, clientId, clientId, clientId]
   )
   if (error) throw error
@@ -301,6 +307,68 @@ export async function updateManualMovementStatus(req, res, next) {
     }
 
     const filters = { clientId: Number(chat.client_id), search: '', accountId: null }
+    const part = buildProviderQuery('manual', filters)
+    const { rows, error: selectError } = await query(`${part.sql} AND m.id = ? LIMIT 1`, [...part.values, id])
+    if (selectError) return next(selectError)
+
+    res.json({ movement: rows?.[0] ? serializeMovement(rows[0]) : null })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function resolveManualMovement(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    const id = Number(req.params.id)
+    const action = normalizeText(req.body?.action || '').toLowerCase()
+
+    if (!['paid', 'rejected'].includes(action)) {
+      return res.status(400).json({ error: 'Acción inválida', code: 'INVALID_ACTION' })
+    }
+
+    const chat = await getChatContext(chatId)
+    if (!chat) return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
+    const clientId = Number(chat.client_id)
+
+    if (action === 'paid') {
+      const newAmount = Number(req.body?.amount)
+      if (!Number.isFinite(newAmount) || newAmount <= 0) {
+        return res.status(400).json({ error: 'Monto inválido', code: 'INVALID_AMOUNT' })
+      }
+
+      const { rows: updateRows, error } = await query(
+        `UPDATE manual_payment_movements
+         SET status = 'paid', amount = ?, processed_by_user_id = ?, processed_at = CURRENT_TIMESTAMP, status_updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND chat_id = ? AND client_id = ?`,
+        [newAmount, req.user?.sub || null, id, chatId, clientId]
+      )
+      if (error) return next(error)
+      if (!updateRows?.affectedRows) {
+        return res.status(404).json({ error: 'Movimiento no encontrado', code: 'MOVEMENT_NOT_FOUND' })
+      }
+
+      await resetClientBot(chatId)
+
+      const paidMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_completed')
+      if (paidMsg) await persistMessage({ chatId, senderType: 'system', content: paidMsg })
+    } else {
+      const { rows: updateRows, error } = await query(
+        `UPDATE manual_payment_movements
+         SET status = 'rejected', processed_by_user_id = ?, processed_at = CURRENT_TIMESTAMP, status_updated_at = CURRENT_TIMESTAMP
+         WHERE id = ? AND chat_id = ? AND client_id = ?`,
+        [req.user?.sub || null, id, chatId, clientId]
+      )
+      if (error) return next(error)
+      if (!updateRows?.affectedRows) {
+        return res.status(404).json({ error: 'Movimiento no encontrado', code: 'MOVEMENT_NOT_FOUND' })
+      }
+
+      const rejectMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_failed')
+      if (rejectMsg) await persistMessage({ chatId, senderType: 'system', content: rejectMsg })
+    }
+
+    const filters = { clientId, search: '', accountId: null }
     const part = buildProviderQuery('manual', filters)
     const { rows, error: selectError } = await query(`${part.sql} AND m.id = ? LIMIT 1`, [...part.values, id])
     if (selectError) return next(selectError)

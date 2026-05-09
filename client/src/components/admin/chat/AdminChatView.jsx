@@ -20,6 +20,7 @@ import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined'
 import PushPinIcon from '@mui/icons-material/PushPin'
 import PersonOffOutlinedIcon from '@mui/icons-material/BlockOutlined'
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined'
+import RestartAltIcon from '@mui/icons-material/RestartAlt'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
@@ -888,6 +889,16 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     mr.stop()
   }
 
+  const resetBotForClient = async () => {
+    if (!chat?.id) return
+    setMenuOpen(false)
+    try {
+      await api.post(`/api/chats/${chat.id}/bot/reset`)
+    } catch (err) {
+      window.alert(err?.message || 'No se pudo restablecer el bot.')
+    }
+  }
+
   const archiveCurrentChat = async () => {
     if (!chat?.id) return
     try {
@@ -1133,6 +1144,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
                   <CloseIcon />Cerrar ayuda temporal
                 </DropdownItem>
               )}
+              <DropdownItem onClick={resetBotForClient}>
+                <RestartAltIcon />Restablecer bot al cliente
+              </DropdownItem>
               <DropdownItem onClick={archiveCurrentChat}>
                 <ArchiveOutlinedIcon />Archivar conversación
               </DropdownItem>

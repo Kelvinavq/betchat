@@ -15,6 +15,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import CasinoOutlinedIcon from '@mui/icons-material/CasinoOutlined'
 import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
+import SmsOutlinedIcon from '@mui/icons-material/SmsOutlined'
 import HeadsetMicOutlinedIcon from '@mui/icons-material/HeadsetMicOutlined'
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
@@ -25,6 +26,7 @@ import { useSystemConfig } from '../../../context/SystemConfigContext'
 import { api } from '../../../utils/api'
 import TicketsSection from './TicketsSection'
 import ThemesSection from './ThemesSection'
+import AutoMessagesSection from './AutoMessagesSection'
 import {
   PageWrap, PageHeader, MenuBtn, TitleBlock, PageTitle, PageSub,
   Body, SettingsNav, NavGroupLabel, NavBtn, ActiveBar, NavIcon, NavTextWrap, NavLabel, NavSub, SoonPill,
@@ -73,6 +75,12 @@ const TABS = [
     label: 'Banco de chat',
     icon: <AccountBalanceWalletOutlinedIcon />,
     sub: 'Modo de procesamiento',
+  },
+  {
+    id: 'mensajes',
+    label: 'Mensajes auto',
+    icon: <SmsOutlinedIcon />,
+    sub: 'Respuestas automáticas',
   },
   {
     id: 'notif',
@@ -1138,6 +1146,13 @@ const SettingsPage = ({ onMenuOpen }) => {
                 </SaveBtn>
               </SaveFooter>
 
+            </Section>
+          )}
+
+          {/* ════════════════ MENSAJES AUTOMÁTICOS ════════════════ */}
+          {activeTab === 'mensajes' && (
+            <Section>
+              <AutoMessagesSection />
             </Section>
           )}
 
