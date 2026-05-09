@@ -60,7 +60,7 @@ export const DropdownMenu = styled.div`
   border: 1px solid rgba(40, 140, 255, 0.14);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.60);
-  overflow: hidden;
+  overflow: clip;
   z-index: 50;
 `
 
@@ -85,6 +85,11 @@ export const DropdownItem = styled.button`
 export const DropdownSection = styled.div`
   padding: 8px 8px 10px;
   border-top: 1px solid rgba(255,255,255,0.07);
+  max-height: 220px;
+  overflow-y: auto;
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 2px; }
 `
 
 export const DropdownLabel = styled.div`
@@ -208,14 +213,49 @@ export const SearchInput = styled.input`
   &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.40); }
 `
 
+export const FilterToggleRow = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  width: 100%;
+  padding: 4px 14px 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: ${({ $open }) => $open ? 'rgba(255,255,255,0.55)' : 'rgba(255,255,255,0.32)'};
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  transition: color 0.15s;
+  svg { font-size: 15px; flex-shrink: 0; }
+  &:hover { color: rgba(255,255,255,0.72); }
+`
+
+export const FilterActiveChip = styled.span`
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(30,133,255,0.16);
+  border: 1px solid rgba(30,133,255,0.28);
+  color: #60a5fa;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 140px;
+`
+
 export const ProcessFilters = styled.div`
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 6px;
   padding: 0 12px 10px;
-  overflow-x: auto;
   flex-shrink: 0;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
 `
 
 export const ProcessChip = styled.button`

@@ -66,22 +66,49 @@ const defaultFormField = (index = 0) => ({
   placeholder: '',
   required: true,
   max: '',
+  options: [],
+  conditionalFields: {},
 })
+
+const VALID_FIELD_TYPES = new Set(['text', 'number', 'dni', 'select'])
 
 const normalizeFormConfig = (config = {}) => ({
   title: config.title || 'Formulario',
   description: config.description || '',
   submitLabel: config.submitLabel || 'Enviar',
+  isWithdrawal: Boolean(config.isWithdrawal),
   responseMessages: Array.isArray(config.responseMessages) ? config.responseMessages : [],
   fields: Array.isArray(config.fields) && config.fields.length
-    ? config.fields.map((field, index) => ({
-      key: field.key || field.id || `campo_${index + 1}`,
-      label: field.label || '',
-      type: field.type === 'number' ? 'number' : 'text',
-      placeholder: field.placeholder || '',
-      required: field.required !== false,
-      max: field.max ?? '',
-    }))
+    ? config.fields.map((field, index) => {
+      const type = VALID_FIELD_TYPES.has(field.type) ? field.type : 'text'
+      const rawCF = type === 'select' && field.conditionalFields && typeof field.conditionalFields === 'object' && !Array.isArray(field.conditionalFields)
+        ? field.conditionalFields : {}
+      const conditionalFields = Object.fromEntries(
+        Object.entries(rawCF)
+          .filter(([, cf]) => cf && typeof cf === 'object')
+          .map(([opt, cf]) => {
+            const cfType = VALID_FIELD_TYPES.has(cf.type) && cf.type !== 'select' ? cf.type : 'text'
+            return [String(opt), {
+              key: cf.key || (makeFieldKey(opt, 'opt') + '_valor'),
+              label: String(cf.label || ''),
+              type: cfType,
+              placeholder: String(cf.placeholder || ''),
+              required: cf.required !== false,
+              max: cfType === 'number' ? (cf.max ?? '') : '',
+            }]
+          })
+      )
+      return {
+        key: field.key || field.id || `campo_${index + 1}`,
+        label: field.label || '',
+        type,
+        placeholder: field.placeholder || '',
+        required: field.required !== false,
+        max: type === 'number' ? (field.max ?? '') : '',
+        options: type === 'select' ? (Array.isArray(field.options) ? field.options : []) : [],
+        conditionalFields: type === 'select' ? conditionalFields : {},
+      }
+    })
     : [defaultFormField(0)],
 })
 
@@ -500,9 +527,11 @@ const EditFormModal = ({ item, onClose, onSave }) => {
         if (patch.label != null && (!field.key || field.key.startsWith('campo_'))) {
           next.key = makeFieldKey(patch.label, `campo_${index + 1}`)
         }
-        if (next.type !== 'number') {
-          next.max = ''
+        if (patch.type != null) {
+          if (next.type !== 'number') next.max = ''
         }
+        if (!next.options) next.options = []
+        if (!next.conditionalFields) next.conditionalFields = {}
         return next
       }),
     }))
@@ -536,6 +565,7 @@ const EditFormModal = ({ item, onClose, onSave }) => {
     title: form.title.trim(),
     description: form.description.trim(),
     submitLabel: form.submitLabel.trim() || 'Enviar',
+    isWithdrawal: Boolean(form.isWithdrawal),
     responseMessages: form.responseMessages.map(message => message.trim()).filter(Boolean),
     fields: form.fields
       .map((field, index) => ({
@@ -544,10 +574,29 @@ const EditFormModal = ({ item, onClose, onSave }) => {
         label: field.label.trim(),
         placeholder: field.placeholder.trim(),
         max: field.type === 'number' && field.max !== '' ? Number(field.max) : null,
+        options: field.type === 'select' ? (field.options || []).map(o => o.trim()).filter(Boolean) : undefined,
+        conditionalFields: field.type === 'select'
+          ? Object.fromEntries(
+              Object.entries(field.conditionalFields || {})
+                .filter(([opt, cf]) => opt.trim() && cf?.label?.trim())
+                .map(([opt, cf]) => {
+                  const cfType = cf.type !== 'select' ? cf.type : 'text'
+                  return [opt.trim(), {
+                    key: cf.key || (makeFieldKey(opt, 'opt') + '_valor'),
+                    label: cf.label.trim(),
+                    type: cfType,
+                    placeholder: (cf.placeholder || '').trim(),
+                    required: cf.required !== false,
+                    max: cfType === 'number' && cf.max !== '' ? Number(cf.max) : null,
+                  }]
+                })
+            )
+          : undefined,
       }))
       .filter(field => field.label),
   }
-  const canSave = cleaned.title && cleaned.fields.length > 0
+  const canSave = cleaned.title && cleaned.fields.length > 0 &&
+    cleaned.fields.every(f => f.type !== 'select' || (f.options && f.options.length >= 2))
 
   return (
     <Overlay onClick={e => e.target === e.currentTarget && onClose()}>
@@ -576,19 +625,131 @@ const EditFormModal = ({ item, onClose, onSave }) => {
                 <div key={index} style={{ display: 'grid', gap: 8, padding: 10, border: '1px solid rgba(255,255,255,0.07)', borderRadius: 10, background: 'rgba(255,255,255,0.025)' }}>
                   <MsgListItem>
                     <FieldInput value={field.label} onChange={e => updateField(index, { label: e.target.value })} placeholder="Nombre del campo" style={{ flex: 1 }} />
-                    <FieldSelect value={field.type} onChange={e => updateField(index, { type: e.target.value })} style={{ width: 120 }}>
+                    <FieldSelect value={field.type} onChange={e => updateField(index, { type: e.target.value })} style={{ width: 148 }}>
                       <option value="text">Texto</option>
-                      <option value="number">Numero</option>
+                      <option value="number">Número</option>
+                      <option value="dni">DNI (8 dígitos)</option>
+                      <option value="select">Selección</option>
                     </FieldSelect>
                     <MsgListRemoveBtn type="button" onClick={() => removeField(index)} title="Eliminar campo">
                       <CloseIcon style={{ fontSize: 13 }} />
                     </MsgListRemoveBtn>
                   </MsgListItem>
-                  <FieldInput value={field.placeholder} onChange={e => updateField(index, { placeholder: e.target.value })} placeholder="Placeholder opcional" />
+                  {field.type !== 'select' && (
+                    <FieldInput value={field.placeholder} onChange={e => updateField(index, { placeholder: e.target.value })} placeholder="Placeholder opcional" />
+                  )}
                   {field.type === 'number' && (
                     <MsgListItem>
-                      <FieldInput type="number" value={field.max} onChange={e => updateField(index, { max: e.target.value })} placeholder="Max" />
+                      <FieldInput type="number" value={field.max} onChange={e => updateField(index, { max: e.target.value })} placeholder="Valor máximo (opcional)" />
                     </MsgListItem>
+                  )}
+                  {field.type === 'select' && (
+                    <div style={{ display: 'grid', gap: 8 }}>
+                      {(field.options || []).map((opt, oIndex) => {
+                        const cf = field.conditionalFields?.[opt] || null
+                        return (
+                          <div key={oIndex} style={{ border: '1px solid rgba(255,255,255,0.07)', borderRadius: 9, padding: '8px 10px', background: 'rgba(255,255,255,0.02)' }}>
+                            <MsgListItem>
+                              <FieldInput
+                                value={opt}
+                                onChange={e => {
+                                  const newOpt = e.target.value
+                                  const nextOpts = [...(field.options || [])]
+                                  nextOpts[oIndex] = newOpt
+                                  const nextCF = { ...(field.conditionalFields || {}) }
+                                  if (cf && opt in nextCF) { delete nextCF[opt]; if (newOpt) nextCF[newOpt] = cf }
+                                  updateField(index, { options: nextOpts, conditionalFields: nextCF })
+                                }}
+                                placeholder={`Opción ${oIndex + 1}`}
+                                style={{ flex: 1 }}
+                              />
+                              <MsgListRemoveBtn type="button" onClick={() => {
+                                const nextCF = { ...(field.conditionalFields || {}) }
+                                delete nextCF[opt]
+                                updateField(index, { options: (field.options || []).filter((_, i) => i !== oIndex), conditionalFields: nextCF })
+                              }}>
+                                <CloseIcon style={{ fontSize: 13 }} />
+                              </MsgListRemoveBtn>
+                            </MsgListItem>
+
+                            {opt.trim() && (
+                              cf ? (
+                                <div style={{ marginTop: 8, paddingLeft: 10, borderLeft: '2px solid rgba(30,133,255,0.28)' }}>
+                                  <div style={{ fontSize: 10, color: 'rgba(255,255,255,0.3)', marginBottom: 5 }}>
+                                    Campo que aparece cuando eligen "{opt}"
+                                  </div>
+                                  <MsgListItem>
+                                    <FieldInput
+                                      value={cf.label}
+                                      onChange={e => updateField(index, { conditionalFields: { ...field.conditionalFields, [opt]: { ...cf, label: e.target.value, key: makeFieldKey(e.target.value, makeFieldKey(opt, 'opt') + '_valor') } } })}
+                                      placeholder="Nombre del campo"
+                                      style={{ flex: 1 }}
+                                    />
+                                    <FieldSelect
+                                      value={cf.type}
+                                      onChange={e => updateField(index, { conditionalFields: { ...field.conditionalFields, [opt]: { ...cf, type: e.target.value, max: '' } } })}
+                                      style={{ width: 120 }}
+                                    >
+                                      <option value="text">Texto</option>
+                                      <option value="number">Número</option>
+                                      <option value="dni">DNI</option>
+                                    </FieldSelect>
+                                    <MsgListRemoveBtn type="button" onClick={() => {
+                                      const nextCF = { ...(field.conditionalFields || {}) }
+                                      delete nextCF[opt]
+                                      updateField(index, { conditionalFields: nextCF })
+                                    }}>
+                                      <CloseIcon style={{ fontSize: 13 }} />
+                                    </MsgListRemoveBtn>
+                                  </MsgListItem>
+                                  <FieldInput
+                                    value={cf.placeholder || ''}
+                                    onChange={e => updateField(index, { conditionalFields: { ...field.conditionalFields, [opt]: { ...cf, placeholder: e.target.value } } })}
+                                    placeholder="Placeholder del campo (opcional)"
+                                    style={{ marginTop: 6 }}
+                                  />
+                                  {cf.type === 'number' && (
+                                    <FieldInput
+                                      type="number"
+                                      value={cf.max || ''}
+                                      onChange={e => updateField(index, { conditionalFields: { ...field.conditionalFields, [opt]: { ...cf, max: e.target.value } } })}
+                                      placeholder="Valor máximo (opcional)"
+                                      style={{ marginTop: 6 }}
+                                    />
+                                  )}
+                                  <FieldCheckRow style={{ padding: '6px 0 0', marginTop: 2 }}>
+                                    <FieldCheckbox type="checkbox" checked={cf.required !== false} onChange={e => updateField(index, { conditionalFields: { ...field.conditionalFields, [opt]: { ...cf, required: e.target.checked } } })} />
+                                    <FieldCheckInfo><FieldCheckTitle>Campo requerido</FieldCheckTitle></FieldCheckInfo>
+                                  </FieldCheckRow>
+                                </div>
+                              ) : (
+                                <MsgListAddBtn
+                                  type="button"
+                                  style={{ marginTop: 6, fontSize: 11 }}
+                                  onClick={() => updateField(index, { conditionalFields: { ...(field.conditionalFields || {}), [opt]: { key: makeFieldKey(opt, 'opt') + '_valor', label: '', type: 'text', placeholder: '', required: true, max: '' } } })}
+                                >
+                                  <AddIcon style={{ fontSize: 11 }} />
+                                  Agregar campo para "{opt}"
+                                </MsgListAddBtn>
+                              )
+                            )}
+                          </div>
+                        )
+                      })}
+                      <MsgListAddBtn
+                        type="button"
+                        onClick={() => updateField(index, { options: [...(field.options || []), ''] })}
+                      >
+                        <AddIcon style={{ fontSize: 12 }} />
+                        Agregar opción
+                      </MsgListAddBtn>
+                      {(field.options || []).filter(o => o.trim()).length < 2 && (
+                        <FieldHint style={{ color: 'rgba(251,191,36,0.7)' }}>Necesitás al menos 2 opciones para guardar.</FieldHint>
+                      )}
+                    </div>
+                  )}
+                  {field.type === 'dni' && (
+                    <FieldHint>Validación: exactamente 8 dígitos numéricos (sin puntos ni guiones).</FieldHint>
                   )}
                   <FieldCheckRow style={{ padding: '7px 9px' }}>
                     <FieldCheckbox type="checkbox" checked={field.required} onChange={e => updateField(index, { required: e.target.checked })} />
@@ -627,6 +788,15 @@ const EditFormModal = ({ item, onClose, onSave }) => {
               </MsgListAddBtn>
             </MsgListWrap>
             <FieldHint>Opcional. El bot respondera automaticamente cuando el cliente envie este formulario.</FieldHint>
+          </FieldGroup>
+          <FieldGroup>
+            <FieldCheckRow style={{ padding: '9px 12px', background: 'rgba(30,133,255,0.06)', borderRadius: 8, border: '1px solid rgba(30,133,255,0.15)' }}>
+              <FieldCheckbox type="checkbox" checked={Boolean(form.isWithdrawal)} onChange={e => setForm(c => ({ ...c, isWithdrawal: e.target.checked }))} />
+              <FieldCheckInfo>
+                <FieldCheckTitle>Formulario de retiro</FieldCheckTitle>
+                <FieldCheckSub>Al enviarse, registra la solicitud en el panel de retiros del admin</FieldCheckSub>
+              </FieldCheckInfo>
+            </FieldCheckRow>
           </FieldGroup>
         </ModalBody>
 
@@ -823,8 +993,16 @@ const PreviewModal = ({ flow, onClose }) => {
                 {item.formConfig?.description && <div style={{ color: '#94a3b8', marginTop: 3 }}>{item.formConfig.description}</div>}
                 <div style={{ display: 'grid', gap: 6, marginTop: 10 }}>
                   {(item.formConfig?.fields || []).map(field => (
-                    <div key={field.key} style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '7px 9px', color: '#64748b' }}>
-                      {field.label}{field.required ? ' *' : ''}
+                    <div key={field.key}>
+                      <div style={{ fontSize: 10, color: '#64748b', marginBottom: 3 }}>{field.label}{field.required ? ' *' : ''}{field.type === 'dni' ? ' (8 dígitos)' : ''}</div>
+                      {field.type === 'select'
+                        ? <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '5px 9px', color: '#475569', fontSize: 12 }}>
+                            {(field.options || []).join(' / ') || 'Seleccionar...'}
+                          </div>
+                        : <div style={{ border: '1px solid rgba(255,255,255,0.08)', borderRadius: 8, padding: '7px 9px', color: '#475569', fontSize: 12 }}>
+                            {field.placeholder || (field.type === 'dni' ? '12345678' : '...')}
+                          </div>
+                      }
                     </div>
                   ))}
                 </div>

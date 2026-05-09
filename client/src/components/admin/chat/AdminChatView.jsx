@@ -27,16 +27,18 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
+import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange'
 import DropUpload from '../../common/DropUpload'
 import { useConfirm } from '../../common/ConfirmDialog'
 import MovementDrawer from './MovementDrawer'
+import WithdrawalDrawer from './WithdrawalDrawer'
 import { api, resolveApiAsset } from '../../../utils/api'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../../utils/richText'
 import {
   Wrap, EmptyState,
   Header, BackBtn, HeaderAvatar, OnlineDot, HeaderInfo, HeaderName, HeaderStatus,
-  HeaderMenuWrap, HeaderMenuBtn, DropdownMenu, DropdownItem,
+  HeaderMenuWrap, HeaderMenuBtn, HeaderBtnWrap, HeaderBtnBadge, DropdownMenu, DropdownItem,
   PinnedMessageBar, PinnedMessageMain, PinnedMessageIcon, PinnedMessageText,
   PinnedMessageTitle, PinnedMessagePreview, PinnedMessageClose,
   MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgBubble, MsgMeta, MsgStatus, MsgTime,
@@ -426,6 +428,8 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
   const [pinnedMessage, setPinnedMessage] = useState(null)
   const [pinnedFlashId, setPinnedFlashId] = useState(null)
   const [movementDrawerOpen, setMovementDrawerOpen] = useState(false)
+  const [withdrawalDrawerOpen, setWithdrawalDrawerOpen] = useState(false)
+  const [pendingCounts, setPendingCounts] = useState({ movements: 0, withdrawals: 0 })
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -631,6 +635,21 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
       window.clearTimeout(clientTypingTimerRef.current)
       if (typingActiveRef.current && chat?.id) getSocket('admin').emit('typing', { chatId: chat.id, isTyping: false })
     }
+  }, [chat?.id])
+
+  /* pending counts badge */
+  const fetchPendingCounts = async () => {
+    if (!chat?.id) return
+    try {
+      const data = await api.get(`/api/chats/${chat.id}/pending-counts`)
+      setPendingCounts({ movements: data.movements || 0, withdrawals: data.withdrawals || 0 })
+    } catch {
+      setPendingCounts({ movements: 0, withdrawals: 0 })
+    }
+  }
+  useEffect(() => {
+    setPendingCounts({ movements: 0, withdrawals: 0 })
+    fetchPendingCounts()
   }, [chat?.id])
 
   const emitTyping = (isTyping) => {
@@ -1140,7 +1159,11 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
         document.body
       )}
       {movementDrawerOpen && createPortal(
-        <MovementDrawer chat={chat} onClose={() => setMovementDrawerOpen(false)} />,
+        <MovementDrawer chat={chat} onClose={() => { setMovementDrawerOpen(false); fetchPendingCounts() }} />,
+        document.body
+      )}
+      {withdrawalDrawerOpen && createPortal(
+        <WithdrawalDrawer chat={chat} onClose={() => { setWithdrawalDrawerOpen(false); fetchPendingCounts() }} />,
         document.body
       )}
       {messageMenu && createPortal(
@@ -1183,9 +1206,19 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
           </HeaderMenuBtn>
         )}
 
-        <HeaderMenuBtn onClick={() => setMovementDrawerOpen(true)} aria-label="Movimientos del cliente">
-          <AccountBalanceWalletOutlinedIcon />
-        </HeaderMenuBtn>
+        <HeaderBtnWrap>
+          <HeaderMenuBtn onClick={() => setMovementDrawerOpen(true)} aria-label="Movimientos del cliente">
+            <AccountBalanceWalletOutlinedIcon />
+          </HeaderMenuBtn>
+          {pendingCounts.movements > 0 && <HeaderBtnBadge>{pendingCounts.movements > 9 ? '9+' : pendingCounts.movements}</HeaderBtnBadge>}
+        </HeaderBtnWrap>
+
+        <HeaderBtnWrap>
+          <HeaderMenuBtn onClick={() => setWithdrawalDrawerOpen(true)} aria-label="Solicitudes de retiro">
+            <CurrencyExchangeIcon />
+          </HeaderMenuBtn>
+          {pendingCounts.withdrawals > 0 && <HeaderBtnBadge>{pendingCounts.withdrawals > 9 ? '9+' : pendingCounts.withdrawals}</HeaderBtnBadge>}
+        </HeaderBtnWrap>
 
         <HeaderMenuWrap ref={menuRef}>
           <HeaderMenuBtn onClick={() => setMenuOpen(p => !p)}>

@@ -123,6 +123,31 @@ export const HeaderMenuBtn = styled.button`
   &:hover { color: rgba(255, 255, 255, 0.80); background: rgba(255, 255, 255, 0.06); }
 `
 
+export const HeaderBtnWrap = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+`
+
+export const HeaderBtnBadge = styled.span`
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+  pointer-events: none;
+  border: 1.5px solid var(--bc-admin-content-bg, #0d0d1a);
+`
+
 export const DropdownMenu = styled.div`
   position: absolute;
   top: calc(100% + 6px);

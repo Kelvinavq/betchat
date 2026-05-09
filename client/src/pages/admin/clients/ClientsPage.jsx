@@ -14,6 +14,12 @@ import MenuIcon from '@mui/icons-material/Menu'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
+import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import CancelIcon from '@mui/icons-material/Cancel'
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
+import AddCardIcon from '@mui/icons-material/AddCard'
+import RemoveIcon from '@mui/icons-material/Remove'
 import { api } from '../../../utils/api'
 import { getPaginationItems } from '../../../utils/pagination'
 import {
@@ -32,6 +38,12 @@ import {
   StatusRow, StatusRowLabel, StatusRowTitle, StatusRowSub, Toggle, ToggleThumb,
   ModalFoot, FootLeft, FootRight, ModalBtn,
   Toast, ToastIconBox, ToastBody, ToastTitle, ToastMsg, ToastClose,
+  StatsGrid, StatCard, StatIconWrap, StatInfo, StatValue, StatLabel,
+  BtnSpinner,
+  BalanceModalCard, BalanceClientRow, BalanceClientAvatar, BalanceClientMeta,
+  BalanceClientName, BalanceClientSub, BalanceBody, BalanceSectionLabel,
+  QuickGrid, QuickBtn, BalanceInputWrap, BalanceCurrencySign, BalanceInput,
+  BalanceBtnRow, BalanceCreditBtn, BalanceDebitBtn,
 } from './ClientsPage.styles'
 
 const PER_PAGE = 10
@@ -55,7 +67,7 @@ const todayStr = () =>
   new Date().toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric' })
 
 /* ── view / add modal ── */
-const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify }) => {
+const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }) => {
   const [form, setForm] = useState(() =>
     mode === 'view' && client
       ? {
@@ -67,7 +79,7 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify }) => {
           active: client.active,
           registeredAt: client.registeredAt ? new Date(client.registeredAt).toLocaleDateString('es-AR') : '',
         }
-      : { username: '', password: '' }
+      : { username: '', password: '', balance: '' }
   )
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const avatarChar = form.username.trim() ? form.username.trim()[0].toUpperCase() : '?'
@@ -135,6 +147,17 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify }) => {
                     value={form.password}
                     onChange={e => set('password', e.target.value)}
                     autoComplete="new-password"
+                  />
+                </Field>
+                <Field $full>
+                  <FieldLabel>Saldo inicial (opcional)</FieldLabel>
+                  <FieldInput
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={form.balance}
+                    onChange={e => set('balance', e.target.value)}
                   />
                 </Field>
               </FormGrid>
@@ -228,13 +251,13 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify }) => {
           <FootRight>
             <ModalBtn onClick={onClose}>Cerrar</ModalBtn>
             {isViewMode && (
-              <ModalBtn $v="primary" onClick={() => onSave(form)}>
-                Guardar cambios
+              <ModalBtn $v="primary" disabled={saving} onClick={() => onSave(form)}>
+                {saving ? <><BtnSpinner />Guardando...</> : 'Guardar cambios'}
               </ModalBtn>
             )}
             {isAddMode && (
-              <ModalBtn $v="primary" onClick={() => onSave(form)}>
-                Crear cliente
+              <ModalBtn $v="primary" disabled={saving} onClick={() => onSave(form)}>
+                {saving ? <><BtnSpinner />Creando...</> : 'Crear cliente'}
               </ModalBtn>
             )}
           </FootRight>
@@ -313,16 +336,109 @@ const PwdModal = ({ client, onClose, onSave }) => {
   )
 }
 
+/* ── balance modal ── */
+const QUICK_AMOUNTS = [500, 1000, 2000, 3000, 5000, 10000]
+
+const BalanceModal = ({ client, onClose, notify }) => {
+  const [amount, setAmount] = useState('')
+  const avatarChar = (client.username || '?')[0].toUpperCase()
+
+  const handleQuick = (val) => setAmount(String(val))
+
+  const handleAction = (type) => {
+    const n = Number(amount)
+    if (!n || n <= 0) return notify('Ingresá un monto válido', 'danger')
+    notify(
+      type === 'credit'
+        ? `Saldo cargado: $${new Intl.NumberFormat('es-AR').format(n)}`
+        : `Retiro registrado: $${new Intl.NumberFormat('es-AR').format(n)}`,
+      'success'
+    )
+    onClose()
+  }
+
+  return (
+    <Overlay onClick={onClose}>
+      <BalanceModalCard onClick={e => e.stopPropagation()}>
+
+        <ModalHead>
+          <div>
+            <ModalTitle>Gestión de saldo</ModalTitle>
+            <ModalSub>Cargar o retirar saldo del cliente</ModalSub>
+          </div>
+          <ModalClose onClick={onClose}><CloseIcon /></ModalClose>
+        </ModalHead>
+
+        <BalanceClientRow>
+          <BalanceClientAvatar>{avatarChar}</BalanceClientAvatar>
+          <BalanceClientMeta>
+            <BalanceClientName>{client.username}</BalanceClientName>
+            <BalanceClientSub>{client.externalId ? `ID externo: ${client.externalId}` : 'Sin ID externo'}</BalanceClientSub>
+          </BalanceClientMeta>
+        </BalanceClientRow>
+
+        <BalanceBody>
+          <div>
+            <BalanceSectionLabel>Monto rápido</BalanceSectionLabel>
+            <QuickGrid style={{ marginTop: 10 }}>
+              {QUICK_AMOUNTS.map(v => (
+                <QuickBtn
+                  key={v}
+                  type="button"
+                  $active={amount === String(v)}
+                  onClick={() => handleQuick(v)}
+                >
+                  ${new Intl.NumberFormat('es-AR').format(v)}
+                </QuickBtn>
+              ))}
+            </QuickGrid>
+          </div>
+
+          <div>
+            <BalanceSectionLabel>Monto personalizado</BalanceSectionLabel>
+            <BalanceInputWrap style={{ marginTop: 10 }}>
+              <BalanceCurrencySign>$</BalanceCurrencySign>
+              <BalanceInput
+                type="number"
+                min="1"
+                step="1"
+                placeholder="0"
+                value={amount}
+                onChange={e => setAmount(e.target.value)}
+              />
+            </BalanceInputWrap>
+          </div>
+        </BalanceBody>
+
+        <BalanceBtnRow>
+          <BalanceCreditBtn onClick={() => handleAction('credit')}>
+            <AddCardIcon />
+            Cargar saldo
+          </BalanceCreditBtn>
+          <BalanceDebitBtn onClick={() => handleAction('debit')}>
+            <RemoveIcon />
+            Retirar saldo
+          </BalanceDebitBtn>
+        </BalanceBtnRow>
+
+      </BalanceModalCard>
+    </Overlay>
+  )
+}
+
 /* ── main page ── */
 const ClientsPage = ({ onMenuOpen }) => {
   const [clients, setClients]       = useState([])
   const [loading, setLoading]       = useState(true)
+  const [saving, setSaving]         = useState(false)
   const [search, setSearch]         = useState('')
   const [statFilter, setStatFilter] = useState('all')
   const [page, setPage]             = useState(1)
   const [totalClients, setTotalClients] = useState(0)
-  const [modal, setModal]           = useState(null)    // null | { mode, client }
-  const [pwdModal, setPwdModal]     = useState(null)    // null | { client }
+  const [stats, setStats]           = useState({ total: 0, active: 0, inactive: 0 })
+  const [modal, setModal]           = useState(null)
+  const [pwdModal, setPwdModal]     = useState(null)
+  const [balanceModal, setBalanceModal] = useState(null)
   const [alert, setAlert]           = useState(null)
   const importRef                   = useRef(null)
 
@@ -336,6 +452,15 @@ const ClientsPage = ({ onMenuOpen }) => {
   const notify = (message, type = 'success') => {
     setAlert({ message, type })
   }
+
+  const loadStats = useCallback(async () => {
+    try {
+      const data = await api.get('/api/clients/stats')
+      setStats({ total: data.total || 0, active: data.active || 0, inactive: data.inactive || 0 })
+    } catch {}
+  }, [])
+
+  useEffect(() => { loadStats() }, [loadStats])
 
   // Cargar clientes desde API
   const loadClients = useCallback(async () => {
@@ -445,6 +570,7 @@ const ClientsPage = ({ onMenuOpen }) => {
 
   /* ── crud ── */
   const handleSave = async (form) => {
+    setSaving(true)
     try {
       if (modal.mode === 'add') {
         const validationError = validateClientCredentials({
@@ -455,28 +581,28 @@ const ClientsPage = ({ onMenuOpen }) => {
           notify(validationError, 'danger')
           return
         }
-
         await api.post('/api/clients', {
           username: form.username.trim(),
           password: form.password,
+          balance: Number(form.balance) || 0,
         })
         notify('Cliente creado exitosamente.', 'success')
       } else if (modal.mode === 'view') {
-        // En modo view, permitir actualizar algunos campos
-        const updateData = {
+        await api.put(`/api/clients/${modal.client.id}`, {
           fullName: form.fullName || '',
           email: form.email || '',
           cuil: form.cuil || '',
           isActive: form.active,
-        }
-        await api.put(`/api/clients/${modal.client.id}`, updateData)
+        })
         notify('Cliente actualizado exitosamente.', 'success')
       }
       setModal(null)
-      loadClients() // Recargar la lista
+      loadClients()
+      loadStats()
     } catch (error) {
-      console.error('Error al guardar cliente:', error)
       notify(error.payload?.error || error.message || 'Error al guardar cliente', 'danger')
+    } finally {
+      setSaving(false)
     }
   }
 
@@ -486,7 +612,8 @@ const ClientsPage = ({ onMenuOpen }) => {
     try {
       await api.delete(`/api/clients/${id}`)
       notify('Cliente eliminado exitosamente.', 'success')
-      loadClients() // Recargar la lista
+      loadClients()
+      loadStats()
     } catch (error) {
       console.error('Error al eliminar cliente:', error)
       notify(error.payload?.error || error.message || 'Error al eliminar cliente', 'danger')
@@ -550,6 +677,31 @@ const ClientsPage = ({ onMenuOpen }) => {
           </HeaderActions>
         </PageHeader>
 
+        {/* ── stats cards ── */}
+        <StatsGrid>
+          <StatCard $color="#3b82f6">
+            <StatIconWrap $color="#3b82f6"><GroupOutlinedIcon /></StatIconWrap>
+            <StatInfo>
+              <StatValue>{stats.total}</StatValue>
+              <StatLabel>Total clientes</StatLabel>
+            </StatInfo>
+          </StatCard>
+          <StatCard $color="#22c55e">
+            <StatIconWrap $color="#22c55e"><CheckCircleIcon /></StatIconWrap>
+            <StatInfo>
+              <StatValue>{stats.active}</StatValue>
+              <StatLabel>Activos</StatLabel>
+            </StatInfo>
+          </StatCard>
+          <StatCard $color="#f87171">
+            <StatIconWrap $color="#f87171"><CancelIcon /></StatIconWrap>
+            <StatInfo>
+              <StatValue>{stats.inactive}</StatValue>
+              <StatLabel>Inactivos</StatLabel>
+            </StatInfo>
+          </StatCard>
+        </StatsGrid>
+
         {/* ── filters ── */}
         <FiltersBar>
           <SearchBox>
@@ -586,7 +738,10 @@ const ClientsPage = ({ onMenuOpen }) => {
               <Tbody>
                 {loading ? (
                   <EmptyRow>
-                    <EmptyCell colSpan={7}>Cargando clientes...</EmptyCell>
+                    <EmptyCell colSpan={7}>
+                      <BtnSpinner style={{ width: 18, height: 18, borderWidth: 2, display: 'inline-block', verticalAlign: 'middle', marginRight: 8 }} />
+                      Cargando clientes...
+                    </EmptyCell>
                   </EmptyRow>
                 ) : clients.length === 0 ? (
                   <EmptyRow>
@@ -631,6 +786,13 @@ const ClientsPage = ({ onMenuOpen }) => {
                           onClick={() => {}}
                         >
                           <LogoutIcon />
+                        </ActionBtn>
+                        <ActionBtn
+                          $v="success"
+                          title="Gestionar saldo"
+                          onClick={() => setBalanceModal({ client: c })}
+                        >
+                          <AccountBalanceWalletOutlinedIcon />
                         </ActionBtn>
                         <ActionBtn
                           $v="danger"
@@ -695,6 +857,15 @@ const ClientsPage = ({ onMenuOpen }) => {
           onClose={() => setModal(null)}
           onSave={handleSave}
           onDelete={handleDelete}
+          notify={notify}
+          saving={saving}
+        />
+      )}
+
+      {balanceModal && (
+        <BalanceModal
+          client={balanceModal.client}
+          onClose={() => setBalanceModal(null)}
           notify={notify}
         />
       )}

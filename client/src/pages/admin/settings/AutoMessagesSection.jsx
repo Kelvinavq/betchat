@@ -64,6 +64,20 @@ const MESSAGE_DEFS = [
     icon: '💸',
     bg: 'rgba(245,158,11,0.13)',
   },
+  {
+    event: 'withdrawal_approved',
+    label: 'Retiro aprobado',
+    desc: 'Se envía cuando el operador aprueba un retiro y se reinicia el bot del cliente',
+    icon: '💸',
+    bg: 'rgba(16,185,129,0.13)',
+  },
+  {
+    event: 'withdrawal_rejected',
+    label: 'Retiro rechazado',
+    desc: 'Se envía cuando el operador rechaza un retiro',
+    icon: '🚫',
+    bg: 'rgba(239,68,68,0.13)',
+  },
 ]
 
 export default function AutoMessagesSection() {

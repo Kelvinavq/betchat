@@ -43,7 +43,8 @@ import {
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   BotButtonsWrap, BotOptionBtn,
   BotFormCard, BotFormTitle, BotFormDesc, BotFormField, BotFormInputRow,
-  BotFormInput, BotFormPasteBtn, BotFormSubmit, BotFormError,
+  BotFormInput, BotFormSelect, BotFormPasteBtn, BotFormSubmit, BotFormError,
+  FormSentCard, FormSentTitle, FormSentRow, FormSentLabel, FormSentValue,
   ScrollDownBtn,
   BottomArea, AttachPanel, AttachGrid, AttachOption,
   ChatFooter, PlusBtn, ChatInput, SendBtn,
@@ -692,16 +693,45 @@ const formatFormSubmission = (form, values) => {
   const title = config.title || form?.label || 'Formulario'
   const lines = [`Formulario: ${title}`]
   for (const field of config.fields || []) {
-    lines.push(`${field.label}: ${String(values[field.key] ?? '').trim()}`)
+    const raw = String(values[field.key] ?? '').trim()
+    lines.push(`${field.label}: ${raw}`)
+    if (field.type === 'select' && raw && field.conditionalFields?.[raw]) {
+      const cf = field.conditionalFields[raw]
+      const cfRaw = String(values[cf.key] ?? '').trim()
+      if (cfRaw) lines.push(`${cf.label}: ${cfRaw}`)
+    }
   }
   return lines.join('\n')
 }
 
+const parseFormSubmission = (text = '') => {
+  const lines = String(text || '').split(/\r?\n/).map(l => l.trim()).filter(Boolean)
+  if (!lines[0]?.toLowerCase().startsWith('formulario:')) return null
+  return {
+    title: lines[0].replace(/^formulario:\s*/i, '').trim() || 'Formulario',
+    rows: lines.slice(1).map(line => {
+      const idx = line.indexOf(':')
+      return idx === -1
+        ? { label: 'Dato', value: line }
+        : { label: line.slice(0, idx).trim() || 'Dato', value: line.slice(idx + 1).trim() }
+    }).filter(r => r.value),
+  }
+}
+
 const BotFormMessage = ({ form, disabled, onSubmit }) => {
   const config = form?.formConfig || {}
-  const [values, setValues] = useState(() =>
-    Object.fromEntries((config.fields || []).map(field => [field.key, '']))
-  )
+  const [values, setValues] = useState(() => {
+    const init = {}
+    for (const field of config.fields || []) {
+      init[field.key] = ''
+      if (field.type === 'select' && field.conditionalFields) {
+        for (const cf of Object.values(field.conditionalFields)) {
+          if (cf?.key) init[cf.key] = ''
+        }
+      }
+    }
+    return init
+  })
   const [error, setError] = useState('')
 
   const pasteInto = async (key) => {
@@ -721,7 +751,8 @@ const BotFormMessage = ({ form, disabled, onSubmit }) => {
         setError(`Completa "${field.label}".`)
         return
       }
-      if (field.type === 'number' && raw) {
+      if (!raw) continue
+      if (field.type === 'number') {
         const value = Number(raw)
         if (Number.isNaN(value)) {
           setError(`"${field.label}" debe ser numerico.`)
@@ -730,6 +761,29 @@ const BotFormMessage = ({ form, disabled, onSubmit }) => {
         if (field.max != null && value > Number(field.max)) {
           setError(`"${field.label}" debe ser menor o igual a ${field.max}.`)
           return
+        }
+      }
+      if (field.type === 'dni') {
+        if (!/^\d{8}$/.test(raw)) {
+          setError(`"${field.label}" debe tener exactamente 8 dígitos.`)
+          return
+        }
+      }
+      if (field.type === 'select' && raw && field.conditionalFields?.[raw]) {
+        const cf = field.conditionalFields[raw]
+        const cfRaw = String(values[cf.key] ?? '').trim()
+        if (cf.required && !cfRaw) {
+          setError(`Completa "${cf.label}".`)
+          return
+        }
+        if (cfRaw && cf.type === 'dni' && !/^\d{8}$/.test(cfRaw)) {
+          setError(`"${cf.label}" debe tener exactamente 8 dígitos.`)
+          return
+        }
+        if (cfRaw && cf.type === 'number') {
+          const v = Number(cfRaw)
+          if (Number.isNaN(v)) { setError(`"${cf.label}" debe ser numérico.`); return }
+          if (cf.max != null && v > Number(cf.max)) { setError(`"${cf.label}" debe ser menor o igual a ${cf.max}.`); return }
         }
       }
     }
@@ -741,24 +795,77 @@ const BotFormMessage = ({ form, disabled, onSubmit }) => {
     <BotFormCard onSubmit={submit}>
       <BotFormTitle>{config.title || form?.label || 'Formulario'}</BotFormTitle>
       {config.description && <BotFormDesc>{config.description}</BotFormDesc>}
-      {(config.fields || []).map(field => (
-        <BotFormField key={field.key}>
-          {field.label}{field.required ? ' *' : ''}
-          <BotFormInputRow>
-            <BotFormInput
-              type={field.type === 'number' ? 'number' : 'text'}
-              max={field.type === 'number' && field.max != null ? field.max : undefined}
-              placeholder={field.placeholder}
-              value={values[field.key] || ''}
-              disabled={disabled}
-              onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))}
-            />
-            <BotFormPasteBtn type="button" disabled={disabled} onClick={() => pasteInto(field.key)}>
-              Pegar
-            </BotFormPasteBtn>
-          </BotFormInputRow>
-        </BotFormField>
-      ))}
+      {(config.fields || []).map(field => {
+        const selectedOpt = values[field.key] || ''
+        const condField = field.type === 'select' && selectedOpt ? field.conditionalFields?.[selectedOpt] : null
+        return (
+          <div key={field.key}>
+            <BotFormField>
+              {field.label}{field.required ? ' *' : ''}{field.type === 'dni' ? ' (8 dígitos)' : ''}
+              <BotFormInputRow>
+                {field.type === 'select' ? (
+                  <BotFormSelect
+                    value={selectedOpt}
+                    disabled={disabled}
+                    onChange={event => setValues(current => ({ ...current, [field.key]: event.target.value }))}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {(field.options || []).map((opt, i) => (
+                      <option key={i} value={opt}>{opt}</option>
+                    ))}
+                  </BotFormSelect>
+                ) : (
+                  <>
+                    <BotFormInput
+                      type={field.type === 'number' ? 'number' : 'text'}
+                      inputMode={field.type === 'dni' ? 'numeric' : undefined}
+                      max={field.type === 'number' && field.max != null ? field.max : undefined}
+                      maxLength={field.type === 'dni' ? 8 : undefined}
+                      placeholder={field.type === 'dni' ? (field.placeholder || '12345678') : field.placeholder}
+                      value={values[field.key] || ''}
+                      disabled={disabled}
+                      onChange={event => {
+                        const val = event.target.value
+                        if (field.type === 'dni' && val && !/^\d{0,8}$/.test(val)) return
+                        setValues(current => ({ ...current, [field.key]: val }))
+                      }}
+                    />
+                    <BotFormPasteBtn type="button" disabled={disabled} onClick={() => pasteInto(field.key)}>
+                      Pegar
+                    </BotFormPasteBtn>
+                  </>
+                )}
+              </BotFormInputRow>
+            </BotFormField>
+
+            {condField && (
+              <BotFormField style={{ marginTop: 4 }}>
+                {condField.label}{condField.required ? ' *' : ''}{condField.type === 'dni' ? ' (8 dígitos)' : ''}
+                <BotFormInputRow>
+                  <BotFormInput
+                    type={condField.type === 'number' ? 'number' : 'text'}
+                    inputMode={condField.type === 'dni' ? 'numeric' : undefined}
+                    max={condField.type === 'number' && condField.max != null ? condField.max : undefined}
+                    maxLength={condField.type === 'dni' ? 8 : undefined}
+                    placeholder={condField.type === 'dni' ? (condField.placeholder || '12345678') : condField.placeholder}
+                    value={values[condField.key] || ''}
+                    disabled={disabled}
+                    autoFocus
+                    onChange={event => {
+                      const val = event.target.value
+                      if (condField.type === 'dni' && val && !/^\d{0,8}$/.test(val)) return
+                      setValues(current => ({ ...current, [condField.key]: val }))
+                    }}
+                  />
+                  <BotFormPasteBtn type="button" disabled={disabled} onClick={() => pasteInto(condField.key)}>
+                    Pegar
+                  </BotFormPasteBtn>
+                </BotFormInputRow>
+              </BotFormField>
+            )}
+          </div>
+        )
+      })}
       {error && <BotFormError>{error}</BotFormError>}
       <BotFormSubmit type="submit" disabled={disabled}>{config.submitLabel || 'Enviar'}</BotFormSubmit>
     </BotFormCard>
@@ -1862,13 +1969,32 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                     <VoiceMessage audioUrl={msg.audioUrl || msg.mediaUrl} duration={msg.duration} received={msg.received} />
                   </>
                 ) : (
-                  <MessageBubble $received={msg.received}>
-                    {renderReplyQuote(msg.replyTo, msg.received)}
-                    {msg.received && hasRichText(msg.text)
-                      ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
-                      : msg.text
+                  (() => {
+                    const formCard = parseFormSubmission(msg.text)
+                    if (formCard) {
+                      return (
+                        <FormSentCard>
+                          {renderReplyQuote(msg.replyTo, msg.received)}
+                          <FormSentTitle>{formCard.title}</FormSentTitle>
+                          {formCard.rows.map((row, i) => (
+                            <FormSentRow key={i}>
+                              <FormSentLabel>{row.label}</FormSentLabel>
+                              <FormSentValue>{row.value}</FormSentValue>
+                            </FormSentRow>
+                          ))}
+                        </FormSentCard>
+                      )
                     }
-                  </MessageBubble>
+                    return (
+                      <MessageBubble $received={msg.received}>
+                        {renderReplyQuote(msg.replyTo, msg.received)}
+                        {msg.received && hasRichText(msg.text)
+                          ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
+                          : msg.text
+                        }
+                      </MessageBubble>
+                    )
+                  })()
                 )}
                 <MessageTime>{msg.time}</MessageTime>
               </MessageContent>

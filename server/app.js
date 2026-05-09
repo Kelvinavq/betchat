@@ -25,6 +25,7 @@ import clientChatRoutes from './routes/clientChatRoutes.js';
 import autoMessagesRoutes from './routes/autoMessagesRoutes.js'
 import maintenanceRoutes from './routes/maintenanceRoutes.js'
 import metricsRoutes from './routes/metricsRoutes.js'
+import withdrawalRoutes from './routes/withdrawalRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { setupChatSockets } from './socket/chatSocket.js';
 
@@ -87,6 +88,7 @@ app.use('/api/chats', chatRoutes);
 app.use('/api/settings/auto-messages', autoMessagesRoutes)
 app.use('/api/maintenance', maintenanceRoutes)
 app.use('/api/metrics', metricsRoutes);
+app.use('/api/withdrawals', withdrawalRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {

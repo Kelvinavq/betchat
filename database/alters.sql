@@ -249,3 +249,33 @@ ON DUPLICATE KEY UPDATE `event` = `event`;
 
 ALTER TABLE `chats` ADD COLUMN `is_pinned` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'pinned in admin chat list' AFTER `is_archived`;
 
+-- ============================================================
+--  Solicitudes de retiro
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `withdrawal_requests` (
+  `id`                 INT UNSIGNED     NOT NULL AUTO_INCREMENT,
+  `chat_id`            INT UNSIGNED     NOT NULL,
+  `client_id`          INT UNSIGNED     NOT NULL,
+  `form_id`            VARCHAR(120)     DEFAULT NULL,
+  `message_id`         BIGINT UNSIGNED  DEFAULT NULL,
+  `status`             ENUM('pending','approved','rejected') NOT NULL DEFAULT 'pending',
+  `form_data`          TEXT             DEFAULT NULL,
+  `rejection_message`  TEXT             DEFAULT NULL,
+  `processed_by`       VARCHAR(255)     DEFAULT NULL,
+  `processed_at`       DATETIME         DEFAULT NULL,
+  `created_at`         DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`         DATETIME         NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_wr_chat`    (`chat_id`),
+  KEY `idx_wr_client`  (`client_id`),
+  KEY `idx_wr_status`  (`status`),
+  CONSTRAINT `fk_wr_chat`    FOREIGN KEY (`chat_id`)    REFERENCES `chats`    (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_wr_client`  FOREIGN KEY (`client_id`)  REFERENCES `clients`  (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_wr_message` FOREIGN KEY (`message_id`) REFERENCES `messages` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT INTO `receipt_auto_messages` (`event`, `message`, `is_active`) VALUES
+  ('withdrawal_approved', '¡Tu retiro fue aprobado y procesado con éxito! En breve recibirás el dinero.', 1),
+  ('withdrawal_rejected', 'Tu solicitud de retiro fue rechazada. Contactá a soporte para más información.', 1)
+ON DUPLICATE KEY UPDATE `event` = `event`;
+

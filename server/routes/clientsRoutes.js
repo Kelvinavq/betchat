@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import {
   getClients,
+  getClientStats,
   createClient,
   updateClient,
   deleteClient,
@@ -14,6 +15,7 @@ const router = Router()
 router.use(authenticateToken)
 router.use(requireRole('admin'))
 
+router.get('/stats', getClientStats)
 router.get('/', getClients)
 router.post('/', createClient)
 router.put('/:id', updateClient)

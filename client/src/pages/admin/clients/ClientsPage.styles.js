@@ -1,4 +1,6 @@
 import styled, { css, keyframes } from 'styled-components'
+
+const spin = keyframes`from { transform: rotate(0deg); } to { transform: rotate(360deg); }`
 import { gradients, colors } from '../../../styles/theme'
 
 const fadeUp = keyframes`
@@ -187,6 +189,8 @@ export const ActionBtn = styled.button`
       background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.28); color: #f87171;
     ` : $v === 'warn' ? css`
       background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.28); color: #f59e0b;
+    ` : $v === 'success' ? css`
+      background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.28); color: #4ade80;
     ` : css`
       background: rgba(30,133,255,0.12); border-color: rgba(30,133,255,0.28); color: ${colors.primaryLighter};
     `}
@@ -444,4 +448,131 @@ export const ToastClose = styled.button`
     background: rgba(255,255,255,0.10);
     color: rgba(255,255,255,0.80);
   }
+`
+
+/* ── stats cards ── */
+export const StatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 22px;
+  @media (max-width: 600px) { grid-template-columns: 1fr; }
+`
+export const StatCard = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-left: 3px solid ${({ $color }) => $color || '#3b82f6'};
+  border-radius: 14px;
+  animation: ${fadeUp} 0.28s ease both;
+`
+export const StatIconWrap = styled.div`
+  width: 38px; height: 38px; min-width: 38px; border-radius: 10px;
+  background: ${({ $color }) => $color ? `${$color}1a` : 'rgba(59,130,246,0.10)'};
+  display: flex; align-items: center; justify-content: center;
+  color: ${({ $color }) => $color || '#3b82f6'};
+  svg { font-size: 20px; }
+`
+export const StatInfo = styled.div`min-width: 0;`
+export const StatValue = styled.p`
+  font-size: 22px; font-weight: 700; color: #fff; letter-spacing: -0.02em; line-height: 1;
+`
+export const StatLabel = styled.p`
+  font-size: 11px; color: rgba(255,255,255,0.35); margin-top: 3px; font-weight: 500;
+`
+
+/* ── button spinner ── */
+export const BtnSpinner = styled.span`
+  width: 14px; height: 14px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.30);
+  border-top-color: #fff;
+  display: inline-block; flex-shrink: 0;
+  animation: ${spin} 0.7s linear infinite;
+`
+
+/* ── balance modal ── */
+export const BalanceModalCard = styled.div`
+  width: 100%; max-width: 440px;
+  background: #0d0d20;
+  border: 1px solid rgba(255,255,255,0.09); border-radius: 22px;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: ${slideUp} 0.26s cubic-bezier(0.16,1,0.3,1) both;
+`
+export const BalanceClientRow = styled.div`
+  display: flex; align-items: center; gap: 12px; padding: 18px 22px 0;
+`
+export const BalanceClientAvatar = styled.div`
+  width: 40px; height: 40px; min-width: 40px; border-radius: 12px;
+  background: ${({ theme }) => theme?.gradients?.btn || 'linear-gradient(135deg,#1e85ff,#0d4fe8)'};
+  display: flex; align-items: center; justify-content: center;
+  font-size: 16px; font-weight: 700; color: #fff;
+  border: 1px solid rgba(40,140,255,0.30);
+`
+export const BalanceClientMeta = styled.div``
+export const BalanceClientName = styled.p`font-size: 14px; font-weight: 700; color: #fff;`
+export const BalanceClientSub = styled.p`font-size: 11px; color: rgba(255,255,255,0.30); margin-top: 1px;`
+
+export const BalanceBody = styled.div`
+  padding: 18px 22px 22px; display: flex; flex-direction: column; gap: 18px;
+`
+export const BalanceSectionLabel = styled.p`
+  font-size: 10px; font-weight: 700; letter-spacing: 0.10em; text-transform: uppercase;
+  color: rgba(255,255,255,0.25); margin-bottom: -8px;
+`
+export const QuickGrid = styled.div`
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+`
+export const QuickBtn = styled.button`
+  padding: 10px 6px; border-radius: 10px; font-family: inherit;
+  font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
+  ${({ $active }) => $active ? css`
+    background: rgba(30,133,255,0.22); border: 1.5px solid rgba(30,133,255,0.55); color: #60a5fa;
+  ` : css`
+    background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); color: rgba(255,255,255,0.65);
+    &:hover { background: rgba(255,255,255,0.09); color: #fff; }
+  `}
+`
+export const BalanceInputWrap = styled.div`
+  position: relative; display: flex; align-items: center;
+`
+export const BalanceCurrencySign = styled.span`
+  position: absolute; left: 12px; font-size: 16px; font-weight: 600;
+  color: rgba(255,255,255,0.35); pointer-events: none;
+`
+export const BalanceInput = styled.input`
+  width: 100%; height: 48px; padding: 0 12px 0 28px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 12px; color: #fff; font-size: 18px; font-weight: 600; font-family: inherit;
+  outline: none; transition: border-color 0.2s;
+  &::placeholder { color: rgba(255,255,255,0.15); font-weight: 400; font-size: 14px; }
+  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+`
+export const BalanceBtnRow = styled.div`
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 22px 22px;
+`
+export const BalanceCreditBtn = styled.button`
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  height: 46px; border-radius: 12px; border: none; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  background: linear-gradient(135deg, #16a34a, #15803d);
+  color: #fff; box-shadow: 0 4px 18px rgba(22,163,74,0.35);
+  transition: opacity 0.18s, transform 0.15s;
+  svg { font-size: 18px; }
+  &:hover { opacity: 0.88; } &:active { transform: scale(0.97); }
+  &:disabled { opacity: 0.32; cursor: default; pointer-events: none; }
+`
+export const BalanceDebitBtn = styled.button`
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  height: 46px; border-radius: 12px; border: none; cursor: pointer;
+  font-family: inherit; font-size: 14px; font-weight: 700;
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  color: #fff; box-shadow: 0 4px 18px rgba(220,38,38,0.32);
+  transition: opacity 0.18s, transform 0.15s;
+  svg { font-size: 18px; }
+  &:hover { opacity: 0.88; } &:active { transform: scale(0.97); }
+  &:disabled { opacity: 0.32; cursor: default; pointer-events: none; }
 `

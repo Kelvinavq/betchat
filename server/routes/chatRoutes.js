@@ -11,6 +11,7 @@ import {
   getChatLabels,
   getAdminChats,
   getMessages,
+  getPendingCounts,
   markChatRead,
   pinChat,
   resetClientBotAdmin,
@@ -23,6 +24,7 @@ import {
   updateManualMovementStatus,
   resolveManualMovement,
 } from '../controllers/movementController.js'
+import { listWithdrawals } from '../controllers/withdrawalController.js'
 
 const router = Router()
 
@@ -36,6 +38,8 @@ router.get('/:chatId/client', getChatClientDetails)
 router.put('/:chatId/client', updateChatClientDetails)
 router.put('/:chatId/client/labels', updateChatClientLabels)
 router.get('/:chatId/movements', getChatMovements)
+router.get('/:chatId/withdrawals', listWithdrawals)
+router.get('/:chatId/pending-counts', getPendingCounts)
 router.put('/:chatId/movements/manual/:id/status', updateManualMovementStatus)
 router.put('/:chatId/movements/manual/:id/resolve', resolveManualMovement)
 router.post('/:chatId/bot/reset', resetClientBotAdmin)

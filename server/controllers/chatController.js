@@ -1098,6 +1098,31 @@ export async function completeWithdrawal(req, res, next) {
   }
 }
 
+export async function getPendingCounts(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    if (!chatId) return res.status(400).json({ error: 'Chat inválido' })
+
+    const [{ rows: movRows }, { rows: wrRows }] = await Promise.all([
+      query(
+        `SELECT COUNT(*) AS cnt FROM manual_payment_movements WHERE chat_id = ? AND status = 'pending'`,
+        [chatId]
+      ),
+      query(
+        `SELECT COUNT(*) AS cnt FROM withdrawal_requests WHERE chat_id = ? AND status = 'pending'`,
+        [chatId]
+      ),
+    ])
+
+    res.json({
+      movements:   Number(movRows?.[0]?.cnt  || 0),
+      withdrawals: Number(wrRows?.[0]?.cnt   || 0),
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function markChatRead(req, res, next) {
   try {
     const chatId = Number(req.params.chatId)

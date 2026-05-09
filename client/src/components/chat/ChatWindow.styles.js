@@ -1162,6 +1162,63 @@ export const BotFormError = styled.div`
   line-height: 1.35;
 `
 
+export const BotFormSelect = styled.select`
+  flex: 1;
+  min-width: 0;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 9px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(0,0,0,0.30);
+  color: #fff;
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  appearance: auto;
+  &:focus {
+    border-color: var(--bc-client-accent, #1e85ff);
+    box-shadow: 0 0 0 3px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.12);
+  }
+  option { background: #1a1a2e; color: #fff; }
+`
+
+export const FormSentCard = styled.div`
+  min-width: min(240px, 68vw);
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.22);
+  background: rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.07);
+`
+
+export const FormSentTitle = styled.div`
+  font-size: 12px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.55);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 7px;
+`
+
+export const FormSentRow = styled.div`
+  padding: 5px 0;
+  border-top: 1px solid rgba(255,255,255,0.07);
+`
+
+export const FormSentLabel = styled.div`
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.38);
+`
+
+export const FormSentValue = styled.div`
+  margin-top: 1px;
+  font-size: 13px;
+  color: #fff;
+`
+
 export const ScrollDownBtn = styled.button`
   position: absolute;
   bottom: 10px;

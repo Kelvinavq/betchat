@@ -7,7 +7,7 @@ import { persistMessage } from './chatController.js'
 const ITEM_TYPES = ['message', 'button', 'form']
 const BUTTON_TYPES = ['navigate', 'receipt_request', 'messages_only']
 const RECEIPT_PROCESSING = ['auto', 'manual']
-const FORM_FIELD_TYPES = ['text', 'number']
+const FORM_FIELD_TYPES = ['text', 'number', 'dni', 'select']
 
 const SAFE_BANK_FIELDS = new Set(['nombre_titular', 'alias', 'cbu', 'email', 'cuit', 'currency'])
 
@@ -70,10 +70,36 @@ function normalizeFormConfig(rawConfig, fallbackTitle = '') {
       .map(message => String(message || '').trim())
       .filter(Boolean)
       .slice(0, 8),
+    isWithdrawal: Boolean(config.isWithdrawal || config.is_withdrawal),
     fields: fields.map((field, index) => {
       const type = FORM_FIELD_TYPES.includes(String(field.type || 'text')) ? String(field.type || 'text') : 'text'
       const key = normalizeId(field.key || field.id || `campo_${index + 1}`).replace(/[^a-z0-9_-]/gi, '_').slice(0, 40) || `campo_${index + 1}`
       const max = field.max === '' || field.max == null ? null : Number(field.max)
+      const options = type === 'select'
+        ? (Array.isArray(field.options) ? field.options.map(o => String(o || '').trim()).filter(Boolean).slice(0, 20) : [])
+        : undefined
+      const rawCF = type === 'select' && field.conditionalFields && typeof field.conditionalFields === 'object' && !Array.isArray(field.conditionalFields)
+        ? field.conditionalFields : {}
+      const conditionalFields = type === 'select'
+        ? Object.fromEntries(
+            Object.entries(rawCF)
+              .filter(([, cf]) => cf && typeof cf === 'object')
+              .slice(0, 20)
+              .map(([opt, cf]) => {
+                const cfType = FORM_FIELD_TYPES.includes(String(cf.type || 'text')) && cf.type !== 'select' ? String(cf.type) : 'text'
+                const cfMax = cf.max === '' || cf.max == null ? null : Number(cf.max)
+                return [String(opt).slice(0, 80), {
+                  key: normalizeId(cf.key || '').replace(/[^a-z0-9_-]/gi, '_').slice(0, 40) || `${key}_cf_${String(opt).slice(0, 10).replace(/\s/g, '_')}`,
+                  label: String(cf.label || '').trim().slice(0, 80),
+                  type: cfType,
+                  placeholder: String(cf.placeholder || '').trim().slice(0, 120),
+                  required: cf.required !== false,
+                  max: cfType === 'number' && !Number.isNaN(cfMax) ? cfMax : null,
+                }]
+              })
+              .filter(([, cf]) => cf.label)
+          )
+        : undefined
       return {
         key,
         label: String(field.label || `Campo ${index + 1}`).trim().slice(0, 80),
@@ -81,6 +107,8 @@ function normalizeFormConfig(rawConfig, fallbackTitle = '') {
         placeholder: String(field.placeholder || '').trim().slice(0, 120),
         required: field.required !== false,
         max: type === 'number' && !Number.isNaN(max) ? max : null,
+        ...(options !== undefined && { options }),
+        ...(conditionalFields !== undefined && { conditionalFields }),
       }
     }).filter(field => field.label).slice(0, 12),
   }
@@ -117,7 +145,13 @@ function formatFormSubmission(formConfig, values) {
   const title = formConfig.title || 'Formulario'
   const lines = [`Formulario: ${title}`]
   for (const field of formConfig.fields || []) {
-    lines.push(`${field.label}: ${String(values?.[field.key] ?? '').trim()}`)
+    const raw = String(values?.[field.key] ?? '').trim()
+    lines.push(`${field.label}: ${raw}`)
+    if (field.type === 'select' && raw && field.conditionalFields?.[raw]) {
+      const cf = field.conditionalFields[raw]
+      const cfRaw = String(values?.[cf.key] ?? '').trim()
+      if (cfRaw) lines.push(`${cf.label}: ${cfRaw}`)
+    }
   }
   return lines.join('\n')
 }
@@ -130,12 +164,38 @@ function validateFormValues(formConfig, values) {
       errors.push(`Completa "${field.label}"`)
       continue
     }
-    if (field.type === 'number' && raw) {
+    if (!raw) continue
+    if (field.type === 'number') {
       const value = Number(raw)
       if (Number.isNaN(value)) {
         errors.push(`"${field.label}" debe ser numerico`)
       } else if (field.max != null && value > Number(field.max)) {
         errors.push(`"${field.label}" debe ser menor o igual a ${field.max}`)
+      }
+    }
+    if (field.type === 'dni') {
+      if (!/^\d{8}$/.test(raw)) {
+        errors.push(`"${field.label}" debe tener exactamente 8 dígitos numéricos`)
+      }
+    }
+    if (field.type === 'select' && Array.isArray(field.options) && field.options.length) {
+      if (!field.options.includes(raw)) {
+        errors.push(`"${field.label}" tiene un valor no permitido`)
+      } else if (field.conditionalFields?.[raw]) {
+        const cf = field.conditionalFields[raw]
+        const cfRaw = String(values?.[cf.key] ?? '').trim()
+        if (cf.required && !cfRaw) {
+          errors.push(`Completa "${cf.label}"`)
+        } else if (cfRaw) {
+          if (cf.type === 'dni' && !/^\d{8}$/.test(cfRaw)) {
+            errors.push(`"${cf.label}" debe tener exactamente 8 dígitos numéricos`)
+          }
+          if (cf.type === 'number') {
+            const v = Number(cfRaw)
+            if (Number.isNaN(v)) errors.push(`"${cf.label}" debe ser numérico`)
+            else if (cf.max != null && v > Number(cf.max)) errors.push(`"${cf.label}" debe ser menor o igual a ${cf.max}`)
+          }
+        }
       }
     }
   }
@@ -535,14 +595,27 @@ export async function submitClientBotForm(req, res, next) {
     }
 
     const created = []
+    const formText = formatFormSubmission(formConfig, values)
     const submitted = await persistMessage({
       chatId,
       senderType: 'client',
-      content: formatFormSubmission(formConfig, values),
+      content: formText,
       messageType: 'text',
       clientMessageId,
     })
     created.push(submitted.message)
+
+    if (formConfig.isWithdrawal) {
+      const { error: wrErr } = await query(
+        `INSERT INTO withdrawal_requests (chat_id, client_id, form_id, message_id, status, form_data)
+         VALUES (?, ?, ?, ?, 'pending', ?)`,
+        [chatId, client.sub, String(formId), submitted.message.id, formText]
+      )
+      if (wrErr) {
+        console.error('[withdrawal_requests] insert error:', wrErr.message)
+        return next(wrErr)
+      }
+    }
 
     for (const [index, text] of formConfig.responseMessages.entries()) {
       const resolvedContent = await resolveBankPlaceholders(String(text || '').trim())

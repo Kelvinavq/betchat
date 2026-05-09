@@ -75,7 +75,7 @@ async function searchUserInExternalAPI(apiUrl, apiKey, username) {
 }
 
 // Función para crear usuario en API externa
-async function createUserInExternalAPI(apiUrl, apiKey, username, password) {
+async function createUserInExternalAPI(apiUrl, apiKey, username, password, balance = 0) {
   try {
     const createUrl = `${apiUrl}index.php?act=admin&area=createuser&response=js`
     const createFormData = new URLSearchParams()
@@ -83,7 +83,7 @@ async function createUserInExternalAPI(apiUrl, apiKey, username, password) {
     createFormData.append('group', '5')
     createFormData.append('login', username)
     createFormData.append('password', password)
-    createFormData.append('balance', '0')
+    createFormData.append('balance', String(balance ?? 0))
     createFormData.append('api_token', apiKey)
 
     const createResponse = await fetch(createUrl, {
@@ -229,10 +229,24 @@ export async function getClients(req, res, next) {
   }
 }
 
+export async function getClientStats(req, res, next) {
+  try {
+    const { rows, error } = await query(
+      `SELECT COUNT(*) AS total, SUM(is_active) AS active, SUM(1-is_active) AS inactive FROM clients`
+    )
+    if (error) throw error
+    const r = rows?.[0] || {}
+    res.json({ total: Number(r.total) || 0, active: Number(r.active) || 0, inactive: Number(r.inactive) || 0 })
+  } catch (error) {
+    next(error)
+  }
+}
+
 export async function createClient(req, res, next) {
   try {
     const username = String(req.body?.username || '').trim()
     const password = String(req.body?.password || '')
+    const balance  = Math.max(0, Number(req.body?.balance) || 0)
 
     if (!username || !password) {
       return res.status(400).json({
@@ -276,10 +290,10 @@ export async function createClient(req, res, next) {
     }
 
     // Crear usuario en la API externa
-    const createResult = await createUserInExternalAPI(apiUrl, apiKey, username, password)
+    const createResult = await createUserInExternalAPI(apiUrl, apiKey, username, password, balance)
 
     const { rows, error: insertError } = await query(`
-      INSERT INTO clients (username, full_name, password_hash, external_id, is_active)
+      INSERT INTO clients (username, full_name, password, external_id, is_active)
       VALUES (?, ?, ?, ?, 1)
     `, [username, username, password, createResult.externalId])
     if (insertError) return next(insertError)
@@ -355,7 +369,7 @@ export async function updateClientPassword(req, res, next) {
 
     const { rows } = await query(`
       UPDATE clients
-      SET password_hash = ?, updated_at = CURRENT_TIMESTAMP
+      SET password = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ?
     `, [password, id])
 

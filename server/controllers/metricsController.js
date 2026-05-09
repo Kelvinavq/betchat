@@ -179,6 +179,36 @@ export async function getMetrics(req, res, next) {
     )
     if (distErr) throw distErr
 
+    /* ── Withdrawal KPIs ── */
+    const { rows: wrKpiRows, error: wrKpiErr } = await query(
+      `SELECT
+         COUNT(*)                                        AS total,
+         SUM(status = 'approved')                       AS approved,
+         SUM(status = 'rejected')                       AS rejected,
+         SUM(status = 'pending')                        AS pending,
+         COUNT(DISTINCT client_id)                      AS unique_users
+       FROM withdrawal_requests
+       WHERE DATE(created_at) BETWEEN ? AND ?`,
+      [from, to]
+    )
+    if (wrKpiErr) throw wrKpiErr
+
+    /* ── Withdrawal time series ── */
+    const { rows: wrTsRows, error: wrTsErr } = await query(
+      `SELECT
+         DATE(created_at) AS day,
+         COUNT(*) AS total,
+         SUM(status = 'approved') AS approved,
+         SUM(status = 'rejected') AS rejected,
+         SUM(status = 'pending')  AS pending
+       FROM withdrawal_requests
+       WHERE DATE(created_at) BETWEEN ? AND ?
+       GROUP BY day
+       ORDER BY day`,
+      [from, to]
+    )
+    if (wrTsErr) throw wrTsErr
+
     /* ── Hourly pattern (por hora del día) ── */
     const { rows: hourRows, error: hourErr } = await query(
       `SELECT HOUR(created_at) AS hour,
@@ -272,6 +302,28 @@ export async function getMetrics(req, res, next) {
         total: Number(r.total),
       })),
       hourlyPattern,
+      withdrawals: {
+        kpis: (() => {
+          const w = wrKpiRows?.[0] || {}
+          const total = Number(w.total) || 0
+          const approved = Number(w.approved) || 0
+          return {
+            total,
+            approved,
+            rejected:     Number(w.rejected)    || 0,
+            pending:      Number(w.pending)      || 0,
+            approvalRate: total > 0 ? Math.round((approved / total) * 100) : 0,
+            uniqueUsers:  Number(w.unique_users) || 0,
+          }
+        })(),
+        timeSeries: (wrTsRows || []).map(r => ({
+          date:     r.day,
+          total:    Number(r.total),
+          approved: Number(r.approved),
+          rejected: Number(r.rejected),
+          pending:  Number(r.pending),
+        })),
+      },
     })
   } catch (error) {
     next(error)

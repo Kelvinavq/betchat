@@ -10,6 +10,7 @@ import AttachMoneyOutlinedIcon   from '@mui/icons-material/AttachMoneyOutlined'
 import BarChartOutlinedIcon      from '@mui/icons-material/BarChartOutlined'
 import FileDownloadOutlinedIcon  from '@mui/icons-material/FileDownloadOutlined'
 import PictureAsPdfOutlinedIcon  from '@mui/icons-material/PictureAsPdfOutlined'
+import CurrencyExchangeOutlinedIcon from '@mui/icons-material/CurrencyExchangeOutlined'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -178,6 +179,27 @@ export default function MetricsPage({ onMenuOpen }) {
       )
       XLSX.utils.book_append_sheet(wb, distSheet, 'Distribución de montos')
 
+      /* Withdrawals KPI sheet */
+      const wrKpi = data.withdrawals?.kpis || {}
+      const wrKpiSheet = XLSX.utils.aoa_to_sheet([
+        ['Métrica', 'Valor'],
+        ['Total retiros',               wrKpi.total],
+        ['Aprobados',                   wrKpi.approved],
+        ['Rechazados',                  wrKpi.rejected],
+        ['Pendientes',                  wrKpi.pending],
+        ['Tasa de aprobación (%)',       wrKpi.approvalRate],
+        ['Usuarios únicos',             wrKpi.uniqueUsers],
+      ])
+      XLSX.utils.book_append_sheet(wb, wrKpiSheet, 'Retiros KPIs')
+
+      /* Withdrawals time series sheet */
+      const wrTsSheet = XLSX.utils.json_to_sheet(
+        (data.withdrawals?.timeSeries || []).map(r => ({
+          Fecha: r.date, Total: r.total, Aprobados: r.approved, Rechazados: r.rejected, Pendientes: r.pending,
+        }))
+      )
+      XLSX.utils.book_append_sheet(wb, wrTsSheet, 'Retiros serie de tiempo')
+
       XLSX.writeFile(wb, `metricas_${from}_${to}.xlsx`)
     } catch (e) {
       console.error('Export Excel error:', e)
@@ -236,6 +258,24 @@ export default function MetricsPage({ onMenuOpen }) {
         startY: doc.lastAutoTable.finalY + 10,
         head: [['#', 'Usuario', 'Operaciones', 'Monto total', 'Promedio']],
         body: topUsers.map((r, i) => [i + 1, r.username, fmt(r.count), fmtARS(r.totalAmount), fmtARS(r.avgAmount)]),
+        ...theme,
+      })
+
+      const wrKpi = data.withdrawals?.kpis || {}
+      doc.setFontSize(13)
+      doc.setTextColor(255, 255, 255)
+      doc.text('Retiros', 14, doc.lastAutoTable.finalY + 18)
+      autoTable(doc, {
+        startY: doc.lastAutoTable.finalY + 22,
+        head: [['Métrica', 'Valor']],
+        body: [
+          ['Total retiros',         fmt(wrKpi.total || 0)],
+          ['Aprobados',             fmt(wrKpi.approved || 0)],
+          ['Rechazados',            fmt(wrKpi.rejected || 0)],
+          ['Pendientes',            fmt(wrKpi.pending || 0)],
+          ['Tasa de aprobación',    fmtPct(wrKpi.approvalRate || 0)],
+          ['Usuarios únicos',       fmt(wrKpi.uniqueUsers || 0)],
+        ],
         ...theme,
       })
 
@@ -583,6 +623,63 @@ export default function MetricsPage({ onMenuOpen }) {
                 </tbody>
               </Table>
             </TableCard>
+
+            {/* ── Withdrawals section ── */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '8px 0 4px', padding: '0 2px' }}>
+              <CurrencyExchangeOutlinedIcon style={{ color: '#a78bfa', fontSize: 20 }} />
+              <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 13, fontWeight: 600, letterSpacing: '0.03em', textTransform: 'uppercase' }}>Retiros</span>
+              <div style={{ flex: 1, height: 1, background: 'rgba(255,255,255,0.07)', marginLeft: 4 }} />
+            </div>
+
+            {/* Withdrawal KPI cards */}
+            {(() => {
+              const wk = data.withdrawals?.kpis || {}
+              const WR_KPI_CARDS = [
+                { label: 'Total retiros',    value: fmt(wk.total || 0),        sub: `${from} – ${to}`,                    icon: <CurrencyExchangeOutlinedIcon />, color: '#a78bfa' },
+                { label: 'Aprobados',        value: fmt(wk.approved || 0),     sub: `${fmtPct(wk.approvalRate || 0)} tasa`, icon: <CheckCircleOutlinedIcon />,     color: '#4ade80' },
+                { label: 'Rechazados',       value: fmt(wk.rejected || 0),     sub: 'solicitudes rechazadas',              icon: <CancelOutlinedIcon />,           color: '#f87171' },
+                { label: 'Pendientes',       value: fmt(wk.pending || 0),      sub: 'en espera de revisión',               icon: <PendingOutlinedIcon />,          color: '#fbbf24' },
+                { label: 'Usuarios únicos',  value: fmt(wk.uniqueUsers || 0),  sub: 'con solicitudes',                     icon: <GroupOutlinedIcon />,            color: '#60a5fa' },
+              ]
+              return (
+                <KpiGrid>
+                  {WR_KPI_CARDS.map(card => (
+                    <KpiCard key={card.label} $color={card.color}>
+                      <KpiIconWrap $color={card.color}>{card.icon}</KpiIconWrap>
+                      <div>
+                        <KpiLabel>{card.label}</KpiLabel>
+                        <KpiValue>{card.value}</KpiValue>
+                        <KpiSub>{card.sub}</KpiSub>
+                      </div>
+                    </KpiCard>
+                  ))}
+                </KpiGrid>
+              )
+            })()}
+
+            {/* Withdrawal time series */}
+            <ChartGrid $cols={1}>
+              <ChartCard $h={260}>
+                <ChartHead>
+                  <div>
+                    <ChartTitle>Retiros en el tiempo</ChartTitle>
+                    <ChartSub>{(data.withdrawals?.timeSeries || []).length} días con datos</ChartSub>
+                  </div>
+                </ChartHead>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={data.withdrawals?.timeSeries || []} margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis dataKey="date" tickFormatter={formatXAxisDate} tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fill: 'rgba(255,255,255,0.3)', fontSize: 10 }} axisLine={false} tickLine={false} width={36} allowDecimals={false} />
+                    <Tooltip content={<DarkTooltip formatFn={fmt} />} />
+                    <Legend formatter={(value) => <span style={{ color: 'rgba(255,255,255,0.55)', fontSize: 11 }}>{value}</span>} wrapperStyle={{ paddingTop: 8 }} />
+                    <Bar dataKey="approved" name="Aprobados" stackId="a" fill="#4ade80" radius={[0,0,0,0]} />
+                    <Bar dataKey="rejected" name="Rechazados" stackId="a" fill="#f87171" radius={[0,0,0,0]} />
+                    <Bar dataKey="pending"  name="Pendientes" stackId="a" fill="#fbbf24" radius={[5,5,0,0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </ChartCard>
+            </ChartGrid>
           </>
         )}
       </Body>

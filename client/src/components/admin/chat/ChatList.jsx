@@ -7,6 +7,8 @@ import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import DoneAllIcon from '@mui/icons-material/DoneAll'
 import MarkChatUnreadOutlinedIcon from '@mui/icons-material/MarkChatUnreadOutlined'
+import TuneOutlinedIcon from '@mui/icons-material/TuneOutlined'
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore'
 import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined'
 import PushPinIcon from '@mui/icons-material/PushPin'
 import DeleteSweepOutlinedIcon from '@mui/icons-material/DeleteSweepOutlined'
@@ -20,7 +22,7 @@ import {
   DropdownMenu, DropdownItem, DropdownSection, DropdownLabel, LabelFilterBtn, LabelFilterDot,
   QuickMenu, QuickMenuItem,
   SearchWrap, SearchIcon as SearchIconWrap, SearchInput,
-  ProcessChip, ProcessDot, ProcessFilters,
+  ProcessChip, ProcessDot, ProcessFilters, FilterToggleRow, FilterActiveChip,
   ListScroll, ChatItem, ChatAvatar, OnlineDot, ChatBody,
   AssignedPill, ChatRow, ChatUsername, ChatTime, ChatLastMsg,
   TagEl, UnreadBadge, TAG_CONFIG,
@@ -75,6 +77,8 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   const [processOptions, setProcessOptions] = useState([])
   const [activeLabel, setActiveLabel] = useState('all')
   const [labelOptions, setLabelOptions] = useState([])
+  const [showUnreadOnly, setShowUnreadOnly] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [quickMenu, setQuickMenu] = useState(null)
   const [chats, setChats] = useState([])
   const [loading, setLoading] = useState(true)
@@ -174,20 +178,6 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
 
   useEffect(() => {
     let alive = true
-    const loadLabels = async () => {
-      try {
-        const data = await api.get('/api/chats/labels')
-        if (alive) setLabelOptions(data.labels || [])
-      } catch {
-        if (alive) setLabelOptions([])
-      }
-    }
-    loadLabels()
-    return () => { alive = false }
-  }, [])
-
-  useEffect(() => {
-    let alive = true
     const loadFlow = async () => {
       try {
         const data = await api.get('/api/bot-builder')
@@ -217,15 +207,22 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   }, [])
 
   useEffect(() => {
+    let alive = true
+    const loadLabels = async () => {
+      try {
+        const data = await api.get('/api/chats/labels')
+        if (alive) setLabelOptions(data.labels || [])
+      } catch {
+        if (alive) setLabelOptions([])
+      }
+    }
+    loadLabels()
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
     const socket = getSocket('admin')
     const onChatUpdated = (chat) => {
-      if (Array.isArray(chat.clientTags) && chat.clientTags.length > 0) {
-        setLabelOptions(prev => {
-          const seen = new Set(prev.map(label => Number(label.id)))
-          const fresh = chat.clientTags.filter(label => label?.id && !seen.has(Number(label.id)))
-          return fresh.length ? [...prev, ...fresh].sort((a, b) => String(a.name).localeCompare(String(b.name))) : prev
-        })
-      }
       setChats(prev => {
         const belongs = Boolean(chat.isArchived) === archived
           && (activeLabel === 'all' || (chat.clientTags || []).some(label => Number(label.id) === Number(activeLabel)))
@@ -246,9 +243,12 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
     }
   }, [archived, activeLabel, selectedChat, onSelectChat])
 
-  const visibleChats = activeProcess === 'all'
+  const unreadCount = chats.filter(chat => chat.unread > 0).length
+
+  const visibleChats = (activeProcess === 'all'
     ? chats
     : chats.filter(chat => chat.botLastButtonId === activeProcess)
+  ).filter(chat => !showUnreadOnly || chat.unread > 0)
   const processById = new Map(processOptions.map(option => [option.id, option]))
 
   const openQuickMenu = (event, chat) => {
@@ -358,28 +358,20 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
                   type="button"
                   $active={activeLabel === 'all'}
                   $color="#60a5fa"
-                  onClick={() => {
-                    setActiveLabel('all')
-                    setMenuOpen(false)
-                  }}
+                  onClick={() => { setActiveLabel('all'); setMenuOpen(false) }}
                 >
                   <LabelFilterDot $color="#60a5fa" />
                   Todas las etiquetas
                 </LabelFilterBtn>
                 {labelOptions.length === 0 ? (
-                  <LabelFilterBtn type="button" disabled>
-                    Sin etiquetas
-                  </LabelFilterBtn>
+                  <LabelFilterBtn type="button" disabled>Sin etiquetas</LabelFilterBtn>
                 ) : labelOptions.map(label => (
                   <LabelFilterBtn
                     key={label.id}
                     type="button"
                     $active={Number(activeLabel) === Number(label.id)}
                     $color={label.color || '#60a5fa'}
-                    onClick={() => {
-                      setActiveLabel(String(label.id))
-                      setMenuOpen(false)
-                    }}
+                    onClick={() => { setActiveLabel(String(label.id)); setMenuOpen(false) }}
                   >
                     <LabelFilterDot $color={label.color || '#60a5fa'} />
                     {label.name}
@@ -400,31 +392,78 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
         />
       </SearchWrap>
 
-      {processOptions.length > 0 && (
+      <FilterToggleRow
+        type="button"
+        $open={filtersOpen}
+        onClick={() => setFiltersOpen(p => !p)}
+      >
+        <TuneOutlinedIcon />
+        <span>Filtros</span>
+        {(showUnreadOnly || activeProcess !== 'all' || activeLabel !== 'all') && (
+          <FilterActiveChip>
+            {[
+              showUnreadOnly && 'No leídos',
+              activeProcess !== 'all' && processOptions.find(o => o.id === activeProcess)?.label,
+              activeLabel !== 'all' && labelOptions.find(l => String(l.id) === activeLabel)?.name,
+            ].filter(Boolean).join(' · ')}
+          </FilterActiveChip>
+        )}
+        <ExpandMoreIcon style={{ marginLeft: 'auto', transition: 'transform 0.2s', transform: filtersOpen ? 'rotate(180deg)' : 'rotate(0deg)' }} />
+      </FilterToggleRow>
+
+      {filtersOpen && (
         <ProcessFilters aria-label="Filtrar por proceso">
           <ProcessChip
             type="button"
-            $active={activeProcess === 'all'}
-            $bg="rgba(30,133,255,0.16)"
-            $color="#60a5fa"
-            onClick={() => setActiveProcess('all')}
+            $active={showUnreadOnly}
+            $bg="rgba(239,68,68,0.14)"
+            $color="#f87171"
+            onClick={() => setShowUnreadOnly(p => !p)}
           >
-            <ProcessDot $color="#60a5fa" />
-            Todos
+            <ProcessDot $color="#f87171" />
+            No leídos
+            {unreadCount > 0 && (
+              <span style={{
+                marginLeft: 5,
+                background: showUnreadOnly ? 'rgba(255,255,255,0.22)' : '#ef4444',
+                color: '#fff',
+                fontSize: 10,
+                fontWeight: 700,
+                borderRadius: 8,
+                padding: '1px 5px',
+                lineHeight: '14px',
+              }}>
+                {unreadCount}
+              </span>
+            )}
           </ProcessChip>
-          {processOptions.map(option => (
-            <ProcessChip
-              key={option.id}
-              type="button"
-              $active={activeProcess === option.id}
-              $bg={option.bg}
-              $color={option.color}
-              onClick={() => setActiveProcess(option.id)}
-            >
-              <ProcessDot $color={option.color} />
-              {option.label}
-            </ProcessChip>
-          ))}
+          {processOptions.length > 0 && (
+            <>
+              <ProcessChip
+                type="button"
+                $active={activeProcess === 'all'}
+                $bg="rgba(30,133,255,0.16)"
+                $color="#60a5fa"
+                onClick={() => setActiveProcess('all')}
+              >
+                <ProcessDot $color="#60a5fa" />
+                Todos
+              </ProcessChip>
+              {processOptions.map(option => (
+                <ProcessChip
+                  key={option.id}
+                  type="button"
+                  $active={activeProcess === option.id}
+                  $bg={option.bg}
+                  $color={option.color}
+                  onClick={() => setActiveProcess(option.id)}
+                >
+                  <ProcessDot $color={option.color} />
+                  {option.label}
+                </ProcessChip>
+              ))}
+            </>
+          )}
         </ProcessFilters>
       )}
 
