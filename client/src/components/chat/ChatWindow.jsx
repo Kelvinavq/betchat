@@ -781,7 +781,7 @@ const mergeDbMessage = (incoming) => (prev) => {
   return [...prev, mapped]
 }
 
-const ChatView = ({ onClose, client, onLogout, loggingOut }) => {
+const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) => {
   const { systemConfig } = useSystemConfig()
   const [input, setInput]             = useState('')
   const [messages, setMessages]       = useState([])
@@ -965,6 +965,9 @@ const ChatView = ({ onClose, client, onLogout, loggingOut }) => {
         if (isMediaPayload(payload)) markMessagePending(payload.clientMessageId)
         setConnectionStatus(navigator.onLine ? 'reconnecting' : 'offline')
         return
+      }
+      if (ack.newChatId && ack.newChatId !== payload.chatId) {
+        onChatReassigned?.(ack.newChatId)
       }
       const finish = () => {
         clearPendingTimer(payload.clientMessageId)
@@ -1535,6 +1538,13 @@ const ChatView = ({ onClose, client, onLogout, loggingOut }) => {
     socket.on('bot:reset', onBotReset)
     return () => socket.off('bot:reset', onBotReset)
   }, [chatId, botFlow])
+
+  useEffect(() => {
+    const socket = getSocket('client')
+    const onForceLogout = () => onLogout?.()
+    socket.on('session:force-logout', onForceLogout)
+    return () => socket.off('session:force-logout', onForceLogout)
+  }, [onLogout])
 
   useEffect(() => {
     const socket = getSocket('client')
@@ -2192,6 +2202,10 @@ const ChatWindow = ({ onClose }) => {
             client={clientSession}
             onLogout={handleLogout}
             loggingOut={loggingOut}
+            onChatReassigned={(newChatId) => {
+              setClientSession(prev => prev ? { ...prev, chatId: newChatId } : prev)
+              try { localStorage.setItem('chatId', String(newChatId)) } catch {}
+            }}
           />
         )}
       </FormSection>

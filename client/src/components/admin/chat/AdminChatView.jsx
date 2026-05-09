@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useContext } from 'react'
+import { AuthContext } from '../../../context/AuthContext'
 import { createPortal } from 'react-dom'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatOutlined'
 import ArrowBackIosNewIcon from '@mui/icons-material/ArrowBackIosNew'
@@ -21,10 +22,13 @@ import PushPinIcon from '@mui/icons-material/PushPin'
 import PersonOffOutlinedIcon from '@mui/icons-material/BlockOutlined'
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined'
 import RestartAltIcon from '@mui/icons-material/RestartAlt'
+import DeleteSweepOutlinedIcon from '@mui/icons-material/DeleteSweepOutlined'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import DropUpload from '../../common/DropUpload'
+import { useConfirm } from '../../common/ConfirmDialog'
 import MovementDrawer from './MovementDrawer'
 import { api, resolveApiAsset } from '../../../utils/api'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
@@ -399,7 +403,9 @@ const MediaViewer = ({ data, onClose }) => {
 }
 
 /* ── main component ── */
-const AdminChatView = ({ chat, onBack, onOpenClient }) => {
+const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
+  const { user } = useContext(AuthContext) || {}
+  const { confirm, alert: alertDialog, dialogNode } = useConfirm()
   const [input, setInput]           = useState('')
   const [messages, setMessages]     = useState([])
   const [messagePage, setMessagePage] = useState({ previousDate: null, hasPrevious: false })
@@ -889,13 +895,60 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
     mr.stop()
   }
 
+  const pinCurrentChat = async () => {
+    if (!chat?.id) return
+    setMenuOpen(false)
+    try {
+      await api.put(`/api/chats/${chat.id}/pin`)
+    } catch (err) {
+      alertDialog({ variant: 'error', title: 'Error', message: err?.message || 'No se pudo fijar el chat.' })
+    }
+  }
+
+  const clearCurrentChat = async () => {
+    if (!chat?.id) return
+    setMenuOpen(false)
+    const ok = await confirm({
+      variant: 'danger',
+      title: 'Vaciar historial',
+      message: `¿Eliminar todos los mensajes de ${chat.username}? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Vaciar',
+    })
+    if (!ok) return
+    try {
+      await api.delete(`/api/chats/${chat.id}/messages`)
+      setMessages([])
+    } catch (err) {
+      alertDialog({ variant: 'error', title: 'Error', message: err?.message || 'No se pudo vaciar el chat.' })
+    }
+  }
+
+  const deleteCurrentChat = async () => {
+    if (!chat?.id) return
+    setMenuOpen(false)
+    const ok = await confirm({
+      variant: 'danger',
+      title: 'Eliminar chat',
+      message: `¿Eliminar permanentemente el chat de ${chat.username}? Esta acción no se puede deshacer.`,
+      confirmLabel: 'Eliminar',
+    })
+    if (!ok) return
+    try {
+      await api.delete(`/api/chats/${chat.id}`)
+      onChatDeleted?.()
+      onBack?.()
+    } catch (err) {
+      alertDialog({ variant: 'error', title: 'Error', message: err?.message || 'No se pudo eliminar el chat.' })
+    }
+  }
+
   const resetBotForClient = async () => {
     if (!chat?.id) return
     setMenuOpen(false)
     try {
       await api.post(`/api/chats/${chat.id}/bot/reset`)
     } catch (err) {
-      window.alert(err?.message || 'No se pudo restablecer el bot.')
+      alertDialog({ variant: 'error', title: 'Error', message: err?.message || 'No se pudo restablecer el bot.' })
     }
   }
 
@@ -923,7 +976,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         })
       }
     } catch (error) {
-      window.alert(error.message || 'No se pudo marcar el retiro como completado.')
+      alertDialog({ variant: 'error', title: 'Error', message: error.message || 'No se pudo marcar el retiro como completado.' })
     } finally {
       setMenuOpen(false)
     }
@@ -1022,7 +1075,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
       setMenuOpen(false)
       onBack?.()
     } catch (error) {
-      window.alert(error.message || 'No se pudo cerrar la ayuda.')
+      alertDialog({ variant: 'error', title: 'Error', message: error.message || 'No se pudo cerrar la ayuda.' })
       setMenuOpen(false)
     }
   }
@@ -1081,6 +1134,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
         <DropUpload onSend={sendMedia} onClose={() => setDropOpen(false)} />
       )}
 
+      {dialogNode}
       {viewerData && createPortal(
         <MediaViewer data={viewerData} onClose={() => setViewerData(null)} />,
         document.body
@@ -1147,6 +1201,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
               <DropdownItem onClick={resetBotForClient}>
                 <RestartAltIcon />Restablecer bot al cliente
               </DropdownItem>
+              <DropdownItem onClick={pinCurrentChat}>
+                {chat?.isPinned ? <><PushPinIcon />Desfijar chat</> : <><PushPinOutlinedIcon />Fijar chat</>}
+              </DropdownItem>
               <DropdownItem onClick={archiveCurrentChat}>
                 <ArchiveOutlinedIcon />Archivar conversación
               </DropdownItem>
@@ -1159,6 +1216,16 @@ const AdminChatView = ({ chat, onBack, onOpenClient }) => {
               <DropdownItem onClick={() => setMenuOpen(false)}>
                 <CloseIcon />Cerrar chat
               </DropdownItem>
+              {user?.role === 'admin' && (
+                <DropdownItem $danger onClick={clearCurrentChat}>
+                  <DeleteSweepOutlinedIcon />Vaciar historial
+                </DropdownItem>
+              )}
+              {user?.role === 'admin' && (
+                <DropdownItem $danger onClick={deleteCurrentChat}>
+                  <DeleteOutlineIcon />Eliminar chat
+                </DropdownItem>
+              )}
             </DropdownMenu>
           )}
         </HeaderMenuWrap>

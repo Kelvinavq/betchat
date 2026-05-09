@@ -246,3 +246,6 @@ INSERT INTO `receipt_auto_messages` (`event`, `message`, `is_active`) VALUES
   ('receipt_reupload',        'Necesitamos que vuelvas a enviar el comprobante. Por favor subí una imagen más clara.',            1),
   ('receipt_amount_low',      'El monto de tu comprobante es inferior al mínimo permitido. Realizá un depósito por el monto mínimo requerido.', 1)
 ON DUPLICATE KEY UPDATE `event` = `event`;
+
+ALTER TABLE `chats` ADD COLUMN `is_pinned` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'pinned in admin chat list' AFTER `is_archived`;
+

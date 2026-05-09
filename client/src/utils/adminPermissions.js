@@ -8,6 +8,7 @@ export const SECTION_MODULES = {
   bot: 'bot_builder',
   cuentas: 'settings',
   ajustes: 'settings',
+  metricas: 'settings',
 }
 
 export const DEFAULT_ADMIN_SECTION = 'chat'

@@ -312,6 +312,7 @@ function sanitizeChat(row) {
     assignedFullName: row.assigned_full_name || row.assigned_username || '',
     isOpen: Boolean(row.is_open),
     isArchived: Boolean(row.is_archived),
+    isPinned: Boolean(row.is_pinned),
     isHelpRequest: Boolean(row.is_help_request),
     helpReason: row.help_reason || null,
     helpNote: row.help_note || '',
@@ -393,7 +394,7 @@ export async function getAdminChats(req, res, next) {
        JOIN clients c ON c.id = ch.client_id
        LEFT JOIN users u ON u.id = ch.assigned_user_id
        ${where}
-       ORDER BY COALESCE(ch.last_message_at, ch.created_at) DESC
+       ORDER BY ch.is_pinned DESC, COALESCE(ch.last_message_at, ch.created_at) DESC
        LIMIT ${limit} OFFSET ${offset}`,
       params
     )
@@ -1158,6 +1159,65 @@ export async function archiveChat(req, res, next) {
     const chat = sanitizeChat(await getChat(chatId))
     emitChatUpdate(chat)
     res.json({ success: true, chat })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function pinChat(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    const { rows: current } = await query('SELECT is_pinned FROM chats WHERE id = ? LIMIT 1', [chatId])
+    if (!current?.length) return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
+    const newPinned = current[0].is_pinned ? 0 : 1
+    await query('UPDATE chats SET is_pinned = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [newPinned, chatId])
+    await invalidateChatListCache('pin_chat')
+    const chat = sanitizeChat(await getChat(chatId))
+    emitChatUpdate(chat)
+    res.json({ success: true, chat })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function clearChatMessages(req, res, next) {
+  try {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Solo administradores', code: 'FORBIDDEN' })
+    const chatId = Number(req.params.chatId)
+    await query('UPDATE manual_payment_movements SET message_id = NULL WHERE chat_id = ?', [chatId])
+    await query('DELETE FROM messages WHERE chat_id = ?', [chatId])
+    await query(
+      `UPDATE chats SET last_message = NULL, last_message_type = 'text', last_message_at = NULL,
+       unread_count = 0, bot_screen_id = NULL, bot_last_button_id = NULL,
+       updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+      [chatId]
+    )
+    await invalidateMessageCache(chatId)
+    await invalidateChatListCache('clear_messages')
+    const chat = sanitizeChat(await getChat(chatId))
+    emitChatUpdate(chat)
+    res.json({ success: true, chat })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function deleteChat(req, res, next) {
+  try {
+    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Solo administradores', code: 'FORBIDDEN' })
+    const chatId = Number(req.params.chatId)
+    const { rows: chatRows } = await query('SELECT client_id FROM chats WHERE id = ? LIMIT 1', [chatId])
+    const clientId = chatRows?.[0]?.client_id
+    await query('UPDATE manual_payment_movements SET message_id = NULL WHERE chat_id = ?', [chatId])
+    await query('DELETE FROM messages WHERE chat_id = ?', [chatId])
+    await query('DELETE FROM chats WHERE id = ?', [chatId])
+    await invalidateMessageCache(chatId)
+    await invalidateChatListCache('delete_chat')
+    io.to('admins').emit('chat:deleted', { chatId })
+    if (clientId) {
+      io.to(`client:${clientId}`).emit('session:force-logout', { reason: 'chat_deleted' })
+    }
+    res.json({ success: true })
   } catch (error) {
     next(error)
   }

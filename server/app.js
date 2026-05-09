@@ -22,7 +22,10 @@ import botBuilderRoutes from './routes/botBuilderRoutes.js';
 import clientBotRoutes from './routes/clientBotRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import clientChatRoutes from './routes/clientChatRoutes.js';
-import autoMessagesRoutes from './routes/autoMessagesRoutes.js';
+import autoMessagesRoutes from './routes/autoMessagesRoutes.js'
+import maintenanceRoutes from './routes/maintenanceRoutes.js'
+import metricsRoutes from './routes/metricsRoutes.js'
+import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { setupChatSockets } from './socket/chatSocket.js';
 
 // Variables globales
@@ -81,7 +84,9 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/bot-builder', botBuilderRoutes);
 app.use('/api/chats', chatRoutes);
-app.use('/api/settings/auto-messages', autoMessagesRoutes);
+app.use('/api/settings/auto-messages', autoMessagesRoutes)
+app.use('/api/maintenance', maintenanceRoutes)
+app.use('/api/metrics', metricsRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {
@@ -177,6 +182,9 @@ async function startServer() {
     // Conectar a BD
     await initializePool();
 
+    // Iniciar scheduler de mantenimiento
+    startMaintenanceScheduler()
+
     // Iniciar servidor
     const PORT = config.port;
     httpServer.listen(PORT, () => {
@@ -202,8 +210,10 @@ async function startServer() {
 
 async function gracefulShutdown() {
   console.log('\n⏹️  Apagando servidor gracefully...');
-  
+
   try {
+    stopMaintenanceScheduler()
+
     // Cerrar Socket.IO
     io.close();
     

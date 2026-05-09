@@ -166,6 +166,12 @@ export const QuickMenuItem = styled.button`
     background: rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.12);
     color: #ffffff;
   }
+
+  ${({ $danger }) => $danger && `
+    color: rgba(239,68,68,0.82);
+    svg { color: rgba(239,68,68,0.6); }
+    &:hover { background: rgba(239,68,68,0.12); color: #ef4444; }
+  `}
 `
 
 /* ── search ── */

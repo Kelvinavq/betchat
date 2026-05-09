@@ -2,14 +2,17 @@ import { Router } from 'express'
 import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js'
 import {
   archiveChat,
+  clearChatMessages,
   closeHelpChat,
   completeWithdrawal,
   createChatLabel,
+  deleteChat,
   getChatClientDetails,
   getChatLabels,
   getAdminChats,
   getMessages,
   markChatRead,
+  pinChat,
   resetClientBotAdmin,
   sendAdminMessage,
   updateChatClientDetails,
@@ -41,6 +44,9 @@ router.post('/:chatId/messages', sendAdminMessage)
 router.post('/:chatId/withdrawal/complete', completeWithdrawal)
 router.put('/:chatId/read', markChatRead)
 router.put('/:chatId/archive', archiveChat)
+router.put('/:chatId/pin', pinChat)
+router.delete('/:chatId/messages', clearChatMessages)
+router.delete('/:chatId', deleteChat)
 router.put('/:chatId/help/close', closeHelpChat)
 
 export default router

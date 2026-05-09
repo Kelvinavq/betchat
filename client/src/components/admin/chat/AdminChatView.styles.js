@@ -152,6 +152,12 @@ export const DropdownItem = styled.button`
   transition: background 0.15s;
   svg { font-size: 16px; color: rgba(255, 255, 255, 0.38); }
   &:hover { background: rgba(255, 255, 255, 0.06); color: #ffffff; }
+
+  ${({ $danger }) => $danger && `
+    color: rgba(239,68,68,0.82);
+    svg { color: rgba(239,68,68,0.55); }
+    &:hover { background: rgba(239,68,68,0.10); color: #ef4444; }
+  `}
 `
 
 export const MessageActionMenu = styled.div`

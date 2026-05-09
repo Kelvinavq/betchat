@@ -13,6 +13,7 @@ import BanksPage          from './banks/BanksPage'
 import NotificationsPage  from './notifications/NotificationsPage'
 import ModalsPage      from './modal/ModalsPage'
 import BotBuilderPage  from './botbuilder/BotBuilderPage'
+import MetricsPage     from './metrics/MetricsPage'
 import useAuth from '../../hooks/useAuth'
 import { SECTION_MODULES, canViewSection } from '../../utils/adminPermissions'
 
@@ -240,6 +241,10 @@ const DashboardPage = () => {
           <BotBuilderPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
+        {canViewCurrentSection && section === 'metricas' && (
+          <MetricsPage onMenuOpen={() => setMobileSidebar(true)} />
+        )}
+
         {canViewCurrentSection && section === 'chat' && mobileView === 'list' && (
           <MobileView $dir={viewDir}>
             <ChatList
@@ -294,6 +299,7 @@ const DashboardPage = () => {
       {canViewCurrentSection && section === 'notificaciones' && <NotificationsPage />}
       {canViewCurrentSection && section === 'modales'        && <ModalsPage />}
       {canViewCurrentSection && section === 'bot'            && <BotBuilderPage />}
+      {canViewCurrentSection && section === 'metricas'       && <MetricsPage />}
 
       {canViewCurrentSection && section === 'chat' && (
         <>

@@ -7,7 +7,12 @@ import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import DoneAllIcon from '@mui/icons-material/DoneAll'
 import MarkChatUnreadOutlinedIcon from '@mui/icons-material/MarkChatUnreadOutlined'
+import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined'
+import PushPinIcon from '@mui/icons-material/PushPin'
+import DeleteSweepOutlinedIcon from '@mui/icons-material/DeleteSweepOutlined'
+import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { AuthContext } from '../../../context/AuthContext'
+import { useConfirm } from '../../common/ConfirmDialog'
 import { api } from '../../../utils/api'
 import { getSocket } from '../../../utils/socket'
 import {
@@ -62,6 +67,7 @@ const normalizeLabel = (value) => String(value || '').replace(/^[^\p{L}\p{N}]+/u
 
 const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }) => {
   const { user } = useContext(AuthContext) || {}
+  const { confirm, alert: alertDialog, dialogNode } = useConfirm()
   const [search, setSearch] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [archived, setArchived] = useState(false)
@@ -225,12 +231,20 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
           && (activeLabel === 'all' || (chat.clientTags || []).some(label => Number(label.id) === Number(activeLabel)))
         const without = prev.filter(item => item.id !== chat.id)
         if (!belongs) return without
-        return [chat, ...without].sort((a, b) => new Date(b.lastMessageAt || b.createdAt || 0) - new Date(a.lastMessageAt || a.createdAt || 0))
+        return sortChats([chat, ...without])
       })
     }
+    const onChatDeleted = ({ chatId }) => {
+      setChats(prev => prev.filter(item => item.id !== chatId))
+      if (selectedChat?.id === chatId) onSelectChat(null)
+    }
     socket.on('chat:updated', onChatUpdated)
-    return () => socket.off('chat:updated', onChatUpdated)
-  }, [archived, activeLabel])
+    socket.on('chat:deleted', onChatDeleted)
+    return () => {
+      socket.off('chat:updated', onChatUpdated)
+      socket.off('chat:deleted', onChatDeleted)
+    }
+  }, [archived, activeLabel, selectedChat, onSelectChat])
 
   const visibleChats = activeProcess === 'all'
     ? chats
@@ -246,12 +260,18 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
     setQuickMenu({ chat, x: Math.max(10, x), y: Math.max(10, y) })
   }
 
+  const sortChats = (list) =>
+    [...list].sort((a, b) => {
+      if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
+      return new Date(b.lastMessageAt || b.createdAt || 0) - new Date(a.lastMessageAt || a.createdAt || 0)
+    })
+
   const updateChatLocal = (chat) => {
     setChats(prev => {
       const belongs = Boolean(chat.isArchived) === archived
       const without = prev.filter(item => item.id !== chat.id)
       if (!belongs) return without
-      return [chat, ...without].sort((a, b) => new Date(b.lastMessageAt || b.createdAt || 0) - new Date(a.lastMessageAt || a.createdAt || 0))
+      return sortChats([chat, ...without])
     })
   }
 
@@ -272,13 +292,41 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
         const data = await api.put(`/api/chats/${chat.id}/archive`, { archived: false })
         if (data.chat) updateChatLocal(data.chat)
       }
-    } catch {
-      // Socket updates or the next refresh will reconcile the list.
+      if (action === 'pin') {
+        const data = await api.put(`/api/chats/${chat.id}/pin`)
+        if (data.chat) updateChatLocal(data.chat)
+      }
+      if (action === 'clear') {
+        const ok = await confirm({
+          variant: 'danger',
+          title: 'Vaciar historial',
+          message: `¿Eliminar todos los mensajes de ${chat.username}? Esta acción no se puede deshacer.`,
+          confirmLabel: 'Vaciar',
+        })
+        if (!ok) return
+        const data = await api.delete(`/api/chats/${chat.id}/messages`)
+        if (data.chat) updateChatLocal(data.chat)
+      }
+      if (action === 'delete') {
+        const ok = await confirm({
+          variant: 'danger',
+          title: 'Eliminar chat',
+          message: `¿Eliminar permanentemente el chat de ${chat.username}? Esta acción no se puede deshacer.`,
+          confirmLabel: 'Eliminar',
+        })
+        if (!ok) return
+        await api.delete(`/api/chats/${chat.id}`)
+        setChats(prev => prev.filter(item => item.id !== chat.id))
+        if (selectedChat?.id === chat.id) onSelectChat(null)
+      }
+    } catch (err) {
+      alertDialog({ variant: 'error', title: 'Error', message: err?.message || 'No se pudo completar la acción.' })
     }
   }
 
   return (
     <Wrap $width={$width} $fullWidth={$fullWidth}>
+      {dialogNode}
       <ListHeader>
         {onMenuOpen && (
           <IconBtn onClick={onMenuOpen} aria-label="Abrir menu">
@@ -402,7 +450,10 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
 
               <ChatBody>
                 <ChatRow>
-                  <ChatUsername>{chat.username}</ChatUsername>
+                  <ChatUsername>
+                    {chat.isPinned && <PushPinIcon style={{ fontSize: 12, opacity: 0.6, marginRight: 4, verticalAlign: 'middle', transform: 'rotate(45deg)' }} />}
+                    {chat.username}
+                  </ChatUsername>
                   {chat.isHelpRequest ? (
                     <TagEl style={{ background: 'rgba(250,204,21,0.12)', color: '#facc15', border: '1px solid rgba(250,204,21,0.30)' }}>
                       {HELP_REASON_LABELS[chat.helpReason] || 'Ayuda'}
@@ -438,8 +489,17 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
 
       {quickMenu && (
         <QuickMenu ref={quickMenuRef} $x={quickMenu.x} $y={quickMenu.y}>
+          <QuickMenuItem type="button" onClick={() => onSelectChat(quickMenu.chat)}>
+            <MarkChatUnreadOutlinedIcon /> Abrir chat
+          </QuickMenuItem>
           <QuickMenuItem type="button" onClick={() => runQuickAction('read')}>
-            <DoneAllIcon /> Marcar como leido
+            <DoneAllIcon /> Marcar como leído
+          </QuickMenuItem>
+          <QuickMenuItem type="button" onClick={() => runQuickAction('pin')}>
+            {quickMenu.chat.isPinned
+              ? <><PushPinIcon /> Desfijar chat</>
+              : <><PushPinOutlinedIcon /> Fijar chat</>
+            }
           </QuickMenuItem>
           {quickMenu.chat.isArchived ? (
             <QuickMenuItem type="button" onClick={() => runQuickAction('unarchive')}>
@@ -450,9 +510,16 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
               <ArchiveOutlinedIcon /> Archivar
             </QuickMenuItem>
           )}
-          <QuickMenuItem type="button" onClick={() => onSelectChat(quickMenu.chat)}>
-            <MarkChatUnreadOutlinedIcon /> Abrir chat
-          </QuickMenuItem>
+          {user?.role === 'admin' && (
+            <QuickMenuItem type="button" $danger onClick={() => runQuickAction('clear')}>
+              <DeleteSweepOutlinedIcon /> Vaciar historial
+            </QuickMenuItem>
+          )}
+          {user?.role === 'admin' && (
+            <QuickMenuItem type="button" $danger onClick={() => runQuickAction('delete')}>
+              <DeleteOutlineIcon /> Eliminar chat
+            </QuickMenuItem>
+          )}
         </QuickMenu>
       )}
     </Wrap>

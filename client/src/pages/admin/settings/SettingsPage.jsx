@@ -27,6 +27,7 @@ import { api } from '../../../utils/api'
 import TicketsSection from './TicketsSection'
 import ThemesSection from './ThemesSection'
 import AutoMessagesSection from './AutoMessagesSection'
+import AdvancedSection from './AdvancedSection'
 import {
   PageWrap, PageHeader, MenuBtn, TitleBlock, PageTitle, PageSub,
   Body, SettingsNav, NavGroupLabel, NavBtn, ActiveBar, NavIcon, NavTextWrap, NavLabel, NavSub, SoonPill,
@@ -93,8 +94,7 @@ const TABS = [
     id: 'avanzado',
     label: 'Avanzado',
     icon: <TuneOutlinedIcon />,
-    sub: 'Próximamente',
-    soon: true,
+    sub: 'Mantenimiento',
   },
   {
     id: 'soporte',
@@ -1153,6 +1153,13 @@ const SettingsPage = ({ onMenuOpen }) => {
           {activeTab === 'mensajes' && (
             <Section>
               <AutoMessagesSection />
+            </Section>
+          )}
+
+          {/* ════════════════ AVANZADO ════════════════ */}
+          {activeTab === 'avanzado' && (
+            <Section>
+              <AdvancedSection />
             </Section>
           )}
 

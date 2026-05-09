@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken'
 import { config } from '../config/config.js'
 import { query } from '../config/database.js'
-import { assignChatIfUnassigned, persistMessage, processReceiptAsync, setClientOnlineStatus } from '../controllers/chatController.js'
+import { assignChatIfUnassigned, emitChatRefresh, persistMessage, processReceiptAsync, setClientOnlineStatus } from '../controllers/chatController.js'
 
 const recentMessages = new Map()
 const RECENT_TTL_MS = 60_000
@@ -143,11 +143,30 @@ export function setupChatSockets(io) {
     socket.on('message:send', async (payloadData = {}, ack) => {
       try {
         cleanupRecent()
-        const chatId = Number(payloadData.chatId)
+        let chatId = Number(payloadData.chatId)
         const clientMessageId = String(payloadData.clientMessageId || '')
+        let newChatId = null
+
         if (!chatId || !(await canAccessChat({ payload, chatId }))) {
-          ack?.({ ok: false, error: 'No autorizado' })
-          return
+          // For clients: if their chat was deleted, silently recreate it
+          if (payload?.type === 'client' && payload?.sub && chatId) {
+            const { rows: exists } = await query('SELECT id FROM chats WHERE id = ? LIMIT 1', [chatId])
+            if (!exists?.length) {
+              const { rows: ins, error: insErr } = await query(
+                'INSERT INTO chats (client_id, is_open, is_archived, unread_count, created_at) VALUES (?, 1, 0, 0, CURRENT_TIMESTAMP)',
+                [Number(payload.sub)]
+              )
+              if (!insErr && ins?.insertId) {
+                newChatId = ins.insertId
+                chatId = newChatId
+                socket.join(`chat:${chatId}`)
+              }
+            }
+          }
+          if (!newChatId) {
+            ack?.({ ok: false, error: 'No autorizado' })
+            return
+          }
         }
 
         const dedupeKey = `${payload?.type || payload?.role}:${payload?.sub}:${clientMessageId}`
@@ -193,7 +212,11 @@ export function setupChatSockets(io) {
           }).catch(err => console.error('[Receipt] Error background (socket):', err))
         }
 
-        ack?.({ ok: true, ...result })
+        if (newChatId) {
+          void emitChatRefresh(newChatId).catch(() => {})
+        }
+
+        ack?.({ ok: true, ...(newChatId ? { newChatId } : {}), ...result })
       } catch (error) {
         ack?.({ ok: false, error: error.message })
       }
