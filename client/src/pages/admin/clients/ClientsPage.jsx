@@ -341,20 +341,25 @@ const QUICK_AMOUNTS = [500, 1000, 2000, 3000, 5000, 10000]
 
 const BalanceModal = ({ client, onClose, notify }) => {
   const [amount, setAmount] = useState('')
+  const [loading, setLoading] = useState(false)
   const avatarChar = (client.username || '?')[0].toUpperCase()
+  const fmt = (n) => `$${new Intl.NumberFormat('es-AR').format(n)}`
 
   const handleQuick = (val) => setAmount(String(val))
 
-  const handleAction = (type) => {
+  const handleAction = async (operation) => {
     const n = Number(amount)
     if (!n || n <= 0) return notify('Ingresá un monto válido', 'danger')
-    notify(
-      type === 'credit'
-        ? `Saldo cargado: $${new Intl.NumberFormat('es-AR').format(n)}`
-        : `Retiro registrado: $${new Intl.NumberFormat('es-AR').format(n)}`,
-      'success'
-    )
-    onClose()
+    setLoading(true)
+    try {
+      await api.post(`/api/clients/${client.id}/balance`, { amount: n, operation })
+      notify(operation === 'in' ? `Saldo cargado: ${fmt(n)}` : `Retiro registrado: ${fmt(n)}`, 'success')
+      onClose()
+    } catch (err) {
+      notify(err?.payload?.error || err?.message || 'Error al modificar el saldo', 'danger')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -411,12 +416,12 @@ const BalanceModal = ({ client, onClose, notify }) => {
         </BalanceBody>
 
         <BalanceBtnRow>
-          <BalanceCreditBtn onClick={() => handleAction('credit')}>
-            <AddCardIcon />
+          <BalanceCreditBtn disabled={loading} onClick={() => handleAction('in')}>
+            {loading ? <BtnSpinner /> : <AddCardIcon />}
             Cargar saldo
           </BalanceCreditBtn>
-          <BalanceDebitBtn onClick={() => handleAction('debit')}>
-            <RemoveIcon />
+          <BalanceDebitBtn disabled={loading} onClick={() => handleAction('out')}>
+            {loading ? <BtnSpinner /> : <RemoveIcon />}
             Retirar saldo
           </BalanceDebitBtn>
         </BalanceBtnRow>

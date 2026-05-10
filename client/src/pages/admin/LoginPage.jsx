@@ -7,7 +7,20 @@ import { api } from '../../utils/api'
 const LoginPage = () => {
   const navigate = useNavigate()
   const { login } = useAuth()
-  const [status, setStatus] = useState({ message: '', type: '' })
+  const [status, setStatus] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('login_schedule_alert')
+      if (raw) {
+        sessionStorage.removeItem('login_schedule_alert')
+        const { access_start, access_end } = JSON.parse(raw)
+        return {
+          message: `Tu horario de acceso es de ${access_start} a ${access_end}. Podés volver a ingresar dentro de ese rango.`,
+          type: 'schedule',
+        }
+      }
+    } catch { /* ignore */ }
+    return { message: '', type: '' }
+  })
 
   const handleSubmit = async ({ username, password }) => {
     setStatus({ message: '', type: '' })

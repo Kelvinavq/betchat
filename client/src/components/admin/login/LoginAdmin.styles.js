@@ -215,10 +215,20 @@ export const AlertBox = styled.div`
   width: 100%;
   padding: 16px 18px;
   border-radius: 18px;
-  border: 1px solid ${({ $type }) => ($type === 'success' ? '#1ec07e' : '#f87171')};
-  background: ${({ $type }) => ($type === 'success' ? 'rgba(41, 194, 136, 0.12)' : 'rgba(248, 113, 113, 0.12)')};
-  color: ${({ $type }) => ($type === 'success' ? '#0f766e' : '#b91c1c')};
+  border: 1px solid ${({ $type }) =>
+    $type === 'success'  ? '#1ec07e' :
+    $type === 'schedule' ? 'rgba(245,158,11,0.55)' :
+    '#f87171'};
+  background: ${({ $type }) =>
+    $type === 'success'  ? 'rgba(41,194,136,0.12)' :
+    $type === 'schedule' ? 'rgba(245,158,11,0.10)' :
+    'rgba(248,113,113,0.12)'};
+  color: ${({ $type }) =>
+    $type === 'success'  ? '#0f766e' :
+    $type === 'schedule' ? '#fbbf24' :
+    '#b91c1c'};
   font-size: 13px;
+  line-height: 1.5;
   text-align: left;
   margin-bottom: 14px;
   box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);

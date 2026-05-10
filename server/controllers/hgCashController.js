@@ -1,0 +1,410 @@
+import crypto from 'crypto'
+import { query } from '../config/database.js'
+
+const SUPABASE_AUTH_URL = 'https://oafouerwrpwzlthrsaba.supabase.co/auth/v1/token?grant_type=password'
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZm91ZXJ3cnB3emx0aHJzYWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MTQwNzMsImV4cCI6MjA2MjM5MDA3M30.RKET8maIzQvYm2yGDtrEIbfT8rw7EKjgzUf886LU_wE'
+const HG_TRPC_BASE      = 'https://hg.cash/api/trpc/transactions.getPaginated'
+const COOKIE_PREFIX     = 'intercom-device-id-crbfkivo=bf88146c-9af8-46ab-bf31-81d648784d56; sidebar_state=true; sb-oafouerwrpwzlthrsaba-auth-token=base64-'
+
+// ============================================================
+//  Internal helpers
+// ============================================================
+
+function parseData(raw) {
+  if (!raw) return {}
+  if (typeof raw === 'object') return raw
+  try { return JSON.parse(raw) } catch { return {} }
+}
+
+function toBase64(obj) {
+  return Buffer.from(typeof obj === 'string' ? obj : JSON.stringify(obj)).toString('base64')
+}
+
+function buildCookie(authJson) {
+  return COOKIE_PREFIX + toBase64(authJson)
+}
+
+function isCookieExpiringSoon(expiresAt) {
+  if (!expiresAt) return true
+  return Date.now() + 5 * 60 * 1000 >= Number(expiresAt) * 1000
+}
+
+async function getHgBankAccount(id) {
+  const { rows, error } = await query(
+    `SELECT ba.*, bp.slug AS provider_slug
+     FROM bank_accounts ba
+     INNER JOIN bank_providers bp ON bp.id = ba.provider_id
+     WHERE ba.id = ? AND bp.slug = 'hgcash'
+     LIMIT 1`,
+    [id]
+  )
+  if (error) throw error
+  return rows?.[0] || null
+}
+
+async function saveHgCookie(accountId, data, cookie, expiresAt) {
+  const updated = { ...data, cookie, cookie_expires_at: expiresAt }
+  const { error } = await query(
+    'UPDATE bank_accounts SET account_data = ? WHERE id = ?',
+    [JSON.stringify(updated), accountId]
+  )
+  if (error) console.error('[HGCash] Error guardando cookie en DB:', error)
+  else console.log('[HGCash] Cookie guardada en DB. expires_at:', expiresAt)
+}
+
+// ============================================================
+//  Supabase auth
+// ============================================================
+
+async function loginSupabase(email, password) {
+  console.log('[HGCash] Iniciando login Supabase para:', email)
+
+  const res = await fetch(SUPABASE_AUTH_URL, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: SUPABASE_ANON_KEY,
+    },
+    body: JSON.stringify({ email, password }),
+  })
+
+  const text = await res.text()
+  console.log('[HGCash] Supabase status:', res.status)
+  console.log('[HGCash] Supabase body (primeros 400 chars):', text.slice(0, 400))
+
+  if (!res.ok) {
+    throw new Error(`Supabase ${res.status}: ${text.slice(0, 200)}`)
+  }
+
+  return JSON.parse(text)
+}
+
+async function refreshHgCookie(accountId, data) {
+  const email    = data.email    || ''
+  const password = data.password || ''
+
+  console.log('[HGCash] refreshHgCookie — email:', email || '(vacío)')
+
+  if (!email || !password) {
+    throw new Error('Email/password no configurados en la cuenta HGCash')
+  }
+
+  const authData  = await loginSupabase(email, password)
+  console.log('[HGCash] Login OK. expires_at:', authData.expires_at, '| access_token presente:', Boolean(authData.access_token))
+
+  const cookie    = buildCookie(authData)
+  const expiresAt = authData.expires_at || null
+
+  await saveHgCookie(accountId, data, cookie, expiresAt)
+  return cookie
+}
+
+async function ensureHgCookie(accountId, data) {
+  const cookieExpiring = isCookieExpiringSoon(data.cookie_expires_at)
+  console.log('[HGCash] ensureHgCookie — cookie en DB:', Boolean(data.cookie), '| expirando:', cookieExpiring)
+
+  if (data.cookie && !cookieExpiring) {
+    console.log('[HGCash] Usando cookie existente, expires_at:', data.cookie_expires_at)
+    return data.cookie
+  }
+
+  return refreshHgCookie(accountId, data)
+}
+
+// ============================================================
+//  HMAC verification
+// ============================================================
+
+function verifySignature(rawBody, secret, sigHeader) {
+  if (!secret || !sigHeader) return false
+  const hmac = crypto.createHmac('sha256', secret)
+  hmac.update(rawBody)
+  const expected = Buffer.from(`sha256=${hmac.digest('hex')}`)
+  const received = Buffer.from(sigHeader)
+  if (expected.length !== received.length) return false
+  return crypto.timingSafeEqual(expected, received)
+}
+
+// ============================================================
+//  Movement helpers
+// ============================================================
+
+function mapHgStatus(direction, status) {
+  const s = String(status || '').toLowerCase()
+  if (['completed', 'approved', 'success', 'acreditado'].includes(s)) return 'paid'
+  if (['failed', 'rejected', 'error', 'rechazado'].includes(s))        return 'rejected'
+  return 'pending'
+}
+
+function parseDateFields(dateStr) {
+  if (!dateStr) return { date: null, time: null }
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return { date: null, time: null }
+  return { date: d.toISOString().slice(0, 10), time: d.toISOString().slice(11, 19) }
+}
+
+// Returns true if a new row was inserted, false if it already existed
+async function upsertMovement(accountId, item) {
+  const coelsaId  = item.coelsaCode || item.coelsa_id || item.coelsaId || String(item.id || '')
+  if (!coelsaId) {
+    console.warn('[HGCash] Item sin coelsaId, ignorado:', JSON.stringify(item).slice(0, 200))
+    return false
+  }
+
+  const amount    = Number(item.amount || 0)
+  const fromCBU   = item.fromCBU  || item.from_cbu  || null
+  const fromCUIT  = item.fromCUIT || item.from_cuit || null
+  const bankStatus = String(item.status || '')
+  const status    = mapHgStatus(item.direction || item.type, item.status)
+  const { date, time } = parseDateFields(item.date || item.createdAt || item.created_at)
+
+  const { rows: existing, error: selErr } = await query(
+    'SELECT id FROM hgcash_movements WHERE coelsa_id = ? LIMIT 1',
+    [coelsaId]
+  )
+  if (selErr) { console.error('[HGCash] Error SELECT coelsa_id:', selErr); return false }
+
+  if (existing?.length > 0) {
+    await query(
+      `UPDATE hgcash_movements SET
+         bank_account_id = ?, amount = ?, cbu_cvu = ?, cuit = ?,
+         receipt_date = ?, receipt_time = ?, bank_status = ?, status = ?,
+         sync_status = 'synced', updated_at = CURRENT_TIMESTAMP
+       WHERE coelsa_id = ?`,
+      [accountId, amount, fromCBU, fromCUIT, date, time, bankStatus, status, coelsaId]
+    )
+    return false  // already existed
+  } else {
+    const { error } = await query(
+      `INSERT INTO hgcash_movements
+         (bank_account_id, coelsa_id, amount, cbu_cvu, cuit,
+          receipt_date, receipt_time, bank_status, status, sync_status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')`,
+      [accountId, coelsaId, amount, fromCBU, fromCUIT, date, time, bankStatus, status]
+    )
+    if (error) {
+      console.error('[HGCash] Error INSERT movimiento:', error.message, '| code:', error.code)
+      return false
+    }
+    console.log(`[HGCash] INSERT coelsa_id=${coelsaId} amount=${amount} status=${status}`)
+    return true  // newly inserted
+  }
+}
+
+// ============================================================
+//  TRPC helpers
+// ============================================================
+
+function buildTrpcUrl(page, pageSize) {
+  const inputObj = { '0': { json: { page, pageSize } } }
+  const url = `${HG_TRPC_BASE}?batch=1&input=${encodeURIComponent(JSON.stringify(inputObj))}`
+  console.log('[HGCash] TRPC URL:', url)
+  return url
+}
+
+function parseTrpcItems(batch) {
+  console.log('[HGCash] TRPC raw batch tipo:', typeof batch, '| es array:', Array.isArray(batch))
+  if (Array.isArray(batch)) {
+    console.log('[HGCash] batch[0] keys:', Object.keys(batch[0] || {}))
+  }
+
+  const first = Array.isArray(batch) ? batch[0] : batch
+  const data  = first?.result?.data?.json ?? first?.result?.data ?? {}
+
+  console.log('[HGCash] data keys:', Object.keys(data))
+
+  if (Array.isArray(data.items)) {
+    console.log('[HGCash] items encontrados:', data.items.length)
+    if (data.items.length > 0) console.log('[HGCash] Primer item:', JSON.stringify(data.items[0]).slice(0, 300))
+    return data.items
+  }
+  if (Array.isArray(data.data)) {
+    console.log('[HGCash] data.data encontrado:', data.data.length)
+    return data.data
+  }
+  if (Array.isArray(data)) {
+    console.log('[HGCash] data es array directamente:', data.length)
+    return data
+  }
+
+  console.warn('[HGCash] No se encontraron items. data completo:', JSON.stringify(data).slice(0, 500))
+  return []
+}
+
+async function fetchTrpcTransactions(cookie, page, pageSize) {
+  const url = buildTrpcUrl(page, pageSize)
+  console.log(`[HGCash] Fetching TRPC page=${page} pageSize=${pageSize}`)
+
+  const res = await fetch(url, {
+    headers: {
+      Cookie: cookie,
+      'Content-Type': 'application/json',
+    },
+  })
+
+  console.log('[HGCash] TRPC response status:', res.status)
+
+  if (res.status === 401) {
+    console.warn('[HGCash] TRPC 401 — cookie expirada o inválida')
+    const err = new Error('UNAUTHORIZED')
+    err.status = 401
+    throw err
+  }
+
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '')
+    console.error('[HGCash] TRPC error body:', txt.slice(0, 400))
+    throw new Error(`HGCash TRPC ${res.status}: ${txt.slice(0, 200)}`)
+  }
+
+  const json = await res.json()
+  return parseTrpcItems(json)
+}
+
+// ============================================================
+//  Webhook — POST /api/hgcash/webhook
+// ============================================================
+
+export async function hgWebhook(req, res, next) {
+  try {
+    const rawBody   = req.rawBody || Buffer.from(JSON.stringify(req.body ?? {}))
+    const sigHeader = req.headers['x-hg-webhook-signature'] || ''
+    const qid       = parseInt(req.query.account_id || '0', 10) || null
+
+    let row = null
+
+    if (qid) {
+      row = await getHgBankAccount(qid)
+      if (row && sigHeader) {
+        const data   = parseData(row.account_data)
+        const secret = data.webhook_secret || ''
+        if (secret && !verifySignature(rawBody, secret, sigHeader)) {
+          return res.status(401).json({ error: 'Firma de webhook inválida' })
+        }
+      }
+    } else if (sigHeader) {
+      const { rows: candidates, error } = await query(
+        `SELECT ba.*, bp.slug AS provider_slug
+         FROM bank_accounts ba
+         INNER JOIN bank_providers bp ON bp.id = ba.provider_id
+         WHERE bp.slug = 'hgcash' AND ba.is_active = 1`,
+        []
+      )
+      if (error) throw error
+      for (const candidate of (candidates || [])) {
+        const data   = parseData(candidate.account_data)
+        const secret = data.webhook_secret || ''
+        if (secret && verifySignature(rawBody, secret, sigHeader)) {
+          row = candidate
+          break
+        }
+      }
+    }
+
+    if (!row) return res.status(404).json({ error: 'Cuenta no encontrada o firma inválida' })
+
+    const payload = req.body
+
+    if (payload.direction && payload.direction !== 'Inbound') {
+      return res.json({ ok: true, skipped: true, reason: 'not_inbound' })
+    }
+
+    await upsertMovement(row.id, payload)
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+}
+
+// ============================================================
+//  Manual sync — POST /api/hgcash/:id/sync
+// ============================================================
+
+export async function hgSyncTransactions(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!id) return res.status(400).json({ error: 'ID inválido' })
+
+    console.log(`[HGCash] === Inicio sync para cuenta id=${id} ===`)
+
+    const row = await getHgBankAccount(id)
+    if (!row) return res.status(404).json({ error: 'Cuenta HGCash no encontrada' })
+
+    const data = parseData(row.account_data)
+    console.log('[HGCash] account_data keys:', Object.keys(data))
+    console.log('[HGCash] email:', data.email || '(vacío)')
+    console.log('[HGCash] password presente:', Boolean(data.password))
+    console.log('[HGCash] cookie presente:', Boolean(data.cookie))
+    console.log('[HGCash] api_token presente:', Boolean(data.api_token))
+    console.log('[HGCash] token presente:', Boolean(data.token))
+
+    let cookie
+    try {
+      cookie = await ensureHgCookie(id, data)
+      console.log('[HGCash] Cookie lista, longitud:', cookie?.length ?? 0)
+    } catch (authErr) {
+      console.error('[HGCash] Error de autenticación:', authErr.message)
+      return res.status(400).json({ error: `Error de autenticación: ${authErr.message}` })
+    }
+
+    const pageSize = 50
+    let page    = 1
+    let synced  = 0
+    let retried = false
+
+    while (page <= 20) {
+      let items
+      try {
+        items = await fetchTrpcTransactions(cookie, page, pageSize)
+      } catch (fetchErr) {
+        if (fetchErr.status === 401 && !retried) {
+          console.log('[HGCash] 401 recibido, reintentando login...')
+          retried = true
+          try {
+            cookie = await refreshHgCookie(id, { ...data, cookie: null, cookie_expires_at: null })
+            console.log('[HGCash] Re-login exitoso, continuando...')
+          } catch (reAuthErr) {
+            console.error('[HGCash] Re-login fallido:', reAuthErr.message)
+            return res.status(400).json({ error: `Re-autenticación fallida: ${reAuthErr.message}` })
+          }
+          continue
+        }
+        console.error('[HGCash] Error TRPC no recuperable:', fetchErr.message)
+        return next(fetchErr)
+      }
+
+      if (!items || items.length === 0) {
+        console.log(`[HGCash] Página ${page} vacía, deteniendo`)
+        break
+      }
+
+      console.log(`[HGCash] Página ${page}: ${items.length} items`)
+      let newInPage = 0
+      for (const item of items) {
+        try {
+          const isNew = await upsertMovement(id, item)
+          if (isNew) { synced++; newInPage++ }
+        } catch (e) {
+          console.error('[HGCash] Error upsert individual:', e.message)
+        }
+      }
+
+      // Checkpoint: si ningún item de esta página era nuevo, ya alcanzamos
+      // la parte histórica y no hace falta seguir paginando
+      if (newInPage === 0) {
+        console.log(`[HGCash] Página ${page}: todos los items ya existían — checkpoint alcanzado`)
+        break
+      }
+
+      if (items.length < pageSize) {
+        console.log('[HGCash] Última página alcanzada')
+        break
+      }
+      page++
+    }
+
+    console.log(`[HGCash] === Sync finalizado: ${synced} movimientos sincronizados en ${page} página(s) ===`)
+    res.json({ ok: true, synced, pages: page })
+  } catch (err) {
+    console.error('[HGCash] Error inesperado en sync:', err)
+    next(err)
+  }
+}

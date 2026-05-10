@@ -15,6 +15,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import CasinoOutlinedIcon from '@mui/icons-material/CasinoOutlined'
 import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
+import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined'
 import SmsOutlinedIcon from '@mui/icons-material/SmsOutlined'
 import HeadsetMicOutlinedIcon from '@mui/icons-material/HeadsetMicOutlined'
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
@@ -227,6 +228,27 @@ const SettingsPage = ({ onMenuOpen }) => {
     casinoToken: false, awsSecret: false, openrouterKey: false,
   })
 
+  /* ── firebase push credentials ── */
+  const [firebase, setFirebase] = useState({
+    projectId: '', clientEmail: '', privateKey: '',
+    apiKey: '', authDomain: '', storageBucket: '', messagingSenderId: '', appId: '', vapidKey: '',
+  })
+  const [firebaseSaved, setFirebaseSaved] = useState(false)
+  const [showFirebaseSecret, setShowFirebaseSecret] = useState({ privateKey: false, vapidKey: false, apiKey: false })
+
+  const setFb = (field, val) => setFirebase(f => ({ ...f, [field]: val }))
+  const toggleFirebaseSecret = (key) => setShowFirebaseSecret(p => ({ ...p, [key]: !p[key] }))
+  const isFirebaseOk = !!(firebase.projectId && firebase.clientEmail && firebase.privateKey && firebase.vapidKey)
+
+  const saveFirebase = async () => {
+    try {
+      await api.put('/api/push/credentials', firebase)
+      triggerSaved(setFirebaseSaved)
+    } catch (error) {
+      window.alert(error.message || 'No se pudieron guardar las credenciales de Firebase.')
+    }
+  }
+
   const setApi = (provider, field, val) =>
     setApis(a => ({ ...a, [provider]: { ...a[provider], [field]: val } }))
 
@@ -275,6 +297,12 @@ const SettingsPage = ({ onMenuOpen }) => {
       setApis(prev => ({ ...prev, ...(data.apis || {}) }))
       setChatBank(data.chatBank || { provider: null, accountId: '' })
       setChatAccounts(data.bankAccounts || {})
+      try {
+        const creds = await api.get('/api/push/credentials')
+        if (creds?.credentials && typeof creds.credentials === 'object') {
+          setFirebase(prev => ({ ...prev, ...creds.credentials }))
+        }
+      } catch { /* firebase not configured yet */ }
       setChatBanks((data.bankProviders || []).map(provider => ({
         ...provider,
         ...(BANK_STYLES[provider.id] || BANK_STYLES.manual),
@@ -1042,6 +1070,178 @@ const SettingsPage = ({ onMenuOpen }) => {
                   </SaveFooter>
                   <ApiNote>
                     Proporciona acceso a modelos de IA para el asistente de soporte y el análisis automático de chats.
+                  </ApiNote>
+                </CardBody>
+              </Card>
+
+              {/* ── Firebase Push ── */}
+              <Card $delay="160ms">
+                <CardHead>
+                  <CardIcon
+                    $bg="rgba(251,146,60,0.12)"
+                    $br="rgba(251,146,60,0.24)"
+                    $cl="#fb923c"
+                  >
+                    <NotificationsActiveOutlinedIcon />
+                  </CardIcon>
+                  <CardHeadText>
+                    <CardTitle>Firebase Cloud Messaging</CardTitle>
+                    <CardSub>Credenciales para notificaciones push en tiempo real</CardSub>
+                  </CardHeadText>
+                  <ApiStatusBadge $ok={isFirebaseOk}>
+                    {isFirebaseOk ? 'Configurado' : 'Sin configurar'}
+                  </ApiStatusBadge>
+                </CardHead>
+                <CardBody>
+                  <FormGrid>
+                    <Field>
+                      <FieldLabel>Project ID</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder="mi-proyecto-12345"
+                          value={firebase.projectId}
+                          onChange={e => setFb('projectId', e.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                        />
+                      </InputWrap>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Client Email</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder="firebase-adminsdk-xxx@mi-proyecto.iam.gserviceaccount.com"
+                          value={firebase.clientEmail}
+                          onChange={e => setFb('clientEmail', e.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                        />
+                      </InputWrap>
+                    </Field>
+                  </FormGrid>
+                  <Field>
+                    <FieldLabel>Private Key (Admin SDK)</FieldLabel>
+                    <InputWrap>
+                      <FieldInput
+                        type={showFirebaseSecret.privateKey ? 'text' : 'password'}
+                        placeholder="-----BEGIN PRIVATE KEY-----\n..."
+                        $hasRight
+                        value={firebase.privateKey}
+                        onChange={e => setFb('privateKey', e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                      />
+                      <InputSuffix type="button" onClick={() => toggleFirebaseSecret('privateKey')} tabIndex={-1}>
+                        {showFirebaseSecret.privateKey ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                      </InputSuffix>
+                    </InputWrap>
+                  </Field>
+                  <FormGrid>
+                    <Field>
+                      <FieldLabel>API Key (Client)</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type={showFirebaseSecret.apiKey ? 'text' : 'password'}
+                          placeholder="AIzaSy..."
+                          $hasRight
+                          value={firebase.apiKey}
+                          onChange={e => setFb('apiKey', e.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                        />
+                        <InputSuffix type="button" onClick={() => toggleFirebaseSecret('apiKey')} tabIndex={-1}>
+                          {showFirebaseSecret.apiKey ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                        </InputSuffix>
+                      </InputWrap>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Auth Domain</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder="mi-proyecto.firebaseapp.com"
+                          value={firebase.authDomain}
+                          onChange={e => setFb('authDomain', e.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                        />
+                      </InputWrap>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Storage Bucket</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder="mi-proyecto.appspot.com"
+                          value={firebase.storageBucket}
+                          onChange={e => setFb('storageBucket', e.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                        />
+                      </InputWrap>
+                    </Field>
+                    <Field>
+                      <FieldLabel>Messaging Sender ID</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder="123456789012"
+                          value={firebase.messagingSenderId}
+                          onChange={e => setFb('messagingSenderId', e.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                        />
+                      </InputWrap>
+                    </Field>
+                    <Field>
+                      <FieldLabel>App ID</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder="1:123456789012:web:abc123..."
+                          value={firebase.appId}
+                          onChange={e => setFb('appId', e.target.value)}
+                          autoComplete="off"
+                          spellCheck={false}
+                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                        />
+                      </InputWrap>
+                    </Field>
+                  </FormGrid>
+                  <Field>
+                    <FieldLabel>VAPID Key (Web Push)</FieldLabel>
+                    <InputWrap>
+                      <FieldInput
+                        type={showFirebaseSecret.vapidKey ? 'text' : 'password'}
+                        placeholder="BLBx-..."
+                        $hasRight
+                        value={firebase.vapidKey}
+                        onChange={e => setFb('vapidKey', e.target.value)}
+                        autoComplete="off"
+                        spellCheck={false}
+                        style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
+                      />
+                      <InputSuffix type="button" onClick={() => toggleFirebaseSecret('vapidKey')} tabIndex={-1}>
+                        {showFirebaseSecret.vapidKey ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                      </InputSuffix>
+                    </InputWrap>
+                  </Field>
+                  <SaveFooter>
+                    <SaveBtn type="button" $saved={firebaseSaved} onClick={saveFirebase}>
+                      {firebaseSaved ? <><CheckIcon />Guardado</> : 'Guardar credenciales'}
+                    </SaveBtn>
+                  </SaveFooter>
+                  <ApiNote>
+                    Obtén estas credenciales en Firebase Console → Configuración del proyecto → Cuentas de servicio (Admin SDK) y Configuración web (Client). La VAPID key está en Cloud Messaging → Web Push certificates.
                   </ApiNote>
                 </CardBody>
               </Card>

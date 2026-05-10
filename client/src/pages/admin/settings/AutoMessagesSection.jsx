@@ -1,11 +1,24 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import CheckIcon from '@mui/icons-material/Check'
 import { api } from '../../../utils/api'
 import {
   Wrap, Header, Title, Sub,
   Grid, Card, CardTop, CardLeft, IconBubble, CardMeta, CardLabel, CardDesc,
   Toggle, Textarea, Footer, SaveBtn, StatusLine,
+  VarList, VarPill, VarLabel,
 } from './AutoMessagesSection.styles'
+
+// Available placeholders — label for display, key for insertion
+const ALL_VARS = {
+  username: { label: 'usuario',  title: 'Nombre de usuario del cliente' },
+  password: { label: 'password', title: 'Contraseña del cliente' },
+  amount:   { label: 'monto',    title: 'Monto del movimiento (ej: $1.000)' },
+  alias:    { label: 'alias',    title: 'Alias de la cuenta bancaria activa' },
+  cbu:      { label: 'cbu',      title: 'CBU/CVU de la cuenta bancaria activa' },
+  titular:  { label: 'titular',  title: 'Nombre del titular de la cuenta bancaria' },
+}
+
+const ALL_VAR_KEYS = Object.keys(ALL_VARS)
 
 const MESSAGE_DEFS = [
   {
@@ -82,10 +95,11 @@ const MESSAGE_DEFS = [
 
 export default function AutoMessagesSection() {
   const [messages, setMessages] = useState({})
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [error, setError] = useState('')
+  const [loading, setLoading]   = useState(true)
+  const [saving, setSaving]     = useState(false)
+  const [saved, setSaved]       = useState(false)
+  const [error, setError]       = useState('')
+  const textareaRefs            = useRef({})
 
   const load = useCallback(async () => {
     try {
@@ -112,13 +126,32 @@ export default function AutoMessagesSection() {
     }))
   }
 
+  const insertVar = (event, varKey) => {
+    const ta = textareaRefs.current[event]
+    const token = `{{${varKey}}}`
+    if (!ta) {
+      setField(event, 'message', (messages[event]?.message || '') + token)
+      return
+    }
+    const start   = ta.selectionStart
+    const end     = ta.selectionEnd
+    const current = messages[event]?.message || ''
+    const next    = current.slice(0, start) + token + current.slice(end)
+    setField(event, 'message', next)
+    setTimeout(() => {
+      ta.focus()
+      const pos = start + token.length
+      ta.setSelectionRange(pos, pos)
+    }, 0)
+  }
+
   const handleSave = async () => {
     setSaving(true)
     setError('')
     try {
       const payload = MESSAGE_DEFS.map(def => ({
-        event: def.event,
-        message: messages[def.event]?.message ?? '',
+        event:    def.event,
+        message:  messages[def.event]?.message ?? '',
         isActive: messages[def.event]?.isActive ?? true,
       }))
       await api.put('/api/settings/auto-messages', { messages: payload })
@@ -145,7 +178,8 @@ export default function AutoMessagesSection() {
         <Title>Mensajes automáticos</Title>
         <Sub>
           Configurá los mensajes que el sistema envía automáticamente al cliente en cada
-          situación. Activá o desactivá cada uno de forma independiente.
+          situación. Usá los chips <code style={{ fontSize: 11, background: 'rgba(99,102,241,0.15)', padding: '1px 5px', borderRadius: 4, color: '#a5b4fc' }}>{'{{variable}}'}</code> para
+          insertar datos dinámicos — hacé clic en uno para agregarlo al cursor del textarea.
         </Sub>
       </Header>
 
@@ -170,7 +204,23 @@ export default function AutoMessagesSection() {
                 />
               </CardTop>
 
+              <VarList>
+                <VarLabel>insertar</VarLabel>
+                {ALL_VAR_KEYS.map(key => (
+                  <VarPill
+                    key={key}
+                    type="button"
+                    disabled={!state.isActive}
+                    title={ALL_VARS[key]?.title}
+                    onClick={() => insertVar(def.event, key)}
+                  >
+                    {`{{${ALL_VARS[key]?.label ?? key}}}`}
+                  </VarPill>
+                ))}
+              </VarList>
+
               <Textarea
+                ref={el => { textareaRefs.current[def.event] = el }}
                 value={state.message}
                 onChange={e => setField(def.event, 'message', e.target.value)}
                 placeholder="Escribe el mensaje automático..."

@@ -2,11 +2,14 @@ import { useCallback, useContext, useEffect, useRef } from 'react'
 import ChatBubble from '../../components/chat/ChatBubble'
 import { ChatContext } from '../../context/ChatContext'
 import { api } from '../../utils/api'
+import { usePushNotification } from '../../hooks/usePushNotification'
+import PushPrompt from '../../components/chat/PushPrompt'
 
 const HOST_ORIGIN = 'https://463.life'
 
 const ClientPage = () => {
-  const { setClientSession, setIsOpen, setClientAuthLoading } = useContext(ChatContext)
+  const { clientSession, setClientSession, setIsOpen, setClientAuthLoading } = useContext(ChatContext)
+  const { triggerPush } = usePushNotification(clientSession?.id ?? null)
   const loggingInRef = useRef(null)
 
   const applySession = useCallback((session) => {
@@ -109,6 +112,7 @@ const ClientPage = () => {
         allowFullScreen
       />
       <ChatBubble />
+      <PushPrompt clientId={clientSession?.id ?? null} onActivate={triggerPush} />
     </div>
   )
 }

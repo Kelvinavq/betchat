@@ -1,12 +1,25 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import CloseIcon from '@mui/icons-material/Close'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined'
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import DescriptionIcon from '@mui/icons-material/Description'
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import AddIcon from '@mui/icons-material/Add'
+import RemoveIcon from '@mui/icons-material/Remove'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
+import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
+import ContentCopyIcon from '@mui/icons-material/ContentCopy'
+import CheckIcon from '@mui/icons-material/Check'
+import DesktopWindowsOutlinedIcon from '@mui/icons-material/DesktopWindowsOutlined'
+import SmartphoneIcon from '@mui/icons-material/Smartphone'
+import TabletAndroidIcon from '@mui/icons-material/TabletAndroid'
+import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
 import { api, resolveApiAsset } from '../../../utils/api'
 import {
   Wrap, PanelHeader, CloseBtn, PanelAvatar, PanelOnlineDot, PanelUsername, PanelStatus,
@@ -16,6 +29,16 @@ import {
   FilterBar, FilterBtn, FilesGrid, FileCard, FileThumb, FileInfo, FileName, FileDate,
   PaginationRow, PageBtn, PageInfo,
   ViewerOverlay, ViewerContent, ViewerFileName, ViewerImg, ViewerEmbed, ViewerActions, ViewerBtn,
+  BalanceWrap, BalanceCard, BalanceCardHead, BalanceCardLabel, BalanceRefreshBtn,
+  BalanceMainRow, BalanceCurrencyLabel, BalanceMainAmount,
+  BalanceMetricsRow, BalanceMetric, BalanceMetricLabel, BalanceMetricValue,
+  AmountSection, AmountSectionLabel, QuickChips, QuickChip, AmountInputRow, AmountSign, AmountInput,
+  BalanceActions, BalanceCreditBtn, BalanceDebitBtn, BalanceMsg, TabSpinner,
+  ProfileWrap, ReferralCard, ReferralCardHead, ReferralCardLabel, ReferralBadge,
+  ReferralCodeRow, ReferralCode, CopyBtn, ReferralHint,
+  SessionsCard, SessionsHead, SessionsLabel, SessionCountBadge,
+  SessionList, SessionItem, SessionDeviceIcon, SessionBody,
+  SessionPrimary, SessionSecondary, SessionMeta, SessionChip, SessionTime, SessionEmptyState,
 } from './ClientPanel.styles'
 
 const DEFAULT_TAGS = [
@@ -34,6 +57,283 @@ const THUMB_COLORS = [
 ]
 
 const FILES_PER_PAGE = 6
+const QUICK_AMOUNTS = [500, 1000, 2000, 3000, 5000, 10000]
+
+const fmt = (n) => {
+  if (n === null || n === undefined) return '—'
+  return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+}
+
+const BalanceTab = ({ chatId }) => {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [amount, setAmount] = useState('')
+  const [opLoading, setOpLoading] = useState(null)
+  const [msg, setMsg] = useState(null)
+  const msgTimer = useRef(null)
+
+  const showMsg = (type, text) => {
+    setMsg({ type, text })
+    clearTimeout(msgTimer.current)
+    msgTimer.current = setTimeout(() => setMsg(null), 4000)
+  }
+
+  const fetchBalance = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    try {
+      const res = await api.get(`/api/chats/${chatId}/balance`)
+      setData(res)
+    } catch (err) {
+      if (!silent) showMsg('error', err.message || 'No se pudo obtener el saldo.')
+    } finally {
+      setLoading(false)
+    }
+  }, [chatId])
+
+  useEffect(() => {
+    setData(null)
+    setMsg(null)
+    setAmount('')
+    fetchBalance()
+  }, [fetchBalance])
+
+  const handleAction = async (operation) => {
+    const num = Number(amount)
+    if (!num || num <= 0) { showMsg('error', 'Ingresá un monto válido mayor a 0.'); return }
+    setOpLoading(operation)
+    try {
+      const res = await api.post(`/api/chats/${chatId}/balance`, { amount: num, operation })
+      setData(prev => prev ? { ...prev, balance: res.balance ?? prev.balance } : prev)
+      setAmount('')
+      showMsg('success', res.message || (operation === 'in' ? 'Saldo acreditado.' : 'Saldo debitado.'))
+    } catch (err) {
+      showMsg('error', err.message || 'No se pudo procesar la operación.')
+    } finally {
+      setOpLoading(null)
+    }
+  }
+
+  const busy = opLoading !== null
+  const numAmount = Number(amount)
+
+  return (
+    <BalanceWrap>
+      <BalanceCard>
+        <BalanceCardHead>
+          <BalanceCardLabel>Saldo disponible</BalanceCardLabel>
+          <BalanceRefreshBtn
+            type="button"
+            $loading={loading}
+            onClick={() => fetchBalance()}
+            aria-label="Actualizar saldo"
+          >
+            <RefreshIcon />
+          </BalanceRefreshBtn>
+        </BalanceCardHead>
+        <BalanceMainRow>
+          <BalanceCurrencyLabel>ARS</BalanceCurrencyLabel>
+          {loading && !data
+            ? <BalanceMainAmount $skeleton />
+            : <BalanceMainAmount>{fmt(data?.balance)}</BalanceMainAmount>
+          }
+        </BalanceMainRow>
+        <BalanceMetricsRow>
+          <BalanceMetric>
+            <BalanceMetricLabel>Wager</BalanceMetricLabel>
+            {loading && !data
+              ? <BalanceMetricValue $skeleton />
+              : <BalanceMetricValue>{fmt(data?.wager)}</BalanceMetricValue>
+            }
+          </BalanceMetric>
+          <BalanceMetric>
+            <BalanceMetricLabel>Cobrable</BalanceMetricLabel>
+            {loading && !data
+              ? <BalanceMetricValue $skeleton />
+              : <BalanceMetricValue $color="#4ade80">{fmt(data?.withdrawable)}</BalanceMetricValue>
+            }
+          </BalanceMetric>
+        </BalanceMetricsRow>
+      </BalanceCard>
+
+      <AmountSection>
+        <AmountSectionLabel>Monto</AmountSectionLabel>
+        <QuickChips>
+          {QUICK_AMOUNTS.map(v => (
+            <QuickChip
+              key={v}
+              type="button"
+              $active={numAmount === v}
+              onClick={() => setAmount(String(v))}
+            >
+              {v >= 1000 ? `${v / 1000}k` : v}
+            </QuickChip>
+          ))}
+        </QuickChips>
+        <AmountInputRow>
+          <AmountSign>$</AmountSign>
+          <AmountInput
+            type="number"
+            min="0"
+            step="1"
+            placeholder="Monto personalizado"
+            value={amount}
+            onChange={e => setAmount(e.target.value)}
+          />
+        </AmountInputRow>
+        <BalanceActions>
+          <BalanceCreditBtn
+            type="button"
+            disabled={busy || !numAmount || numAmount <= 0}
+            onClick={() => handleAction('in')}
+          >
+            {opLoading === 'in' ? <TabSpinner /> : <AddIcon />}
+            Cargar
+          </BalanceCreditBtn>
+          <BalanceDebitBtn
+            type="button"
+            disabled={busy || !numAmount || numAmount <= 0}
+            onClick={() => handleAction('out')}
+          >
+            {opLoading === 'out' ? <TabSpinner /> : <RemoveIcon />}
+            Retirar
+          </BalanceDebitBtn>
+        </BalanceActions>
+      </AmountSection>
+
+      {msg && (
+        <BalanceMsg $type={msg.type}>
+          {msg.type === 'success' ? <CheckCircleOutlinedIcon /> : <ErrorOutlinedIcon />}
+          {msg.text}
+        </BalanceMsg>
+      )}
+    </BalanceWrap>
+  )
+}
+
+const DEVICE_ICONS = {
+  mobile: <SmartphoneIcon />,
+  tablet: <TabletAndroidIcon />,
+  desktop: <DesktopWindowsOutlinedIcon />,
+}
+
+const relativeTime = (value) => {
+  if (!value) return ''
+  const diff = Date.now() - new Date(value).getTime()
+  const m = Math.floor(diff / 60000)
+  const h = Math.floor(diff / 3600000)
+  const d = Math.floor(diff / 86400000)
+  if (m < 1) return 'ahora mismo'
+  if (m < 60) return `hace ${m} min`
+  if (h < 24) return `hace ${h}h`
+  if (d === 1) return 'ayer'
+  if (d < 30) return `hace ${d} días`
+  return new Date(value).toLocaleDateString('es', { day: '2-digit', month: 'short', year: '2-digit' })
+}
+
+const ProfileTab = ({ chatId }) => {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const copyTimer = useRef(null)
+
+  useEffect(() => {
+    let active = true
+    setData(null)
+    setLoading(true)
+    api.get(`/api/chats/${chatId}/profile`)
+      .then(res => { if (active) setData(res) })
+      .catch(() => {})
+      .finally(() => { if (active) setLoading(false) })
+    return () => { active = false }
+  }, [chatId])
+
+  const handleCopy = () => {
+    if (!data?.referralCode) return
+    navigator.clipboard.writeText(data.referralCode).then(() => {
+      setCopied(true)
+      clearTimeout(copyTimer.current)
+      copyTimer.current = setTimeout(() => setCopied(false), 2000)
+    }).catch(() => {})
+  }
+
+  const sessions = data?.sessions || []
+
+  return (
+    <ProfileWrap>
+      <ReferralCard>
+        <ReferralCardHead>
+          <ReferralCardLabel>Código de referido</ReferralCardLabel>
+          <ReferralBadge>Compartir</ReferralBadge>
+        </ReferralCardHead>
+        <ReferralCodeRow>
+          {loading && !data
+            ? <ReferralCode $skeleton />
+            : <ReferralCode>{data?.referralCode || '—'}</ReferralCode>
+          }
+          <CopyBtn
+            type="button"
+            $copied={copied}
+            onClick={handleCopy}
+            aria-label="Copiar código"
+            disabled={!data?.referralCode}
+          >
+            {copied ? <CheckIcon /> : <ContentCopyIcon />}
+          </CopyBtn>
+        </ReferralCodeRow>
+        <ReferralHint>
+          Compartí este código con nuevos usuarios. Se asigna automáticamente al primer ingreso.
+        </ReferralHint>
+      </ReferralCard>
+
+      <SessionsCard>
+        <SessionsHead>
+          <SessionsLabel>Historial de sesiones</SessionsLabel>
+          {!loading && <SessionCountBadge>{sessions.length}</SessionCountBadge>}
+        </SessionsHead>
+        {loading && !data ? (
+          <SessionEmptyState>Cargando sesiones...</SessionEmptyState>
+        ) : sessions.length === 0 ? (
+          <SessionEmptyState>Sin sesiones registradas</SessionEmptyState>
+        ) : (
+          <SessionList>
+            {sessions.map(s => {
+              const type = s.deviceType || 'desktop'
+              const location = [s.city, s.country].filter(Boolean).join(', ')
+              return (
+                <SessionItem key={s.id}>
+                  <SessionDeviceIcon $type={type}>
+                    {DEVICE_ICONS[type] || DEVICE_ICONS.desktop}
+                  </SessionDeviceIcon>
+                  <SessionBody>
+                    <SessionPrimary>
+                      {[s.browser, s.os].filter(Boolean).join(' · ') || 'Dispositivo desconocido'}
+                    </SessionPrimary>
+                    <SessionSecondary>
+                      {s.ip || 'IP desconocida'}
+                      {location ? ` · ${location}` : ''}
+                    </SessionSecondary>
+                    <SessionMeta>
+                      <SessionChip $type={type}>
+                        {type === 'mobile' ? 'Móvil' : type === 'tablet' ? 'Tablet' : 'Desktop'}
+                      </SessionChip>
+                      {location && (
+                        <SessionChip style={{ background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.30)', border: '1px solid rgba(255,255,255,0.08)' }}>
+                          <LocationOnOutlinedIcon style={{ fontSize: 9, verticalAlign: 'middle', marginRight: 2 }} />
+                          {location}
+                        </SessionChip>
+                      )}
+                    </SessionMeta>
+                  </SessionBody>
+                  <SessionTime>{relativeTime(s.createdAt)}</SessionTime>
+                </SessionItem>
+              )
+            })}
+          </SessionList>
+        )}
+      </SessionsCard>
+    </ProfileWrap>
+  )
+}
 
 const normalizeLabel = (value = '') => String(value).trim().toLowerCase()
 
@@ -325,10 +625,16 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
 
       <TabBar>
         <Tab $active={tab === 'info'} onClick={() => setTab('info')}>
-          <InfoOutlinedIcon />Info
+          <InfoOutlinedIcon /><span className="tab-label">Info</span>
         </Tab>
         <Tab $active={tab === 'files'} onClick={() => setTab('files')}>
-          <FolderOutlinedIcon />Archivos
+          <FolderOutlinedIcon /><span className="tab-label">Archivos</span>
+        </Tab>
+        <Tab $active={tab === 'balance'} onClick={() => setTab('balance')}>
+          <AccountBalanceWalletOutlinedIcon /><span className="tab-label">Saldo</span>
+        </Tab>
+        <Tab $active={tab === 'profile'} onClick={() => setTab('profile')}>
+          <PersonOutlinedIcon /><span className="tab-label">Perfil</span>
         </Tab>
       </TabBar>
 
@@ -412,6 +718,14 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
               </TagCreateRow>
             </InfoCard>
           </>
+        )}
+
+        {tab === 'balance' && (
+          <BalanceTab chatId={client.id} />
+        )}
+
+        {tab === 'profile' && (
+          <ProfileTab chatId={client.id} />
         )}
 
         {tab === 'files' && (

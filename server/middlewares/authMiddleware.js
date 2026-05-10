@@ -49,9 +49,11 @@ export async function authenticateToken(req, res, next) {
 
     if (payload.jti) {
       const { rows, error } = await query(
-        `SELECT id FROM user_sessions
-         WHERE user_id = ? AND session_token = ? AND is_active = 1
-           AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+        `SELECT us.id, u.access_start, u.access_end
+         FROM user_sessions us
+         JOIN users u ON u.id = us.user_id
+         WHERE us.user_id = ? AND us.session_token = ? AND us.is_active = 1
+           AND (us.expires_at IS NULL OR us.expires_at > CURRENT_TIMESTAMP)
          LIMIT 1`,
         [payload.sub, payload.jti]
       );
@@ -65,6 +67,35 @@ export async function authenticateToken(req, res, next) {
           error: 'La sesión no está activa',
           code: 'SESSION_INACTIVE',
         });
+      }
+
+      const session = rows[0];
+
+      if (session.access_start && session.access_end) {
+        const now = new Date();
+        const currentMinutes = now.getHours() * 60 + now.getMinutes();
+
+        const [sh, sm] = String(session.access_start).split(':').map(Number);
+        const [eh, em] = String(session.access_end).split(':').map(Number);
+        const startMinutes = sh * 60 + sm;
+        const endMinutes = eh * 60 + em;
+
+        const inWindow = startMinutes <= endMinutes
+          ? currentMinutes >= startMinutes && currentMinutes < endMinutes
+          : currentMinutes >= startMinutes || currentMinutes < endMinutes;
+
+        if (!inWindow) {
+          await query(
+            'UPDATE user_sessions SET is_active = 0 WHERE user_id = ? AND session_token = ?',
+            [payload.sub, payload.jti]
+          );
+          return res.status(401).json({
+            error: 'Acceso fuera del horario permitido',
+            code: 'OUTSIDE_SCHEDULE',
+            access_start: String(session.access_start).substring(0, 5),
+            access_end: String(session.access_end).substring(0, 5),
+          });
+        }
       }
 
       await query(

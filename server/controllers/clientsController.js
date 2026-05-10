@@ -231,12 +231,23 @@ export async function getClients(req, res, next) {
 
 export async function getClientStats(req, res, next) {
   try {
-    const { rows, error } = await query(
-      `SELECT COUNT(*) AS total, SUM(is_active) AS active, SUM(1-is_active) AS inactive FROM clients`
-    )
+    const { rows, error } = await query(`
+      SELECT
+        COUNT(*) AS total,
+        SUM(CASE WHEN COALESCE(is_active, 1) = 1 THEN 1 ELSE 0 END) AS active,
+        SUM(CASE WHEN COALESCE(is_active, 1) = 0 THEN 1 ELSE 0 END) AS inactive
+      FROM clients
+    `)
+
     if (error) throw error
+
     const r = rows?.[0] || {}
-    res.json({ total: Number(r.total) || 0, active: Number(r.active) || 0, inactive: Number(r.inactive) || 0 })
+
+    res.json({
+      total: Number(r.total) || 0,
+      active: Number(r.active) || 0,
+      inactive: Number(r.inactive) || 0,
+    })
   } catch (error) {
     next(error)
   }
@@ -378,6 +389,58 @@ export async function updateClientPassword(req, res, next) {
     }
 
     res.json({ message: 'Contraseña actualizada exitosamente.' })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function adjustClientBalance(req, res, next) {
+  try {
+    const id        = Number(req.params.id)
+    const amount    = Number(req.body?.amount)
+    const operation = String(req.body?.operation || '')
+
+    if (!id) return res.status(400).json({ error: 'ID de cliente inválido.' })
+    if (!amount || amount <= 0) return res.status(400).json({ error: 'El monto debe ser mayor a 0.' })
+    if (!['in', 'out'].includes(operation)) return res.status(400).json({ error: 'Operación inválida.' })
+
+    const { rows: clientRows, error: clientErr } = await query(
+      'SELECT external_id FROM clients WHERE id = ?', [id]
+    )
+    if (clientErr) throw clientErr
+    if (!clientRows?.length) return res.status(404).json({ error: 'Cliente no encontrado.' })
+
+    const externalId = clientRows[0].external_id
+    if (!externalId) return res.status(400).json({ error: 'El cliente no tiene ID externo asignado.' })
+
+    const { api_url: apiUrl, api_key: apiKey } = await getCasinoConfig()
+
+    const url = `${apiUrl}index.php?act=admin&area=balance&type=frame&id=${externalId}&response=js`
+    const formData = new URLSearchParams()
+    formData.append('operation', operation)
+    formData.append('send', 'true')
+    formData.append('amount', String(amount))
+    formData.append('balance_currency', 'ARS')
+    formData.append('api_token', apiKey)
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+    })
+
+    const data = await response.json()
+
+    if (!data?.successMessage) {
+      const msg = getExternalErrorMessage(data) || 'Error al modificar el saldo en la plataforma.'
+      return res.status(502).json({ error: msg })
+    }
+
+    res.json({
+      success: true,
+      message: data.successMessage,
+      balance: data.currencies?.ARS ?? null,
+    })
   } catch (error) {
     next(error)
   }

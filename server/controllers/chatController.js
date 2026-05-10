@@ -889,7 +889,7 @@ export async function persistMessage({
 
 async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId }) {
   console.log(`[Receipt] Pipeline manual — chatId=${chatId} messageId=${messageId} bankAccountId=${bankAccountId}`)
-  const receivedMsg = await getAutoMessage('receipt_received')
+  const receivedMsg = await getAutoMessage('receipt_received', { clientId, bankAccountId })
   if (receivedMsg) {
     await persistMessage({ chatId, senderType: 'system', content: receivedMsg })
   }
@@ -944,7 +944,7 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
   }
 
   if (followUpEvent) {
-    const followMsg = await getAutoMessage(followUpEvent)
+    const followMsg = await getAutoMessage(followUpEvent, { clientId, bankAccountId })
     if (followMsg) {
       await persistMessage({ chatId, senderType: 'system', content: followMsg })
     }
@@ -992,7 +992,7 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
 
     // Banco activo es HGCash / Telepagos / MercadoPago → notificar y delegar al banco
     console.log(`[Receipt] Modo automático con banco ${active_provider} — enviando mensaje de recepción`)
-    const receivedMsg = await getAutoMessage('receipt_received')
+    const receivedMsg = await getAutoMessage('receipt_received', { clientId, bankAccountId })
     if (receivedMsg) {
       await persistMessage({ chatId, senderType: 'system', content: receivedMsg })
     }
@@ -1325,4 +1325,257 @@ export async function assignChatIfUnassigned(chatId, userId) {
   const chat = sanitizeChat(await getChat(numericChatId))
   emitChatUpdate(chat)
   return chat
+}
+
+async function getCasinoConfig() {
+  const { rows } = await query('SELECT api_url, api_key FROM config_casino WHERE id = 1')
+  if (!rows || rows.length === 0) throw new Error('Configuración de casino no encontrada.')
+  const cfg = rows[0]
+  if (!cfg.api_url || !cfg.api_key) throw new Error('URL de API o clave de API no configuradas.')
+  return cfg
+}
+
+async function getChatExternalClient(chatId) {
+  const { rows, error } = await query(
+    `SELECT c.external_id, c.username
+     FROM chats ch
+     JOIN clients c ON c.id = ch.client_id
+     WHERE ch.id = ?`,
+    [chatId]
+  )
+  if (error) throw error
+  if (!rows?.length) {
+    const err = new Error('Cliente no encontrado.')
+    err.status = 404
+    throw err
+  }
+  return rows[0]
+}
+
+function parseExternalAmount(val) {
+  if (val === null || val === undefined) return null
+  if (typeof val === 'number') return val
+  let s = String(val).trim()
+  if (s.indexOf(',') > -1 && s.indexOf('.') > -1 && s.indexOf(',') > s.indexOf('.')) {
+    s = s.replace(/\./g, '').replace(',', '.')
+  } else {
+    s = s.replace(/[^0-9.,-]/g, '')
+    if (s.indexOf('.') === -1 && s.indexOf(',') !== -1) {
+      s = s.replace(',', '.')
+    } else {
+      s = s.replace(/,/g, '')
+    }
+  }
+  const n = parseFloat(s)
+  return isNaN(n) ? null : n
+}
+
+export async function getChatTransactions(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    if (!chatId) return res.status(400).json({ error: 'ID de chat inválido.' })
+
+    const page       = Math.max(1, parseInt(req.query.page  || '1',  10) || 1)
+    const limit      = Math.max(1, Math.min(100, parseInt(req.query.limit || '20', 10) || 20))
+    const offset     = (page - 1) * limit
+    const search     = String(req.query.search || '').trim()
+    const kindFilter = ['deposit', 'withdrawal'].includes(req.query.kind) ? req.query.kind : null
+
+    const baseArgs = [chatId, chatId, chatId, chatId]
+
+    const innerSql = `
+      SELECT kind, row_id, amount, status, created_at, source, form_data, transaction_id
+      FROM (
+        SELECT 'deposit' AS kind, CAST(id AS CHAR) AS row_id, amount, status, created_at,
+               'manual' AS source, NULL AS form_data, COALESCE(transaction_id, '') AS transaction_id
+        FROM manual_payment_movements WHERE chat_id = ?
+        UNION ALL
+        SELECT 'deposit', CAST(id AS CHAR), amount, status, created_at, 'hgcash', NULL, ''
+        FROM hgcash_movements WHERE chat_id = ?
+        UNION ALL
+        SELECT 'deposit', CAST(id AS CHAR), amount, status, created_at, 'mercadopago', NULL, ''
+        FROM mercadopago_movements WHERE chat_id = ?
+        UNION ALL
+        SELECT 'withdrawal', CAST(id AS CHAR), NULL AS amount, status, created_at, 'withdrawal', form_data, ''
+        FROM withdrawal_requests WHERE chat_id = ?
+      ) AS all_txns`
+
+    const conditions = []
+    const filterArgs = []
+    if (kindFilter) {
+      conditions.push('kind = ?')
+      filterArgs.push(kindFilter)
+    }
+    if (search) {
+      conditions.push('(row_id LIKE ? OR CAST(COALESCE(amount, 0) AS CHAR) LIKE ? OR transaction_id LIKE ? OR form_data LIKE ?)')
+      const s = `%${search}%`
+      filterArgs.push(s, s, s, s)
+    }
+    const whereSQL = conditions.length ? ' WHERE ' + conditions.join(' AND ') : ''
+
+    const [countResult, dataResult, statsResult] = await Promise.all([
+      query(
+        `SELECT COUNT(*) AS total FROM (${innerSql}${whereSQL}) AS cnt`,
+        [...baseArgs, ...filterArgs]
+      ),
+      query(
+        `${innerSql}${whereSQL} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
+        [...baseArgs, ...filterArgs]
+      ),
+      query(`
+        SELECT
+          COUNT(CASE WHEN kind = 'deposit'    THEN 1 END)    AS deposit_count,
+          COUNT(CASE WHEN kind = 'withdrawal' THEN 1 END)    AS withdrawal_count,
+          COUNT(*)                                            AS total_count,
+          COALESCE(SUM(CASE WHEN kind = 'deposit'    AND status = 'paid'     THEN COALESCE(amount, 0) END), 0) AS total_deposited,
+          COALESCE(SUM(CASE WHEN kind = 'withdrawal' AND status = 'approved' THEN COALESCE(amount, 0) END), 0) AS total_withdrawn
+        FROM (
+          SELECT 'deposit' AS kind, amount, status FROM manual_payment_movements WHERE chat_id = ?
+          UNION ALL
+          SELECT 'deposit', amount, status FROM hgcash_movements WHERE chat_id = ?
+          UNION ALL
+          SELECT 'deposit', amount, status FROM mercadopago_movements WHERE chat_id = ?
+          UNION ALL
+          SELECT 'withdrawal', NULL AS amount, status FROM withdrawal_requests WHERE chat_id = ?
+        ) AS s
+      `, [chatId, chatId, chatId, chatId]),
+    ])
+
+    if (countResult.error) throw countResult.error
+    if (dataResult.error) throw dataResult.error
+    if (statsResult.error) throw statsResult.error
+
+    const total      = Number(countResult.rows?.[0]?.total || 0)
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+
+    const transactions = (dataResult.rows || []).map(r => {
+      let amount = r.amount !== null && r.amount !== undefined ? Number(r.amount) : null
+      if (r.kind === 'withdrawal' && amount === null && r.form_data) {
+        for (const line of String(r.form_data).split('\n')) {
+          if (/monto|importe|amount/i.test(line)) {
+            const idx = line.indexOf(':')
+            if (idx >= 0) {
+              const n = parseFloat(line.slice(idx + 1).replace(/[^0-9.]/g, ''))
+              if (!isNaN(n)) { amount = n; break }
+            }
+          }
+        }
+      }
+      return {
+        kind:          r.kind,
+        id:            r.row_id,
+        amount,
+        status:        r.status,
+        source:        r.source,
+        transactionId: r.transaction_id || null,
+        createdAt:     r.created_at,
+      }
+    })
+
+    const s = statsResult.rows?.[0] || {}
+    res.json({
+      transactions,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasMore: page < totalPages,
+      },
+      stats: {
+        totalCount:      Number(s.total_count      || 0),
+        depositCount:    Number(s.deposit_count    || 0),
+        withdrawalCount: Number(s.withdrawal_count || 0),
+        totalDeposited:  Number(s.total_deposited  || 0),
+        totalWithdrawn:  Number(s.total_withdrawn  || 0),
+      },
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function getChatClientBalance(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    if (!chatId) return res.status(400).json({ error: 'ID de chat inválido.' })
+
+    const client = await getChatExternalClient(chatId)
+    if (!client.external_id) return res.status(400).json({ error: 'El cliente no tiene ID externo asignado.' })
+
+    const { api_url: apiUrl, api_key: apiKey } = await getCasinoConfig()
+
+    const url = `${apiUrl}index.php?act=admin&area=balance&id=${client.external_id}&response=js`
+    const formData = new URLSearchParams()
+    formData.append('api_token', apiKey)
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+    })
+
+    const data = await response.json()
+
+    const arsBalance = parseExternalAmount(data.currencies?.ARS ?? data.dataList?.currencies?.ARS)
+    const wager = parseExternalAmount(data.wager ?? data.dataList?.wager)
+    const withdrawable = arsBalance !== null
+      ? (wager !== null && wager > 0 ? Math.max(0, arsBalance - wager) : arsBalance)
+      : null
+
+    res.json({
+      username: client.username,
+      balance: arsBalance,
+      wager,
+      withdrawable,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function adjustChatClientBalance(req, res, next) {
+  try {
+    const chatId = Number(req.params.chatId)
+    const amount = Number(req.body?.amount)
+    const operation = String(req.body?.operation || '')
+
+    if (!chatId) return res.status(400).json({ error: 'ID de chat inválido.' })
+    if (!amount || amount <= 0) return res.status(400).json({ error: 'El monto debe ser mayor a 0.' })
+    if (!['in', 'out'].includes(operation)) return res.status(400).json({ error: 'Operación inválida.' })
+
+    const client = await getChatExternalClient(chatId)
+    if (!client.external_id) return res.status(400).json({ error: 'El cliente no tiene ID externo asignado.' })
+
+    const { api_url: apiUrl, api_key: apiKey } = await getCasinoConfig()
+
+    const url = `${apiUrl}index.php?act=admin&area=balance&type=frame&id=${client.external_id}&response=js`
+    const formData = new URLSearchParams()
+    formData.append('operation', operation)
+    formData.append('send', 'true')
+    formData.append('amount', String(amount))
+    formData.append('balance_currency', 'ARS')
+    formData.append('api_token', apiKey)
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+    })
+
+    const data = await response.json()
+
+    if (!data?.successMessage) {
+      const msg = (data?.errorMessage || data?.message || data?.error || '').trim()
+      return res.status(502).json({ error: msg || 'Error al modificar el saldo en la plataforma.' })
+    }
+
+    res.json({
+      success: true,
+      message: data.successMessage,
+      balance: data.currencies?.ARS ?? null,
+    })
+  } catch (error) {
+    next(error)
+  }
 }

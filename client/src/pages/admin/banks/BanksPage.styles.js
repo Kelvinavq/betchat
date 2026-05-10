@@ -462,3 +462,247 @@ export const ToggleThumb = styled.span`
   transition: left 0.26s cubic-bezier(0.34,1.56,0.64,1); display: block;
   box-shadow: 0 1px 4px rgba(0,0,0,0.30);
 `
+
+/* ════════════════════════════════ COPY FIELD ════════════════════════════════ */
+export const CopyRow = styled.div`
+  display: flex; align-items: center; gap: 5px;
+  & + & { margin-top: 2px; }
+`
+export const CopyVal = styled.span`
+  font-size: ${({ $small }) => $small ? '11px' : '12.5px'};
+  font-family: ${({ $mono }) => $mono ? "'Courier New', monospace" : 'inherit'};
+  color: ${({ $mono }) => $mono ? 'rgba(255,255,255,0.38)' : 'rgba(255,255,255,0.82)'};
+  font-weight: ${({ $mono }) => $mono ? 400 : 600};
+  white-space: nowrap;
+`
+export const CopyBtn = styled.button`
+  display: flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 5px; flex-shrink: 0;
+  background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.07);
+  color: rgba(255,255,255,0.25); cursor: pointer;
+  transition: all 0.14s;
+  svg { font-size: 11px; }
+  &:hover { background: rgba(30,133,255,0.12); border-color: rgba(30,133,255,0.25); color: #60a5fa; }
+  &.copied { background: rgba(34,197,94,0.12); border-color: rgba(34,197,94,0.28); color: #4ade80; }
+`
+
+/* ════════════════════════════════ MOVEMENTS PANEL ════════════════════════════════ */
+const movSlideIn = keyframes`
+  from { opacity: 0; transform: translateY(20px) scale(0.98); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+`
+
+export const MovOverlay = styled.div`
+  position: fixed; inset: 0; z-index: 350;
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px;
+  animation: ${fadeUp} 0.16s ease both;
+`
+export const MovPanel = styled.div`
+  width: 100%; max-width: 1100px;
+  height: calc(var(--app-height, 100dvh) - 32px);
+  max-height: 840px;
+  background: #0d0d20;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 22px;
+  display: flex; flex-direction: column; overflow: hidden;
+  box-shadow: 0 40px 100px rgba(0,0,0,0.80), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: ${movSlideIn} 0.28s cubic-bezier(0.16,1,0.3,1) both;
+`
+export const MovPanelHead = styled.div`
+  display: flex; align-items: center; gap: 12px;
+  padding: 18px 22px 16px;
+  border-bottom: 1px solid rgba(255,255,255,0.06); flex-shrink: 0;
+`
+export const MovAccBadge = styled.div`
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: ${({ $bg }) => $bg}; border: 1px solid ${({ $br }) => $br};
+  svg { font-size: 17px; color: ${({ $cl }) => $cl}; }
+`
+export const MovPanelTitleGroup = styled.div`flex: 1; min-width: 0;`
+export const MovPanelTitle = styled.h2`
+  font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -0.01em;
+`
+export const MovPanelSub = styled.p`font-size: 11.5px; color: rgba(255,255,255,0.28); margin-top: 1px;`
+export const MovPanelClose = styled.button`
+  width: 30px; height: 30px; border-radius: 8px;
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.09);
+  color: rgba(255,255,255,0.45);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s; flex-shrink: 0;
+  svg { font-size: 16px; }
+  &:hover { background: rgba(255,255,255,0.11); color: rgba(255,255,255,0.88); }
+`
+
+/* account info bar */
+export const MovInfoBar = styled.div`
+  display: flex; align-items: center; gap: 10px;
+  padding: 12px 22px;
+  background: rgba(255,255,255,0.018);
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0; flex-wrap: wrap;
+`
+export const MovInfoItem = styled.div`
+  display: flex; flex-direction: column; gap: 2px; min-width: 0;
+`
+export const MovInfoLabel = styled.span`
+  font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: rgba(255,255,255,0.22);
+`
+export const MovInfoValRow = styled.div`
+  display: flex; align-items: center; gap: 6px;
+`
+export const MovInfoVal = styled.span`
+  font-size: 12.5px; font-weight: 600;
+  font-family: ${({ $mono }) => $mono ? "'Courier New', monospace" : 'inherit'};
+  color: rgba(255,255,255,0.72); white-space: nowrap;
+`
+export const MovInfoSep = styled.span`
+  width: 1px; height: 28px; background: rgba(255,255,255,0.07); flex-shrink: 0;
+`
+export const MovBalCard = styled.div`
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 8px 14px; border-radius: 10px;
+  background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.18);
+  margin-left: auto;
+`
+export const MovBalLabel = styled.span`
+  font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
+  text-transform: uppercase; color: rgba(34,197,94,0.70);
+`
+export const MovBalVal = styled.span`
+  font-size: 16px; font-weight: 700; color: #4ade80; letter-spacing: -0.02em;
+`
+
+/* filters */
+export const MovFilters = styled.div`
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 22px;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  flex-shrink: 0; flex-wrap: wrap;
+`
+export const MovDateInput = styled.input`
+  height: 32px; padding: 0 9px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: #fff; font-size: 12px; font-family: inherit;
+  outline: none; color-scheme: dark;
+  &:focus { border-color: rgba(30,133,255,0.40); }
+`
+export const MovFilterLabel = styled.span`
+  font-size: 12px; color: rgba(255,255,255,0.30); white-space: nowrap;
+`
+export const MovFilterSelect = styled.select`
+  height: 32px; padding: 0 8px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: rgba(255,255,255,0.72); font-size: 12px;
+  font-family: inherit; outline: none; cursor: pointer; color-scheme: dark;
+  option { background: #0d0d20; }
+  &:focus { border-color: rgba(30,133,255,0.40); }
+`
+export const MovPresetBtn = styled.button`
+  height: 28px; padding: 0 10px; border-radius: 7px;
+  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'rgba(255,255,255,0.04)'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.35)' : 'rgba(255,255,255,0.07)'};
+  color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.38)'};
+  font-size: 11px; font-weight: 600; font-family: inherit;
+  cursor: pointer; transition: all 0.14s; white-space: nowrap;
+  &:hover { background: rgba(30,133,255,0.14); border-color: rgba(30,133,255,0.28); color: #93c5fd; }
+`
+export const MovSearchBox = styled.div`
+  position: relative; flex: 1; min-width: 160px; max-width: 240px;
+`
+export const MovSrchIcon = styled.span`
+  position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+  color: rgba(255,255,255,0.25); display: flex; align-items: center;
+  pointer-events: none; svg { font-size: 14px; }
+`
+export const MovSearchInput = styled.input`
+  width: 100%; height: 32px; padding: 0 10px 0 30px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 8px; color: #fff; font-size: 12px; font-family: inherit; outline: none;
+  &::placeholder { color: rgba(255,255,255,0.20); }
+  &:focus { border-color: rgba(30,133,255,0.40); }
+`
+export const MovResultCount = styled.span`
+  font-size: 11.5px; color: rgba(255,255,255,0.25); white-space: nowrap; margin-left: auto;
+`
+
+/* movements table */
+export const MovTableWrap = styled.div`
+  flex: 1; overflow: hidden; display: flex; flex-direction: column;
+`
+export const MovTableScroll = styled.div`
+  flex: 1; overflow: auto;
+  &::-webkit-scrollbar { width: 4px; height: 4px; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.09); border-radius: 2px; }
+`
+
+/* movement status badge */
+export const MovStatusBadge = styled.span`
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 6px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  ${({ $s }) => {
+    if ($s === 'paid')     return css`background: rgba(34,197,94,0.13); color: #4ade80; border: 1px solid rgba(34,197,94,0.25);`
+    if ($s === 'pending')  return css`background: rgba(245,158,11,0.13); color: #fbbf24; border: 1px solid rgba(245,158,11,0.25);`
+    if ($s === 'rejected') return css`background: rgba(239,68,68,0.12); color: #f87171; border: 1px solid rgba(239,68,68,0.22);`
+    return css`background: rgba(255,255,255,0.06); color: rgba(255,255,255,0.35); border: 1px solid rgba(255,255,255,0.08);`
+  }}
+  &::before {
+    content: ''; width: 6px; height: 6px; border-radius: 50%;
+    background: currentColor; flex-shrink: 0;
+  }
+`
+
+/* spinner */
+const movSpin = keyframes`to { transform: rotate(360deg); }`
+export const MovSpinner = styled.div`
+  width: 24px; height: 24px; border-radius: 50%;
+  border: 3px solid rgba(255,255,255,0.08); border-top-color: #3b82f6;
+  animation: ${movSpin} 0.8s linear infinite; margin: 48px auto;
+`
+export const MovEmpty = styled.div`
+  padding: 64px 20px; text-align: center;
+  font-size: 13px; color: rgba(255,255,255,0.20);
+`
+
+/* ── toast notification ── */
+const toastIn = keyframes`
+  from { opacity: 0; transform: translateY(-12px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)     scale(1); }
+`
+export const ToastWrap = styled.div`
+  position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+  display: flex; align-items: center; gap: 10px;
+  padding: 11px 16px; border-radius: 12px;
+  min-width: 220px; max-width: 420px;
+  backdrop-filter: blur(12px);
+  animation: ${toastIn} 0.22s ease;
+  z-index: 10; pointer-events: all;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  ${({ $type }) => $type === 'success' ? css`
+    background: rgba(22,101,52,0.72);
+    border: 1px solid rgba(34,197,94,0.30);
+    color: #bbf7d0;
+  ` : css`
+    background: rgba(127,29,29,0.72);
+    border: 1px solid rgba(239,68,68,0.30);
+    color: #fecaca;
+  `}
+`
+export const ToastIcon = styled.span`
+  font-size: 16px; flex-shrink: 0; line-height: 1;
+`
+export const ToastMsg = styled.span`
+  font-size: 13px; font-weight: 600; line-height: 1.4; flex: 1;
+`
+export const ToastClose = styled.button`
+  background: none; border: none; cursor: pointer; padding: 2px;
+  color: inherit; opacity: 0.55; display: flex; align-items: center;
+  flex-shrink: 0;
+  &:hover { opacity: 1; }
+  svg { font-size: 15px; }
+`

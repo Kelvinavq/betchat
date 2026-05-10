@@ -78,13 +78,79 @@ export async function updateAutoMessages(req, res, next) {
   }
 }
 
-/** Obtiene un mensaje activo por evento. Retorna null si no existe o está inactivo. */
-export async function getAutoMessage(event) {
+// ============================================================
+//  Placeholder resolution
+// ============================================================
+
+const PLACEHOLDER_RE = /\{\{(\w+)\}\}/g
+
+/**
+ * Replaces {{variable}} tokens in a template string.
+ * context: { clientId?, bankAccountId?, amount? }
+ */
+export async function resolveMessage(template, context = {}) {
+  if (!template || !template.includes('{{')) return template
+
+  const needed = new Set([...template.matchAll(PLACEHOLDER_RE)].map(m => m[1]))
+  const vars   = {}
+
+  if (context.amount != null && needed.has('amount')) {
+    vars.amount = `$${new Intl.NumberFormat('es-AR').format(Number(context.amount))}`
+  }
+
+  if ((needed.has('username') || needed.has('password')) && context.clientId) {
+    const { rows } = await query(
+      'SELECT username, password FROM clients WHERE id = ? LIMIT 1',
+      [context.clientId]
+    )
+    if (rows?.[0]) {
+      vars.username = rows[0].username || ''
+      vars.password = rows[0].password || ''
+    }
+  }
+
+  if (needed.has('cbu') || needed.has('alias') || needed.has('titular')) {
+    let baRow = null
+    if (context.bankAccountId) {
+      const { rows } = await query(
+        'SELECT account_data FROM bank_accounts WHERE id = ? LIMIT 1',
+        [context.bankAccountId]
+      )
+      baRow = rows?.[0]
+    }
+    if (!baRow) {
+      const { rows } = await query(
+        `SELECT ba.account_data
+         FROM chat_processing_config cpc
+         INNER JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
+         WHERE cpc.id = 1 LIMIT 1`
+      )
+      baRow = rows?.[0]
+    }
+    if (baRow) {
+      const d = typeof baRow.account_data === 'object'
+        ? baRow.account_data
+        : JSON.parse(baRow.account_data || '{}')
+      vars.cbu     = d.cbu            || ''
+      vars.alias   = d.alias          || ''
+      vars.titular = d.nombre_titular || ''
+    }
+  }
+
+  return template.replace(PLACEHOLDER_RE, (_, key) => vars[key] ?? `{{${key}}}`)
+}
+
+/** Obtiene un mensaje activo por evento, resolviendo placeholders. Retorna null si inactivo. */
+export async function getAutoMessage(event, context = {}) {
   const { rows, error } = await query(
     'SELECT message, is_active FROM receipt_auto_messages WHERE event = ? LIMIT 1',
     [event]
   )
-  if (error || !rows?.length) return DEFAULTS[event] ?? null
+  if (error || !rows?.length) {
+    const tpl = DEFAULTS[event] ?? null
+    return tpl ? resolveMessage(tpl, context) : null
+  }
   if (!rows[0].is_active) return null
-  return rows[0].message || DEFAULTS[event] || null
+  const tpl = rows[0].message || DEFAULTS[event] || null
+  return tpl ? resolveMessage(tpl, context) : null
 }

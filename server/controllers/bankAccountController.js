@@ -45,6 +45,7 @@ function sanitizeAccount(row) {
     expires_at: data.expires_at || null,
     currency: row.currency || 'ARS',
     estatus: row.is_active ? 'activa' : 'inactiva',
+    has_api_token: Boolean(data.api_token),
     created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
   }
@@ -92,6 +93,10 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
 
   if (password) payload.password = password
   else if (editing && previousData.password) payload.password = previousData.password
+
+  const apiToken = normalizeText(body.api_token)
+  if (apiToken) payload.api_token = apiToken
+  else if (editing && previousData.api_token) payload.api_token = previousData.api_token
 
   if (provider === 'mercadopago') {
     requireFields(payload, ['nombre_titular', 'alias', 'cbu', 'token'], errors)
@@ -263,6 +268,156 @@ export async function updateBankAccount(req, res, next) {
   } catch (err) {
     next(err)
   }
+}
+
+export async function fetchHgCashBalance(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!id) return res.status(400).json({ error: 'ID inválido' })
+
+    const row = await getAccountRow(id)
+    if (!row) return res.status(404).json({ error: 'Cuenta no encontrada' })
+    if (row.provider_slug !== 'hgcash') {
+      return res.status(400).json({ error: 'Solo disponible para cuentas HGCash' })
+    }
+
+    const data     = parseAccountData(row.account_data)
+    const apiToken = data.api_token
+    if (!apiToken) {
+      return res.status(400).json({ error: 'Esta cuenta no tiene token API configurado' })
+    }
+
+    let hgRes
+    try {
+      hgRes = await fetch('https://hg.cash/api/v1/accounts', {
+        headers: { Authorization: `Bearer ${apiToken}` },
+      })
+    } catch (fetchErr) {
+      return res.status(502).json({ error: 'No se pudo conectar con HGCash', detail: fetchErr.message })
+    }
+
+    if (!hgRes.ok) {
+      const txt = await hgRes.text().catch(() => '')
+      return res.status(502).json({ error: `HGCash respondió ${hgRes.status}`, detail: txt.slice(0, 300) })
+    }
+
+    const hgData   = await hgRes.json()
+    const accounts = Array.isArray(hgData.data) ? hgData.data : []
+
+    const storedAlias = data.alias || ''
+    const storedCbu   = data.cbu   || ''
+    const match = accounts.find(a =>
+      (storedAlias && a.alias  === storedAlias) ||
+      (storedCbu   && a.number === storedCbu)
+    ) || accounts[0] || null
+
+    if (!match) {
+      return res.status(404).json({ error: 'No se encontraron cuentas en HGCash para este token' })
+    }
+
+    res.json({
+      account: {
+        id:       match.id,
+        name:     match.name,
+        balance:  Number(match.balance ?? 0),
+        currency: match.currency,
+        number:   match.number,
+        alias:    match.alias,
+        platform: match.platform,
+        company:  match.company,
+      },
+    })
+  } catch (err) { next(err) }
+}
+
+export async function getBankAccountMovements(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!id) return res.status(400).json({ error: 'ID inválido' })
+
+    const row = await getAccountRow(id)
+    if (!row) return res.status(404).json({ error: 'Cuenta no encontrada' })
+
+    const provider = row.provider_slug
+    const page    = Math.max(1, parseInt(req.query.page   || '1',  10) || 1)
+    const limit   = Math.min(50, Math.max(1, parseInt(req.query.limit || '20', 10) || 20))
+    const status  = String(req.query.status || 'all')
+    const search  = normalizeText(req.query.search)
+    const dateFrom = req.query.dateFrom || null
+    const dateTo   = req.query.dateTo   || null
+
+    const tableMap = {
+      hgcash:      { table: 'hgcash_movements',         refField: 'coelsa_id' },
+      mercadopago: { table: 'mercadopago_movements',    refField: 'transaction_id' },
+      telepagos:   { table: 'telepagos_movements',      refField: 'coelsa_id' },
+      manual:      { table: 'manual_payment_movements', refField: 'transaction_id' },
+    }
+
+    const cfg = tableMap[provider]
+    if (!cfg) return res.status(400).json({ error: 'Proveedor no soportado' })
+
+    const { rows: balRows } = await query(
+      `SELECT COALESCE(SUM(amount), 0) AS balance
+       FROM ${cfg.table} WHERE bank_account_id = ? AND status = 'paid'`,
+      [id]
+    )
+    const balance = Number(balRows?.[0]?.balance || 0)
+
+    const where  = ['m.bank_account_id = ?']
+    const values = [id]
+
+    if (['pending', 'paid', 'rejected'].includes(status)) {
+      where.push('m.status = ?'); values.push(status)
+    }
+    if (search) {
+      where.push(`(c.username LIKE ? OR COALESCE(m.${cfg.refField}, '') LIKE ?)`)
+      const like = `%${search}%`
+      values.push(like, like)
+    }
+    if (dateFrom) { where.push('DATE(m.created_at) >= ?'); values.push(dateFrom) }
+    if (dateTo)   { where.push('DATE(m.created_at) <= ?'); values.push(dateTo) }
+
+    const whereSql = `WHERE ${where.join(' AND ')}`
+
+    const { rows: countRows, error: cntErr } = await query(
+      `SELECT COUNT(*) AS total FROM ${cfg.table} m
+       LEFT JOIN clients c ON c.id = m.client_id ${whereSql}`,
+      values
+    )
+    if (cntErr) throw cntErr
+
+    const total      = Number(countRows?.[0]?.total || 0)
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+    const safePage   = Math.min(page, totalPages)
+    const offset     = (safePage - 1) * limit
+
+    const { rows, error } = await query(
+      `SELECT m.id, m.amount, m.status, m.${cfg.refField} AS ref_id,
+              m.client_id, c.username AS client_username, m.created_at
+       FROM ${cfg.table} m
+       LEFT JOIN clients c ON c.id = m.client_id
+       ${whereSql}
+       ORDER BY m.created_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      values
+    )
+    if (error) throw error
+
+    res.json({
+      account:    sanitizeAccount(row),
+      balance,
+      movements:  (rows || []).map(r => ({
+        id:             Number(r.id),
+        amount:         Number(r.amount || 0),
+        status:         r.status,
+        refId:          r.ref_id || null,
+        clientId:       r.client_id ? Number(r.client_id) : null,
+        clientUsername: r.client_username || null,
+        createdAt:      r.created_at || null,
+      })),
+      pagination: { page: safePage, limit, total, totalPages },
+    })
+  } catch (err) { next(err) }
 }
 
 export async function deleteBankAccount(req, res, next) {

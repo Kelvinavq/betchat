@@ -24,6 +24,21 @@ export const AuthProvider = ({ children }) => {
     verifySession()
   }, [])
 
+  useEffect(() => {
+    const handleExpired = (e) => {
+      const { code, data } = e.detail || {}
+      if (code === 'OUTSIDE_SCHEDULE' && data?.access_start && data?.access_end) {
+        sessionStorage.setItem('login_schedule_alert', JSON.stringify({
+          access_start: data.access_start,
+          access_end: data.access_end,
+        }))
+      }
+      setUser(null)
+    }
+    window.addEventListener('auth:session-expired', handleExpired)
+    return () => window.removeEventListener('auth:session-expired', handleExpired)
+  }, [])
+
   const login = (userData) => {
     setUser(userData)
   }

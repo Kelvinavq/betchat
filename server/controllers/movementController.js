@@ -350,7 +350,7 @@ export async function resolveManualMovement(req, res, next) {
 
       await resetClientBot(chatId)
 
-      const paidMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_completed')
+      const paidMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_completed', { clientId, amount: newAmount })
       if (paidMsg) await persistMessage({ chatId, senderType: 'system', content: paidMsg })
     } else {
       const { rows: updateRows, error } = await query(
@@ -364,7 +364,7 @@ export async function resolveManualMovement(req, res, next) {
         return res.status(404).json({ error: 'Movimiento no encontrado', code: 'MOVEMENT_NOT_FOUND' })
       }
 
-      const rejectMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_failed')
+      const rejectMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_failed', { clientId })
       if (rejectMsg) await persistMessage({ chatId, senderType: 'system', content: rejectMsg })
     }
 

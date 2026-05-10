@@ -279,3 +279,194 @@ INSERT INTO `receipt_auto_messages` (`event`, `message`, `is_active`) VALUES
   ('withdrawal_rejected', 'Tu solicitud de retiro fue rechazada. Contactá a soporte para más información.', 1)
 ON DUPLICATE KEY UPDATE `event` = `event`;
 
+-- ============================================================
+--  Códigos de referido y sesiones de clientes
+-- ============================================================
+-- ============================================================
+--  Retiros: configuración y análisis anti-fraude
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `withdrawal_config` (
+  `id`                INT UNSIGNED  NOT NULL DEFAULT 1,
+  `mode`              ENUM('auto','manual') NOT NULL DEFAULT 'manual',
+  `manual_threshold`  DECIMAL(18,2) NOT NULL DEFAULT 80000.00 COMMENT 'withdrawals above this go to manual review',
+  `max_per_day`       INT UNSIGNED  NOT NULL DEFAULT 5,
+  `updated_at`        DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  CONSTRAINT `chk_wc_singleton` CHECK (`id` = 1)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `withdrawal_config` (`id`) VALUES (1);
+
+ALTER TABLE `withdrawal_requests`
+  ADD COLUMN `risk_score`    TINYINT UNSIGNED DEFAULT NULL AFTER `rejection_message`,
+  ADD COLUMN `fraud_alerts`  JSON             DEFAULT NULL AFTER `risk_score`,
+  ADD COLUMN `review_mode`   ENUM('auto','manual') NOT NULL DEFAULT 'manual' AFTER `fraud_alerts`;
+
+-- ============================================================
+--  Permisos granulares por módulo + restricción horaria
+-- ============================================================
+
+ALTER TABLE `user_permissions`
+  MODIFY COLUMN `module` VARCHAR(60) NOT NULL;
+
+ALTER TABLE `users`
+  ADD COLUMN `access_start` TIME DEFAULT NULL COMMENT 'start of daily access window (NULL = unrestricted)',
+  ADD COLUMN `access_end`   TIME DEFAULT NULL COMMENT 'end of daily access window (NULL = unrestricted)';
+
+ALTER TABLE `clients`
+  ADD COLUMN `referral_code` VARCHAR(20) UNIQUE DEFAULT NULL COMMENT 'unique referral code, e.g. ABCD-XY12';
+
+-- ============================================================
+--  HGCash: allow webhook/poll movements without a client context
+-- ============================================================
+
+ALTER TABLE `hgcash_movements`
+  MODIFY COLUMN `client_id`  INT UNSIGNED DEFAULT NULL,
+  MODIFY COLUMN `chat_id`    INT UNSIGNED DEFAULT NULL,
+  MODIFY COLUMN `message_id` BIGINT UNSIGNED DEFAULT NULL;
+
+ALTER TABLE `mercadopago_movements`
+  MODIFY COLUMN `client_id`  INT UNSIGNED DEFAULT NULL,
+  MODIFY COLUMN `chat_id`    INT UNSIGNED DEFAULT NULL,
+  MODIFY COLUMN `message_id` BIGINT UNSIGNED DEFAULT NULL;
+
+ALTER TABLE `telepagos_movements`
+  MODIFY COLUMN `client_id`  INT UNSIGNED DEFAULT NULL,
+  MODIFY COLUMN `chat_id`    INT UNSIGNED DEFAULT NULL,
+  MODIFY COLUMN `message_id` BIGINT UNSIGNED DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS `client_sessions` (
+  `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `client_id`   INT UNSIGNED    NOT NULL,
+  `ip_address`  VARCHAR(45)     DEFAULT NULL,
+  `user_agent`  VARCHAR(512)    DEFAULT NULL,
+  `device_type` VARCHAR(20)     DEFAULT NULL,
+  `browser`     VARCHAR(80)     DEFAULT NULL,
+  `os`          VARCHAR(80)     DEFAULT NULL,
+  `country`     VARCHAR(80)     DEFAULT NULL,
+  `city`        VARCHAR(80)     DEFAULT NULL,
+  `fingerprint` VARCHAR(255)    DEFAULT NULL,
+  `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_cs_client_created` (`client_id`, `created_at`),
+  CONSTRAINT `fk_cs_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  PUSH NOTIFICATION SYSTEM (Firebase FCM)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `push_credentials` (
+  `id`                   INT UNSIGNED NOT NULL DEFAULT 1,
+  `project_id`           VARCHAR(255)  DEFAULT NULL,
+  `client_email`         VARCHAR(500)  DEFAULT NULL,
+  `private_key`          MEDIUMTEXT    DEFAULT NULL,
+  `api_key`              VARCHAR(500)  DEFAULT NULL,
+  `auth_domain`          VARCHAR(500)  DEFAULT NULL,
+  `storage_bucket`       VARCHAR(500)  DEFAULT NULL,
+  `messaging_sender_id`  VARCHAR(255)  DEFAULT NULL,
+  `app_id`               VARCHAR(500)  DEFAULT NULL,
+  `vapid_key`            TEXT          DEFAULT NULL,
+  `updated_at`           TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `push_credentials` (`id`) VALUES (1);
+
+CREATE TABLE IF NOT EXISTS `push_global_settings` (
+  `id`                INT UNSIGNED NOT NULL DEFAULT 1,
+  `is_active`         TINYINT(1)   NOT NULL DEFAULT 1,
+  `quiet_start`       INT          NOT NULL DEFAULT 2,
+  `quiet_end`         INT          NOT NULL DEFAULT 9,
+  `max_per_day`       INT          NOT NULL DEFAULT 3,
+  `check_interval`    INT          NOT NULL DEFAULT 15,
+  `timezone`          VARCHAR(100) NOT NULL DEFAULT 'America/Argentina/Buenos_Aires',
+  `engagement_active` TINYINT(1)   NOT NULL DEFAULT 1,
+  `events_active`     TINYINT(1)   NOT NULL DEFAULT 0,
+  `onboarding_active` TINYINT(1)   NOT NULL DEFAULT 0,
+  `vip_active`        TINYINT(1)   NOT NULL DEFAULT 0,
+  `updated_at`        TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+INSERT IGNORE INTO `push_global_settings` (`id`) VALUES (1);
+
+CREATE TABLE IF NOT EXISTS `push_tokens` (
+  `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `client_id`  INT UNSIGNED NOT NULL,
+  `token`      TEXT         NOT NULL,
+  `device`     VARCHAR(255) DEFAULT NULL,
+  `is_active`  TINYINT(1)   NOT NULL DEFAULT 1,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `last_seen`  TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pt_client` (`client_id`),
+  KEY `idx_pt_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `push_campaigns` (
+  `id`         INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `type`       ENUM('retention','reconsumo','engagement','events','onboarding','vip') NOT NULL,
+  `name`       VARCHAR(255) NOT NULL DEFAULT '',
+  `title`      VARCHAR(500) NOT NULL DEFAULT '',
+  `body`       TEXT         NOT NULL DEFAULT '',
+  `config`     JSON         DEFAULT NULL,
+  `is_active`  TINYINT(1)   NOT NULL DEFAULT 1,
+  `sort_order` INT          NOT NULL DEFAULT 0,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_pc_type` (`type`),
+  KEY `idx_pc_active` (`is_active`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `push_history` (
+  `id`              INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `campaign_id`     INT UNSIGNED DEFAULT NULL,
+  `campaign_type`   VARCHAR(50)  NOT NULL DEFAULT '',
+  `campaign_name`   VARCHAR(255) NOT NULL DEFAULT '',
+  `title`           VARCHAR(500) NOT NULL DEFAULT '',
+  `body`            TEXT         NOT NULL DEFAULT '',
+  `target_count`    INT          NOT NULL DEFAULT 0,
+  `sent_count`      INT          NOT NULL DEFAULT 0,
+  `failed_count`    INT          NOT NULL DEFAULT 0,
+  `trigger_type`    ENUM('scheduler','manual') NOT NULL DEFAULT 'scheduler',
+  `sent_at`         TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ph_campaign` (`campaign_id`),
+  KEY `idx_ph_sent_at` (`sent_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `push_history_tokens` (
+  `id`           INT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `history_id`   INT UNSIGNED NOT NULL,
+  `client_id`    INT UNSIGNED DEFAULT NULL,
+  `token_prefix` VARCHAR(60)  DEFAULT NULL,
+  `status`       ENUM('sent','failed') NOT NULL DEFAULT 'sent',
+  `error_code`   VARCHAR(100) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_pht_history` (`history_id`),
+  KEY `idx_pht_client` (`client_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `push_daily_sent` (
+  `client_id` INT UNSIGNED NOT NULL,
+  `date`      DATE         NOT NULL,
+  `count`     INT          NOT NULL DEFAULT 0,
+  PRIMARY KEY (`client_id`, `date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `push_onboarding_log` (
+  `client_id`   INT UNSIGNED NOT NULL,
+  `campaign_id` INT UNSIGNED NOT NULL,
+  `sent_at`     TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`client_id`, `campaign_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `push_retention_log` (
+  `client_id`   INT UNSIGNED NOT NULL,
+  `campaign_id` INT UNSIGNED NOT NULL,
+  `date`        DATE NOT NULL,
+  PRIMARY KEY (`client_id`, `campaign_id`, `date`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -5,6 +5,7 @@ import { config } from '../config/config.js'
 import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { io } from '../app.js'
 import { getSystemConfig } from './settingsController.js'
+import { logClientSession } from './profileController.js'
 
 const normalizeUsername = (value) => String(value || '').trim()
 const hasWhitespace = (value) => /\s/.test(value)
@@ -298,7 +299,7 @@ async function ensureClientAndChat({ username, password, externalId }) {
   })
 }
 
-async function startClientSession(res, client, chatId) {
+async function startClientSession(res, client, chatId, req = null) {
   const token = signClientToken(client.id, client.username)
   setClientCookie(res, token)
 
@@ -312,6 +313,10 @@ async function startClientSession(res, client, chatId) {
     username: client.username,
     online: true,
   })
+
+  if (req && !client.is_temporary) {
+    logClientSession(client.id, req).catch(() => {})
+  }
 
   return {
     expiresIn: config.jwtExpiresIn,
@@ -424,7 +429,7 @@ export async function autoLoginClient(req, res, next) {
         password: randomUUID(),
         externalId: localClient.external_id,
       })
-      return res.json(await startClientSession(res, client, chatId))
+      return res.json(await startClientSession(res, client, chatId, req))
     }
 
     const external = await findExternalUser(username)
@@ -435,7 +440,7 @@ export async function autoLoginClient(req, res, next) {
       externalId: external.externalId,
     })
 
-    res.json(await startClientSession(res, client, chatId))
+    res.json(await startClientSession(res, client, chatId, req))
   } catch (error) {
     next(error)
   }
@@ -470,7 +475,7 @@ export async function loginClient(req, res, next) {
       return res.status(403).json({ error: 'Cliente desactivado.', code: 'CLIENT_INACTIVE' })
     }
 
-    res.json(await startClientSession(res, client, chatId))
+    res.json(await startClientSession(res, client, chatId, req))
   } catch (error) {
     next(error)
   }
@@ -536,7 +541,7 @@ export async function registerClient(req, res, next) {
       externalId: created.externalId,
     })
 
-    res.status(201).json(await startClientSession(res, client, chatId))
+    res.status(201).json(await startClientSession(res, client, chatId, req))
   } catch (error) {
     next(error)
   }

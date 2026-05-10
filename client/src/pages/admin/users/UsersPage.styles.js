@@ -360,7 +360,7 @@ export const Overlay = styled.div`
 `
 
 export const ModalCard = styled.div`
-  width: 100%; max-width: ${({ $wide }) => $wide ? '760px' : '560px'};
+  width: 100%; max-width: ${({ $wide }) => $wide ? '760px' : '600px'};
   max-height: calc(var(--app-height, 100dvh) - 32px);
   background: #0d0d20;
   border: 1px solid rgba(255,255,255,0.09);
@@ -477,33 +477,43 @@ export const ToggleThumb = styled.span`
 
 /* permissions grid */
 export const PermGrid = styled.div`
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
-  @media (max-width: 480px) { grid-template-columns: 1fr; }
+  display: flex; flex-direction: column; gap: 6px;
 `
 export const PermRow = styled.div`
-  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
-  padding: 10px 12px;
-  background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px;
+  padding: 9px 12px;
   border-radius: 10px; transition: background 0.15s;
-  &:hover { background: rgba(255,255,255,0.05); }
+  ${({ $sub }) => $sub ? css`
+    margin-left: 16px;
+    background: rgba(255,255,255,0.02);
+    border: 1px solid rgba(255,255,255,0.04);
+  ` : css`
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+  `}
+  &:hover { background: rgba(255,255,255,0.055); }
 `
 export const PermName = styled.span`
   display: flex; align-items: center; gap: 8px;
   font-size: 12px; font-weight: 500; color: rgba(255,255,255,0.70);
+`
+export const PermSub = styled.span`
+  display: block; font-size: 10px; font-weight: 400; color: rgba(255,255,255,0.22); margin-top: 1px;
 `
 export const PermDot = styled.span`
   width: 8px; height: 8px; border-radius: 50%;
   background: ${({ $cl }) => $cl}; flex-shrink: 0;
 `
 export const PermActions = styled.div`
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
-  grid-column: 1 / -1;
+  display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px;
+  width: 100%;
 `
 export const PermAction = styled.div`
   display: flex; flex-direction: column; align-items: center; gap: 5px;
+  ${({ $dim }) => $dim && 'opacity: 0.18; pointer-events: none;'}
 `
 export const PermActionLabel = styled.span`
-  font-size: 9px; font-weight: 700; letter-spacing: 0.08em;
+  font-size: 9px; font-weight: 700; letter-spacing: 0.07em;
   text-transform: uppercase; color: rgba(255,255,255,0.24);
 `
 
@@ -529,6 +539,35 @@ export const RestrLabel = styled.span`
 `
 export const RestrNote = styled.span`
   margin-left: auto; font-size: 11px; color: rgba(255,255,255,0.22);
+`
+
+/* time restriction */
+export const TimeGrid = styled.div`
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 12px; margin-top: 8px;
+`
+const inputBase2 = css`
+  width: 100%; height: 40px; padding: 0 12px;
+  background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 10px; color: #fff; font-size: 13px; font-family: inherit; outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+`
+export const TimeInput = styled.input`
+  ${inputBase2}
+  cursor: pointer;
+  color-scheme: dark;
+  &::-webkit-calendar-picker-indicator { filter: invert(1) opacity(0.40); cursor: pointer; }
+`
+
+export const TimeBadge = styled.span`
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 7px; border-radius: 5px;
+  font-size: 10px; font-weight: 600; letter-spacing: 0.02em; white-space: nowrap;
+  background: rgba(251,146,60,0.12); color: #fb923c;
+  border: 1px solid rgba(251,146,60,0.24);
 `
 
 /* modal footer */

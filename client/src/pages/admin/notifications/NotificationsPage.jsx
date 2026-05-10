@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useCallback, useEffect } from 'react'
+import { api } from '../../../utils/api'
 import MenuIcon from '@mui/icons-material/Menu'
 import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined'
 import AddIcon from '@mui/icons-material/Add'
@@ -40,6 +41,7 @@ import {
 } from './NotificationsPage.styles'
 
 const PAGE_SIZE = 8
+const BLANK_FORM = { title: '', body: '', audience: 'all', scheduled: false, schedDate: '', schedTime: '' }
 
 const AUDIENCE_OPTIONS = [
   { value: 'all',        label: 'Todos los usuarios', icon: '🌐' },
@@ -51,77 +53,6 @@ const AUDIENCE_OPTIONS = [
 
 const audienceLabel = (v) => AUDIENCE_OPTIONS.find(o => o.value === v)?.label ?? v
 
-let nextId = 10
-const MOCK_NOTIFS = [
-  {
-    id: 1,
-    title: '¡Nueva promoción disponible!',
-    body: 'Obtén un 50% de bono en tu próximo depósito. Válido solo por hoy.',
-    audience: 'active',
-    status: 'enviada',
-    sentAt: '2026-04-28T15:30:00',
-    scheduledFor: null,
-  },
-  {
-    id: 2,
-    title: 'Torneo de casino este fin de semana',
-    body: 'Participa en nuestro torneo especial y gana hasta $10.000 en premios. No te lo pierdas.',
-    audience: 'depositors',
-    status: 'enviada',
-    sentAt: '2026-04-22T10:00:00',
-    scheduledFor: null,
-  },
-  {
-    id: 3,
-    title: 'Oferta exclusiva VIP',
-    body: 'Como cliente VIP te ofrecemos un cashback del 15% en todas tus apuestas esta semana.',
-    audience: 'vip',
-    status: 'enviada',
-    sentAt: '2026-04-15T09:00:00',
-    scheduledFor: null,
-  },
-  {
-    id: 4,
-    title: 'Recordatorio: tu bono expira pronto',
-    body: 'Tienes un bono pendiente que vence en 48 horas. ¡Úsalo antes de que expire!',
-    audience: 'active',
-    status: 'programada',
-    sentAt: null,
-    scheduledFor: '2026-05-06T10:00:00',
-  },
-  {
-    id: 5,
-    title: 'Mantenimiento programado',
-    body: 'El sistema estará en mantenimiento el domingo de 02:00 a 04:00 hs. Disculpe las molestias.',
-    audience: 'all',
-    status: 'programada',
-    sentAt: null,
-    scheduledFor: '2026-05-07T02:00:00',
-  },
-  {
-    id: 6,
-    title: 'Bienvenida para usuarios nuevos',
-    body: 'Hola, bienvenido a BetChat. Completa tu perfil y obtén tu bono de bienvenida.',
-    audience: 'all',
-    status: 'borrador',
-    sentAt: null,
-    scheduledFor: null,
-  },
-  {
-    id: 7,
-    title: 'Campaña de re-activación',
-    body: 'Te extrañamos. Vuelve y te regalamos créditos gratis para que disfrutes de nuestros juegos.',
-    audience: 'inactive',
-    status: 'borrador',
-    sentAt: null,
-    scheduledFor: null,
-  },
-]
-
-const BLANK_FORM = {
-  title: '', body: '', audience: 'all',
-  scheduled: false, schedDate: '', schedTime: '',
-}
 
 const fmtDate = (iso) => {
   if (!iso) return null
@@ -135,9 +66,11 @@ const fmtTime = (iso) => {
 const statusLabel = (s) =>
   s === 'enviada' ? 'Enviada' : s === 'programada' ? 'Programada' : 'Borrador'
 
-const NotificationsPage = ({ onMenuOpen }) => {
+const NotificationsPage = ({ onMenuOpen, embedded }) => {
   const { systemConfig } = useSystemConfig()
-  const [notifs, setNotifs]             = useState(MOCK_NOTIFS)
+  const [notifs, setNotifs]             = useState([])
+  const [loading, setLoading]           = useState(true)
+  const [sending, setSending]           = useState(false)
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage]                 = useState(1)
@@ -145,6 +78,30 @@ const NotificationsPage = ({ onMenuOpen }) => {
   const [editNotif, setEditNotif]       = useState(null)
   const [form, setForm]                 = useState(BLANK_FORM)
   const [confirmStep, setConfirmStep]   = useState(false)
+
+  /* ── load history from API ── */
+  const loadHistory = useCallback(async () => {
+    setLoading(true)
+    try {
+      const data = await api.get('/api/push/history?limit=50')
+      const rows = (data?.history || []).map(h => ({
+        id:           h.id,
+        title:        h.title,
+        body:         h.body,
+        audience:     h.campaignName || 'all',
+        status:       'enviada',
+        sentAt:       h.sentAt,
+        scheduledFor: null,
+        sentCount:    h.sentCount,
+        failedCount:  h.failedCount,
+      }))
+      setNotifs(rows)
+    } catch { /* silently ignore */ } finally {
+      setLoading(false)
+    }
+  }, [])
+
+  useEffect(() => { loadHistory() }, [loadHistory])
 
   /* ── derived ── */
   const filtered = useMemo(() => notifs.filter(n => {
@@ -191,71 +148,88 @@ const NotificationsPage = ({ onMenuOpen }) => {
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   /* ── actions ── */
-  const buildEntry = (status) => {
-    const scheduledFor = form.scheduled && form.schedDate
-      ? `${form.schedDate}T${form.schedTime || '00:00'}:00`
-      : null
-    const resolvedStatus = scheduledFor ? 'programada' : status
-    return {
-      title: form.title,
-      body: form.body,
-      audience: form.audience,
-      status: resolvedStatus,
-      sentAt: resolvedStatus === 'enviada' ? new Date().toISOString() : null,
-      scheduledFor,
-    }
-  }
-
   const saveDraft = () => {
-    const patch = { ...buildEntry('borrador'), status: 'borrador', sentAt: null, scheduledFor: null }
-    if (editNotif) {
-      setNotifs(ns => ns.map(n => n.id === editNotif.id ? { ...n, ...patch } : n))
-    } else {
-      setNotifs(ns => [{ id: nextId++, ...patch }, ...ns])
+    // drafts are local-only (no DB persistence needed for drafts)
+    const draft = {
+      id: Date.now(),
+      title: form.title, body: form.body, audience: form.audience,
+      status: 'borrador', sentAt: null, scheduledFor: null,
     }
+    setNotifs(ns => [draft, ...ns])
     closeModal()
   }
 
-  const doSend = (save = false) => {
-    const entry = buildEntry('enviada')
-    if (editNotif) {
-      setNotifs(ns => ns.map(n => n.id === editNotif.id ? { ...n, ...entry } : n))
-    } else if (save) {
-      setNotifs(ns => [{ id: nextId++, ...entry }, ...ns])
+  const doSend = async (save = false) => {
+    setSending(true)
+    try {
+      const result = await api.post('/api/push/send-direct', {
+        title:    form.title,
+        body:     form.body,
+        audience: form.audience,
+      })
+      const entry = {
+        id:          Date.now(),
+        title:       form.title,
+        body:        form.body,
+        audience:    form.audience,
+        status:      'enviada',
+        sentAt:      new Date().toISOString(),
+        scheduledFor: null,
+        sentCount:   result.sent,
+        failedCount: result.failed,
+      }
+      if (editNotif) {
+        setNotifs(ns => ns.map(n => n.id === editNotif.id ? entry : n))
+      } else if (save) {
+        setNotifs(ns => [entry, ...ns])
+      }
+      closeModal()
+    } catch (err) {
+      window.alert(err.message || 'Error al enviar la notificación')
+    } finally {
+      setSending(false)
     }
-    closeModal()
   }
 
   const handleSend = () => {
-    if (editNotif) {
-      doSend(true)
-    } else {
-      setConfirmStep(true)
-    }
+    if (editNotif) { doSend(true) } else { setConfirmStep(true) }
   }
 
   const deleteNotif = (id) => setNotifs(ns => ns.filter(n => n.id !== id))
 
-  const isValid      = form.title.trim() && form.body.trim()
-  const sendLabel    = form.scheduled ? 'Programar' : 'Enviar ahora'
+  const isValid   = form.title.trim() && form.body.trim()
+  const sendLabel = sending ? 'Enviando...' : (form.scheduled ? 'Programar' : 'Enviar ahora')
 
-  return (
-    <PageWrap>
-      <PageScroll>
-
+  const inner = (
+    <>
         {/* ── header ── */}
-        <PageHeader>
-          <HeaderLeft>
-            {onMenuOpen && <MenuBtn onClick={onMenuOpen}><MenuIcon /></MenuBtn>}
-            <TitleBlock>
-              <PageTitle>Notificaciones Push</PageTitle>
-              <PageSub>Gestiona y programa tus campañas de notificaciones</PageSub>
-            </TitleBlock>
-          </HeaderLeft>
-          <AddBtn onClick={openNew}>
-            <AddIcon /> Nueva notificación
-          </AddBtn>
-        </PageHeader>
+        {!embedded && (
+          <PageHeader>
+            <HeaderLeft>
+              {onMenuOpen && <MenuBtn onClick={onMenuOpen}><MenuIcon /></MenuBtn>}
+              <TitleBlock>
+                <PageTitle>Notificaciones Push</PageTitle>
+                <PageSub>Gestiona y programa tus campañas de notificaciones</PageSub>
+              </TitleBlock>
+            </HeaderLeft>
+            <AddBtn onClick={openNew}>
+              <AddIcon /> Nueva notificación
+            </AddBtn>
+          </PageHeader>
+        )}
+
+        {embedded && (
+          <PageHeader style={{ paddingTop: 0 }}>
+            <HeaderLeft>
+              <TitleBlock>
+                <PageSub style={{ marginTop: 0 }}>Crea, programa y gestiona push individuales</PageSub>
+              </TitleBlock>
+            </HeaderLeft>
+            <AddBtn onClick={openNew}>
+              <AddIcon /> Nueva notificación
+            </AddBtn>
+          </PageHeader>
+        )}
 
         {/* ── stats strip ── */}
         <StatsStrip>
@@ -414,8 +388,6 @@ const NotificationsPage = ({ onMenuOpen }) => {
           )}
         </TableCard>
 
-      </PageScroll>
-
       {/* ══ MODAL ══ */}
       {modalOpen && (
         <Overlay onClick={e => e.target === e.currentTarget && closeModal()}>
@@ -550,8 +522,8 @@ const NotificationsPage = ({ onMenuOpen }) => {
                   <ModalBtn
                     $v="primary"
                     onClick={handleSend}
-                    disabled={!isValid}
-                    style={{ opacity: isValid ? 1 : 0.42 }}
+                    disabled={!isValid || sending}
+                    style={{ opacity: (isValid && !sending) ? 1 : 0.42 }}
                   >
                     <SendIcon style={{ fontSize: 16 }} /> {sendLabel}
                   </ModalBtn>
@@ -562,6 +534,14 @@ const NotificationsPage = ({ onMenuOpen }) => {
           </ModalCard>
         </Overlay>
       )}
+    </>
+  )
+
+  if (embedded) return <>{inner}</>
+
+  return (
+    <PageWrap>
+      <PageScroll>{inner}</PageScroll>
     </PageWrap>
   )
 }

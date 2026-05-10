@@ -16,12 +16,14 @@ function sanitizeUser(user) {
     last_login_at: user.last_login_at ?? null,
     created_at: user.created_at ?? null,
     permissions: user.permissions,
+    access_start: user.access_start ?? null,
+    access_end: user.access_end ?? null,
   }
 }
 
 export async function createUser(req, res, next) {
   try {
-    const { username, full_name, email, password, role, is_active, permissions } = req.body
+    const { username, full_name, email, password, role, is_active, permissions, access_start, access_end } = req.body
 
     const { rows: existingRows, error: existingError } = await query(
       'SELECT id, username, email FROM users WHERE username = ? OR email = ? LIMIT 1',
@@ -52,8 +54,8 @@ export async function createUser(req, res, next) {
 
     const createdUser = await transaction(async (connection) => {
       const [insertResult] = await connection.execute(
-        'INSERT INTO users (username, full_name, email, password_hash, role, is_active, registered_by) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [username, full_name || username, email, passwordHash, role, is_active ? 1 : 0, req.user?.sub ?? null]
+        'INSERT INTO users (username, full_name, email, password_hash, role, is_active, registered_by, access_start, access_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [username, full_name || username, email, passwordHash, role, is_active ? 1 : 0, req.user?.sub ?? null, access_start || null, access_end || null]
       )
 
       const insertId = insertResult?.insertId
@@ -62,6 +64,7 @@ export async function createUser(req, res, next) {
       const [[created]] = await connection.execute(
         `SELECT
           u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at, u.created_at,
+          u.access_start, u.access_end,
           0 AS online
          FROM users u
          WHERE u.id = ?
@@ -130,6 +133,7 @@ export async function getUsers(req, res, next) {
     const { rows, error } = await query(
       `SELECT
         u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at, u.created_at,
+        u.access_start, u.access_end,
         EXISTS(
           SELECT 1 FROM user_sessions us
           WHERE us.user_id = u.id AND us.is_active = 1
@@ -187,7 +191,7 @@ export async function updateUser(req, res, next) {
       return res.status(400).json({ error: 'ID de usuario inválido', code: 'INVALID_ID' })
     }
 
-    const { username, full_name, email, password, role, is_active, permissions } = req.body
+    const { username, full_name, email, password, role, is_active, permissions, access_start, access_end } = req.body
 
     if (username || email) {
       const { rows: conflicts } = await query(
@@ -214,6 +218,8 @@ export async function updateUser(req, res, next) {
       updates.push('role = ?'); values.push(role)
     }
     if (is_active !== undefined) { updates.push('is_active = ?'); values.push(is_active ? 1 : 0) }
+    if (access_start !== undefined) { updates.push('access_start = ?'); values.push(access_start || null) }
+    if (access_end !== undefined) { updates.push('access_end = ?'); values.push(access_end || null) }
     if (password && typeof password === 'string' && password.length >= 8) {
       const hash = await hashPassword(password)
       updates.push('password_hash = ?'); values.push(hash)
@@ -235,6 +241,7 @@ export async function updateUser(req, res, next) {
       const [[updated]] = await connection.execute(
         `SELECT
           u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at, u.created_at,
+          u.access_start, u.access_end,
           EXISTS(
             SELECT 1 FROM user_sessions us
             WHERE us.user_id = u.id AND us.is_active = 1

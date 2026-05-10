@@ -30,8 +30,9 @@ import {
   SecLabel,
   FormGrid, Field, FieldLabel, FieldInput, FieldSelect,
   StatusRow, StatusRowLabel, StatusRowTitle, StatusRowSub, Toggle, ToggleThumb,
-  PermGrid, PermRow, PermName, PermDot, PermActions, PermAction, PermActionLabel,
+  PermGrid, PermRow, PermName, PermDot, PermSub, PermActions, PermAction, PermActionLabel,
   RestrList, RestrItem, RestrCheck, RestrLabel, RestrNote,
+  TimeGrid, TimeInput, TimeBadge,
   ModalFoot, FootLeft, FootRight, ModalBtn,
   SessionList, SessionCard, SessionMain, SessionTitle, SessionMeta, SessionPill, SessionStatus,
   Toast, ToastIconBox, ToastBody, ToastTitle, ToastMsg, ToastClose,
@@ -39,33 +40,139 @@ import {
 
 /* ── constants ── */
 const MODULE_CONFIG = [
-  { id: 'chats', label: 'Chat', note: '/admin/chat', dot: '#60a5fa', bg: 'rgba(59,130,246,0.12)', cl: '#93c5fd', br: 'rgba(59,130,246,0.24)' },
-  { id: 'clients', label: 'Clientes', note: '/admin/clientes', dot: '#22c55e', bg: 'rgba(34,197,94,0.12)', cl: '#4ade80', br: 'rgba(34,197,94,0.24)' },
-  { id: 'users', label: 'Usuarios', note: '/admin/usuarios', dot: '#f59e0b', bg: 'rgba(245,158,11,0.12)', cl: '#fbbf24', br: 'rgba(245,158,11,0.24)' },
-  { id: 'commands', label: 'Comandos', note: '/admin/comandos', dot: '#a78bfa', bg: 'rgba(139,92,246,0.12)', cl: '#c4b5fd', br: 'rgba(139,92,246,0.24)' },
-  { id: 'push_notifications', label: 'Notificaciones', note: '/admin/notificaciones', dot: '#f472b6', bg: 'rgba(244,114,182,0.12)', cl: '#f9a8d4', br: 'rgba(244,114,182,0.24)' },
-  { id: 'modals', label: 'Modales', note: '/admin/modales', dot: '#38bdf8', bg: 'rgba(56,189,248,0.12)', cl: '#7dd3fc', br: 'rgba(56,189,248,0.24)' },
-  { id: 'bot_builder', label: 'Bot', note: '/admin/bot', dot: '#34d399', bg: 'rgba(52,211,153,0.12)', cl: '#6ee7b7', br: 'rgba(52,211,153,0.24)' },
-  { id: 'settings', label: 'Ajustes', note: '/admin/ajustes', dot: '#94a3b8', bg: 'rgba(148,163,184,0.12)', cl: '#cbd5e1', br: 'rgba(148,163,184,0.24)' },
+  {
+    id: 'chats', label: 'Chat', note: '/admin/chat', isPage: true,
+    dot: '#60a5fa', bg: 'rgba(59,130,246,0.12)', cl: '#93c5fd', br: 'rgba(59,130,246,0.24)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      { id: 'can_create', label: 'Mensajes' },
+      { id: 'can_edit', label: 'Gestionar' },
+      { id: 'can_delete', label: 'Archivar' },
+    ],
+  },
+  {
+    id: 'chats_balance', label: 'Balance', note: 'Saldo del cliente', isPage: false,
+    dot: '#34d399', bg: 'rgba(52,211,153,0.10)', cl: '#6ee7b7', br: 'rgba(52,211,153,0.22)',
+    actions: [
+      { id: 'can_view', label: 'Consultar' },
+      { id: 'can_create', label: 'Acreditar' },
+      { id: 'can_edit', label: 'Debitar' },
+      null,
+    ],
+  },
+  {
+    id: 'chats_movements', label: 'Movimientos', note: 'Depósitos en chat', isPage: false,
+    dot: '#a78bfa', bg: 'rgba(139,92,246,0.10)', cl: '#c4b5fd', br: 'rgba(139,92,246,0.22)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      null,
+      { id: 'can_edit', label: 'Aprobar' },
+      { id: 'can_delete', label: 'Rechazar' },
+    ],
+  },
+  {
+    id: 'chats_withdrawals', label: 'Retiros', note: 'Solicitudes de retiro', isPage: false,
+    dot: '#f472b6', bg: 'rgba(244,114,182,0.10)', cl: '#f9a8d4', br: 'rgba(244,114,182,0.22)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      null,
+      { id: 'can_edit', label: 'Aprobar' },
+      { id: 'can_delete', label: 'Rechazar' },
+    ],
+  },
+  {
+    id: 'clients', label: 'Clientes', note: '/admin/clientes', isPage: true,
+    dot: '#22c55e', bg: 'rgba(34,197,94,0.12)', cl: '#4ade80', br: 'rgba(34,197,94,0.24)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      { id: 'can_create', label: 'Crear' },
+      { id: 'can_edit', label: 'Editar' },
+      { id: 'can_delete', label: 'Eliminar' },
+    ],
+  },
+  {
+    id: 'reports', label: 'Reportes', note: '/admin/reportes', isPage: true,
+    dot: '#fb923c', bg: 'rgba(251,146,60,0.10)', cl: '#fdba74', br: 'rgba(251,146,60,0.22)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      null, null, null,
+    ],
+  },
+  {
+    id: 'commands', label: 'Comandos', note: '/admin/comandos', isPage: true,
+    dot: '#a78bfa', bg: 'rgba(139,92,246,0.12)', cl: '#c4b5fd', br: 'rgba(139,92,246,0.24)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      { id: 'can_create', label: 'Crear' },
+      { id: 'can_edit', label: 'Editar' },
+      { id: 'can_delete', label: 'Eliminar' },
+    ],
+  },
+  {
+    id: 'push_notifications', label: 'Notificaciones', note: '/admin/notificaciones', isPage: true,
+    dot: '#f472b6', bg: 'rgba(244,114,182,0.12)', cl: '#f9a8d4', br: 'rgba(244,114,182,0.24)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      { id: 'can_create', label: 'Enviar' },
+      { id: 'can_edit', label: 'Editar' },
+      { id: 'can_delete', label: 'Eliminar' },
+    ],
+  },
+  {
+    id: 'modals', label: 'Modales', note: '/admin/modales', isPage: true,
+    dot: '#38bdf8', bg: 'rgba(56,189,248,0.12)', cl: '#7dd3fc', br: 'rgba(56,189,248,0.24)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      { id: 'can_create', label: 'Crear' },
+      { id: 'can_edit', label: 'Editar' },
+      { id: 'can_delete', label: 'Eliminar' },
+    ],
+  },
+  {
+    id: 'bot_builder', label: 'Bot Builder', note: '/admin/bot', isPage: true,
+    dot: '#34d399', bg: 'rgba(52,211,153,0.12)', cl: '#6ee7b7', br: 'rgba(52,211,153,0.24)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      { id: 'can_create', label: 'Crear' },
+      { id: 'can_edit', label: 'Editar' },
+      { id: 'can_delete', label: 'Eliminar' },
+    ],
+  },
+  {
+    id: 'settings', label: 'Ajustes', note: '/admin/ajustes', isPage: true,
+    dot: '#94a3b8', bg: 'rgba(148,163,184,0.12)', cl: '#cbd5e1', br: 'rgba(148,163,184,0.24)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      null,
+      { id: 'can_edit', label: 'Modificar' },
+      null,
+    ],
+  },
+  {
+    id: 'users', label: 'Usuarios', note: '/admin/usuarios', isPage: true,
+    dot: '#f59e0b', bg: 'rgba(245,158,11,0.12)', cl: '#fbbf24', br: 'rgba(245,158,11,0.24)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      { id: 'can_create', label: 'Crear' },
+      { id: 'can_edit', label: 'Editar' },
+      { id: 'can_delete', label: 'Eliminar' },
+    ],
+  },
 ]
 
-const ACTION_CONFIG = [
-  { id: 'can_view', label: 'Ver' },
-  { id: 'can_create', label: 'Crear' },
-  { id: 'can_edit', label: 'Editar' },
-  { id: 'can_delete', label: 'Borrar' },
-]
+const PAGE_MODULES = MODULE_CONFIG.filter(m => m.isPage)
 
 const ROWS_PER_PAGE = 8
 
 const defaultPermissions = (role = 'cashier') => {
   const enabled = role === 'admin'
   return MODULE_CONFIG.reduce((acc, module) => {
+    const enabledIds = new Set(module.actions.filter(Boolean).map(a => a.id))
     acc[module.id] = {
-      can_view: enabled,
-      can_create: enabled,
-      can_edit: enabled,
-      can_delete: enabled,
+      can_view:   enabledIds.has('can_view')   ? enabled : false,
+      can_create: enabledIds.has('can_create') ? enabled : false,
+      can_edit:   enabledIds.has('can_edit')   ? enabled : false,
+      can_delete: enabledIds.has('can_delete') ? enabled : false,
     }
     return acc
   }, {})
@@ -75,12 +182,21 @@ const normalizePermissions = (permissions, role = 'cashier') => {
   const fallback = defaultPermissions(role)
   return MODULE_CONFIG.reduce((acc, module) => {
     const source = permissions?.[module.id] || fallback[module.id]
-    acc[module.id] = ACTION_CONFIG.reduce((actions, action) => {
-      actions[action.id] = Boolean(source[action.id])
-      return actions
-    }, {})
+    const enabledIds = new Set(module.actions.filter(Boolean).map(a => a.id))
+    acc[module.id] = {
+      can_view:   enabledIds.has('can_view')   ? Boolean(source?.can_view)   : false,
+      can_create: enabledIds.has('can_create') ? Boolean(source?.can_create) : false,
+      can_edit:   enabledIds.has('can_edit')   ? Boolean(source?.can_edit)   : false,
+      can_delete: enabledIds.has('can_delete') ? Boolean(source?.can_delete) : false,
+    }
     return acc
   }, {})
+}
+
+const formatTimeStr = (t) => {
+  if (!t) return ''
+  const parts = String(t).split(':')
+  return `${(parts[0] || '00').padStart(2, '0')}:${(parts[1] || '00').padStart(2, '0')}`
 }
 
 /* maps an API user to the component's shape */
@@ -89,21 +205,26 @@ const mapApiUser = (u) => ({
   username:      u.username,
   full_name:     u.full_name || u.username,
   email:         u.email,
-  role:          u.role,          // 'admin' | 'cashier'
+  role:          u.role,
   status:        Boolean(u.is_active),
   online:        Boolean(u.online),
   last_login_at: u.last_login_at,
   permissions:   normalizePermissions(u.permissions, u.role),
+  access_start:  u.access_start ?? null,
+  access_end:    u.access_end ?? null,
 })
 
 const initForm = (user = null) => ({
-  full_name:  user?.full_name  ?? '',
-  username:   user?.username   ?? '',
-  email:      user?.email      ?? '',
-  password:   '',
-  role:       user?.role       ?? 'cashier',
-  status:     user?.status     ?? true,
-  permissions: user ? normalizePermissions(user.permissions, user.role) : defaultPermissions('cashier'),
+  full_name:      user?.full_name  ?? '',
+  username:       user?.username   ?? '',
+  email:          user?.email      ?? '',
+  password:       '',
+  role:           user?.role       ?? 'cashier',
+  status:         user?.status     ?? true,
+  permissions:    user ? normalizePermissions(user.permissions, user.role) : defaultPermissions('cashier'),
+  timeRestricted: !!(user?.access_start && user?.access_end),
+  access_start:   formatTimeStr(user?.access_start),
+  access_end:     formatTimeStr(user?.access_end),
 })
 
 /* ── component ── */
@@ -205,6 +326,18 @@ const UsersPage = ({ onMenuOpen }) => {
     },
   }))
 
+  const toggleTimeRestriction = () => setForm(f => {
+    if (f.timeRestricted) {
+      return { ...f, timeRestricted: false, access_start: '', access_end: '' }
+    }
+    return {
+      ...f,
+      timeRestricted: true,
+      access_start: f.access_start || '09:00',
+      access_end:   f.access_end   || '18:00',
+    }
+  })
+
   /* ── save (create or edit) ── */
   const handleSave = async () => {
     if (!form.full_name.trim() || !form.username.trim() || !form.email.trim()) {
@@ -219,16 +352,22 @@ const UsersPage = ({ onMenuOpen }) => {
       notify('La nueva contraseña debe tener al menos 8 caracteres', 'danger')
       return
     }
+    if (form.timeRestricted && (!form.access_start || !form.access_end)) {
+      notify('Configura la hora de inicio y de fin para la restricción horaria', 'danger')
+      return
+    }
 
     setSaving(true)
     try {
       const payload = {
-        username:  form.username.trim(),
-        full_name: form.full_name.trim(),
-        email:     form.email.trim(),
-        role:      form.role,
-        is_active: form.status,
-        permissions: normalizePermissions(form.permissions, form.role),
+        username:     form.username.trim(),
+        full_name:    form.full_name.trim(),
+        email:        form.email.trim(),
+        role:         form.role,
+        is_active:    form.status,
+        permissions:  normalizePermissions(form.permissions, form.role),
+        access_start: form.timeRestricted ? form.access_start : null,
+        access_end:   form.timeRestricted ? form.access_end   : null,
       }
       if (!editUser) payload.password = form.password
       else if (form.password) payload.password = form.password
@@ -438,29 +577,29 @@ const UsersPage = ({ onMenuOpen }) => {
 
                     <Td>
                       <PermChips>
-                        {MODULE_CONFIG.filter(p => user.permissions[p.id]?.can_view).map(p => (
+                        {PAGE_MODULES.filter(p => user.permissions[p.id]?.can_view).map(p => (
                           <PermChip key={p.id} $bg={p.bg} $cl={p.cl} $br={p.br}>{p.label}</PermChip>
                         ))}
-                        {!MODULE_CONFIG.some(p => user.permissions[p.id]?.can_view) && (
+                        {!PAGE_MODULES.some(p => user.permissions[p.id]?.can_view) && (
                           <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.18)' }}>—</span>
                         )}
                       </PermChips>
                     </Td>
 
                     <Td>
-                      {MODULE_CONFIG.every(p => user.permissions[p.id]?.can_view) ? (
-                        <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.18)' }}>Ninguna</span>
-                      ) : (
-                        <PermChips>
-                          {MODULE_CONFIG.filter(p => !user.permissions[p.id]?.can_view).map(cfg => {
-                            return (
-                              <PermChip key={cfg.id} $bg="rgba(239,68,68,0.10)" $cl="#f87171" $br="rgba(239,68,68,0.22)">
-                                {cfg.label}
-                              </PermChip>
-                            )
-                          })}
-                        </PermChips>
-                      )}
+                      <PermChips>
+                        {user.access_start && user.access_end && (
+                          <TimeBadge>{formatTimeStr(user.access_start)}–{formatTimeStr(user.access_end)}</TimeBadge>
+                        )}
+                        {PAGE_MODULES.filter(p => !user.permissions[p.id]?.can_view).map(cfg => (
+                          <PermChip key={cfg.id} $bg="rgba(239,68,68,0.10)" $cl="#f87171" $br="rgba(239,68,68,0.22)">
+                            {cfg.label}
+                          </PermChip>
+                        ))}
+                        {!user.access_start && PAGE_MODULES.every(p => user.permissions[p.id]?.can_view) && (
+                          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.18)' }}>Ninguna</span>
+                        )}
+                      </PermChips>
                     </Td>
 
                     <Td $center>
@@ -613,18 +752,59 @@ const UsersPage = ({ onMenuOpen }) => {
                 </Toggle>
               </StatusRow>
 
+              {/* time restriction */}
+              <div>
+                <SecLabel>Restricción horaria</SecLabel>
+                <StatusRow style={{ marginTop: 14 }}>
+                  <StatusRowLabel>
+                    <StatusRowTitle>Restricción horaria</StatusRowTitle>
+                    <StatusRowSub>
+                      {form.timeRestricted
+                        ? 'El acceso está limitado al horario configurado'
+                        : 'Sin restricción, puede acceder en cualquier momento'}
+                    </StatusRowSub>
+                  </StatusRowLabel>
+                  <Toggle $on={form.timeRestricted} onClick={toggleTimeRestriction}>
+                    <ToggleThumb $on={form.timeRestricted} />
+                  </Toggle>
+                </StatusRow>
+                {form.timeRestricted && (
+                  <TimeGrid>
+                    <Field>
+                      <FieldLabel>Hora de inicio</FieldLabel>
+                      <TimeInput
+                        type="time"
+                        value={form.access_start}
+                        onChange={e => setField('access_start', e.target.value)}
+                      />
+                    </Field>
+                    <Field>
+                      <FieldLabel>Hora de fin</FieldLabel>
+                      <TimeInput
+                        type="time"
+                        value={form.access_end}
+                        onChange={e => setField('access_end', e.target.value)}
+                      />
+                    </Field>
+                  </TimeGrid>
+                )}
+              </div>
+
               {/* permissions */}
               <div>
                 <SecLabel>Permisos de módulos</SecLabel>
                 <PermGrid style={{ marginTop: 14 }}>
                   {MODULE_CONFIG.map(p => (
-                    <PermRow key={p.id}>
+                    <PermRow key={p.id} $sub={!p.isPage}>
                       <PermName>
                         <PermDot $cl={p.dot} />
-                        {p.label}
+                        <div>
+                          <span>{p.label}</span>
+                          {!p.isPage && <PermSub>{p.note}</PermSub>}
+                        </div>
                       </PermName>
                       <PermActions>
-                        {ACTION_CONFIG.map(action => (
+                        {p.actions.map((action, idx) => action ? (
                           <PermAction key={action.id}>
                             <PermActionLabel>{action.label}</PermActionLabel>
                             <Toggle
@@ -632,6 +812,13 @@ const UsersPage = ({ onMenuOpen }) => {
                               onClick={() => togglePerm(p.id, action.id)}
                             >
                               <ToggleThumb $on={form.permissions[p.id]?.[action.id]} />
+                            </Toggle>
+                          </PermAction>
+                        ) : (
+                          <PermAction key={`null-${idx}`} $dim>
+                            <PermActionLabel>—</PermActionLabel>
+                            <Toggle $on={false}>
+                              <ToggleThumb $on={false} />
                             </Toggle>
                           </PermAction>
                         ))}
@@ -643,9 +830,9 @@ const UsersPage = ({ onMenuOpen }) => {
 
               {/* page restrictions */}
               <div>
-                <SecLabel>Restricciones de páginas</SecLabel>
+                <SecLabel>Acceso a páginas</SecLabel>
                 <RestrList style={{ marginTop: 14 }}>
-                  {MODULE_CONFIG.map(pg => {
+                  {PAGE_MODULES.map(pg => {
                     const blocked = !form.permissions[pg.id]?.can_view
                     return (
                       <RestrItem key={pg.id} type="button" $on={blocked} onClick={() => toggleRestr(pg.id)}>

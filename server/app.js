@@ -26,7 +26,11 @@ import autoMessagesRoutes from './routes/autoMessagesRoutes.js'
 import maintenanceRoutes from './routes/maintenanceRoutes.js'
 import metricsRoutes from './routes/metricsRoutes.js'
 import withdrawalRoutes from './routes/withdrawalRoutes.js'
+import hgCashRoutes from './routes/hgCashRoutes.js'
+import mercadoPagoRoutes from './routes/mercadoPagoRoutes.js'
+import pushRoutes from './routes/pushRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
+import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { setupChatSockets } from './socket/chatSocket.js';
 
 // Variables globales
@@ -60,8 +64,11 @@ app.use(cors({
   maxAge: 86400, // 24 horas
 }));
 
-// Body parser
-app.use(express.json({ limit: '50mb' }));
+// Body parser — capture raw body for HMAC webhook verification
+app.use(express.json({
+  limit: '50mb',
+  verify: (req, _res, buf) => { req.rawBody = buf },
+}));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(express.static(path.join(__dirname, 'public'), {
   setHeaders: (res, filePath) => {
@@ -89,6 +96,9 @@ app.use('/api/settings/auto-messages', autoMessagesRoutes)
 app.use('/api/maintenance', maintenanceRoutes)
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
+app.use('/api/hgcash', hgCashRoutes);
+app.use('/api/mercadopago', mercadoPagoRoutes);
+app.use('/api/push', pushRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {
@@ -186,6 +196,7 @@ async function startServer() {
 
     // Iniciar scheduler de mantenimiento
     startMaintenanceScheduler()
+    startPushScheduler(15)
 
     // Iniciar servidor
     const PORT = config.port;
@@ -215,6 +226,7 @@ async function gracefulShutdown() {
 
   try {
     stopMaintenanceScheduler()
+    stopPushScheduler()
 
     // Cerrar Socket.IO
     io.close();

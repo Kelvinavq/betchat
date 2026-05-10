@@ -29,6 +29,13 @@ const request = async (endpoint, options = {}) => {
     const error = new Error(message)
     error.status = res.status
     error.payload = payload
+
+    if (res.status === 401) {
+      window.dispatchEvent(new CustomEvent('auth:session-expired', {
+        detail: { code: payload?.code, data: payload },
+      }))
+    }
+
     throw error
   }
 

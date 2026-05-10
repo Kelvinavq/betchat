@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import ChatOutlinedIcon            from '@mui/icons-material/ChatOutlined'
-import GroupOutlinedIcon           from '@mui/icons-material/GroupOutlined'
-import PersonOutlinedIcon          from '@mui/icons-material/PersonOutlined'
-import BoltOutlinedIcon            from '@mui/icons-material/BoltOutlined'
-import SettingsOutlinedIcon        from '@mui/icons-material/SettingsOutlined'
-import AccountBalanceOutlinedIcon  from '@mui/icons-material/AccountBalanceOutlined'
-import NotificationsOutlinedIcon   from '@mui/icons-material/NotificationsOutlined'
-import VideoLabelOutlinedIcon      from '@mui/icons-material/VideoLabelOutlined'
-import SmartToyOutlinedIcon        from '@mui/icons-material/SmartToyOutlined'
-import BarChartOutlinedIcon        from '@mui/icons-material/BarChartOutlined'
+import ChatOutlinedIcon                  from '@mui/icons-material/ChatOutlined'
+import GroupOutlinedIcon                 from '@mui/icons-material/GroupOutlined'
+import PersonOutlinedIcon                from '@mui/icons-material/PersonOutlined'
+import BoltOutlinedIcon                  from '@mui/icons-material/BoltOutlined'
+import SettingsOutlinedIcon              from '@mui/icons-material/SettingsOutlined'
+import AccountBalanceOutlinedIcon        from '@mui/icons-material/AccountBalanceOutlined'
+import NotificationsOutlinedIcon         from '@mui/icons-material/NotificationsOutlined'
+import VideoLabelOutlinedIcon            from '@mui/icons-material/VideoLabelOutlined'
+import SmartToyOutlinedIcon              from '@mui/icons-material/SmartToyOutlined'
+import BarChartOutlinedIcon              from '@mui/icons-material/BarChartOutlined'
+import AccountBalanceWalletOutlinedIcon  from '@mui/icons-material/AccountBalanceWalletOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import useAuth from '../../../hooks/useAuth'
@@ -72,6 +73,12 @@ const NAV_ITEMS = [
     id: 'metricas',
     label: 'Métricas',
     icon: <BarChartOutlinedIcon />,
+    children: [],
+  },
+  {
+    id: 'retiros',
+    label: 'Retiros',
+    icon: <AccountBalanceWalletOutlinedIcon />,
     children: [],
   },
 ]

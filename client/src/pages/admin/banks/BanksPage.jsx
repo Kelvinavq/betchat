@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import SearchIcon        from '@mui/icons-material/Search'
 import AddIcon           from '@mui/icons-material/Add'
 import EditOutlinedIcon  from '@mui/icons-material/EditOutlined'
@@ -11,6 +11,9 @@ import AccountBalanceOutlinedIcon from '@mui/icons-material/AccountBalanceOutlin
 import PowerSettingsNewIcon       from '@mui/icons-material/PowerSettingsNew'
 import VisibilityOutlinedIcon     from '@mui/icons-material/VisibilityOutlined'
 import VisibilityOffOutlinedIcon  from '@mui/icons-material/VisibilityOffOutlined'
+import HistoryOutlinedIcon        from '@mui/icons-material/HistoryOutlined'
+import ContentCopyIcon            from '@mui/icons-material/ContentCopy'
+import CheckIcon                  from '@mui/icons-material/Check'
 import { api } from '../../../utils/api'
 import { getPaginationItems } from '../../../utils/pagination'
 import {
@@ -28,7 +31,68 @@ import {
   ModalBody, ModalFoot, FootLeft, FootRight, ModalBtn,
   SecLabel, FormGrid, Field, FieldLabel, FieldInput, InputWrap, InputSuffix,
   StatusRow, StatusRowLabel, StatusRowTitle, StatusRowSub, Toggle, ToggleThumb,
+  CopyRow, CopyVal, CopyBtn,
+  MovOverlay, MovPanel, MovPanelHead, MovAccBadge, MovPanelTitleGroup, MovPanelTitle, MovPanelSub, MovPanelClose,
+  MovInfoBar, MovInfoItem, MovInfoLabel, MovInfoValRow, MovInfoVal, MovInfoSep, MovBalCard, MovBalLabel, MovBalVal,
+  MovFilters, MovDateInput, MovFilterLabel, MovFilterSelect, MovPresetBtn,
+  MovSearchBox, MovSrchIcon, MovSearchInput, MovResultCount,
+  MovTableWrap, MovTableScroll,
+  MovStatusBadge, MovSpinner, MovEmpty,
+  ToastWrap, ToastIcon, ToastMsg, ToastClose,
 } from './BanksPage.styles'
+
+const todayStr = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+const fmtAmount = (n) =>
+  n == null ? '—' : `$${new Intl.NumberFormat('es-AR').format(n)}`
+
+const fmtMovDate = (str) => {
+  if (!str) return '—'
+  const d = new Date(str)
+  if (isNaN(d)) return '—'
+  return `${d.getDate()}/${d.getMonth() + 1}, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+}
+
+const STATUS_LABEL = { paid: 'Pagado', pending: 'Pendiente', rejected: 'Rechazado' }
+
+/* ── CopyField ── */
+function CopyField({ value, display, mono, small }) {
+  const [copied, setCopied] = useState(false)
+  if (!value) return <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>—</span>
+  const handleCopy = (e) => {
+    e.stopPropagation()
+    navigator.clipboard?.writeText(value).catch(() => {})
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+  return (
+    <CopyRow>
+      <CopyVal $mono={mono} $small={small}>{display ?? value}</CopyVal>
+      <CopyBtn onClick={handleCopy} className={copied ? 'copied' : ''} title={copied ? 'Copiado!' : 'Copiar'}>
+        {copied ? <CheckIcon /> : <ContentCopyIcon />}
+      </CopyBtn>
+    </CopyRow>
+  )
+}
+
+/* ── InfoCopyBtn (icon-only copy for the info bar) ── */
+function InfoCopyBtn({ value }) {
+  const [copied, setCopied] = useState(false)
+  if (!value) return null
+  return (
+    <CopyBtn
+      onClick={e => { e.stopPropagation(); navigator.clipboard?.writeText(value).catch(() => {}); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
+      className={copied ? 'copied' : ''}
+      title={copied ? 'Copiado!' : 'Copiar'}
+      style={{ width: 22, height: 22 }}
+    >
+      {copied ? <CheckIcon /> : <ContentCopyIcon />}
+    </CopyBtn>
+  )
+}
 
 const BANKS = [
   {
@@ -45,13 +109,7 @@ const BANKS = [
     avatarBg: 'linear-gradient(135deg,#0284c7,#38bdf8)',
     avatarBr: 'rgba(14,165,233,0.35)',
   },
-  {
-    id: 'telepagos',
-    label: 'Telepagos',
-    color: '#fb923c', bg: 'rgba(249,115,22,0.12)', br: 'rgba(249,115,22,0.28)',
-    avatarBg: 'linear-gradient(135deg,#ea580c,#f97316)',
-    avatarBr: 'rgba(249,115,22,0.35)',
-  },
+  // { id: 'telepagos', ... },  // hidden — not in use
   {
     id: 'manual',
     label: 'Cuentas Manuales',
@@ -80,6 +138,7 @@ const initForm = (bank, account = null) => {
       cbu: account?.cbu ?? '',
       webhook_enabled: Boolean(account?.webhook_enabled || account?.webhook_secret),
       webhook_secret: account?.webhook_secret ?? '',
+      api_token: '',
       estatus: account?.estatus ?? 'activa',
     }
   }
@@ -152,6 +211,29 @@ const BanksPage = ({ onMenuOpen }) => {
   const [form, setForm] = useState({})
   const [showPw, setShowPw] = useState({})
 
+  /* ── movements panel ── */
+  const [movAcc,       setMovAcc]       = useState(null)
+  const [movData,      setMovData]      = useState({ movements: [], balance: 0, pagination: { page: 1, total: 0, totalPages: 1 } })
+  const [movLoading,   setMovLoading]   = useState(false)
+  const [movPage,      setMovPage]      = useState(1)
+  const [movStatus,    setMovStatus]    = useState('all')
+  const [movSearch,    setMovSearch]    = useState('')
+  const [movDateFrom,  setMovDateFrom]  = useState(todayStr())
+  const [movDateTo,    setMovDateTo]    = useState(todayStr())
+  const [movPreset,    setMovPreset]    = useState('today')
+  const [hgLive,        setHgLive]        = useState(null)
+  const [hgLiveLoading, setHgLiveLoading] = useState(false)
+  const [hgSyncing,     setHgSyncing]     = useState(false)
+  const [toast,         setToast]         = useState(null)   // { msg, type: 'success'|'error' }
+  const toastTimerRef = useRef(null)
+  const movDebRef = useRef(null)
+
+  const showToast = (msg, type = 'success') => {
+    clearTimeout(toastTimerRef.current)
+    setToast({ msg, type })
+    toastTimerRef.current = setTimeout(() => setToast(null), 3800)
+  }
+
   const bankCfg = BANKS.find(b => b.id === activeBank)
   const totalCount = Object.values(counts).reduce((sum, value) => sum + Number(value || 0), 0)
 
@@ -184,6 +266,83 @@ const BanksPage = ({ onMenuOpen }) => {
 
     return () => window.clearTimeout(timer)
   }, [loadAccounts])
+
+  const fetchMovements = useCallback(async (acc, opts = {}) => {
+    if (!acc) return
+    setMovLoading(true)
+    try {
+      const p  = opts.page      ?? movPage
+      const s  = opts.status    ?? movStatus
+      const q  = opts.search    ?? movSearch
+      const df = opts.dateFrom  ?? movDateFrom
+      const dt = opts.dateTo    ?? movDateTo
+      const qs = new URLSearchParams({ page: p, limit: 20, status: s, search: q, dateFrom: df, dateTo: dt }).toString()
+      const res = await api.get(`/api/bank-accounts/${acc.id}/movements?${qs}`)
+      setMovData({ movements: res.movements || [], balance: res.balance || 0, pagination: res.pagination || { page: 1, total: 0, totalPages: 1 } })
+    } catch (err) {
+      showToast(err.message || 'No se pudieron cargar los movimientos', 'error')
+    } finally {
+      setMovLoading(false)
+    }
+  }, [movPage, movStatus, movSearch, movDateFrom, movDateTo])
+
+  const fetchHgLive = async (acc) => {
+    setHgLive(null)
+    setHgLiveLoading(true)
+    try {
+      const res = await api.get(`/api/bank-accounts/${acc.id}/hg-balance`)
+      setHgLive(res.account || null)
+    } catch {
+      setHgLive(null)
+    } finally {
+      setHgLiveLoading(false)
+    }
+  }
+
+  const SYNC_ENDPOINT = { hgcash: 'hgcash', mercadopago: 'mercadopago' }
+
+  const syncAccount = async (acc) => {
+    const provider = acc.provider || activeBank
+    const endpoint = SYNC_ENDPOINT[provider]
+    if (!endpoint) return
+    setHgSyncing(true)
+    try {
+      const res = await api.post(`/api/${endpoint}/${acc.id}/sync`, {})
+      await fetchMovements(acc, { page: 1, status: movStatus, search: movSearch, dateFrom: movDateFrom, dateTo: movDateTo })
+      showToast(res.synced > 0 ? `${res.synced} movimiento${res.synced !== 1 ? 's' : ''} importado${res.synced !== 1 ? 's' : ''}` : 'Sin movimientos nuevos por ahora', 'success')
+    } catch (err) {
+      showToast(err.message || 'Error al sincronizar', 'error')
+    } finally {
+      setHgSyncing(false)
+    }
+  }
+
+  const openMovements = (acc) => {
+    const enriched = { ...acc, provider: activeBank }
+    setMovAcc(enriched)
+    setHgLive(null)
+    setHgSyncing(false)
+    setMovPage(1); setMovStatus('all'); setMovSearch('')
+    setMovDateFrom(todayStr()); setMovDateTo(todayStr()); setMovPreset('today')
+    fetchMovements(acc, { page: 1, status: 'all', search: '', dateFrom: todayStr(), dateTo: todayStr() })
+    if (activeBank === 'hgcash' && acc.has_api_token) fetchHgLive(acc)
+    // MercadoPago: no live balance API — use DB values only
+  }
+
+  const applyMovPreset = (val) => {
+    setMovPreset(val)
+    const today = todayStr()
+    const yest  = (() => { const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10) })()
+    const wkSt  = (() => { const d = new Date(); d.setDate(d.getDate() - d.getDay()); return d.toISOString().slice(0, 10) })()
+    const mnSt  = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
+    const map   = { today: [today, today], ayer: [yest, yest], semana: [wkSt, today], mes: [mnSt, today] }
+    if (map[val]) {
+      const [df, dt] = map[val]
+      setMovDateFrom(df); setMovDateTo(dt)
+      setMovPage(1)
+      fetchMovements(movAcc, { page: 1, dateFrom: df, dateTo: dt })
+    }
+  }
 
   const changeFilter = (setter) => (e) => {
     setter(e.target.value)
@@ -367,8 +526,8 @@ const BanksPage = ({ onMenuOpen }) => {
                     )}
 
                     <Td>
-                      <AccountName style={{ fontSize: 12.5 }}>{acc.alias}</AccountName>
-                      <MonoLabel>{maskCBU(acc.cbu)}</MonoLabel>
+                      <CopyField value={acc.alias} />
+                      <CopyField value={acc.cbu} display={maskCBU(acc.cbu)} mono small />
                     </Td>
 
                     {activeBank === 'mercadopago' && (
@@ -418,6 +577,9 @@ const BanksPage = ({ onMenuOpen }) => {
 
                     <Td $center>
                       <ActionBtns style={{ justifyContent: 'center' }}>
+                        <ActionBtn type="button" title="Ver movimientos" onClick={() => openMovements(acc)}>
+                          <HistoryOutlinedIcon />
+                        </ActionBtn>
                         <ActionBtn type="button" title="Editar" onClick={() => openEdit(acc)}>
                           <EditOutlinedIcon />
                         </ActionBtn>
@@ -464,6 +626,219 @@ const BanksPage = ({ onMenuOpen }) => {
           </Pagination>
         </TableCard>
       </PageScroll>
+
+      {movAcc && (() => {
+        const cfg   = BANKS.find(b => b.id === (movAcc.provider || activeBank))
+        const hasCbu = ['hgcash','mercadopago','telepagos'].includes(movAcc.provider || activeBank)
+        const { movements, pagination: mp } = movData
+        const movTotalPages = Math.max(1, mp.totalPages || 1)
+
+        return (
+          <MovOverlay onClick={() => setMovAcc(null)}>
+            <MovPanel onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
+
+              {/* toast */}
+              {toast && (
+                <ToastWrap $type={toast.type}>
+                  <ToastIcon>{toast.type === 'success' ? '✓' : '✕'}</ToastIcon>
+                  <ToastMsg>{toast.msg}</ToastMsg>
+                  <ToastClose onClick={() => setToast(null)}><CloseIcon /></ToastClose>
+                </ToastWrap>
+              )}
+
+              {/* header */}
+              <MovPanelHead>
+                <MovAccBadge $bg={cfg?.bg} $br={cfg?.br} $cl={cfg?.color}>
+                  <AccountBalanceOutlinedIcon />
+                </MovAccBadge>
+                <MovPanelTitleGroup>
+                  <MovPanelTitle>Movimientos · {cfg?.label}</MovPanelTitle>
+                  <MovPanelSub>{movAcc.nombre_titular}</MovPanelSub>
+                </MovPanelTitleGroup>
+                <MovPanelClose onClick={() => setMovAcc(null)}><CloseIcon /></MovPanelClose>
+              </MovPanelHead>
+
+              {/* account info strip */}
+              {hasCbu && (
+                <MovInfoBar>
+                  <MovInfoItem>
+                    <MovInfoLabel>Alias</MovInfoLabel>
+                    <MovInfoValRow>
+                      <MovInfoVal>{hgLive?.alias || movAcc.alias || '—'}</MovInfoVal>
+                      <InfoCopyBtn value={hgLive?.alias || movAcc.alias} />
+                    </MovInfoValRow>
+                  </MovInfoItem>
+
+                  <MovInfoSep />
+
+                  <MovInfoItem>
+                    <MovInfoLabel>CBU / CVU</MovInfoLabel>
+                    <MovInfoValRow>
+                      <MovInfoVal $mono>{hgLive?.number || movAcc.cbu || '—'}</MovInfoVal>
+                      <InfoCopyBtn value={hgLive?.number || movAcc.cbu} />
+                    </MovInfoValRow>
+                  </MovInfoItem>
+
+                  {/* Balance — HGCash only */}
+                  {(movAcc.provider || activeBank) === 'hgcash' && (
+                    <MovBalCard>
+                      <MovBalLabel>{hgLive ? 'Saldo actual' : 'Saldo'}</MovBalLabel>
+                      <MovBalVal>
+                        {hgLiveLoading ? '…' : hgLive ? fmtAmount(hgLive.balance) : '—'}
+                      </MovBalVal>
+                    </MovBalCard>
+                  )}
+
+                  {/* Sync button — HGCash and MercadoPago */}
+                  {['hgcash', 'mercadopago'].includes(movAcc.provider || activeBank) && (
+                    <button
+                      onClick={() => syncAccount(movAcc)}
+                      disabled={hgSyncing}
+                      title="Importar movimientos desde HGCash"
+                      style={{
+                        marginLeft: 8, height: 30, padding: '0 10px', borderRadius: 8,
+                        border: '1px solid rgba(99,102,241,0.40)', background: 'rgba(99,102,241,0.18)',
+                        color: hgSyncing ? 'rgba(255,255,255,0.25)' : '#c7d2fe',
+                        fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+                        cursor: hgSyncing ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {hgSyncing ? '⏳ Sincronizando…' : '⬇ Importar'}
+                    </button>
+                  )}
+
+                  {movAcc.has_api_token && (
+                    <button
+                      onClick={() => fetchHgLive(movAcc)}
+                      disabled={hgLiveLoading}
+                      title="Actualizar saldo desde HGCash API"
+                      style={{
+                        marginLeft: 4, height: 30, padding: '0 10px', borderRadius: 8,
+                        border: '1px solid rgba(99,102,241,0.30)', background: 'rgba(99,102,241,0.10)',
+                        color: hgLiveLoading ? 'rgba(255,255,255,0.25)' : '#a5b4fc',
+                        fontSize: 11, fontWeight: 700, fontFamily: 'inherit',
+                        cursor: hgLiveLoading ? 'not-allowed' : 'pointer',
+                      }}
+                    >
+                      {hgLiveLoading ? 'Cargando…' : '↻ Saldo'}
+                    </button>
+                  )}
+                </MovInfoBar>
+              )}
+
+              {/* filters */}
+              <MovFilters>
+                <MovFilterLabel>De:</MovFilterLabel>
+                <MovDateInput
+                  type="date" value={movDateFrom} max={movDateTo}
+                  onChange={e => { setMovDateFrom(e.target.value); setMovPreset('custom') }}
+                />
+                <MovFilterLabel>A:</MovFilterLabel>
+                <MovDateInput
+                  type="date" value={movDateTo} min={movDateFrom} max={todayStr()}
+                  onChange={e => { setMovDateTo(e.target.value); setMovPreset('custom') }}
+                />
+                {['today','ayer','semana','mes'].map(p => (
+                  <MovPresetBtn key={p} $active={movPreset === p} onClick={() => applyMovPreset(p)}>
+                    {{ today:'Hoy', ayer:'Ayer', semana:'Semana', mes:'Mes' }[p]}
+                  </MovPresetBtn>
+                ))}
+                <MovFilterSelect
+                  value={movStatus}
+                  onChange={e => {
+                    setMovStatus(e.target.value); setMovPage(1)
+                    fetchMovements(movAcc, { page: 1, status: e.target.value })
+                  }}
+                >
+                  <option value="all">Todos</option>
+                  <option value="paid">Pagados</option>
+                  <option value="pending">Pendientes</option>
+                  <option value="rejected">Rechazados</option>
+                </MovFilterSelect>
+                <MovSearchBox>
+                  <MovSrchIcon><SearchIcon /></MovSrchIcon>
+                  <MovSearchInput
+                    placeholder="Usuario / referencia…"
+                    value={movSearch}
+                    onChange={e => {
+                      setMovSearch(e.target.value)
+                      clearTimeout(movDebRef.current)
+                      movDebRef.current = setTimeout(() => {
+                        setMovPage(1)
+                        fetchMovements(movAcc, { page: 1, search: e.target.value })
+                      }, 380)
+                    }}
+                  />
+                </MovSearchBox>
+                <MovResultCount>{mp.total} movimientos</MovResultCount>
+              </MovFilters>
+
+              {/* table */}
+              <MovTableWrap>
+                <MovTableScroll>
+                  <Table style={{ minWidth: 700 }}>
+                    <Thead>
+                      <tr>
+                        <Th style={{ width: 60 }}>#</Th>
+                        <Th>FECHA</Th>
+                        <Th $right>MONTO</Th>
+                        <Th>ESTADO</Th>
+                        <Th>REFERENCIA</Th>
+                        <Th>USUARIO</Th>
+                      </tr>
+                    </Thead>
+                    <Tbody>
+                      {movLoading ? (
+                        <tr><td colSpan={6}><MovSpinner /></td></tr>
+                      ) : movements.length === 0 ? (
+                        <tr><td colSpan={6}><MovEmpty>Sin movimientos en el período seleccionado</MovEmpty></td></tr>
+                      ) : movements.map(m => (
+                        <Tr key={m.id}>
+                          <Td><MonoText style={{ fontSize: 11 }}>{m.id}</MonoText></Td>
+                          <Td style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>{fmtMovDate(m.createdAt)}</Td>
+                          <Td $right>
+                            <span style={{ fontWeight: 700, color: m.status === 'paid' ? '#c7d9ff' : 'rgba(255,255,255,0.55)', fontSize: 13 }}>
+                              {fmtAmount(m.amount)}
+                            </span>
+                          </Td>
+                          <Td><MovStatusBadge $s={m.status}>{STATUS_LABEL[m.status] ?? m.status}</MovStatusBadge></Td>
+                          <Td>
+                            {m.refId
+                              ? <CopyField value={m.refId} mono small />
+                              : <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>—</span>}
+                          </Td>
+                          <Td>
+                            {m.clientUsername
+                              ? <span style={{ fontSize: 12.5, fontWeight: 600, color: '#60a5fa' }}>{m.clientUsername}</span>
+                              : <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>—</span>}
+                          </Td>
+                        </Tr>
+                      ))}
+                    </Tbody>
+                  </Table>
+                </MovTableScroll>
+
+                {!movLoading && movTotalPages > 1 && (
+                  <Pagination>
+                    <PaginInfo>Pág {mp.page} de {movTotalPages} · {mp.total} movimientos</PaginInfo>
+                    <PaginBtns>
+                      <PaginBtn type="button" disabled={movPage <= 1}
+                        onClick={() => { const p = movPage - 1; setMovPage(p); fetchMovements(movAcc, { page: p }) }}>
+                        <ChevronLeftIcon />
+                      </PaginBtn>
+                      <PaginBtn type="button" disabled={movPage >= movTotalPages}
+                        onClick={() => { const p = movPage + 1; setMovPage(p); fetchMovements(movAcc, { page: p }) }}>
+                        <ChevronRightIcon />
+                      </PaginBtn>
+                    </PaginBtns>
+                  </Pagination>
+                )}
+              </MovTableWrap>
+
+            </MovPanel>
+          </MovOverlay>
+        )
+      })()}
 
       {modalOpen && (
         <Overlay onClick={close}>
@@ -590,6 +965,40 @@ const BanksPage = ({ onMenuOpen }) => {
                         />
                       </Field>
                     )}
+                  </FormGrid>
+                </div>
+              )}
+
+              {form.api_token !== undefined && (
+                <div>
+                  <SecLabel>Token API HGCash</SecLabel>
+                  <FormGrid style={{ marginTop: 12 }}>
+                    <Field $full>
+                      <FieldLabel>
+                        Bearer token&nbsp;
+                        {editAcc?.has_api_token && (
+                          <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>
+                            dejar vacío para no cambiar
+                          </span>
+                        )}
+                      </FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type={showPw.api_token ? 'text' : 'password'}
+                          placeholder={editAcc?.has_api_token ? '••••••••••••••••' : 'eyJhbGci...'}
+                          value={form.api_token ?? ''}
+                          onChange={e => setField('api_token', e.target.value)}
+                          autoComplete="off"
+                          style={{ paddingRight: 40, fontFamily: "'Courier New', monospace", fontSize: 12 }}
+                        />
+                        <InputSuffix type="button" onClick={() => togglePw('api_token')} tabIndex={-1}>
+                          {showPw.api_token ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                        </InputSuffix>
+                      </InputWrap>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginTop: 4, display: 'block' }}>
+                        Permite consultar saldo real desde la API de HGCash
+                      </span>
+                    </Field>
                   </FormGrid>
                 </div>
               )}

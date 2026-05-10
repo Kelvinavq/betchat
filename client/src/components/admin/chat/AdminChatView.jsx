@@ -28,10 +28,12 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange'
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
 import DropUpload from '../../common/DropUpload'
 import { useConfirm } from '../../common/ConfirmDialog'
 import MovementDrawer from './MovementDrawer'
 import WithdrawalDrawer from './WithdrawalDrawer'
+import TransactionHistoryDrawer from './TransactionHistoryDrawer'
 import { api, resolveApiAsset } from '../../../utils/api'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../../utils/richText'
@@ -429,6 +431,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
   const [pinnedFlashId, setPinnedFlashId] = useState(null)
   const [movementDrawerOpen, setMovementDrawerOpen] = useState(false)
   const [withdrawalDrawerOpen, setWithdrawalDrawerOpen] = useState(false)
+  const [txHistoryOpen, setTxHistoryOpen] = useState(false)
   const [pendingCounts, setPendingCounts] = useState({ movements: 0, withdrawals: 0 })
 
   /* recording */
@@ -1166,6 +1169,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
         <WithdrawalDrawer chat={chat} onClose={() => { setWithdrawalDrawerOpen(false); fetchPendingCounts() }} />,
         document.body
       )}
+      {txHistoryOpen && createPortal(
+        <TransactionHistoryDrawer chat={chat} onClose={() => setTxHistoryOpen(false)} />,
+        document.body
+      )}
       {messageMenu && createPortal(
         <MessageActionMenu ref={messageMenuRef} $x={messageMenu.x} $y={messageMenu.y}>
           <MessageActionItem type="button" onClick={() => beginReply(messageMenu.message)}>
@@ -1218,6 +1225,12 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
             <CurrencyExchangeIcon />
           </HeaderMenuBtn>
           {pendingCounts.withdrawals > 0 && <HeaderBtnBadge>{pendingCounts.withdrawals > 9 ? '9+' : pendingCounts.withdrawals}</HeaderBtnBadge>}
+        </HeaderBtnWrap>
+
+        <HeaderBtnWrap>
+          <HeaderMenuBtn onClick={() => setTxHistoryOpen(true)} aria-label="Historial de transacciones">
+            <ReceiptLongOutlinedIcon />
+          </HeaderMenuBtn>
         </HeaderBtnWrap>
 
         <HeaderMenuWrap ref={menuRef}>
@@ -1509,7 +1522,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              placeholder="Escribe un mensaje..."
+              placeholder="Escribe un mensaje (o / para usar comandos)"
             />
 
             <FooterBtn

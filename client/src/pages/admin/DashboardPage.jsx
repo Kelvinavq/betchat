@@ -11,9 +11,11 @@ import CommandsPage from './commands/CommandsPage'
 import SettingsPage       from './settings/SettingsPage'
 import BanksPage          from './banks/BanksPage'
 import NotificationsPage  from './notifications/NotificationsPage'
+import PushPage           from './push/PushPage'
 import ModalsPage      from './modal/ModalsPage'
-import BotBuilderPage  from './botbuilder/BotBuilderPage'
-import MetricsPage     from './metrics/MetricsPage'
+import BotBuilderPage    from './botbuilder/BotBuilderPage'
+import MetricsPage       from './metrics/MetricsPage'
+import WithdrawalsPage   from './withdrawals/WithdrawalsPage'
 import useAuth from '../../hooks/useAuth'
 import { SECTION_MODULES, canViewSection } from '../../utils/adminPermissions'
 
@@ -230,7 +232,7 @@ const DashboardPage = () => {
         )}
 
         {canViewCurrentSection && section === 'notificaciones' && (
-          <NotificationsPage onMenuOpen={() => setMobileSidebar(true)} />
+          <PushPage onMenuClick={() => setMobileSidebar(true)} />
         )}
 
         {canViewCurrentSection && section === 'modales' && (
@@ -243,6 +245,10 @@ const DashboardPage = () => {
 
         {canViewCurrentSection && section === 'metricas' && (
           <MetricsPage onMenuOpen={() => setMobileSidebar(true)} />
+        )}
+
+        {canViewCurrentSection && section === 'retiros' && (
+          <WithdrawalsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
         {canViewCurrentSection && section === 'chat' && mobileView === 'list' && (
@@ -296,10 +302,11 @@ const DashboardPage = () => {
       {canViewCurrentSection && section === 'comandos'  && <CommandsPage />}
       {canViewCurrentSection && section === 'cuentas'        && <BanksPage />}
       {canViewCurrentSection && section === 'ajustes'        && <SettingsPage />}
-      {canViewCurrentSection && section === 'notificaciones' && <NotificationsPage />}
+      {canViewCurrentSection && section === 'notificaciones' && <PushPage />}
       {canViewCurrentSection && section === 'modales'        && <ModalsPage />}
       {canViewCurrentSection && section === 'bot'            && <BotBuilderPage />}
       {canViewCurrentSection && section === 'metricas'       && <MetricsPage />}
+      {canViewCurrentSection && section === 'retiros'        && <WithdrawalsPage />}
 
       {canViewCurrentSection && section === 'chat' && (
         <>

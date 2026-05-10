@@ -8,6 +8,9 @@ import {
   createChatLabel,
   deleteChat,
   getChatClientDetails,
+  getChatClientBalance,
+  getChatTransactions,
+  adjustChatClientBalance,
   getChatLabels,
   getAdminChats,
   getMessages,
@@ -25,6 +28,7 @@ import {
   resolveManualMovement,
 } from '../controllers/movementController.js'
 import { listWithdrawals } from '../controllers/withdrawalController.js'
+import { getChatProfile } from '../controllers/profileController.js'
 
 const router = Router()
 
@@ -36,6 +40,10 @@ router.get('/labels', getChatLabels)
 router.post('/labels', createChatLabel)
 router.get('/:chatId/client', getChatClientDetails)
 router.put('/:chatId/client', updateChatClientDetails)
+router.get('/:chatId/balance', getChatClientBalance)
+router.post('/:chatId/balance', adjustChatClientBalance)
+router.get('/:chatId/transactions', getChatTransactions)
+router.get('/:chatId/profile', getChatProfile)
 router.put('/:chatId/client/labels', updateChatClientLabels)
 router.get('/:chatId/movements', getChatMovements)
 router.get('/:chatId/withdrawals', listWithdrawals)
