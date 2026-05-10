@@ -470,3 +470,10 @@ CREATE TABLE IF NOT EXISTS `push_retention_log` (
   `date`        DATE NOT NULL,
   PRIMARY KEY (`client_id`, `campaign_id`, `date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  PUSH IMAGES SUPPORT
+-- ============================================================
+
+ALTER TABLE `push_campaigns` ADD COLUMN `image` VARCHAR(500) DEFAULT NULL AFTER `body`;
+ALTER TABLE `push_history` ADD COLUMN `image` VARCHAR(500) DEFAULT NULL AFTER `body`;

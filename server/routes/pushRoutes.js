@@ -1,4 +1,7 @@
 import { Router } from 'express'
+import multer from 'multer'
+import path from 'path'
+import { fileURLToPath } from 'url'
 import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js'
 import {
   getCredentials, updateCredentials, getFirebaseClientConfig,
@@ -8,7 +11,23 @@ import {
   sendDirect,
   getHistory,
   registerToken, unregisterToken,
+  uploadImage,
 } from '../controllers/pushController.js'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../public/push'))
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, 'push-' + uniqueSuffix + path.extname(file.originalname))
+  }
+})
+
+const upload = multer({ storage })
 
 const router = Router()
 
@@ -32,6 +51,7 @@ router.put('/campaigns/:id',   updateCampaign)
 router.delete('/campaigns/:id', deleteCampaign)
 router.post('/campaigns/:id/send', sendCampaignNow)
 router.post('/send-direct',    sendDirect)
-router.get('/history',         getHistory)
+router.post('/upload-image', upload.single('image'), uploadImage)
+router.get('/history', getHistory)
 
 export default router

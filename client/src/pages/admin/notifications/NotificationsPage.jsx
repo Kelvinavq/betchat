@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from 'react'
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
 import { api } from '../../../utils/api'
 import MenuIcon from '@mui/icons-material/Menu'
 import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined'
@@ -41,7 +41,7 @@ import {
 } from './NotificationsPage.styles'
 
 const PAGE_SIZE = 8
-const BLANK_FORM = { title: '', body: '', audience: 'all', scheduled: false, schedDate: '', schedTime: '' }
+const BLANK_FORM = { title: '', body: '', image: '', audience: 'all', scheduled: false, schedDate: '', schedTime: '' }
 
 const AUDIENCE_OPTIONS = [
   { value: 'all',        label: 'Todos los usuarios', icon: '🌐' },
@@ -78,6 +78,9 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
   const [editNotif, setEditNotif]       = useState(null)
   const [form, setForm]                 = useState(BLANK_FORM)
   const [confirmStep, setConfirmStep]   = useState(false)
+  const [uploadError, setUploadError]   = useState('')
+  const [uploading, setUploading]       = useState(false)
+  const inputRef = useRef()
 
   /* ── load history from API ── */
   const loadHistory = useCallback(async () => {
@@ -165,12 +168,14 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
       const result = await api.post('/api/push/send-direct', {
         title:    form.title,
         body:     form.body,
+        image:    form.image,
         audience: form.audience,
       })
       const entry = {
         id:          Date.now(),
         title:       form.title,
         body:        form.body,
+        image:       form.image,
         audience:    form.audience,
         status:      'enviada',
         sentAt:      new Date().toISOString(),
@@ -447,6 +452,43 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
                 />
                 <CharCount $warn={form.body.length > 180}>{form.body.length}/240</CharCount>
               </Field>
+
+              {/* image */}
+              <Field $full>
+                <FieldLabel>Imagen (opcional)</FieldLabel>
+                <FieldInput
+                  type="file"
+                  ref={inputRef}
+                  style={{ visibility: 'hidden', position: 'absolute' }}
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={async (e) => {
+                    const file = e.target.files[0]
+                    if (!file) return setField('image', '')
+                    setUploading(true)
+                    const formData = new FormData()
+                    formData.append('image', file)
+                    try {
+                      const res = await api.post('/api/push/upload-image', formData)
+                      setField('image', res.imageUrl)
+                      setUploadError('')
+                    } catch (err) {
+                      setUploadError('Error subiendo imagen: ' + err.message)
+                    } finally {
+                      setUploading(false)
+                    }
+                  }}
+                />
+                <button type="button" onClick={() => inputRef.current.click()} disabled={uploading} style={{ padding: '8px 16px', background: '#007bff', color: 'white', border: 'none', borderRadius: 4, cursor: uploading ? 'not-allowed' : 'pointer' }}>
+                  {uploading ? 'Subiendo...' : 'Seleccionar imagen'}
+                </button>
+                {form.image && (
+                  <div style={{ marginTop: 8 }}>
+                    <img src={form.image} alt="Preview" style={{ maxWidth: 200, maxHeight: 200 }} />
+                  </div>
+                )}
+              </Field>
+              {uploadError && <div style={{ color: 'red', marginTop: 8, fontSize: 14 }}>{uploadError}</div>}
 
               {/* audience */}
               <Field $full>

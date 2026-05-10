@@ -115,7 +115,7 @@ export async function getFirebaseMessaging() {
 /**
  * tokenRows: [{ id, client_id, token }]
  */
-export async function sendMulticast(tokenRows, title, body, data = {}) {
+export async function sendMulticast(tokenRows, title, body, data = {}, image = null) {
   const messaging = await getFirebaseMessaging()
 
   if (!messaging) {
@@ -150,6 +150,7 @@ export async function sendMulticast(tokenRows, title, body, data = {}) {
             body: finalBody,
             icon: '/icon-192.png',
             badge: '/icon-192.png',
+            ...(image ? { image } : {}),
           },
           fcmOptions: {
             link: '/',
@@ -159,6 +160,7 @@ export async function sendMulticast(tokenRows, title, body, data = {}) {
         data: {
           title: finalTitle,
           body: finalBody,
+          ...(image ? { image } : {}),
           ...normalizeData(data),
         },
       })

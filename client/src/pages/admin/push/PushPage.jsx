@@ -71,6 +71,9 @@ const fmtNum = (n) => Number(n || 0).toLocaleString('es-AR')
 /* ── shared CampaignCard for Retention + Reconsumo ─────────────── */
 function BaseCampaignCard({ camp, onChange, onSave, onDelete, onSendNow, saving, sending, extra }) {
   const [saved, setSaved] = useState(false)
+  const [error, setError] = useState('')
+  const [uploading, setUploading] = useState(false)
+  const inputRef = useRef()
 
   const handleSave = async () => {
     await onSave(camp.id)
@@ -113,7 +116,70 @@ function BaseCampaignCard({ camp, onChange, onSave, onDelete, onSendNow, saving,
             onChange={e => onChange(camp.id, 'body', e.target.value)}
           />
         </FieldWrap>
+        <FieldWrap>
+          <FieldLabel>Imagen (opcional)</FieldLabel>
+          <FieldInput
+  type="file"
+  name="image"
+  ref={inputRef}
+  style={{ visibility: 'hidden', position: 'absolute' }}
+  accept="image/*"
+  disabled={uploading}
+  onChange={async (e) => {
+    const file = e.target.files?.[0]
+
+    if (!file) {
+      onChange(camp.id, 'image', '')
+      return
+    }
+
+    setUploading(true)
+
+    try {
+      const formData = new FormData()
+      formData.append('image', file, file.name)
+
+      const token =
+        localStorage.getItem('token') ||
+        localStorage.getItem('talgibravi-istazo') ||
+        ''
+
+      const response = await fetch('http://localhost:3000/api/push/upload-image', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      })
+
+      const res = await response.json().catch(() => ({}))
+
+      if (!response.ok) {
+        throw new Error(res.error || `Error HTTP ${response.status}`)
+      }
+
+      onChange(camp.id, 'image', res.imageUrl)
+      setError('')
+    } catch (err) {
+      setError('Error subiendo imagen: ' + err.message)
+    } finally {
+      setUploading(false)
+      e.target.value = ''
+    }
+  }}
+/>
+          <button type="button" onClick={() => inputRef.current.click()} disabled={uploading} style={{ padding: '8px 16px', background: '#007bff', color: 'white', border: 'none', borderRadius: 4, cursor: uploading ? 'not-allowed' : 'pointer' }}>
+            {uploading ? 'Subiendo...' : 'Seleccionar imagen'}
+          </button>
+          {camp.image && (
+            <div style={{ marginTop: 8 }}>
+              <img src={camp.image} alt="Preview" style={{ maxWidth: 200, maxHeight: 200 }} />
+            </div>
+          )}
+        </FieldWrap>
       </InputsGrid>
+
+      {error && <ErrorLine>{error}</ErrorLine>}
 
       <FooterRow>
         {onSendNow && (
@@ -153,7 +219,7 @@ function RetentionSection({ onMenuClick }) {
     setSaving(id)
     const c = camps.find(x => x.id === id)
     try {
-      await api.put(`/api/push/campaigns/${id}`, { title: c.title, body: c.body, isActive: c.isActive })
+      await api.put(`/api/push/campaigns/${id}`, { title: c.title, body: c.body, image: c.image, isActive: c.isActive })
     } catch (e) { setError(e.message) } finally { setSaving(null) }
   }
 

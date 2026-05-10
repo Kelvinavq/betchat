@@ -1,5 +1,35 @@
 import { query } from '../config/database.js'
 import { sendMulticast } from '../utils/firebaseAdmin.js'
+import multer from 'multer'
+import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __filename = fileURLToPath(import.meta.url)
+const __dirname = path.dirname(__filename)
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, '../public/push'))
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9)
+    cb(null, 'push-' + uniqueSuffix + path.extname(file.originalname))
+  }
+})
+
+const upload = multer({ storage })
+
+/* ── image upload ───────────────────────────────────────────── */
+
+export async function uploadImage(req, res, next) {
+  try {
+    console.log('req.file:', req.file)
+    if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' })
+
+    const imageUrl = `/push/${req.file.filename}`
+    res.json({ imageUrl })
+  } catch (err) { next(err) }
+}
 
 /* ── default campaigns seeded on first fetch ─────────────────── */
 const DEFAULTS = {
@@ -41,8 +71,8 @@ async function seedDefaults(type) {
   const defs = DEFAULTS[type] || []
   for (const d of defs) {
     await query(
-      `INSERT INTO push_campaigns (type, name, title, body, config, is_active, sort_order)
-       VALUES (?, ?, '', '', ?, 1, ?)`,
+      `INSERT INTO push_campaigns (type, name, title, body, image, config, is_active, sort_order)
+       VALUES (?, ?, '', '', '', ?, 1, ?)`,
       [type, d.name, JSON.stringify(d.config), d.sort_order]
     )
   }
@@ -226,7 +256,7 @@ export async function getCampaigns(req, res, next) {
 
 export async function createCampaign(req, res, next) {
   try {
-    const { type, name, title, body, config, isActive } = req.body
+    const { type, name, title, body, image, config, isActive } = req.body
     const validTypes = ['retention','reconsumo','engagement','events','onboarding','vip']
     if (!validTypes.includes(type)) return res.status(400).json({ error: 'Tipo inválido' })
 
@@ -236,9 +266,9 @@ export async function createCampaign(req, res, next) {
     const sortOrder = Number(countRows?.[0]?.mx || 0) + 1
 
     const { rows, error } = await query(
-      `INSERT INTO push_campaigns (type, name, title, body, config, is_active, sort_order)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [type, name || '', title || '', body || '', JSON.stringify(config || {}), isActive !== false ? 1 : 0, sortOrder]
+      `INSERT INTO push_campaigns (type, name, title, body, image, config, is_active, sort_order)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [type, name || '', title || '', body || '', image || '', JSON.stringify(config || {}), isActive !== false ? 1 : 0, sortOrder]
     )
     if (error) throw error
 
@@ -252,7 +282,7 @@ export async function updateCampaign(req, res, next) {
     const id = Number(req.params.id)
     if (!id) return res.status(400).json({ error: 'ID inválido' })
 
-    const { name, title, body, config, isActive } = req.body
+    const { name, title, body, image, config, isActive } = req.body
     const sets = []; const vals = []
     const addStr  = (col, v) => { if (v !== undefined) { sets.push(`${col} = ?`); vals.push(v) } }
     const addBool = (col, v) => { if (v !== undefined) { sets.push(`${col} = ?`); vals.push(v ? 1 : 0) } }
@@ -261,6 +291,7 @@ export async function updateCampaign(req, res, next) {
     addStr('name',      name)
     addStr('title',     title)
     addStr('body',      body)
+    addStr('image',     image)
     addJson('config',   config)
     addBool('is_active', isActive)
 
@@ -553,19 +584,19 @@ async function getAudienceTokens(audience) {
 
 export async function sendDirect(req, res, next) {
   try {
-    const { title, body, audience = 'all' } = req.body
+    const { title, body, image, audience = 'all' } = req.body
     if (!title?.trim() || !body?.trim()) return res.status(400).json({ error: 'Título y mensaje requeridos' })
 
     const tokens = await getAudienceTokens(audience)
     if (!tokens.length) return res.json({ sent: 0, failed: 0, target: 0 })
 
-    const sendResult = await sendMulticast(tokens, title.trim(), body.trim())
+    const sendResult = await sendMulticast(tokens, title.trim(), body.trim(), { image })
 
     await query(
       `INSERT INTO push_history
-       (campaign_id, campaign_type, campaign_name, title, body, target_count, sent_count, failed_count, trigger_type)
-       VALUES (NULL, 'direct', ?, ?, ?, ?, ?, ?, 'manual')`,
-      [audience, title.trim(), body.trim(), tokens.length, sendResult.sent, sendResult.failed]
+       (campaign_id, campaign_type, campaign_name, title, body, image, target_count, sent_count, failed_count, trigger_type)
+       VALUES (NULL, 'direct', ?, ?, ?, ?, ?, ?, ?, 'manual')`,
+      [audience, title.trim(), body.trim(), image || '', tokens.length, sendResult.sent, sendResult.failed]
     )
 
     if (sendResult.invalidTokenIds.length) {
@@ -583,13 +614,14 @@ async function executeSend(campaign, tokens, triggerType) {
   const sendResult = await sendMulticast(tokens, campaign.title, campaign.body, {
     campaign_id:   String(campaign.id),
     campaign_type: campaign.type,
+    image:         campaign.image,
   })
 
   const { rows: histRows } = await query(
     `INSERT INTO push_history
-     (campaign_id, campaign_type, campaign_name, title, body, target_count, sent_count, failed_count, trigger_type)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [campaign.id, campaign.type, campaign.name, campaign.title, campaign.body,
+     (campaign_id, campaign_type, campaign_name, title, body, image, target_count, sent_count, failed_count, trigger_type)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    [campaign.id, campaign.type, campaign.name, campaign.title, campaign.body, campaign.image,
      tokens.length, sendResult.sent, sendResult.failed, triggerType]
   )
   const historyId = histRows?.insertId
@@ -662,7 +694,7 @@ export async function getHistory(req, res, next) {
     const total = Number(cntRows?.[0]?.total || 0)
 
     const { rows } = await query(
-      `SELECT id, campaign_id, campaign_type, campaign_name, title, body,
+      `SELECT id, campaign_id, campaign_type, campaign_name, title, body, image,
               target_count, sent_count, failed_count, trigger_type, sent_at
        FROM push_history ORDER BY sent_at DESC LIMIT ${limit} OFFSET ${offset}`
     )
@@ -675,6 +707,7 @@ export async function getHistory(req, res, next) {
         campaignName: r.campaign_name,
         title:        r.title,
         body:         r.body,
+        image:        r.image,
         targetCount:  Number(r.target_count),
         sentCount:    Number(r.sent_count),
         failedCount:  Number(r.failed_count),

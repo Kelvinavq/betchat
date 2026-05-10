@@ -12,8 +12,9 @@ export const resolveApiAsset = (url = '') => {
 }
 
 const request = async (endpoint, options = {}) => {
+  const isFormData = options.body instanceof FormData
   const headers = {
-    'Content-Type': 'application/json',
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...options.headers,
   }
 
