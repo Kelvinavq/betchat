@@ -1,16 +1,20 @@
-import { useCallback, useContext, useEffect, useRef } from 'react'
+import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import ChatBubble from '../../components/chat/ChatBubble'
 import { ChatContext } from '../../context/ChatContext'
 import { api } from '../../utils/api'
 import { usePushNotification } from '../../hooks/usePushNotification'
 import PushPrompt from '../../components/chat/PushPrompt'
+import CasinoPopup from '../../components/client/CasinoPopup'
 
 const HOST_ORIGIN = 'https://463.life'
+
+const POPUP_POLL_MS = 120_000
 
 const ClientPage = () => {
   const { clientSession, setClientSession, setIsOpen, setClientAuthLoading } = useContext(ChatContext)
   const { triggerPush } = usePushNotification(clientSession?.id ?? null)
   const loggingInRef = useRef(null)
+  const [popups, setPopups] = useState([])
 
   const applySession = useCallback((session) => {
     setClientSession(session?.client || null)
@@ -103,6 +107,31 @@ const ClientPage = () => {
     return () => window.removeEventListener('message', handleHostMessage)
   }, [handleHostMessage])
 
+  useEffect(() => {
+    let cancelled = false
+    const fetchPopups = async () => {
+      try {
+        const data = await api.get('/api/client/popups/active')
+        if (!cancelled) setPopups(data.popups || [])
+      } catch {
+        // silent — popup fetch failures should never disrupt the client page
+      }
+    }
+    fetchPopups()
+    const id = setInterval(fetchPopups, POPUP_POLL_MS)
+    return () => { cancelled = true; clearInterval(id) }
+  }, [])
+
+  const handlePopupCta = useCallback((popup) => {
+    const action = popup.ctaAction
+    if (!action || action === 'open_chat' || action === 'deposit' ||
+        action === 'promotions' || action === 'lottery' || action === 'roulette') {
+      setIsOpen(true)
+    } else if (action === 'custom_url' && popup.ctaUrl) {
+      window.open(popup.ctaUrl, '_blank', 'noopener,noreferrer')
+    }
+  }, [setIsOpen])
+
   return (
     <div className="client-page" style={{background: "#000"}}>
       <iframe
@@ -113,6 +142,7 @@ const ClientPage = () => {
       />
       <ChatBubble />
       <PushPrompt clientId={clientSession?.id ?? null} onActivate={triggerPush} />
+      <CasinoPopup popups={popups} onCtaClick={handlePopupCta} />
     </div>
   )
 }

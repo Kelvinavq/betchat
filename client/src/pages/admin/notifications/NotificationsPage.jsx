@@ -24,8 +24,9 @@ import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined'
 import { getPaginationItems } from '../../../utils/pagination'
 import { useSystemConfig } from '../../../context/SystemConfigContext'
+import { useToast, useConfirm } from '../../../context/ToastContext'
 import {
-  PageWrap, PageScroll,
+  PageWrap, PageScroll, EmbeddedShell,
   PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
   StatsStrip, StatCard, StatIconWrap, StatInfo, StatValue, StatLabel,
   FiltersBar, SearchBox, SrchIcon, SearchInput, FilterSelect, ResultCount,
@@ -48,6 +49,8 @@ import {
   Toggle, ToggleThumb, ScheduleFields,
   ConfirmBanner, ConfirmTitle, ConfirmSub, ConfirmBtns, ConfirmBtn,
   MainTabsWrap, MainTabBtn, SubsSubTabsWrap, SubsSubTabBtn, CellMuted, TruncateCell,
+  SubsAvatar, avatarGradient, SubsClientCell, SubsNameBlock, SubsName, SubsIdLine,
+  SubsStatusPill, SubsActionBtn, DeviceChip,
   Toast, ToastIconBox, ToastBody, ToastTitle, ToastMsg, ToastClose,
 } from './NotificationsPage.styles'
 
@@ -81,6 +84,8 @@ const statusLabel = (s) =>
 
 const NotificationsPage = ({ onMenuOpen, embedded }) => {
   const { systemConfig } = useSystemConfig()
+  const toast = useToast()
+  const confirm = useConfirm()
   const [mainTab, setMainTab]           = useState(TAB_ENVIOS)
   const [drafts, setDrafts]             = useState([])
   const [historyItems, setHistoryItems] = useState([])
@@ -98,7 +103,7 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
   const [blockedPagination, setBlockedPagination] = useState({
     page: 1, limit: ROWS_PER_PAGE, total: 0, totalPages: 1,
   })
-  const [toast, setToast]               = useState(null)
+  const [localToast, setLocalToast]      = useState(null)
   const [sending, setSending]           = useState(false)
   const [search, setSearch]             = useState('')
   const [debouncedQ, setDebouncedQ]     = useState('')
@@ -120,12 +125,12 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
   }, [search])
 
   useEffect(() => {
-    if (!toast) return
-    const t = setTimeout(() => setToast(null), 4200)
+    if (!localToast) return
+    const t = setTimeout(() => setLocalToast(null), 4200)
     return () => clearTimeout(t)
-  }, [toast])
+  }, [localToast])
 
-  const notify = (message, type = 'success') => setToast({ message, type })
+  const notify = (message, type = 'success') => setLocalToast({ message, type })
 
   const useApiHistory = mainTab === TAB_ENVIOS && statusFilter !== 'borrador' && statusFilter !== 'programada'
 
@@ -299,7 +304,7 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
       setPage(1)
       await loadHistory(1)
     } catch (err) {
-      window.alert(err.message || 'Error al enviar la notificación')
+      toast.error(err.message || 'Error al enviar la notificación')
     } finally {
       setSending(false)
     }
@@ -314,7 +319,8 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
   }
 
   const revokeSubscriber = async (s) => {
-    if (!window.confirm('¿Quitar esta suscripción? El dispositivo dejará de recibir push. El cliente puede volver a activarlas desde la app si no está bloqueado.')) return
+    const ok = await confirm({ title: 'Confirmar', body: '¿Quitar esta suscripción? El dispositivo dejará de recibir push. El cliente puede volver a activarlas desde la app si no está bloqueado.', confirmLabel: 'Confirmar', danger: true })
+    if (!ok) return
     try {
       await api.delete(`/api/push/token/${s.tokenId}`)
       notify('Suscripción quitada')
@@ -325,7 +331,8 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
   }
 
   const blockSubscriber = async (s) => {
-    if (!window.confirm(`¿Bloquear notificaciones push para ${s.fullName}? No recibirá envíos y la app no podrá registrar un nuevo token hasta que lo desbloquees.`)) return
+    const ok = await confirm({ title: 'Confirmar', body: `¿Bloquear notificaciones push para ${s.fullName}? No recibirá envíos y la app no podrá registrar un nuevo token hasta que lo desbloquees.`, confirmLabel: 'Confirmar', danger: true })
+    if (!ok) return
     try {
       await api.post(`/api/push/client/${s.clientId}/block-push`, {})
       notify('Cliente bloqueado para push')
@@ -486,8 +493,8 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
               </ResultCount>
             </FiltersBar>
 
-            <TableCard>
-              <TableScroll>
+            <TableCard $embedded={embedded}>
+              <TableScroll $embedded={embedded}>
                 <Table>
                   <Thead>
                     <tr>
@@ -632,8 +639,8 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
               </ResultCount>
             </FiltersBar>
 
-            <TableCard>
-              <TableScroll>
+            <TableCard $embedded={embedded}>
+              <TableScroll $embedded={embedded}>
                 <Table>
                   {subsListView === 'activos' ? (
                     <>
@@ -642,7 +649,7 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
                           <Th>Cliente</Th>
                           <Th>Usuario</Th>
                           <Th>ID externo</Th>
-                          <Th>Última actividad</Th>
+                          <Th>Última vista</Th>
                           <Th>Dispositivo</Th>
                           <Th $center>Acciones</Th>
                         </tr>
@@ -656,39 +663,51 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
                           <EmptyRow>
                             <EmptyCell colSpan={6}>No hay suscripciones push activas</EmptyCell>
                           </EmptyRow>
-                        ) : subscribers.map(s => (
+                        ) : subscribers.map(s => {
+                          const initials = ((s.fullName || s.username || '#')[0] + (s.fullName?.split(' ')[1]?.[0] || '')).toUpperCase()
+                          return (
                           <Tr key={s.tokenId}>
                             <Td>
-                              <NotifTitle>{s.fullName}</NotifTitle>
-                              <CellMuted>ID #{s.clientId}</CellMuted>
+                              <SubsClientCell>
+                                <SubsAvatar $gradient={avatarGradient(s.clientId)}>{initials}</SubsAvatar>
+                                <SubsNameBlock>
+                                  <SubsName title={s.fullName}>{s.fullName || s.username || `#${s.clientId}`}</SubsName>
+                                  <SubsIdLine>ID #{s.clientId}</SubsIdLine>
+                                </SubsNameBlock>
+                              </SubsClientCell>
                             </Td>
-                            <Td><TruncateCell title={s.username}>{s.username}</TruncateCell></Td>
-                            <Td>{s.externalId || '—'}</Td>
+                            <Td>
+                              <TruncateCell title={s.username} style={{ color: 'rgba(255,255,255,.55)', fontSize: 12 }}>
+                                {s.username ? `@${s.username}` : '—'}
+                              </TruncateCell>
+                            </Td>
+                            <Td><CellMuted>{s.externalId || '—'}</CellMuted></Td>
                             <Td>
                               {s.tokenLastSeen ? (
                                 <>
                                   <DateText>{fmtDate(s.tokenLastSeen)}</DateText>
                                   <DateSub>{fmtTime(s.tokenLastSeen)}</DateSub>
                                 </>
-                              ) : (
-                                <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
-                              )}
+                              ) : <DateText style={{ color: 'rgba(255,255,255,.14)' }}>—</DateText>}
                             </Td>
                             <Td>
-                              <TruncateCell title={s.device || ''}>{s.device || '—'}</TruncateCell>
+                              {s.device
+                                ? <DeviceChip title={s.device}>{s.device.slice(0, 38)}{s.device.length > 38 ? '…' : ''}</DeviceChip>
+                                : <CellMuted>—</CellMuted>}
                             </Td>
                             <Td $center>
-                              <ActionBtns style={{ justifyContent: 'center' }}>
-                                <ActionBtn type="button" title="Quitar suscripción (este dispositivo)" onClick={() => revokeSubscriber(s)}>
-                                  <LinkOffOutlinedIcon />
-                                </ActionBtn>
-                                <ActionBtn type="button" $v="warn" title="Bloquear push para este cliente" onClick={() => blockSubscriber(s)}>
-                                  <BlockOutlinedIcon />
-                                </ActionBtn>
+                              <ActionBtns style={{ justifyContent: 'center', gap: 6 }}>
+                                <SubsActionBtn $variant="revoke" type="button" title="Quitar esta suscripción" onClick={() => revokeSubscriber(s)}>
+                                  <LinkOffOutlinedIcon />Quitar
+                                </SubsActionBtn>
+                                <SubsActionBtn $variant="block" type="button" title="Bloquear push para este cliente" onClick={() => blockSubscriber(s)}>
+                                  <BlockOutlinedIcon />Bloquear
+                                </SubsActionBtn>
                               </ActionBtns>
                             </Td>
                           </Tr>
-                        ))}
+                          )
+                        })}
                       </Tbody>
                     </>
                   ) : (
@@ -699,7 +718,7 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
                           <Th>Usuario</Th>
                           <Th>ID externo</Th>
                           <Th>CUIL</Th>
-                          <Th>Actualizado</Th>
+                          <Th>Estado</Th>
                           <Th $center>Acciones</Th>
                         </tr>
                       </Thead>
@@ -712,34 +731,33 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
                           <EmptyRow>
                             <EmptyCell colSpan={6}>No hay clientes bloqueados para push</EmptyCell>
                           </EmptyRow>
-                        ) : blockedClients.map(c => (
-                          <Tr key={c.clientId}>
+                        ) : blockedClients.map(c => {
+                          const initials = ((c.fullName || c.username || '#')[0] + (c.fullName?.split(' ')[1]?.[0] || '')).toUpperCase()
+                          return (
+                          <Tr key={c.clientId} style={{ opacity: .7 }}>
                             <Td>
-                              <NotifTitle>{c.fullName}</NotifTitle>
-                              <CellMuted>ID #{c.clientId}</CellMuted>
+                              <SubsClientCell>
+                                <SubsAvatar $gradient={avatarGradient(c.clientId)} style={{ opacity: .6 }}>{initials}</SubsAvatar>
+                                <SubsNameBlock>
+                                  <SubsName title={c.fullName}>{c.fullName || c.username || `#${c.clientId}`}</SubsName>
+                                  <SubsIdLine>ID #{c.clientId}</SubsIdLine>
+                                </SubsNameBlock>
+                              </SubsClientCell>
                             </Td>
-                            <Td><TruncateCell title={c.username}>{c.username}</TruncateCell></Td>
-                            <Td>{c.externalId || '—'}</Td>
-                            <Td>{c.cuil || '—'}</Td>
+                            <Td><TruncateCell title={c.username} style={{ color: 'rgba(255,255,255,.45)', fontSize: 12 }}>{c.username ? `@${c.username}` : '—'}</TruncateCell></Td>
+                            <Td><CellMuted>{c.externalId || '—'}</CellMuted></Td>
+                            <Td><CellMuted>{c.cuil || '—'}</CellMuted></Td>
                             <Td>
-                              {c.updatedAt ? (
-                                <>
-                                  <DateText>{fmtDate(c.updatedAt)}</DateText>
-                                  <DateSub>{fmtTime(c.updatedAt)}</DateSub>
-                                </>
-                              ) : (
-                                <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
-                              )}
+                              <SubsStatusPill $active={false}>⛔ Bloqueado</SubsStatusPill>
                             </Td>
                             <Td $center>
-                              <ActionBtns style={{ justifyContent: 'center' }}>
-                                <ActionBtn type="button" $v="send" title="Desbloquear push" onClick={() => unblockClientPush(c)}>
-                                  <CheckCircleOutlinedIcon />
-                                </ActionBtn>
-                              </ActionBtns>
+                              <SubsActionBtn $variant="unblock" type="button" onClick={() => unblockClientPush(c)}>
+                                <CheckCircleOutlinedIcon />Desbloquear
+                              </SubsActionBtn>
                             </Td>
                           </Tr>
-                        ))}
+                          )
+                        })}
                       </Tbody>
                     </>
                   )}
@@ -770,16 +788,16 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
           </>
         )}
 
-      {toast && (
-        <Toast $type={toast.type}>
-          <ToastIconBox $type={toast.type}>
-            {toast.type === 'danger' ? <ErrorOutlinedIcon /> : <CheckCircleOutlinedIcon />}
+      {localToast && (
+        <Toast $type={localToast.type}>
+          <ToastIconBox $type={localToast.type}>
+            {localToast.type === 'danger' ? <ErrorOutlinedIcon /> : <CheckCircleOutlinedIcon />}
           </ToastIconBox>
           <ToastBody>
-            <ToastTitle>{toast.type === 'danger' ? 'Error' : 'Listo'}</ToastTitle>
-            <ToastMsg>{toast.message}</ToastMsg>
+            <ToastTitle>{localToast.type === 'danger' ? 'Error' : 'Listo'}</ToastTitle>
+            <ToastMsg>{localToast.message}</ToastMsg>
           </ToastBody>
-          <ToastClose type="button" aria-label="Cerrar" onClick={() => setToast(null)}><CloseIcon /></ToastClose>
+          <ToastClose type="button" aria-label="Cerrar" onClick={() => setLocalToast(null)}><CloseIcon /></ToastClose>
         </Toast>
       )}
 
@@ -1030,7 +1048,7 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
     </>
   )
 
-  if (embedded) return <>{inner}</>
+  if (embedded) return <EmbeddedShell>{inner}</EmbeddedShell>
 
   return (
     <PageWrap>

@@ -26,19 +26,24 @@ import {
   HistSection, HistTitle, HistTable, HistRow, HistName, HistSub, HistCount, HistRate, HistDate,
   HistPager, HistPagerBtn, HistPagerInfo, HistPagerTotal,
   SettingsCard, SettingsGrid, SelectInput,
+  SubsSearchBar, SubsSearch, SubsCount,
+  SubsTableWrap, SubsTableScroll, SubsTable, SubsThead, SubsTh, SubsTr, SubsTd,
+  SubsName, SubsMeta, SubsStatusBadge, SubsToggleBtn,
+  SubsPager, SubsPagerInfo, SubsPagerBtns, SubsPagerBtn,
   Spinner, Empty, ErrorLine,
 } from './PushPage.styles'
 
 /* ── constants ─────────────────────────────────────────────────── */
 const TABS = [
-  { id: 'directas',   label: 'Push directas' },
-  { id: 'retencion',  label: 'Retención' },
-  { id: 'reconsumo',  label: 'Reconsumo' },
-  { id: 'engagement', label: 'Engagement' },
-  { id: 'eventos',    label: 'Eventos' },
-  { id: 'vip',        label: 'VIP' },
-  { id: 'onboarding', label: 'Onboarding' },
-  { id: 'ajustes',    label: 'Ajustes' },
+  { id: 'directas',      label: 'Push directas' },
+  { id: 'retencion',     label: 'Retención' },
+  { id: 'reconsumo',     label: 'Reconsumo' },
+  { id: 'engagement',    label: 'Engagement' },
+  { id: 'eventos',       label: 'Eventos' },
+  { id: 'vip',           label: 'VIP' },
+  { id: 'onboarding',    label: 'Onboarding' },
+  { id: 'suscriptores',  label: 'Suscriptores' },
+  { id: 'ajustes',       label: 'Ajustes' },
 ]
 
 const DAYS_ES = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb']
@@ -872,6 +877,164 @@ function VipSection({ settings, onGlobalToggle }) {
   )
 }
 
+/* ── SUBSCRIBERS ────────────────────────────────────────────────── */
+const SUBS_PAGE_SIZE = 15
+
+function SubscribersSection() {
+  const [rows, setRows]         = useState([])
+  const [loading, setLoading]   = useState(true)
+  const [toggling, setToggling] = useState(null)
+  const [search, setSearch]     = useState('')
+  const [page, setPage]         = useState(1)
+  const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 1 })
+  const searchRef = useRef(null)
+
+  const load = useCallback(async (p = 1, q = '') => {
+    setLoading(true)
+    try {
+      const params = new URLSearchParams({ page: p, limit: SUBS_PAGE_SIZE })
+      if (q) params.set('q', q)
+      const d = await api.get(`/api/push/subscribers?${params}`)
+      setRows(d.subscribers || [])
+      if (d.pagination) setPagination(d.pagination)
+    } catch { setRows([]) } finally { setLoading(false) }
+  }, [])
+
+  useEffect(() => { load(1, '') }, [load])
+
+  useEffect(() => {
+    const t = setTimeout(() => { setPage(1); load(1, search) }, 380)
+    return () => clearTimeout(t)
+  }, [search])
+
+  const handleToggleBlock = async (sub) => {
+    setToggling(sub.clientId)
+    try {
+      if (sub.pushBlocked) {
+        await api.post(`/api/push/client/${sub.clientId}/unblock-push`)
+      } else {
+        await api.post(`/api/push/client/${sub.clientId}/block-push`)
+      }
+      setRows(prev => prev.map(r =>
+        r.clientId === sub.clientId
+          ? { ...r, pushBlocked: !r.pushBlocked, tokenActive: r.pushBlocked }
+          : r
+      ))
+    } catch { /* ignore */ } finally { setToggling(null) }
+  }
+
+  const goPage = (p) => { setPage(p); load(p, search) }
+
+  const fmtAgo = (iso) => {
+    if (!iso) return '—'
+    const d = Math.floor((Date.now() - new Date(iso)) / 86400000)
+    if (d === 0) return 'Hoy'
+    if (d === 1) return 'Ayer'
+    return `hace ${d} días`
+  }
+
+  return (
+    <>
+      <SectionHead>
+        <div>
+          <SectionTitle>Suscriptores</SectionTitle>
+          <SectionSub>Clientes con push activadas — podés bloquearlos individualmente</SectionSub>
+        </div>
+      </SectionHead>
+
+      <SubsSearchBar>
+        <SubsSearch
+          ref={searchRef}
+          placeholder="Buscar por usuario, nombre, ID..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+        />
+        <SubsCount>{fmtNum(pagination.total)} suscriptor{pagination.total !== 1 ? 'es' : ''}</SubsCount>
+      </SubsSearchBar>
+
+      <SubsTableWrap>
+        {loading ? (
+          <Empty><Spinner />&nbsp; Cargando...</Empty>
+        ) : rows.length === 0 ? (
+          <Empty>Sin suscriptores</Empty>
+        ) : (
+          <SubsTableScroll>
+            <SubsTable>
+              <SubsThead>
+                <tr>
+                  <SubsTh>Cliente</SubsTh>
+                  <SubsTh>Dispositivo</SubsTh>
+                  <SubsTh>Última actividad</SubsTh>
+                  <SubsTh>Suscripto</SubsTh>
+                  <SubsTh>Estado</SubsTh>
+                  <SubsTh></SubsTh>
+                </tr>
+              </SubsThead>
+              <tbody>
+                {rows.map(s => (
+                  <SubsTr key={s.tokenId} $blocked={s.pushBlocked}>
+                    <SubsTd>
+                      <SubsName>{s.fullName || s.username || `#${s.clientId}`}</SubsName>
+                      <SubsMeta>
+                        {s.username && s.fullName ? `@${s.username}` : ''}
+                        {s.externalId ? ` · ID: ${s.externalId}` : ''}
+                      </SubsMeta>
+                    </SubsTd>
+                    <SubsTd>
+                      <SubsMeta style={{ fontSize: 11.5 }}>
+                        {s.device ? s.device.slice(0, 40) + (s.device.length > 40 ? '…' : '') : '—'}
+                      </SubsMeta>
+                    </SubsTd>
+                    <SubsTd>{fmtAgo(s.tokenLastSeen)}</SubsTd>
+                    <SubsTd>{fmtAgo(s.tokenCreatedAt)}</SubsTd>
+                    <SubsTd>
+                      <SubsStatusBadge $blocked={s.pushBlocked}>
+                        {s.pushBlocked ? '⛔ Bloqueado' : '✅ Activo'}
+                      </SubsStatusBadge>
+                    </SubsTd>
+                    <SubsTd>
+                      <SubsToggleBtn
+                        type="button"
+                        $blocked={s.pushBlocked}
+                        disabled={toggling === s.clientId}
+                        onClick={() => handleToggleBlock(s)}
+                      >
+                        {toggling === s.clientId
+                          ? <Spinner />
+                          : s.pushBlocked ? 'Desbloquear' : 'Bloquear'}
+                      </SubsToggleBtn>
+                    </SubsTd>
+                  </SubsTr>
+                ))}
+              </tbody>
+            </SubsTable>
+          </SubsTableScroll>
+        )}
+
+        {!loading && (
+          <SubsPager>
+            <SubsPagerInfo>
+              {pagination.total} total · página {pagination.page} de {pagination.totalPages}
+            </SubsPagerInfo>
+            <SubsPagerBtns>
+              <SubsPagerBtn
+                type="button"
+                disabled={page <= 1}
+                onClick={() => goPage(page - 1)}
+              >← Anterior</SubsPagerBtn>
+              <SubsPagerBtn
+                type="button"
+                disabled={page >= pagination.totalPages}
+                onClick={() => goPage(page + 1)}
+              >Siguiente →</SubsPagerBtn>
+            </SubsPagerBtns>
+          </SubsPager>
+        )}
+      </SubsTableWrap>
+    </>
+  )
+}
+
 /* ── SETTINGS + HISTORY ─────────────────────────────────────────── */
 function SettingsSection({ settings, onSettings }) {
   const [form, setForm]       = useState(settings || {})
@@ -1021,7 +1184,7 @@ function SettingsSection({ settings, onSettings }) {
                 </HistRow>
               ))}
             </HistTable>
-            {histPagination.totalPages > 1 && (
+            {!histLoading && (
               <HistPager>
                 <HistPagerBtn
                   type="button"
@@ -1130,7 +1293,7 @@ export default function PushPage({ onMenuClick }) {
         ))}
       </TabsWrap>
 
-      <Content>
+      <Content $fill={tab === 'directas'}>
         {tab === 'directas'   && <NotificationsPage embedded />}
         {tab === 'retencion'  && <RetentionSection />}
         {tab === 'reconsumo'  && <ReconsumptionSection />}
@@ -1146,6 +1309,7 @@ export default function PushPage({ onMenuClick }) {
         {tab === 'onboarding' && settings && (
           <OnboardingSection settings={settings} onGlobalToggle={handleGlobalToggle} />
         )}
+        {tab === 'suscriptores' && <SubscribersSection />}
         {tab === 'ajustes'    && settings && (
           <SettingsSection settings={settings} onSettings={setSettings} />
         )}

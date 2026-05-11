@@ -29,6 +29,7 @@ import withdrawalRoutes from './routes/withdrawalRoutes.js'
 import hgCashRoutes from './routes/hgCashRoutes.js'
 import mercadoPagoRoutes from './routes/mercadoPagoRoutes.js'
 import pushRoutes from './routes/pushRoutes.js'
+import clientPopupRoutes from './routes/clientPopupRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { setupChatSockets } from './socket/chatSocket.js';
@@ -99,6 +100,7 @@ app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/hgcash', hgCashRoutes);
 app.use('/api/mercadopago', mercadoPagoRoutes);
 app.use('/api/push', pushRoutes);
+app.use('/api/client/popups', clientPopupRoutes);
 
 // Middleware para logging de requests
 app.use((req, res, next) => {

@@ -8,6 +8,7 @@ import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
 import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined'
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange'
 import { api } from '../../../utils/api'
+import { useToast } from '../../../context/ToastContext'
 
 const STATUS_LABELS = { pending: 'Pendiente', approved: 'Aprobado', rejected: 'Rechazado' }
 
@@ -31,6 +32,7 @@ function parseFormData(text) {
 
 /* ─── Detail Component ──────────────────────────────────────── */
 const WithdrawalDetail = ({ withdrawal, chatId, onBack, onStatusChange }) => {
+  const toast = useToast()
   const [updatingId, setUpdatingId] = useState(null)
   const [pendingAction, setPendingAction] = useState(null)
   const [rejectMsgs, setRejectMsgs] = useState([])
@@ -63,7 +65,7 @@ const WithdrawalDetail = ({ withdrawal, chatId, onBack, onStatusChange }) => {
       const result = await api.put(`/api/withdrawals/${withdrawal.id}/pending`)
       if (result.withdrawal) onStatusChange(result.withdrawal)
     } catch (err) {
-      window.alert(err.message || 'No se pudo actualizar la solicitud.')
+      toast.error(err.message || 'No se pudo actualizar la solicitud.')
     } finally { setUpdatingId(null) }
   }
 
@@ -73,19 +75,19 @@ const WithdrawalDetail = ({ withdrawal, chatId, onBack, onStatusChange }) => {
       const result = await api.put(`/api/withdrawals/${withdrawal.id}/resolve`, { action: 'approved' })
       if (result.withdrawal) { onStatusChange(result.withdrawal); setPendingAction(null) }
     } catch (err) {
-      window.alert(err.message || 'No se pudo aprobar el retiro.')
+      toast.error(err.message || 'No se pudo aprobar el retiro.')
     } finally { setUpdatingId(null) }
   }
 
   const confirmRejected = async () => {
     const message = isCustom ? customMsg.trim() : selectedMsg
-    if (!message) { window.alert('Seleccioná o escribí un mensaje para el cliente.'); return }
+    if (!message) { toast.error('Seleccioná o escribí un mensaje para el cliente.'); return }
     setUpdatingId('rejected')
     try {
       const result = await api.put(`/api/withdrawals/${withdrawal.id}/resolve`, { action: 'rejected', message })
       if (result.withdrawal) { onStatusChange(result.withdrawal); setPendingAction(null) }
     } catch (err) {
-      window.alert(err.message || 'No se pudo rechazar el retiro.')
+      toast.error(err.message || 'No se pudo rechazar el retiro.')
     } finally { setUpdatingId(null) }
   }
 

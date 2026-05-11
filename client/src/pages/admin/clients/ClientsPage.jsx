@@ -21,6 +21,7 @@ import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalance
 import AddCardIcon from '@mui/icons-material/AddCard'
 import RemoveIcon from '@mui/icons-material/Remove'
 import { api } from '../../../utils/api'
+import { useConfirm } from '../../../context/ToastContext'
 import { getPaginationItems } from '../../../utils/pagination'
 import {
   PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub,
@@ -433,6 +434,7 @@ const BalanceModal = ({ client, onClose, notify }) => {
 
 /* ── main page ── */
 const ClientsPage = ({ onMenuOpen }) => {
+  const confirm = useConfirm()
   const [clients, setClients]       = useState([])
   const [loading, setLoading]       = useState(true)
   const [saving, setSaving]         = useState(false)
@@ -612,7 +614,8 @@ const ClientsPage = ({ onMenuOpen }) => {
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('¿Estás seguro de que quieres eliminar este cliente?')) return
+    const ok = await confirm({ title: 'Confirmar', body: '¿Estás seguro de que quieres eliminar este cliente?', confirmLabel: 'Confirmar', danger: true })
+    if (!ok) return
 
     try {
       await api.delete(`/api/clients/${id}`)

@@ -39,6 +39,10 @@ function sanitizeModal(row) {
     dismissible: config.dismissible !== false,
     ctaLabel: config.ctaLabel || '',
     ctaUrl: config.ctaUrl || '',
+    ctaAction: config.ctaAction || '',
+    viewsCount: Number(config.viewsCount || 0),
+    isTemplate: Boolean(config.isTemplate),
+    design: config.design || 'gold',
     is_active: Boolean(row.is_active),
     created_at: row.created_at ?? null,
     updated_at: row.updated_at ?? null,
@@ -56,7 +60,6 @@ function validatePayload(body, { partial = false } = {}) {
 
   if (!partial || body.body !== undefined) {
     payload.body = String(body.body || '').trim()
-    if (!payload.body) errors.push('El mensaje es requerido')
   }
 
   if (!partial || body.name !== undefined) {
@@ -84,6 +87,10 @@ function validatePayload(body, { partial = false } = {}) {
     dismissible: body.dismissible !== false,
     ctaLabel: String(body.ctaLabel || ''),
     ctaUrl: String(body.ctaUrl || ''),
+    ctaAction: String(body.ctaAction || ''),
+    viewsCount: Number(body.viewsCount || 0),
+    isTemplate: Boolean(body.isTemplate),
+    design: ['gold', 'neon', 'fire', 'diamond'].includes(body.design) ? body.design : 'gold',
   }
   payload.is_active = payload.config.status !== 'borrador'
 
@@ -235,6 +242,29 @@ export async function updateModal(req, res, next) {
   } catch (err) {
     next(err)
   }
+}
+
+export async function getActivePopups(req, res, next) {
+  try {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000)
+      .toISOString().replace('T', ' ').slice(0, 19)
+
+    const { rows, error } = await query(
+      `SELECT id, name, title, content, type, \`trigger\`, config, is_active, created_at, updated_at
+       FROM modals
+       WHERE is_active = 1
+         AND JSON_UNQUOTE(JSON_EXTRACT(config, '$.status')) = 'enviada'
+         AND (JSON_UNQUOTE(JSON_EXTRACT(config, '$.isTemplate')) IS NULL
+              OR JSON_UNQUOTE(JSON_EXTRACT(config, '$.isTemplate')) = 'false')
+         AND (JSON_UNQUOTE(JSON_EXTRACT(config, '$.sentAt')) >= ?
+              OR JSON_EXTRACT(config, '$.sentAt') IS NULL)
+       ORDER BY id DESC
+       LIMIT 5`,
+      [twoHoursAgo]
+    )
+    if (error) return next(error)
+    res.json({ popups: (rows || []).map(sanitizeModal) })
+  } catch (err) { next(err) }
 }
 
 export async function deleteModal(req, res, next) {

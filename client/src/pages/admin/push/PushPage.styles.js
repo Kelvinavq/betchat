@@ -129,11 +129,12 @@ export const TabBtn = styled.button`
 export const Content = styled.div`
   flex: 1;
   min-height: 0;
-  overflow-y: auto;
-  padding: 18px 22px 32px;
+  overflow-y: ${({ $fill }) => $fill ? 'hidden' : 'auto'};
+  padding: ${({ $fill }) => $fill ? '0' : '18px 22px 32px'};
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  align-items: stretch;
+  gap: ${({ $fill }) => $fill ? '0' : '14px'};
 `
 
 /* ── section header (with global toggle) ────────────────────────── */
@@ -544,8 +545,9 @@ export const HistPager = styled.div`
   align-items: center;
   justify-content: center;
   gap: 14px;
-  padding: 12px 0 0;
+  padding: 12px 0 4px;
   flex-wrap: wrap;
+  flex-shrink: 0;
 `
 
 export const HistPagerBtn = styled.button`
@@ -639,4 +641,172 @@ export const ErrorLine = styled.div`
   font-size: 12px;
   color: #f87171;
   padding: 4px 0;
+`
+
+/* ── subscriber table ───────────────────────────────────────────── */
+export const SubsSearchBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+`
+
+export const SubsSearch = styled.input`
+  flex: 1;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.10);
+  border-radius: 9px;
+  padding: 8px 13px;
+  font-size: 13px;
+  color: #fff;
+  outline: none;
+  &::placeholder { color: rgba(255,255,255,.28); }
+  &:focus { border-color: rgba(99,102,241,.45); }
+`
+
+export const SubsCount = styled.span`
+  font-size: 12px;
+  color: rgba(255,255,255,.32);
+  white-space: nowrap;
+`
+
+export const SubsTableWrap = styled.div`
+  background: rgba(255,255,255,.025);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+`
+
+export const SubsTableScroll = styled.div`
+  overflow-x: auto;
+  &::-webkit-scrollbar { height: 3px; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,.10); border-radius: 2px; }
+`
+
+export const SubsTable = styled.table`
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 600px;
+`
+
+export const SubsThead = styled.thead`
+  background: rgba(255,255,255,.035);
+  border-bottom: 1px solid rgba(255,255,255,.06);
+`
+
+export const SubsTh = styled.th`
+  padding: 10px 14px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,.35);
+  letter-spacing: .5px;
+  text-transform: uppercase;
+  white-space: nowrap;
+`
+
+export const SubsTr = styled.tr`
+  border-bottom: 1px solid rgba(255,255,255,.04);
+  transition: background .12s;
+  opacity: ${p => p.$blocked ? .55 : 1};
+  &:last-child { border-bottom: none; }
+  &:hover { background: rgba(255,255,255,.03); }
+`
+
+export const SubsTd = styled.td`
+  padding: 11px 14px;
+  font-size: 12.5px;
+  color: rgba(255,255,255,.75);
+  vertical-align: middle;
+`
+
+export const SubsName = styled.div`
+  font-weight: 600;
+  color: rgba(255,255,255,.88);
+  font-size: 13px;
+`
+
+export const SubsMeta = styled.div`
+  font-size: 11px;
+  color: rgba(255,255,255,.35);
+  margin-top: 2px;
+`
+
+export const SubsStatusBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  ${p => p.$blocked
+    ? 'background: rgba(248,113,113,.12); border: 1px solid rgba(248,113,113,.28); color: #fca5a5;'
+    : 'background: rgba(52,211,153,.10); border: 1px solid rgba(52,211,153,.25); color: #6ee7b7;'
+  }
+`
+
+export const SubsToggleBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 8px;
+  border: 1px solid ${p => p.$blocked
+    ? 'rgba(52,211,153,.28)'
+    : 'rgba(248,113,113,.28)'};
+  background: ${p => p.$blocked
+    ? 'rgba(52,211,153,.08)'
+    : 'rgba(248,113,113,.08)'};
+  color: ${p => p.$blocked ? '#6ee7b7' : '#fca5a5'};
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity .15s;
+  white-space: nowrap;
+  &:hover { opacity: .75; }
+  &:disabled { opacity: .35; cursor: default; }
+`
+
+export const SubsPager = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 11px 16px;
+  border-top: 1px solid rgba(255,255,255,.05);
+  flex-wrap: wrap;
+  flex-shrink: 0;
+`
+
+export const SubsPagerInfo = styled.span`
+  font-size: 12px;
+  color: rgba(255,255,255,.32);
+`
+
+export const SubsPagerBtns = styled.div`
+  display: flex;
+  gap: 6px;
+`
+
+export const SubsPagerBtn = styled.button`
+  min-width: 76px;
+  height: 30px;
+  padding: 0 12px;
+  border-radius: 7px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(255,255,255,.05);
+  color: rgba(255,255,255,.65);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .13s, border-color .13s;
+  &:hover:not(:disabled) {
+    background: rgba(99,102,241,.12);
+    border-color: rgba(99,102,241,.32);
+    color: #c7d2fe;
+  }
+  &:disabled { opacity: .3; cursor: not-allowed; }
 `

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import MenuIcon from '@mui/icons-material/Menu'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
@@ -6,197 +6,534 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import SendIcon from '@mui/icons-material/Send'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
-import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined'
-import ChevronLeftIcon from '@mui/icons-material/ChevronLeft'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import SearchIcon from '@mui/icons-material/Search'
-import NotificationsNoneOutlinedIcon from '@mui/icons-material/NotificationsNoneOutlined'
-import { api } from '../../../utils/api'
-import { getPaginationItems } from '../../../utils/pagination'
+import FolderOpenOutlinedIcon from '@mui/icons-material/FolderOpenOutlined'
+import ForumOutlinedIcon from '@mui/icons-material/ForumOutlined'
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined'
+import DoneAllOutlinedIcon from '@mui/icons-material/DoneAllOutlined'
+import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined'
+import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
+import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import { api, API_BASE_URL, resolveApiAsset } from '../../../utils/api'
+import { DESIGN_OPTIONS } from '../../../components/client/CasinoPopup'
 import {
-  PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, AddBtn, TitleBlock, PageTitle, PageSub,
+  PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
   StatsStrip, StatCard, StatIconWrap, StatInfo, StatValue, StatLabel,
-  FiltersBar, SearchBox, SrchIcon, SearchInput, FilterSelect, ResultCount,
-  TableCard, TableScroll, Table, Thead, Th, Tbody, Tr, Td,
-  NotifCell, NotifIconBadge, NotifMeta, NotifTitle, NotifBodyPreview,
-  AudienceBadge, StatusBadge, DateText, DateSub, ActionBtns, ActionBtn,
-  Pagination, PaginInfo, PaginBtns, PaginBtn,
-  Overlay, ModalCard, ModalHead, ModalIconBadge, ModalHeadText, ModalTitle, ModalSub,
-  ModalClose, ModalBody, ModalFoot, FootLeft, FootRight, ModalBtn,
-  Field, FieldLabel, FieldInput, FieldTextarea, FieldSelect, CharCount,
-  ScheduleToggleRow, ScheduleRowLabel, ScheduleRowTitle, ScheduleRowSub,
-  Toggle, ToggleThumb, ScheduleFields, ConfirmBanner, ConfirmTitle,
-  ConfirmSub, ConfirmBtns, ConfirmBtn,
+  MainGrid, SendPanel, PanelTitle, PanelSub,
+  PreviewHistoryPanel, PopupPreview, PopupPreviewImg, PopupPreviewBody, PopupPreviewClose,
+  PopupPreviewTitle, PopupPreviewMsg, PopupPreviewCta, PreviewPlaceholder,
+  HistLabel, HistList, HistItem, HistItemTitle, HistItemMeta, HistItemDate, HistEmpty,
+  FieldGroup, FieldLabel, FieldInput, FieldTextarea, FieldSelect, FieldRow, CharCount,
+  ImgRow, ImgPathInput, ImgPickBtn, ImgPreview, UploadSpinner, UploadErr,
+  AudienceRow, AudienceLabel, AudienceBtn,
+  ScheduleToggle, ScheduleToggleLeft, ScheduleToggleTitle, ScheduleToggleSub,
+  Toggle, ToggleThumb, ScheduleFields,
+  SendBtn, SendBtnSpin,
+  TemplatesSection, TemplatesSectionHead, TemplatesSectionTitle, TemplatesSectionSub, NewTplBtn,
+  TemplateGrid, TemplateCard, CardName, CardTitle, CardBody, CardImg, CardCta, CardDivider, CardActions,
+  UseBtn, IconBtn, getCardAccent,
+  EmptyState, EmptyIcon, EmptyTitle, EmptySub, EmptyBtns, EmptySeedBtn, EmptyNewBtn,
+  SeedPreviewGrid, SeedPreviewCard, SeedCardName, SeedCardBody,
+  Overlay, DialogCard, DialogHead, DialogIconBadge, DialogHeadText, DialogTitle, DialogSub, DialogClose,
+  DialogBody, DialogFoot, CancelBtn, SaveTplBtn,
+  DlgFieldRow, DlgField, DlgLabel, DlgRequired, DlgInput, DlgTextarea, DlgSelect,
+  Spinner, LoadingWrap,
+  StatusBadge, SendSuccess, SendError,
+  DesignPickerWrap, DesignOption, DesignOptionSwatch, DesignOptionLabel, DesignOptionDesc,
 } from './ModalsPage.styles'
 
-const PAGE_SIZE = 8
-const AUDIENCE_OPTIONS = [
-  { value: 'all', label: 'Todos', icon: 'Global' },
-  { value: 'active', label: 'Activos', icon: 'OK' },
-  { value: 'vip', label: 'VIP', icon: 'VIP' },
+/* ── constants ──────────────────────────────────────────────────────── */
+const CTA_ACTIONS = [
+  { value: '',           label: 'Sin acción' },
+  { value: 'open_chat',  label: '💬 Abrir Chat (Menú Principal)' },
+  { value: 'deposit',    label: '💳 Cargar Fichas' },
+  { value: 'promotions', label: '🎁 Ver Promociones' },
+  { value: 'lottery',    label: '🎰 Ver Sorteos' },
+  { value: 'roulette',   label: '🎡 Ruleta' },
+  { value: 'custom_url', label: '🌐 URL personalizada' },
 ]
 
-const BLANK_FORM = {
-  title: '',
-  body: '',
-  img: '',
-  audience: 'all',
-  scheduled: false,
-  schedDate: '',
-  schedTime: '',
-  dismissible: true,
-  ctaLabel: '',
-  ctaUrl: '',
+const AUDIENCE_OPTIONS = [
+  { value: 'all',    label: 'Todos' },
+  { value: 'active', label: 'Activos' },
+  { value: 'vip',    label: 'VIP' },
+]
+
+const BLANK_LIVE = {
+  title: '', body: '', img: '',
+  ctaLabel: '', ctaAction: 'open_chat',
+  audience: 'all', scheduled: false, schedDate: '', schedTime: '',
+  design: 'gold',
 }
 
-const audienceLabel = value => AUDIENCE_OPTIONS.find(option => option.value === value)?.label ?? value
-const fmtDate = iso => iso ? new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }) : null
-const fmtTime = iso => iso ? new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }) : null
-const statusLabel = status => status === 'enviada' ? 'Mostrado' : status === 'programada' ? 'Programado' : 'Borrador'
-
-const toInputDate = (iso) => {
-  if (!iso) return ''
-  return new Date(iso).toISOString().slice(0, 10)
+const BLANK_TPL = {
+  name: '', title: '', body: '', img: '', ctaLabel: '', ctaAction: 'open_chat', design: 'gold',
 }
 
-const toInputTime = (iso) => {
-  if (!iso) return ''
-  return new Date(iso).toISOString().slice(11, 16)
+/* ── DesignPicker shared component ── */
+function DesignPicker({ value, onChange }) {
+  return (
+    <DesignPickerWrap>
+      {DESIGN_OPTIONS.map(d => (
+        <DesignOption
+          key={d.value}
+          type="button"
+          $active={value === d.value}
+          $accent={d.accent}
+          $bg={d.bg}
+          onClick={() => onChange(d.value)}
+        >
+          <DesignOptionSwatch $bg={d.bg} $accent={d.accent}>{d.label.split(' ')[0]}</DesignOptionSwatch>
+          <DesignOptionLabel $active={value === d.value} $accent={d.accent}>{d.label.split(' ')[1]}</DesignOptionLabel>
+          <DesignOptionDesc>{d.desc}</DesignOptionDesc>
+        </DesignOption>
+      ))}
+    </DesignPickerWrap>
+  )
 }
 
-const ModalsPage = ({ onMenuOpen }) => {
-  const [modals, setModals] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [search, setSearch] = useState('')
-  const [statusFilter, setStatusFilter] = useState('')
-  const [page, setPage] = useState(1)
-  const [modalOpen, setModalOpen] = useState(false)
-  const [editModal, setEditModal] = useState(null)
-  const [form, setForm] = useState(BLANK_FORM)
-  const [confirmStep, setConfirmStep] = useState(false)
-  const [stats, setStats] = useState({ enviadas: 0, programadas: 0, borradores: 0 })
-  const [pagination, setPagination] = useState({ page: 1, limit: PAGE_SIZE, total: 0, totalPages: 1 })
+const CASINO_TEMPLATES = [
+  {
+    name: '🔥 BONO 100% NOCTURNO',
+    title: '👀 ¿Estás por ahí? Tengo una sorpresa... 🎁',
+    body: '🔥 ¡100% EXTRA en todo lo que deposites ahora, ganás y cobrás al instante! 🔥',
+    ctaLabel: 'CARGAR AHORA ',
+    ctaAction: 'deposit',
+  },
+  {
+    name: '🎡 RULETA GRATIS',
+    title: '🎡 TE REGALAMOS UN GIRO GRATIS EN NUESTRA RULETA 🎡',
+    body: '🎰 Probá tu suerte en nuestra RULETA GRATIS 🎰 ✅ Sin Depósito 🎁 Grandes premios te esperan... 🎁',
+    ctaLabel: 'PARTICIPAR YA',
+    ctaAction: 'roulette',
+  },
+  {
+    name: '🏆 SORTEO SEMANAL',
+    title: '🏆 ¡EL SORTEO MÁS GRANDE TE ESPERA!',
+    body: '🏆 Participá en el sorteo semanal. Elegí entre 1 y 5 y ¡GANÁ premios increíbles! ✨',
+    ctaLabel: 'PARTICIPAR AHORA',
+    ctaAction: 'lottery',
+  },
+  {
+    name: '💎 MALETÍN MILLONARIO',
+    title: '💎 Evento especial: MALETÍN MILLONARIO AL 200%',
+    body: '💎 Beneficio exclusivo. Hoy podés pegarla en grande: cargá y DUPLICÁ al instante. ¡No te lo pierdas!',
+    ctaLabel: 'CARGAR AHORA',
+    ctaAction: 'deposit',
+  },
+]
 
-  const loadModals = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params = new URLSearchParams({
-        page: String(page),
-        limit: String(PAGE_SIZE),
-        search: search.trim(),
-        status: statusFilter,
-      })
-      const data = await api.get('/api/modals?' + params.toString())
-      setModals(data.modals || [])
-      setStats(data.stats || { enviadas: 0, programadas: 0, borradores: 0 })
-      setPagination(data.pagination || { page, limit: PAGE_SIZE, total: data.modals?.length || 0, totalPages: 1 })
-    } finally {
-      setLoading(false)
+/* ── helpers ─────────────────────────────────────────────────────────── */
+const fmtDate = (iso) => {
+  if (!iso) return '—'
+  return new Date(iso).toLocaleString('es-AR', {
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
+const ctaLabel = (action) =>
+  CTA_ACTIONS.find(a => a.value === action)?.label || action || '—'
+
+async function uploadImg(file, token) {
+  const formData = new FormData()
+  formData.append('image', file)
+  const base = String(API_BASE_URL).replace(/\/+$/, '')
+  const res = await fetch(`${base}/api/push/upload-image`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${token}` },
+    credentials: 'include',
+    body: formData,
+  })
+  const json = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(json.error || `Error HTTP ${res.status}`)
+  return json.imageUrl
+}
+
+function getToken() {
+  return localStorage.getItem('token') || localStorage.getItem('talgibravi-istazo') || ''
+}
+
+/* ── PopupLivePreview ─────────────────────────────────────────────────── */
+function PopupLivePreview({ form }) {
+  const src = form.img ? resolveApiAsset(form.img) : ''
+  if (!form.title && !form.body) {
+    return (
+      <PreviewPlaceholder>
+        <VisibilityOutlinedIcon />
+        <span>La vista previa aparecerá aquí</span>
+      </PreviewPlaceholder>
+    )
+  }
+  return (
+    <PopupPreview>
+      {src && (
+        <PopupPreviewImg>
+          <img src={src} alt="" />
+        </PopupPreviewImg>
+      )}
+      <PopupPreviewBody>
+        <PopupPreviewClose>✕</PopupPreviewClose>
+        {form.title && <PopupPreviewTitle>{form.title}</PopupPreviewTitle>}
+        {form.body && <PopupPreviewMsg>{form.body}</PopupPreviewMsg>}
+        {form.ctaLabel && <PopupPreviewCta>{form.ctaLabel}</PopupPreviewCta>}
+      </PopupPreviewBody>
+    </PopupPreview>
+  )
+}
+
+/* ── ImageUploadField ─────────────────────────────────────────────────── */
+function ImageUploadField({ value, onChange, uploading, setUploading, error, setError, inputRef, small }) {
+  const handleFile = async (file) => {
+    if (!file?.type?.startsWith('image/')) {
+      setError('Elegí un archivo de imagen (PNG, JPG, WebP…)')
+      return
     }
-  }, [page, search, statusFilter])
+    setUploading(true)
+    setError('')
+    try {
+      const url = await uploadImg(file, getToken())
+      onChange(url)
+    } catch (e) {
+      setError(e.message || 'Error al subir imagen')
+    } finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
+
+  const src = value ? resolveApiAsset(value) : ''
+
+  return (
+    <>
+      <ImgRow>
+        <ImgPathInput
+          placeholder="https://... o subí una imagen"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          readOnly={uploading}
+          style={{ fontSize: small ? 11.5 : undefined }}
+        />
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          disabled={uploading}
+          onChange={e => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
+        />
+        <ImgPickBtn
+          type="button"
+          disabled={uploading}
+          onClick={() => inputRef.current?.click()}
+          title="Subir imagen"
+        >
+          {uploading ? <UploadSpinner /> : <FolderOpenOutlinedIcon />}
+        </ImgPickBtn>
+      </ImgRow>
+      {error && <UploadErr>{error}</UploadErr>}
+      {src && !uploading && (
+        <ImgPreview>
+          <img src={src} alt="Preview" />
+        </ImgPreview>
+      )}
+    </>
+  )
+}
+
+/* ── TemplateDialog ──────────────────────────────────────────────────── */
+function TemplateDialog({ open, editing, onClose, onSaved }) {
+  const [form, setForm] = useState(BLANK_TPL)
+  const [saving, setSaving] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadErr, setUploadErr] = useState('')
+  const imgRef = useRef()
 
   useEffect(() => {
-    queueMicrotask(() => { loadModals() })
-  }, [loadModals])
-
-  const totalPages = pagination.totalPages
-  const pages = getPaginationItems({ currentPage: pagination.page, totalPages })
-
-  const openNew = () => {
-    setEditModal(null)
-    setForm(BLANK_FORM)
-    setConfirmStep(false)
-    setModalOpen(true)
-  }
-
-  const openEdit = (modal) => {
-    setEditModal(modal)
-    setForm({
-      title: modal.title,
-      body: modal.body,
-      img: modal.img,
-      audience: modal.audience,
-      scheduled: Boolean(modal.scheduledFor),
-      schedDate: toInputDate(modal.scheduledFor),
-      schedTime: toInputTime(modal.scheduledFor),
-      dismissible: modal.dismissible ?? true,
-      ctaLabel: modal.ctaLabel ?? '',
-      ctaUrl: modal.ctaUrl ?? '',
-    })
-    setConfirmStep(false)
-    setModalOpen(true)
-  }
-
-  const closeModal = () => {
-    setModalOpen(false)
-    setConfirmStep(false)
-    setEditModal(null)
-  }
-
-  const setField = (key, value) => setForm(current => ({ ...current, [key]: value }))
-
-  const buildPayload = (status) => {
-    const scheduledFor = form.scheduled && form.schedDate
-      ? new Date(`${form.schedDate}T${form.schedTime || '00:00'}:00`).toISOString()
-      : null
-    const resolvedStatus = scheduledFor ? 'programada' : status
-
-    return {
-      name: form.title,
-      title: form.title,
-      body: form.body,
-      img: form.img,
-      audience: form.audience,
-      status: resolvedStatus,
-      sentAt: resolvedStatus === 'enviada' ? new Date().toISOString() : null,
-      scheduledFor,
-      dismissible: Boolean(form.dismissible),
-      ctaLabel: form.ctaLabel,
-      ctaUrl: form.ctaUrl,
+    if (!open) return
+    if (editing) {
+      setForm({
+        name:      editing.name || '',
+        title:     editing.title || '',
+        body:      editing.body || '',
+        img:       editing.img || '',
+        ctaLabel:  editing.ctaLabel || '',
+        ctaAction: editing.ctaAction || 'open_chat',
+        design:    editing.design || 'gold',
+      })
+    } else {
+      setForm(BLANK_TPL)
     }
-  }
+    setUploadErr('')
+  }, [open, editing])
 
-  const persistModal = async (payload) => {
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const isValid = form.name.trim() && form.title.trim()
+
+  const save = async () => {
+    if (!isValid) return
     setSaving(true)
     try {
-      if (editModal) await api.put('/api/modals/' + editModal.id, payload)
-      else {
-        await api.post('/api/modals', payload)
-        setPage(1)
+      const payload = {
+        name: form.name,
+        title: form.title,
+        body: form.body,
+        img: form.img,
+        ctaLabel: form.ctaLabel,
+        ctaAction: form.ctaAction,
+        design: form.design || 'gold',
+        status: 'borrador',
+        audience: 'all',
+        dismissible: true,
+        isTemplate: true,
       }
-      closeModal()
-      await loadModals()
-    } finally {
-      setSaving(false)
-    }
+      if (editing) {
+        await api.put(`/api/modals/${editing.id}`, payload)
+      } else {
+        await api.post('/api/modals', payload)
+      }
+      onSaved()
+      onClose()
+    } catch { } finally { setSaving(false) }
   }
 
-  const saveDraft = () => {
-    persistModal({ ...buildPayload('borrador'), status: 'borrador', sentAt: null, scheduledFor: null })
+  if (!open) return null
+  return (
+    <Overlay onClick={e => e.target === e.currentTarget && onClose()}>
+      <DialogCard>
+        <DialogHead>
+          <DialogIconBadge><EditOutlinedIcon /></DialogIconBadge>
+          <DialogHeadText>
+            <DialogTitle>{editing ? 'Editar Plantilla' : 'Nueva Plantilla'}</DialogTitle>
+            <DialogSub>{editing ? `Plantilla: ${editing.name}` : 'Creá una plantilla reutilizable'}</DialogSub>
+          </DialogHeadText>
+          <DialogClose type="button" onClick={onClose}><CloseIcon /></DialogClose>
+        </DialogHead>
+
+        <DialogBody>
+          <DlgFieldRow>
+            <DlgField>
+              <DlgLabel>
+                Nombre de la plantilla <DlgRequired>*</DlgRequired>
+              </DlgLabel>
+              <DlgInput
+                placeholder="Ej: BONO 100% NOCTURNO"
+                value={form.name}
+                onChange={e => set('name', e.target.value)}
+              />
+            </DlgField>
+            <DlgField>
+              <DlgLabel>
+                Título del popup <DlgRequired>*</DlgRequired>
+              </DlgLabel>
+              <DlgInput
+                placeholder="Ej: 👀 ¿Estás por ahí?"
+                value={form.title}
+                onChange={e => set('title', e.target.value)}
+              />
+            </DlgField>
+          </DlgFieldRow>
+
+          <DlgField>
+            <DlgLabel>Mensaje</DlgLabel>
+            <DlgTextarea
+              placeholder="Texto principal del popup..."
+              maxLength={300}
+              value={form.body}
+              onChange={e => set('body', e.target.value)}
+            />
+          </DlgField>
+
+          <DlgField>
+            <DlgLabel>Imagen (opcional)</DlgLabel>
+            <ImageUploadField
+              value={form.img}
+              onChange={v => set('img', v)}
+              uploading={uploading}
+              setUploading={setUploading}
+              error={uploadErr}
+              setError={setUploadErr}
+              inputRef={imgRef}
+              small
+            />
+          </DlgField>
+
+          <DlgFieldRow>
+            <DlgField>
+              <DlgLabel>Texto del botón</DlgLabel>
+              <DlgInput
+                placeholder="CARGAR FICHAS"
+                value={form.ctaLabel}
+                onChange={e => set('ctaLabel', e.target.value)}
+              />
+            </DlgField>
+            <DlgField>
+              <DlgLabel>Acción del botón</DlgLabel>
+              <DlgSelect
+                value={form.ctaAction}
+                onChange={e => set('ctaAction', e.target.value)}
+              >
+                {CTA_ACTIONS.map(a => (
+                  <option key={a.value} value={a.value}>{a.label}</option>
+                ))}
+              </DlgSelect>
+            </DlgField>
+          </DlgFieldRow>
+
+          <DlgField>
+            <DlgLabel>Diseño del popup</DlgLabel>
+            <DesignPicker value={form.design || 'gold'} onChange={v => set('design', v)} />
+          </DlgField>
+        </DialogBody>
+
+        <DialogFoot>
+          <CancelBtn type="button" onClick={onClose}>Cancelar</CancelBtn>
+          <SaveTplBtn
+            type="button"
+            $saving={saving}
+            disabled={!isValid || saving || uploading}
+            onClick={save}
+          >
+            {saving ? <Spinner /> : <SaveOutlinedIcon style={{ fontSize: 16 }} />}
+            {editing ? 'Actualizar' : 'Crear plantilla'}
+          </SaveTplBtn>
+        </DialogFoot>
+      </DialogCard>
+    </Overlay>
+  )
+}
+
+/* ── MAIN PAGE ───────────────────────────────────────────────────────── */
+export default function ModalsPage({ onMenuOpen }) {
+  const [templates, setTemplates]     = useState([])
+  const [tplLoading, setTplLoading]   = useState(true)
+  const [history, setHistory]         = useState([])
+  const [histLoading, setHistLoading] = useState(true)
+  const [stats, setStats]             = useState({ enviadas: 0, programadas: 0, borradores: 0 })
+
+  /* live send form */
+  const [live, setLive]           = useState(BLANK_LIVE)
+  const [sending, setSending]     = useState(false)
+  const [sendErr, setSendErr]     = useState('')
+  const [sendOk, setSendOk]       = useState(false)
+  const [liveUploading, setLiveUploading] = useState(false)
+  const [liveUploadErr, setLiveUploadErr] = useState('')
+  const liveImgRef = useRef()
+
+  /* template dialog */
+  const [dlgOpen, setDlgOpen]       = useState(false)
+  const [editingTpl, setEditingTpl] = useState(null)
+
+  /* seed loading */
+  const [seeding, setSeeding] = useState(false)
+
+  const loadTemplates = useCallback(async () => {
+    setTplLoading(true)
+    try {
+      const data = await api.get('/api/modals?status=borrador&limit=100')
+      setTemplates(data.modals || [])
+      setStats(data.stats || { enviadas: 0, programadas: 0, borradores: 0 })
+    } catch { } finally { setTplLoading(false) }
+  }, [])
+
+  const loadHistory = useCallback(async () => {
+    setHistLoading(true)
+    try {
+      const data = await api.get('/api/modals?limit=12')
+      const sent = (data.modals || []).filter(m => m.status === 'enviada' || m.status === 'programada')
+      setHistory(sent)
+    } catch { } finally { setHistLoading(false) }
+  }, [])
+
+  useEffect(() => {
+    loadTemplates()
+    loadHistory()
+  }, [loadTemplates, loadHistory])
+
+  /* auto-seed casino templates on first use */
+  const seedTemplates = async () => {
+    setSeeding(true)
+    try {
+      for (const t of CASINO_TEMPLATES) {
+        await api.post('/api/modals', {
+          name: t.name, title: t.title, body: t.body,
+          img: '', ctaLabel: t.ctaLabel, ctaAction: t.ctaAction,
+          status: 'borrador', audience: 'all', dismissible: true, isTemplate: true,
+        })
+      }
+      await loadTemplates()
+    } catch { } finally { setSeeding(false) }
   }
 
-  const doSend = (save = false) => {
-    if (editModal || save) persistModal(buildPayload('enviada'))
-    else closeModal()
+  const setLiveField = (k, v) => setLive(f => ({ ...f, [k]: v }))
+
+  const useTpl = (tpl) => {
+    setLive({
+      title:     tpl.title || '',
+      body:      tpl.body || '',
+      img:       tpl.img || '',
+      ctaLabel:  tpl.ctaLabel || '',
+      ctaAction: tpl.ctaAction || 'open_chat',
+      audience:  tpl.audience || 'all',
+      scheduled: false, schedDate: '', schedTime: '',
+      design:    tpl.design || 'gold',
+    })
+    setSendErr('')
+    setSendOk(false)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
-  const handleSend = () => {
-    if (editModal) doSend(true)
-    else setConfirmStep(true)
+  const handleSend = async () => {
+    if (!live.title.trim()) { setSendErr('El título es requerido'); return }
+    setSendErr('')
+    setSendOk(false)
+    setSending(true)
+    try {
+      const scheduledFor = live.scheduled && live.schedDate
+        ? new Date(`${live.schedDate}T${live.schedTime || '09:00'}:00`).toISOString()
+        : null
+      await api.post('/api/modals', {
+        name: live.title,
+        title: live.title,
+        body: live.body,
+        img: live.img,
+        ctaLabel: live.ctaLabel,
+        ctaAction: live.ctaAction,
+        design: live.design || 'gold',
+        audience: live.audience,
+        status: scheduledFor ? 'programada' : 'enviada',
+        sentAt: scheduledFor ? null : new Date().toISOString(),
+        scheduledFor,
+        dismissible: true,
+        isTemplate: false,
+      })
+      setSendOk(true)
+      setTimeout(() => setSendOk(false), 4000)
+      setLive(BLANK_LIVE)
+      await loadHistory()
+      await loadTemplates()
+    } catch (e) {
+      setSendErr(e.message || 'Error al enviar el popup')
+    } finally { setSending(false) }
   }
 
-  const deleteModal = async (id) => {
-    await api.delete('/api/modals/' + id)
-    await loadModals()
+  const deleteTpl = async (id) => {
+    await api.delete(`/api/modals/${id}`).catch(() => {})
+    setTemplates(prev => prev.filter(t => t.id !== id))
+    setStats(prev => ({ ...prev, borradores: Math.max(0, prev.borradores - 1) }))
   }
 
-  const isValid = form.title.trim() && form.body.trim()
-  const sendLabel = form.scheduled ? 'Programar' : 'Mostrar ahora'
+  const openNewTpl = () => { setEditingTpl(null); setDlgOpen(true) }
+  const openEditTpl = (tpl) => { setEditingTpl(tpl); setDlgOpen(true) }
+  const closeDlg = () => { setDlgOpen(false); setEditingTpl(null) }
+
+  const isLiveValid = live.title.trim().length > 0
 
   return (
     <PageWrap>
       <PageScroll>
+        {/* ── header ── */}
         <PageHeader>
           <HeaderLeft>
             {onMenuOpen && (
@@ -205,230 +542,323 @@ const ModalsPage = ({ onMenuOpen }) => {
               </MenuBtn>
             )}
             <TitleBlock>
-              <PageTitle>Ventanas Promocionales</PageTitle>
-              <PageSub>Crea ventanas emergentes que se muestran en tu sitio web</PageSub>
+              <PageTitle>Popups en Vivo</PageTitle>
+              <PageSub>Ventanas emergentes para promover ofertas y eventos en tiempo real</PageSub>
             </TitleBlock>
           </HeaderLeft>
-          <AddBtn type="button" onClick={openNew}><AddIcon /> Nueva ventana</AddBtn>
+          <AddBtn type="button" onClick={openNewTpl}>
+            <AddIcon /> Nueva Plantilla
+          </AddBtn>
         </PageHeader>
 
+        {/* ── stats ── */}
         <StatsStrip>
           <StatCard>
-            <StatIconWrap $bg="rgba(34,197,94,0.10)" $br="rgba(34,197,94,0.20)" $cl="#4ade80"><NotificationsNoneOutlinedIcon /></StatIconWrap>
-            <StatInfo><StatValue>{stats.enviadas}</StatValue><StatLabel>Mostradas</StatLabel></StatInfo>
+            <StatIconWrap $bg="rgba(99,102,241,.12)" $br="rgba(99,102,241,.24)" $cl="#a5b4fc">
+              <FolderOutlinedIcon />
+            </StatIconWrap>
+            <StatInfo>
+              <StatValue>{stats.borradores}</StatValue>
+              <StatLabel>Plantillas</StatLabel>
+            </StatInfo>
           </StatCard>
           <StatCard>
-            <StatIconWrap $bg="rgba(14,165,233,0.10)" $br="rgba(14,165,233,0.20)" $cl="#38bdf8"><NotificationsNoneOutlinedIcon /></StatIconWrap>
-            <StatInfo><StatValue>{stats.programadas}</StatValue><StatLabel>Programadas</StatLabel></StatInfo>
+            <StatIconWrap $bg="rgba(34,197,94,.10)" $br="rgba(34,197,94,.22)" $cl="#4ade80">
+              <DoneAllOutlinedIcon />
+            </StatIconWrap>
+            <StatInfo>
+              <StatValue>{stats.enviadas}</StatValue>
+              <StatLabel>Popups Enviados</StatLabel>
+            </StatInfo>
           </StatCard>
           <StatCard>
-            <StatIconWrap $bg="rgba(255,255,255,0.03)" $br="rgba(255,255,255,0.06)" $cl="rgba(255,255,255,0.35)"><NotificationsNoneOutlinedIcon /></StatIconWrap>
-            <StatInfo><StatValue>{stats.borradores}</StatValue><StatLabel>Borradores</StatLabel></StatInfo>
+            <StatIconWrap $bg="rgba(14,165,233,.10)" $br="rgba(14,165,233,.22)" $cl="#38bdf8">
+              <AccessTimeOutlinedIcon />
+            </StatIconWrap>
+            <StatInfo>
+              <StatValue>{stats.programadas}</StatValue>
+              <StatLabel>Programados</StatLabel>
+            </StatInfo>
           </StatCard>
         </StatsStrip>
 
-        <FiltersBar>
-          <SearchBox>
-            <SrchIcon><SearchIcon /></SrchIcon>
-            <SearchInput placeholder="Buscar ventanas..." value={search} onChange={event => { setSearch(event.target.value); setPage(1) }} />
-          </SearchBox>
-          <FilterSelect value={statusFilter} onChange={event => { setStatusFilter(event.target.value); setPage(1) }}>
-            <option value="">Todos los estados</option>
-            <option value="enviada">Mostradas</option>
-            <option value="programada">Programadas</option>
-            <option value="borrador">Borradores</option>
-          </FilterSelect>
-          <ResultCount>{pagination.total} ventana{pagination.total !== 1 ? 's' : ''}</ResultCount>
-        </FiltersBar>
+        {/* ── main grid: send form + preview/history ── */}
+        <MainGrid>
+          {/* LEFT: send form */}
+          <SendPanel>
+            <div>
+              <PanelTitle>
+                <ForumOutlinedIcon /> Enviar Popup en Vivo
+              </PanelTitle>
+              <PanelSub>Completá los campos y enviá o programá un popup para tus usuarios</PanelSub>
+            </div>
 
-        <TableCard>
-          <TableScroll>
-            <Table>
-              <Thead>
-                <tr>
-                  <Th>Ventana</Th>
-                  <Th>Audiencia</Th>
-                  <Th>Programada</Th>
-                  <Th>Mostrada</Th>
-                  <Th>Estado</Th>
-                  <Th $center>Acciones</Th>
-                </tr>
-              </Thead>
-              <Tbody>
-                {loading ? (
-                  <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.2)' }}>Cargando ventanas...</td></tr>
-                ) : modals.length === 0 ? (
-                  <tr><td colSpan={6} style={{ padding: 40, textAlign: 'center', color: 'rgba(255,255,255,0.2)' }}>No hay ventanas</td></tr>
-                ) : modals.map(modal => (
-                  <Tr key={modal.id}>
-                    <Td>
-                      <NotifCell>
-                        <NotifIconBadge $s={modal.status}><NotificationsNoneOutlinedIcon /></NotifIconBadge>
-                        <NotifMeta>
-                          <NotifTitle>{modal.title}</NotifTitle>
-                          <NotifBodyPreview>{modal.body}</NotifBodyPreview>
-                        </NotifMeta>
-                      </NotifCell>
-                    </Td>
-                    <Td><AudienceBadge><PeopleOutlinedIcon style={{ fontSize: 13 }} />{audienceLabel(modal.audience)}</AudienceBadge></Td>
-                    <Td>{modal.scheduledFor ? (<><DateText>{fmtDate(modal.scheduledFor)}</DateText><DateSub>{fmtTime(modal.scheduledFor)}</DateSub></>) : (<DateText style={{ color: 'rgba(255,255,255,0.14)' }}>-</DateText>)}</Td>
-                    <Td>{modal.sentAt ? (<><DateText>{fmtDate(modal.sentAt)}</DateText><DateSub>{fmtTime(modal.sentAt)}</DateSub></>) : (<DateText style={{ color: 'rgba(255,255,255,0.14)' }}>-</DateText>)}</Td>
-                    <Td><StatusBadge $s={modal.status}>{statusLabel(modal.status)}</StatusBadge></Td>
-                    <Td $center>
-                      <ActionBtns style={{ justifyContent: 'center' }}>
-                        <ActionBtn type="button" title="Editar" onClick={() => openEdit(modal)}><EditOutlinedIcon /></ActionBtn>
-                        <ActionBtn type="button" title="Eliminar" $v="danger" onClick={() => deleteModal(modal.id)}><DeleteOutlinedIcon /></ActionBtn>
-                      </ActionBtns>
-                    </Td>
-                  </Tr>
+            <FieldGroup>
+              <FieldLabel>Título</FieldLabel>
+              <FieldInput
+                placeholder="Ej: 🎁 Promoción Especial!"
+                value={live.title}
+                onChange={e => setLiveField('title', e.target.value)}
+              />
+            </FieldGroup>
+
+            <FieldGroup>
+              <FieldLabel>Mensaje</FieldLabel>
+              <FieldTextarea
+                placeholder="Aprovechá el 200% de bono en tu próximo depósito"
+                maxLength={300}
+                value={live.body}
+                onChange={e => setLiveField('body', e.target.value)}
+              />
+              <CharCount $warn={live.body.length > 240}>{live.body.length}/300</CharCount>
+            </FieldGroup>
+
+            <FieldGroup>
+              <FieldLabel>Imagen (opcional)</FieldLabel>
+              <ImageUploadField
+                value={live.img}
+                onChange={v => setLiveField('img', v)}
+                uploading={liveUploading}
+                setUploading={setLiveUploading}
+                error={liveUploadErr}
+                setError={setLiveUploadErr}
+                inputRef={liveImgRef}
+              />
+            </FieldGroup>
+
+            <FieldRow>
+              <FieldGroup>
+                <FieldLabel>Texto del botón</FieldLabel>
+                <FieldInput
+                  placeholder="CARGAR FICHAS"
+                  value={live.ctaLabel}
+                  onChange={e => setLiveField('ctaLabel', e.target.value)}
+                />
+              </FieldGroup>
+              <FieldGroup>
+                <FieldLabel>Acción del botón</FieldLabel>
+                <FieldSelect
+                  value={live.ctaAction}
+                  onChange={e => setLiveField('ctaAction', e.target.value)}
+                >
+                  {CTA_ACTIONS.map(a => (
+                    <option key={a.value} value={a.value}>{a.label}</option>
+                  ))}
+                </FieldSelect>
+              </FieldGroup>
+            </FieldRow>
+
+            <FieldGroup>
+              <AudienceRow>
+                <AudienceLabel>Destinatario</AudienceLabel>
+                {AUDIENCE_OPTIONS.map(o => (
+                  <AudienceBtn
+                    key={o.value}
+                    type="button"
+                    $active={live.audience === o.value}
+                    onClick={() => setLiveField('audience', o.value)}
+                  >
+                    {o.label}
+                  </AudienceBtn>
                 ))}
-              </Tbody>
-            </Table>
-          </TableScroll>
-          <Pagination>
-            <PaginInfo>
-              {pagination.total === 0
-                ? '0 ventanas'
-                : `${(pagination.page - 1) * PAGE_SIZE + 1}-${Math.min(pagination.page * PAGE_SIZE, pagination.total)} de ${pagination.total}`
+              </AudienceRow>
+            </FieldGroup>
+
+            <FieldGroup>
+              <FieldLabel>Diseño del popup</FieldLabel>
+              <DesignPicker value={live.design || 'gold'} onChange={v => setLiveField('design', v)} />
+            </FieldGroup>
+
+            <ScheduleToggle>
+              <ScheduleToggleLeft>
+                <ScheduleToggleTitle>Programar envío</ScheduleToggleTitle>
+                <ScheduleToggleSub>Elegí fecha y hora de visualización</ScheduleToggleSub>
+              </ScheduleToggleLeft>
+              <Toggle
+                type="button"
+                $on={live.scheduled}
+                onClick={() => setLiveField('scheduled', !live.scheduled)}
+              >
+                <ToggleThumb $on={live.scheduled} />
+              </Toggle>
+            </ScheduleToggle>
+
+            {live.scheduled && (
+              <ScheduleFields>
+                <FieldGroup>
+                  <FieldLabel>Fecha</FieldLabel>
+                  <FieldInput
+                    type="date"
+                    value={live.schedDate}
+                    onChange={e => setLiveField('schedDate', e.target.value)}
+                  />
+                </FieldGroup>
+                <FieldGroup>
+                  <FieldLabel>Hora</FieldLabel>
+                  <FieldInput
+                    type="time"
+                    value={live.schedTime}
+                    onChange={e => setLiveField('schedTime', e.target.value)}
+                  />
+                </FieldGroup>
+              </ScheduleFields>
+            )}
+
+            {sendOk && (
+              <SendSuccess>
+                <CheckCircleOutlinedIcon />
+                {live.scheduled ? '¡Popup programado con éxito!' : '¡Popup enviado con éxito!'}
+              </SendSuccess>
+            )}
+            {sendErr && <SendError>{sendErr}</SendError>}
+
+            <SendBtn
+              type="button"
+              $disabled={!isLiveValid || sending || liveUploading}
+              disabled={!isLiveValid || sending || liveUploading}
+              onClick={handleSend}
+            >
+              {sending
+                ? <><SendBtnSpin /> Enviando...</>
+                : <><SendIcon /> {live.scheduled ? 'Programar Popup' : 'Enviar Popup'}</>
               }
-            </PaginInfo>
-            <PaginBtns>
-              <PaginBtn type="button" onClick={() => setPage(current => Math.max(1, current - 1))} disabled={pagination.page === 1}>
-                <ChevronLeftIcon />
-              </PaginBtn>
-              {pages.map(item => item.type === 'ellipsis' ? (
-                <PaginBtn key={item.key} type="button" disabled>
-                  ...
-                </PaginBtn>
-              ) : (
-                <PaginBtn key={item.key} type="button" $active={item.page === pagination.page} onClick={() => setPage(item.page)}>
-                  {item.page}
-                </PaginBtn>
-              ))}
-              <PaginBtn type="button" onClick={() => setPage(current => Math.min(totalPages, current + 1))} disabled={pagination.page === totalPages}>
-                <ChevronRightIcon />
-              </PaginBtn>
-            </PaginBtns>
-          </Pagination>
-        </TableCard>
+            </SendBtn>
+          </SendPanel>
+
+          {/* RIGHT: preview + history */}
+          <PreviewHistoryPanel>
+            <div>
+              <PanelTitle>
+                <VisibilityOutlinedIcon /> Preview &amp; Historial
+              </PanelTitle>
+            </div>
+
+            <PopupLivePreview form={live} />
+
+            <HistLabel>Historial:</HistLabel>
+            {histLoading ? (
+              <LoadingWrap style={{ minHeight: 80 }}>
+                <Spinner /> Cargando...
+              </LoadingWrap>
+            ) : history.length === 0 ? (
+              <HistEmpty>Sin historial de popups todavía</HistEmpty>
+            ) : (
+              <HistList>
+                {history.map(h => (
+                  <HistItem key={h.id} onClick={() => useTpl(h)}>
+                    <HistItemDate>{fmtDate(h.sentAt || h.scheduledFor)}</HistItemDate>
+                    <HistItemTitle>{h.title || '(sin título)'}</HistItemTitle>
+                    <HistItemMeta>{h.body || '—'}</HistItemMeta>
+                  </HistItem>
+                ))}
+              </HistList>
+            )}
+          </PreviewHistoryPanel>
+        </MainGrid>
+
+        {/* ── templates ── */}
+        <TemplatesSection>
+          <TemplatesSectionHead>
+            <div>
+              <TemplatesSectionTitle>
+                🗂️ Plantillas Guardadas
+              </TemplatesSectionTitle>
+              <TemplatesSectionSub>
+                Usá una plantilla para rellenar el formulario de envío rápidamente
+              </TemplatesSectionSub>
+            </div>
+            <NewTplBtn type="button" onClick={openNewTpl}>
+              <AddIcon /> Nueva Plantilla
+            </NewTplBtn>
+          </TemplatesSectionHead>
+
+          {tplLoading ? (
+            <LoadingWrap>
+              <Spinner /> Cargando plantillas...
+            </LoadingWrap>
+          ) : templates.length === 0 ? (
+            <EmptyState>
+              <EmptyIcon><AutoAwesomeIcon /></EmptyIcon>
+              <EmptyTitle>No tenés plantillas guardadas</EmptyTitle>
+              <EmptySub>
+                Comenzá con 4 plantillas de casino prediseñadas<br />
+                o creá la tuya desde cero.
+              </EmptySub>
+              <SeedPreviewGrid>
+                {CASINO_TEMPLATES.map((t, i) => {
+                  const colors = ['#a5b4fc', '#fcd34d', '#6ee7b7', '#f9a8d4']
+                  return (
+                    <SeedPreviewCard key={i}>
+                      <SeedCardName $cl={colors[i]}>{t.name}</SeedCardName>
+                      <SeedCardBody>{t.body}</SeedCardBody>
+                    </SeedPreviewCard>
+                  )
+                })}
+              </SeedPreviewGrid>
+              <EmptyBtns>
+                <EmptySeedBtn type="button" disabled={seeding} onClick={seedTemplates}>
+                  {seeding ? <><Spinner />Creando...</> : <><AutoAwesomeIcon />Crear las 4 plantillas de casino</>}
+                </EmptySeedBtn>
+                <EmptyNewBtn type="button" onClick={openNewTpl}>
+                  <AddIcon /> Crear plantilla propia
+                </EmptyNewBtn>
+              </EmptyBtns>
+            </EmptyState>
+          ) : (
+            <TemplateGrid>
+              {templates.map((tpl, i) => {
+                const accent = getCardAccent(i)
+                return (
+                  <TemplateCard
+                    key={tpl.id}
+                    $accent={accent}
+                    $delay={`${i * 0.03}s`}
+                  >
+                    <CardName $color={accent.name}>
+                      {tpl.name}
+                      {tpl.design && (
+                        <span style={{ marginLeft: 6, fontSize: 10, opacity: .55, fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>
+                          {DESIGN_OPTIONS.find(d => d.value === tpl.design)?.label || ''}
+                        </span>
+                      )}
+                    </CardName>
+                    {tpl.title && <CardTitle>{tpl.title}</CardTitle>}
+                    {tpl.body && <CardBody>{tpl.body}</CardBody>}
+                    {tpl.img && (
+                      <CardImg>
+                        <img src={resolveApiAsset(tpl.img)} alt="" />
+                      </CardImg>
+                    )}
+                    {(tpl.ctaLabel || tpl.ctaAction) && (
+                      <CardCta>
+                        {tpl.ctaLabel ? `Botón: "${tpl.ctaLabel}"` : ''}
+                        {tpl.ctaAction ? ` → ${ctaLabel(tpl.ctaAction)}` : ''}
+                      </CardCta>
+                    )}
+                    <CardDivider />
+                    <CardActions>
+                      <UseBtn type="button" onClick={() => useTpl(tpl)}>Usar</UseBtn>
+                      <IconBtn type="button" onClick={() => openEditTpl(tpl)}>
+                        <EditOutlinedIcon />
+                      </IconBtn>
+                      <IconBtn type="button" $v="danger" onClick={() => deleteTpl(tpl.id)}>
+                        <DeleteOutlinedIcon />
+                      </IconBtn>
+                    </CardActions>
+                  </TemplateCard>
+                )
+              })}
+            </TemplateGrid>
+          )}
+        </TemplatesSection>
       </PageScroll>
 
-      {modalOpen && (
-        <Overlay onClick={event => event.target === event.currentTarget && closeModal()}>
-          <ModalCard style={{ maxWidth: 580 }}>
-            <ModalHead>
-              <ModalIconBadge><NotificationsNoneOutlinedIcon /></ModalIconBadge>
-              <ModalHeadText>
-                <ModalTitle>{editModal ? 'Editar ventana' : 'Nueva ventana'}</ModalTitle>
-                <ModalSub>{editModal ? `Estado: ${statusLabel(editModal.status)}` : 'Configura cómo se mostrará en la web'}</ModalSub>
-              </ModalHeadText>
-              <ModalClose type="button" onClick={closeModal}><CloseIcon /></ModalClose>
-            </ModalHead>
-
-            <ModalBody>
-              <div style={{ textAlign: 'center', marginBottom: 20 }}>
-                <div style={{
-                  display: 'inline-block', width: 300, minHeight: 240, background: '#111', color: '#fff',
-                  borderRadius: 12, border: '1px solid rgba(255,255,255,0.08)',
-                  boxShadow: '0 12px 30px rgba(0,0,0,0.5)', padding: 20, textAlign: 'left',
-                  position: 'relative',
-                }}>
-                  {form.img && <img src={form.img} alt="" style={{ width: '100%', height: 100, objectFit: 'cover', borderRadius: 8, marginBottom: 12 }} />}
-                  <div style={{ fontWeight: 600, marginBottom: 6 }}>{form.title || 'Título'}</div>
-                  <div style={{ fontSize: 13, color: '#aaa', lineHeight: 1.4, marginBottom: 12 }}>{form.body || 'Contenido del mensaje...'}</div>
-                  {(form.ctaLabel || form.ctaUrl) && (
-                    <button type="button" style={{ background: '#1e86ff', color: '#fff', padding: '6px 10px', borderRadius: 8, border: 'none', fontSize: 12, cursor: 'pointer', width: '100%' }}>
-                      {form.ctaLabel || 'Ir'}
-                    </button>
-                  )}
-                  {form.dismissible !== false && (
-                    <button type="button" style={{ position: 'absolute', top: 8, right: 8, background: 'rgba(0,0,0,0.5)', color: '#fff', border: 'none', borderRadius: 100, width: 24, height: 24, cursor: 'pointer', fontSize: 16 }}>x</button>
-                  )}
-                </div>
-              </div>
-
-              <Field $full>
-                <FieldLabel>Título</FieldLabel>
-                <FieldInput placeholder="Ej: Nueva promoción" maxLength={80} value={form.title} onChange={event => setField('title', event.target.value)} />
-                <CharCount $warn={form.title.length > 60}>{form.title.length}/80</CharCount>
-              </Field>
-
-              <Field $full>
-                <FieldLabel>Mensaje</FieldLabel>
-                <FieldTextarea placeholder="Texto principal..." maxLength={300} value={form.body} onChange={event => setField('body', event.target.value)} />
-                <CharCount $warn={form.body.length > 240}>{form.body.length}/300</CharCount>
-              </Field>
-
-              <Field>
-                <FieldLabel>Imagen URL</FieldLabel>
-                <FieldInput placeholder="https://ejemplo.com/imagen.jpg" value={form.img} onChange={event => setField('img', event.target.value)} />
-              </Field>
-
-              <Field>
-                <FieldLabel>Botón CTA</FieldLabel>
-                <FieldInput placeholder="Texto del botón" value={form.ctaLabel} onChange={event => setField('ctaLabel', event.target.value)} style={{ marginBottom: 8 }} />
-                <FieldInput placeholder="https://destino.com" value={form.ctaUrl} onChange={event => setField('ctaUrl', event.target.value)} />
-              </Field>
-
-              <Field $full>
-                <FieldLabel>Audiencia</FieldLabel>
-                <FieldSelect value={form.audience} onChange={event => setField('audience', event.target.value)}>
-                  {AUDIENCE_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.icon} {option.label}</option>)}
-                </FieldSelect>
-              </Field>
-
-              <ScheduleToggleRow>
-                <ScheduleRowLabel>
-                  <ScheduleRowTitle>Programar visualización</ScheduleRowTitle>
-                  <ScheduleRowSub>Define fecha y hora para que se muestre automáticamente</ScheduleRowSub>
-                </ScheduleRowLabel>
-                <Toggle type="button" $on={form.scheduled} onClick={() => setField('scheduled', !form.scheduled)}><ToggleThumb $on={form.scheduled} /></Toggle>
-              </ScheduleToggleRow>
-
-              {form.scheduled && (
-                <ScheduleFields>
-                  <Field>
-                    <FieldLabel>Fecha</FieldLabel>
-                    <FieldInput type="date" value={form.schedDate} onChange={event => setField('schedDate', event.target.value)} />
-                  </Field>
-                  <Field>
-                    <FieldLabel>Hora</FieldLabel>
-                    <FieldInput type="time" value={form.schedTime} onChange={event => setField('schedTime', event.target.value)} />
-                  </Field>
-                </ScheduleFields>
-              )}
-
-              <Field>
-                <FieldLabel>¿Se puede cerrar?</FieldLabel>
-                <Toggle type="button" $on={form.dismissible} onClick={() => setField('dismissible', !form.dismissible)} style={{ width: 60 }}><ToggleThumb $on={form.dismissible} /></Toggle>
-              </Field>
-
-              {confirmStep && (
-                <ConfirmBanner>
-                  <ConfirmTitle>¿Guardar en librería?</ConfirmTitle>
-                  <ConfirmSub>Puedes guardar esta ventana para usarla después.</ConfirmSub>
-                  <ConfirmBtns>
-                    <ConfirmBtn type="button" onClick={() => doSend(false)}>Solo mostrar</ConfirmBtn>
-                    <ConfirmBtn type="button" $primary onClick={() => doSend(true)}>Guardar y mostrar</ConfirmBtn>
-                  </ConfirmBtns>
-                </ConfirmBanner>
-              )}
-            </ModalBody>
-
-            {!confirmStep && (
-              <ModalFoot>
-                <FootLeft><ModalBtn type="button" $v="ghost" onClick={closeModal}>Cancelar</ModalBtn></FootLeft>
-                <FootRight>
-                  <ModalBtn type="button" onClick={saveDraft} disabled={!isValid || saving} style={{ opacity: isValid ? 1 : 0.42 }}><SaveOutlinedIcon style={{ fontSize: 16 }} /> Guardar borrador</ModalBtn>
-                  <ModalBtn type="button" $v="primary" onClick={handleSend} disabled={!isValid || saving} style={{ opacity: isValid ? 1 : 0.42 }}><SendIcon style={{ fontSize: 16 }} /> {saving ? 'Guardando...' : sendLabel}</ModalBtn>
-                </FootRight>
-              </ModalFoot>
-            )}
-          </ModalCard>
-        </Overlay>
-      )}
+      <TemplateDialog
+        open={dlgOpen}
+        editing={editingTpl}
+        onClose={closeDlg}
+        onSaved={loadTemplates}
+      />
     </PageWrap>
   )
 }
-
-export default ModalsPage

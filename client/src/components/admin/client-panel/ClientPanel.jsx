@@ -21,6 +21,7 @@ import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import TabletAndroidIcon from '@mui/icons-material/TabletAndroid'
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
 import { api, resolveApiAsset } from '../../../utils/api'
+import { useToast } from '../../../context/ToastContext'
 import {
   Wrap, PanelHeader, CloseBtn, PanelAvatar, PanelOnlineDot, PanelUsername, PanelStatus,
   TabBar, Tab, ScrollArea,
@@ -473,6 +474,7 @@ const FileViewer = ({ data, onClose }) => {
 }
 
 const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
+  const toast = useToast()
   const [tab, setTab] = useState('info')
   const [fileFilter, setFileFilter] = useState('all')
   const [filePage, setFilePage] = useState(1)
@@ -544,7 +546,7 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
       return true
     } catch (error) {
       setLoadedDetails(previous)
-      window.alert(error.message || 'No se pudo guardar la informacion del cliente')
+      toast.error(error.message || 'No se pudo guardar la informacion del cliente')
       return false
     } finally {
       setSaving(false)
@@ -568,7 +570,7 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
       })
       .catch((error) => {
         setLoadedDetails(prev => ({ ...(prev.chatId === client.id ? prev : details), labels: previousLabels }))
-        window.alert(error.message || 'No se pudieron guardar las etiquetas')
+        toast.error(error.message || 'No se pudieron guardar las etiquetas')
       })
   }
 
@@ -586,7 +588,7 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
       setNewLabelName('')
       if (!activeTags.has(normalizeLabel(label.name))) toggleTag(label)
     } catch (error) {
-      window.alert(error.message || 'No se pudo crear la etiqueta')
+      toast.error(error.message || 'No se pudo crear la etiqueta')
     } finally {
       setCreatingLabel(false)
     }

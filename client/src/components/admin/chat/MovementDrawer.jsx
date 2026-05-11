@@ -13,6 +13,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import { api } from '../../../utils/api'
+import { useToast } from '../../../context/ToastContext'
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
@@ -89,6 +90,7 @@ const DetailInfoRow = ({ label, value, mono }) => (
 const REJECT_EVENTS = ['deposit_failed', 'receipt_invalid', 'receipt_amount_low', 'receipt_duplicate', 'receipt_insufficient_info']
 
 const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialAction }) => {
+  const toast = useToast()
   const [updatingId, setUpdatingId] = useState(null)
   const [pendingAction, setPendingAction] = useState(null)
   const [editAmount, setEditAmount] = useState('')
@@ -128,7 +130,7 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
       const result = await api.put(`/api/chats/${chatId}/movements/manual/${movement.id}/status`, { status: 'pending' })
       if (result.movement) onStatusChange(result.movement)
     } catch (err) {
-      window.alert(err.message || 'No se pudo actualizar el movimiento.')
+      toast.error(err.message || 'No se pudo actualizar el movimiento.')
     } finally {
       setUpdatingId(null)
     }
@@ -140,13 +142,13 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
 
   const confirmPaid = async () => {
     const amount = parseFloat(String(editAmount).replace(',', '.'))
-    if (!Number.isFinite(amount) || amount <= 0) { window.alert('Ingresá un monto válido.'); return }
+    if (!Number.isFinite(amount) || amount <= 0) { toast.error('Ingresá un monto válido.'); return }
     setUpdatingId('paid')
     try {
       const result = await api.put(`/api/chats/${chatId}/movements/manual/${movement.id}/resolve`, { action: 'paid', amount })
       if (result.movement) { onStatusChange(result.movement); setPendingAction(null) }
     } catch (err) {
-      window.alert(err.message || 'No se pudo procesar el pago.')
+      toast.error(err.message || 'No se pudo procesar el pago.')
     } finally {
       setUpdatingId(null)
     }
@@ -154,13 +156,13 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
 
   const confirmRejected = async () => {
     const message = isCustom ? customMsg.trim() : selectedMsg
-    if (!message) { window.alert('Seleccioná o escribí un mensaje para el cliente.'); return }
+    if (!message) { toast.error('Seleccioná o escribí un mensaje para el cliente.'); return }
     setUpdatingId('rejected')
     try {
       const result = await api.put(`/api/chats/${chatId}/movements/manual/${movement.id}/resolve`, { action: 'rejected', message })
       if (result.movement) { onStatusChange(result.movement); setPendingAction(null) }
     } catch (err) {
-      window.alert(err.message || 'No se pudo rechazar el movimiento.')
+      toast.error(err.message || 'No se pudo rechazar el movimiento.')
     } finally {
       setUpdatingId(null)
     }
@@ -363,6 +365,7 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
 
 /* ─── Main Component ────────────────────────────────────────────────── */
 const MovementDrawer = ({ chat, onClose }) => {
+  const toast = useToast()
   const [provider, setProvider] = useState('all')
   const [accountId, setAccountId] = useState('all')
   const [search, setSearch] = useState('')
@@ -445,7 +448,7 @@ const MovementDrawer = ({ chat, onClose }) => {
         }))
       }
     } catch (err) {
-      window.alert(err.message || 'No se pudo actualizar el movimiento.')
+      toast.error(err.message || 'No se pudo actualizar el movimiento.')
     } finally {
       setUpdatingId(null)
     }

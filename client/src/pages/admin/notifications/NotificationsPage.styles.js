@@ -129,7 +129,7 @@ export const AddBtn = styled.button`
 
 /* ── stats strip ── */
 export const StatsStrip = styled.div`
-  display: flex; gap: 10px; margin-bottom: 20px;
+  width: 100%; display: flex; gap: 10px; margin-bottom: 20px;
   @media (max-width: 600px) { flex-wrap: wrap; }
 `
 export const StatCard = styled.div`
@@ -155,7 +155,7 @@ export const StatLabel = styled.p`
 
 /* ── filters bar ── */
 export const FiltersBar = styled.div`
-  display: flex; align-items: center; gap: 10px;
+  width: 100%; display: flex; align-items: center; gap: 10px;
   margin-bottom: 18px; flex-wrap: wrap;
 `
 export const SearchBox = styled.div`
@@ -192,15 +192,30 @@ export const ResultCount = styled.span`
 
 /* ── table ── */
 export const TableCard = styled.div`
+  width: 100%;
   background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 18px; overflow: hidden;
   animation: ${fadeUp} 0.26s ease both;
+  ${({ $embedded }) => $embedded && css`
+    flex: 1; min-height: 0;
+    display: flex; flex-direction: column;
+  `}
 `
 export const TableScroll = styled.div`
   overflow-x: auto;
   &::-webkit-scrollbar { height: 3px; }
   &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+  ${({ $embedded }) => $embedded && css`
+    flex: 1; min-height: 0; overflow-y: auto;
+    &::-webkit-scrollbar { width: 4px; height: 3px; }
+  `}
+`
+export const EmbeddedShell = styled.div`
+  display: flex; flex-direction: column;
+  flex: 1; min-height: 0; overflow: hidden;
+  padding: 18px 22px 0;
+  gap: 14px;
 `
 export const Table = styled.table`
   width: 100%; border-collapse: collapse; min-width: 720px;
@@ -323,7 +338,8 @@ export const ActionBtn = styled.button`
 /* ── pagination ── */
 export const Pagination = styled.div`
   display: flex; align-items: center; justify-content: space-between;
-  padding: 13px 16px; border-top: 1px solid rgba(255,255,255,0.06);
+  padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
 `
 export const PaginInfo = styled.span`font-size: 12px; color: rgba(255,255,255,0.28);`
 export const PaginBtns = styled.div`display: flex; gap: 4px;`
@@ -743,4 +759,80 @@ export const ConfirmBtn = styled.button`
     color: rgba(255,255,255,0.58);
   `}
   &:hover { opacity: 0.82; }
+`
+
+/* ── subscriber table ────────────────────────────────────────────── */
+const AVATAR_PALETTE = [
+  'linear-gradient(135deg,#6366f1,#4f46e5)',
+  'linear-gradient(135deg,#0ea5e9,#0284c7)',
+  'linear-gradient(135deg,#10b981,#059669)',
+  'linear-gradient(135deg,#f59e0b,#d97706)',
+  'linear-gradient(135deg,#ec4899,#db2777)',
+  'linear-gradient(135deg,#8b5cf6,#7c3aed)',
+  'linear-gradient(135deg,#14b8a6,#0d9488)',
+  'linear-gradient(135deg,#f97316,#ea580c)',
+]
+export const avatarGradient = (id) => AVATAR_PALETTE[(Number(id) || 0) % AVATAR_PALETTE.length]
+
+export const SubsAvatar = styled.div`
+  width: 34px; height: 34px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: ${({ $gradient }) => $gradient};
+  font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.95);
+  letter-spacing: 0.02em;
+  box-shadow: 0 2px 8px rgba(0,0,0,.25);
+`
+
+export const SubsClientCell = styled.div`
+  display: flex; align-items: center; gap: 10px;
+`
+
+export const SubsNameBlock = styled.div`min-width: 0;`
+
+export const SubsName = styled.div`
+  font-size: 13px; font-weight: 600; color: rgba(255,255,255,.88);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 160px;
+`
+
+export const SubsIdLine = styled.div`
+  font-size: 11px; color: rgba(255,255,255,.28); margin-top: 2px;
+`
+
+export const SubsStatusPill = styled.span`
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 3px 9px; border-radius: 20px; font-size: 11px; font-weight: 600;
+  ${({ $active }) => $active ? css`
+    background: rgba(52,211,153,.10); border: 1px solid rgba(52,211,153,.25); color: #6ee7b7;
+  ` : css`
+    background: rgba(248,113,113,.10); border: 1px solid rgba(248,113,113,.24); color: #fca5a5;
+  `}
+`
+
+export const SubsActionBtn = styled.button`
+  display: inline-flex; align-items: center; gap: 5px;
+  padding: 5px 11px; border-radius: 8px; font-size: 11.5px; font-weight: 600;
+  font-family: inherit; cursor: pointer; white-space: nowrap;
+  transition: opacity .15s, transform .12s;
+  &:active { transform: scale(.96); }
+  &:disabled { opacity: .38; cursor: default; }
+  svg { font-size: 14px; }
+  ${({ $variant }) =>
+    $variant === 'revoke' ? css`
+      background: rgba(245,158,11,.10); border: 1px solid rgba(245,158,11,.26); color: #fbbf24;
+      &:hover:not(:disabled) { background: rgba(245,158,11,.18); }
+    ` : $variant === 'block' ? css`
+      background: rgba(248,113,113,.10); border: 1px solid rgba(248,113,113,.26); color: #f87171;
+      &:hover:not(:disabled) { background: rgba(248,113,113,.18); }
+    ` : css`
+      background: rgba(52,211,153,.10); border: 1px solid rgba(52,211,153,.26); color: #4ade80;
+      &:hover:not(:disabled) { background: rgba(52,211,153,.18); }
+    `}
+`
+
+export const DeviceChip = styled.div`
+  display: inline-flex; align-items: center; gap: 5px;
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.07);
+  border-radius: 7px; padding: 3px 8px; max-width: 200px;
+  font-size: 11px; color: rgba(255,255,255,.45);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 `

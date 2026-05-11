@@ -15,6 +15,7 @@ import HistoryOutlinedIcon        from '@mui/icons-material/HistoryOutlined'
 import ContentCopyIcon            from '@mui/icons-material/ContentCopy'
 import CheckIcon                  from '@mui/icons-material/Check'
 import { api } from '../../../utils/api'
+import { useToast, useConfirm } from '../../../context/ToastContext'
 import { getPaginationItems } from '../../../utils/pagination'
 import {
   PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
@@ -197,6 +198,8 @@ const validateForm = (bank, form, editing) => {
 }
 
 const BanksPage = ({ onMenuOpen }) => {
+  const toast = useToast()
+  const confirm = useConfirm()
   const [activeBank, setActiveBank] = useState('hgcash')
   const [search, setSearch] = useState('')
   const [statusFilter, setStatus] = useState('all')
@@ -224,14 +227,14 @@ const BanksPage = ({ onMenuOpen }) => {
   const [hgLive,        setHgLive]        = useState(null)
   const [hgLiveLoading, setHgLiveLoading] = useState(false)
   const [hgSyncing,     setHgSyncing]     = useState(false)
-  const [toast,         setToast]         = useState(null)   // { msg, type: 'success'|'error' }
+  const [localToast,    setLocalToast]    = useState(null)   // { msg, type: 'success'|'error' }
   const toastTimerRef = useRef(null)
   const movDebRef = useRef(null)
 
   const showToast = (msg, type = 'success') => {
     clearTimeout(toastTimerRef.current)
-    setToast({ msg, type })
-    toastTimerRef.current = setTimeout(() => setToast(null), 3800)
+    setLocalToast({ msg, type })
+    toastTimerRef.current = setTimeout(() => setLocalToast(null), 3800)
   }
 
   const bankCfg = BANKS.find(b => b.id === activeBank)
@@ -253,7 +256,7 @@ const BanksPage = ({ onMenuOpen }) => {
       setCounts({ ...EMPTY_COUNTS, ...(data.counts || {}) })
       setPagination(data.pagination || { page: 1, limit: ROWS, total: 0, totalPages: 1 })
     } catch (err) {
-      window.alert(err.message || 'No se pudieron cargar las cuentas bancarias.')
+      toast.error(err.message || 'No se pudieron cargar las cuentas bancarias.')
     } finally {
       setLoading(false)
     }
@@ -373,7 +376,7 @@ const BanksPage = ({ onMenuOpen }) => {
   const handleSave = async () => {
     const error = validateForm(activeBank, form, Boolean(editAcc))
     if (error) {
-      window.alert(error)
+      toast.error(error)
       return
     }
 
@@ -388,20 +391,21 @@ const BanksPage = ({ onMenuOpen }) => {
       setModal(false)
       await loadAccounts()
     } catch (err) {
-      window.alert(err.payload?.details?.[0] || err.message || 'No se pudo guardar la cuenta.')
+      toast.error(err.payload?.details?.[0] || err.message || 'No se pudo guardar la cuenta.')
     } finally {
       setSaving(false)
     }
   }
 
   const deleteAcc = async (id) => {
-    if (!window.confirm('Eliminar esta cuenta bancaria?')) return
+    const ok = await confirm({ title: 'Eliminar cuenta', body: '¿Eliminar esta cuenta bancaria?', confirmLabel: 'Eliminar', danger: true })
+    if (!ok) return
     try {
       await api.delete(`/api/bank-accounts/${id}`)
       setModal(false)
       await loadAccounts()
     } catch (err) {
-      window.alert(err.message || 'No se pudo eliminar la cuenta.')
+      toast.error(err.message || 'No se pudo eliminar la cuenta.')
     }
   }
 
@@ -414,7 +418,7 @@ const BanksPage = ({ onMenuOpen }) => {
       })
       await loadAccounts()
     } catch (err) {
-      window.alert(err.message || 'No se pudo cambiar el estado.')
+      toast.error(err.message || 'No se pudo cambiar el estado.')
     }
   }
 
@@ -638,11 +642,11 @@ const BanksPage = ({ onMenuOpen }) => {
             <MovPanel onClick={e => e.stopPropagation()} style={{ position: 'relative' }}>
 
               {/* toast */}
-              {toast && (
-                <ToastWrap $type={toast.type}>
-                  <ToastIcon>{toast.type === 'success' ? '✓' : '✕'}</ToastIcon>
-                  <ToastMsg>{toast.msg}</ToastMsg>
-                  <ToastClose onClick={() => setToast(null)}><CloseIcon /></ToastClose>
+              {localToast && (
+                <ToastWrap $type={localToast.type}>
+                  <ToastIcon>{localToast.type === 'success' ? '✓' : '✕'}</ToastIcon>
+                  <ToastMsg>{localToast.msg}</ToastMsg>
+                  <ToastClose onClick={() => setLocalToast(null)}><CloseIcon /></ToastClose>
                 </ToastWrap>
               )}
 

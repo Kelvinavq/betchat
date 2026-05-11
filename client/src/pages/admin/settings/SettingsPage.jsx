@@ -24,6 +24,7 @@ import BrandingWatermarkOutlinedIcon from '@mui/icons-material/BrandingWatermark
 import MenuIcon from '@mui/icons-material/Menu'
 import useAuth from '../../../hooks/useAuth'
 import { useSystemConfig } from '../../../context/SystemConfigContext'
+import { useToast } from '../../../context/ToastContext'
 import { api } from '../../../utils/api'
 import TicketsSection from './TicketsSection'
 import ThemesSection from './ThemesSection'
@@ -180,6 +181,7 @@ const BANK_STYLES = {
 const SettingsPage = ({ onMenuOpen }) => {
   const { user, setUser } = useAuth()
   const { setSystemConfig: setGlobalSystemConfig } = useSystemConfig()
+  const toast = useToast()
   const avatarInputRef = useRef(null)
   const logoInputRef = useRef(null)
   const [activeTab, setActiveTab] = useState('perfil')
@@ -245,7 +247,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       await api.put('/api/push/credentials', firebase)
       triggerSaved(setFirebaseSaved)
     } catch (error) {
-      window.alert(error.message || 'No se pudieron guardar las credenciales de Firebase.')
+      toast.error(error.message || 'No se pudieron guardar las credenciales de Firebase.')
     }
   }
 
@@ -262,7 +264,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setApiSaved(p => ({ ...p, [provider]: true }))
       setTimeout(() => setApiSaved(p => ({ ...p, [provider]: false })), 2200)
     } catch (error) {
-      window.alert(error.message || 'No se pudo guardar la integracion.')
+      toast.error(error.message || 'No se pudo guardar la integracion.')
     }
   }
 
@@ -321,7 +323,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setLogoPreview(system.logoUrl ? resolveAssetUrl(system.logoUrl) : '')
       setGlobalSystemConfig(nextSystem)
     } catch (error) {
-      window.alert(error.message || 'No se pudieron cargar los ajustes.')
+      toast.error(error.message || 'No se pudieron cargar los ajustes.')
     } finally {
       setLoadingSettings(false)
     }
@@ -345,7 +347,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setAvatarPreview(dataUrl)
       setProfileForm(prev => ({ ...prev, avatar_data_url: dataUrl }))
     } catch (error) {
-      window.alert(error.message)
+      toast.error(error.message)
     }
   }
 
@@ -359,7 +361,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setLogoPreview(dataUrl)
       setSystemForm(prev => ({ ...prev, logoDataUrl: dataUrl, clearLogo: false }))
     } catch (error) {
-      window.alert(error.message)
+      toast.error(error.message)
     }
   }
 
@@ -383,7 +385,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setUser(prev => prev ? { ...prev, ...profile } : prev)
       triggerSaved(setProfileSaved)
     } catch (error) {
-      window.alert(error.message || 'No se pudo guardar el perfil.')
+      toast.error(error.message || 'No se pudo guardar el perfil.')
     }
   }
 
@@ -393,7 +395,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setPwForm({ current: '', next: '', confirm: '' })
       triggerSaved(setPwSaved)
     } catch (error) {
-      window.alert(error.message || 'No se pudo actualizar la contrasena.')
+      toast.error(error.message || 'No se pudo actualizar la contrasena.')
     }
   }
 
@@ -403,7 +405,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setMontos(data.amounts || montos)
       triggerSaved(setMontosSaved)
     } catch (error) {
-      window.alert(error.message || 'No se pudieron guardar los montos.')
+      toast.error(error.message || 'No se pudieron guardar los montos.')
     }
   }
 
@@ -413,7 +415,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setChatBank(data.chatBank || chatBank)
       triggerSaved(setBancoSaved)
     } catch (error) {
-      window.alert(error.message || 'No se pudo guardar el banco de chat.')
+      toast.error(error.message || 'No se pudo guardar el banco de chat.')
     }
   }
 
@@ -434,7 +436,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       setGlobalSystemConfig(nextSystem)
       triggerSaved(setSystemSaved)
     } catch (error) {
-      window.alert(error.message || 'No se pudo guardar la configuracion del sistema.')
+      toast.error(error.message || 'No se pudo guardar la configuracion del sistema.')
     }
   }
 

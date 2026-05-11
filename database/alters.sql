@@ -353,6 +353,10 @@ CREATE TABLE IF NOT EXISTS `client_sessions` (
   CONSTRAINT `fk_cs_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- push_blocked flag on clients (needed by push subscriber management)
+ALTER TABLE `clients`
+  ADD COLUMN IF NOT EXISTS `push_blocked` TINYINT(1) NOT NULL DEFAULT 0;
+
 -- ============================================================
 --  PUSH NOTIFICATION SYSTEM (Firebase FCM)
 -- ============================================================
@@ -470,6 +474,8 @@ CREATE TABLE IF NOT EXISTS `push_retention_log` (
   `date`        DATE NOT NULL,
   PRIMARY KEY (`client_id`, `campaign_id`, `date`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
 
 -- ============================================================
 --  PUSH IMAGES SUPPORT

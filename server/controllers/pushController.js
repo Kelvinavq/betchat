@@ -755,11 +755,10 @@ export async function getPushSubscribers(req, res, next) {
       INNER JOIN (
         SELECT client_id, MAX(id) AS id
         FROM push_tokens
-        WHERE is_active = 1
         GROUP BY client_id
       ) last_pt ON last_pt.id = pt.id
-      INNER JOIN clients c ON c.id = pt.client_id AND COALESCE(c.push_blocked, 0) = 0
-      WHERE pt.is_active = 1
+      INNER JOIN clients c ON c.id = pt.client_id
+      WHERE 1=1
     `
     const searchParams = []
     let searchSql = ''
@@ -776,8 +775,10 @@ export async function getPushSubscribers(req, res, next) {
     const total = Number(cntRows?.[0]?.total || 0)
 
     const { rows } = await query(
-      `SELECT pt.id AS token_id, pt.client_id, pt.device, pt.last_seen AS token_last_seen, pt.created_at AS token_created_at,
-              c.username, c.full_name, c.external_id, c.cuil, c.last_seen_at, c.registered_at
+      `SELECT pt.id AS token_id, pt.client_id, pt.is_active AS token_active, pt.device,
+              pt.last_seen AS token_last_seen, pt.created_at AS token_created_at,
+              c.username, c.full_name, c.external_id, c.cuil, c.last_seen_at, c.registered_at,
+              COALESCE(c.push_blocked, 0) AS push_blocked
        ${baseJoin}
        ${searchSql}
        ORDER BY pt.last_seen DESC
@@ -794,6 +795,8 @@ export async function getPushSubscribers(req, res, next) {
         externalId:     r.external_id,
         cuil:           r.cuil,
         device:         r.device,
+        tokenActive:    Boolean(r.token_active),
+        pushBlocked:    Boolean(r.push_blocked),
         tokenLastSeen:  r.token_last_seen,
         tokenCreatedAt: r.token_created_at,
         clientLastSeen: r.last_seen_at,

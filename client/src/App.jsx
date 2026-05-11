@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
+import { ToastProvider } from './context/ToastContext'
 import { ChatProvider } from './context/ChatContext'
 import { SystemConfigProvider } from './context/SystemConfigContext'
 import ClientPage from './pages/client/ClientPage'
@@ -13,6 +14,7 @@ const App = () => {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <ToastProvider>
         <SystemConfigProvider>
           <ChatProvider>
             <ThemeRuntime>
@@ -40,6 +42,7 @@ const App = () => {
             </ThemeRuntime>
           </ChatProvider>
         </SystemConfigProvider>
+        </ToastProvider>
       </AuthProvider>
     </BrowserRouter>
   )
