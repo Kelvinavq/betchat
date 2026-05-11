@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
-import { api } from '../../../utils/api'
+import { api, resolveApiAsset } from '../../../utils/api'
 import MenuIcon from '@mui/icons-material/Menu'
 import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined'
 import AddIcon from '@mui/icons-material/Add'
@@ -16,6 +16,12 @@ import ReplayOutlinedIcon from '@mui/icons-material/ReplayOutlined'
 import SendIcon from '@mui/icons-material/Send'
 import SaveOutlinedIcon from '@mui/icons-material/SaveOutlined'
 import PeopleOutlinedIcon from '@mui/icons-material/PeopleOutlined'
+import HttpsOutlinedIcon from '@mui/icons-material/HttpsOutlined'
+import LinkOffOutlinedIcon from '@mui/icons-material/LinkOffOutlined'
+import BlockOutlinedIcon from '@mui/icons-material/BlockOutlined'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
+import AddPhotoAlternateOutlinedIcon from '@mui/icons-material/AddPhotoAlternateOutlined'
 import { getPaginationItems } from '../../../utils/pagination'
 import { useSystemConfig } from '../../../context/SystemConfigContext'
 import {
@@ -33,14 +39,21 @@ import {
   Overlay, ModalCard, ModalHead, ModalIconBadge, ModalHeadText, ModalTitle, ModalSub, ModalClose,
   ModalBody, ModalFoot, FootLeft, FootRight, ModalBtn,
   Field, FieldLabel, FieldInput, FieldTextarea, FieldSelect, CharCount,
-  PreviewCard, PreviewAppIcon, PreviewContent, PreviewAppName, PreviewTime,
-  PreviewTitle, PreviewBody, PreviewLabel,
+  PreviewShell, PreviewHero, PreviewBodyRow, PreviewAppIcon, PreviewContent, PreviewAppName, PreviewTime,
+  PreviewTitle, PreviewBody, PreviewLabel, PreviewCaption,
+  ImageDropRoot, ImageUploadZone, ImageUploadIconWrap, ImageUploadTitle, ImageUploadHint,
+  ImageUploadHiddenInput, ImageUploadSpinner, ImageAttachedRow, ImageAttachedThumb, ImageAttachedMeta,
+  ImageAttachedLabel, ImageAttachedSub, ImageGhostBtn, ImageRemoveBtn, UploadErrorBanner,
   ScheduleToggleRow, ScheduleRowLabel, ScheduleRowTitle, ScheduleRowSub,
   Toggle, ToggleThumb, ScheduleFields,
   ConfirmBanner, ConfirmTitle, ConfirmSub, ConfirmBtns, ConfirmBtn,
+  MainTabsWrap, MainTabBtn, SubsSubTabsWrap, SubsSubTabBtn, CellMuted, TruncateCell,
+  Toast, ToastIconBox, ToastBody, ToastTitle, ToastMsg, ToastClose,
 } from './NotificationsPage.styles'
 
-const PAGE_SIZE = 8
+const ROWS_PER_PAGE = 8
+const TAB_ENVIOS = 'envios'
+const TAB_SUBS = 'suscriptores'
 const BLANK_FORM = { title: '', body: '', image: '', audience: 'all', scheduled: false, schedDate: '', schedTime: '' }
 
 const AUDIENCE_OPTIONS = [
@@ -68,127 +81,223 @@ const statusLabel = (s) =>
 
 const NotificationsPage = ({ onMenuOpen, embedded }) => {
   const { systemConfig } = useSystemConfig()
-  const [notifs, setNotifs]             = useState([])
-  const [loading, setLoading]           = useState(true)
+  const [mainTab, setMainTab]           = useState(TAB_ENVIOS)
+  const [drafts, setDrafts]             = useState([])
+  const [historyItems, setHistoryItems] = useState([])
+  const [histLoading, setHistLoading]   = useState(true)
+  const [histPagination, setHistPagination] = useState({
+    page: 1, limit: ROWS_PER_PAGE, total: 0, totalPages: 1,
+  })
+  const [subsListView, setSubsListView] = useState('activos')
+  const [subscribers, setSubscribers]   = useState([])
+  const [blockedClients, setBlockedClients] = useState([])
+  const [subLoading, setSubLoading]     = useState(false)
+  const [subPagination, setSubPagination] = useState({
+    page: 1, limit: ROWS_PER_PAGE, total: 0, totalPages: 1,
+  })
+  const [blockedPagination, setBlockedPagination] = useState({
+    page: 1, limit: ROWS_PER_PAGE, total: 0, totalPages: 1,
+  })
+  const [toast, setToast]               = useState(null)
   const [sending, setSending]           = useState(false)
   const [search, setSearch]             = useState('')
+  const [debouncedQ, setDebouncedQ]     = useState('')
   const [statusFilter, setStatusFilter] = useState('')
   const [page, setPage]                 = useState(1)
+  const [subPage, setSubPage]           = useState(1)
   const [modalOpen, setModalOpen]       = useState(false)
   const [editNotif, setEditNotif]       = useState(null)
   const [form, setForm]                 = useState(BLANK_FORM)
   const [confirmStep, setConfirmStep]   = useState(false)
   const [uploadError, setUploadError]   = useState('')
   const [uploading, setUploading]       = useState(false)
+  const [imgDrag, setImgDrag]           = useState(false)
   const inputRef = useRef()
 
-  /* ── load history from API ── */
-  const loadHistory = useCallback(async () => {
-    setLoading(true)
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(search.trim()), 380)
+    return () => clearTimeout(t)
+  }, [search])
+
+  useEffect(() => {
+    if (!toast) return
+    const t = setTimeout(() => setToast(null), 4200)
+    return () => clearTimeout(t)
+  }, [toast])
+
+  const notify = (message, type = 'success') => setToast({ message, type })
+
+  const useApiHistory = mainTab === TAB_ENVIOS && statusFilter !== 'borrador' && statusFilter !== 'programada'
+
+  const loadHistory = useCallback(async (pageNum = 1) => {
+    setHistLoading(true)
     try {
-      const data = await api.get('/api/push/history?limit=50')
+      const q = encodeURIComponent(debouncedQ)
+      const data = await api.get(`/api/push/history?page=${pageNum}&limit=${ROWS_PER_PAGE}&q=${q}`)
       const rows = (data?.history || []).map(h => ({
         id:           h.id,
         title:        h.title,
         body:         h.body,
+        image:        h.image || '',
         audience:     h.campaignName || 'all',
         status:       'enviada',
         sentAt:       h.sentAt,
         scheduledFor: null,
         sentCount:    h.sentCount,
         failedCount:  h.failedCount,
+        isDraft:      false,
       }))
-      setNotifs(rows)
-    } catch { /* silently ignore */ } finally {
-      setLoading(false)
+      setHistoryItems(rows)
+      if (data?.pagination) setHistPagination(data.pagination)
+    } catch { /* ignore */ } finally {
+      setHistLoading(false)
     }
-  }, [])
+  }, [debouncedQ])
 
-  useEffect(() => { loadHistory() }, [loadHistory])
+  useEffect(() => {
+    if (!useApiHistory) {
+      setHistLoading(false)
+      return
+    }
+    loadHistory(page)
+  }, [useApiHistory, page, loadHistory])
 
-  /* ── derived ── */
-  const filtered = useMemo(() => notifs.filter(n => {
+  const loadSubscribers = useCallback(async (pageNum = 1) => {
+    setSubLoading(true)
+    try {
+      const q = encodeURIComponent(debouncedQ)
+      const data = await api.get(`/api/push/subscribers?page=${pageNum}&limit=${ROWS_PER_PAGE}&q=${q}`)
+      setSubscribers(data?.subscribers || [])
+      if (data?.pagination) setSubPagination(data.pagination)
+    } catch { setSubscribers([]) } finally {
+      setSubLoading(false)
+    }
+  }, [debouncedQ])
+
+  const loadBlockedClients = useCallback(async (pageNum = 1) => {
+    setSubLoading(true)
+    try {
+      const q = encodeURIComponent(debouncedQ)
+      const data = await api.get(`/api/push/blocked-subscribers?page=${pageNum}&limit=${ROWS_PER_PAGE}&q=${q}`)
+      setBlockedClients(data?.blocked || [])
+      if (data?.pagination) setBlockedPagination(data.pagination)
+    } catch { setBlockedClients([]) } finally {
+      setSubLoading(false)
+    }
+  }, [debouncedQ])
+
+  useEffect(() => {
+    if (mainTab !== TAB_SUBS) return
+    if (subsListView === 'bloqueados') loadBlockedClients(subPage)
+    else loadSubscribers(subPage)
+  }, [mainTab, subPage, subsListView, loadSubscribers, loadBlockedClients])
+
+  useEffect(() => {
+    setPage(1)
+    setSubPage(1)
+  }, [statusFilter, mainTab, subsListView])
+
+  const localFiltered = useMemo(() => {
+    if (statusFilter !== 'borrador' && statusFilter !== 'programada') return []
     const q = search.toLowerCase()
-    const matchSearch = !q || n.title.toLowerCase().includes(q) || n.body.toLowerCase().includes(q)
-    const matchStatus = !statusFilter || n.status === statusFilter
-    return matchSearch && matchStatus
-  }), [notifs, search, statusFilter])
+    return drafts.filter((d) => {
+      if (statusFilter === 'borrador' && d.status !== 'borrador') return false
+      if (statusFilter === 'programada' && d.status !== 'programada') return false
+      return !q || d.title.toLowerCase().includes(q) || d.body.toLowerCase().includes(q)
+    })
+  }, [drafts, statusFilter, search])
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const localTotalPages = Math.max(1, Math.ceil(localFiltered.length / ROWS_PER_PAGE))
+  const localPaginated = localFiltered.slice((page - 1) * ROWS_PER_PAGE, page * ROWS_PER_PAGE)
+
+  const tableRows = useApiHistory ? historyItems : localPaginated
+  const totalPages = useApiHistory ? histPagination.totalPages : localTotalPages
   const pageItems = getPaginationItems({ currentPage: page, totalPages })
-  const paginated  = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE)
+  const subsDataPagination = subsListView === 'activos' ? subPagination : blockedPagination
+  const subsPageItems = getPaginationItems({ currentPage: subPage, totalPages: subsDataPagination.totalPages })
+  const listLoading = useApiHistory ? histLoading : false
 
   const stats = useMemo(() => ({
-    enviadas:    notifs.filter(n => n.status === 'enviada').length,
-    programadas: notifs.filter(n => n.status === 'programada').length,
-    borradores:  notifs.filter(n => n.status === 'borrador').length,
-  }), [notifs])
+    enviadas:    histPagination.total,
+    programadas: drafts.filter(d => d.status === 'programada').length,
+    borradores:  drafts.filter(d => d.status === 'borrador').length,
+  }), [histPagination.total, drafts])
 
   /* ── modal ── */
   const openNew = () => {
     setEditNotif(null)
     setForm(BLANK_FORM)
     setConfirmStep(false)
+    setUploadError('')
+    setImgDrag(false)
     setModalOpen(true)
   }
 
   const openEdit = (notif) => {
     setEditNotif(notif)
+    const iso = notif.scheduledFor && typeof notif.scheduledFor === 'string' ? notif.scheduledFor : ''
     setForm({
       title:     notif.title,
       body:      notif.body,
+      image:     notif.image || '',
       audience:  notif.audience,
-      scheduled: !!notif.scheduledFor,
-      schedDate: notif.scheduledFor ? notif.scheduledFor.slice(0, 10) : '',
-      schedTime: notif.scheduledFor ? notif.scheduledFor.slice(11, 16) : '',
+      scheduled: !!iso,
+      schedDate: iso ? iso.slice(0, 10) : '',
+      schedTime: iso ? iso.slice(11, 16) : '',
     })
     setConfirmStep(false)
+    setUploadError('')
+    setImgDrag(false)
     setModalOpen(true)
   }
 
-  const closeModal = () => { setModalOpen(false); setConfirmStep(false) }
+  const closeModal = () => {
+    setModalOpen(false)
+    setConfirmStep(false)
+    setUploadError('')
+    setImgDrag(false)
+  }
 
   const setField = (key, val) => setForm(f => ({ ...f, [key]: val }))
 
   /* ── actions ── */
   const saveDraft = () => {
-    // drafts are local-only (no DB persistence needed for drafts)
+    const scheduledFor = form.scheduled && form.schedDate
+      ? `${form.schedDate}T${form.schedTime || '09:00'}:00`
+      : null
+    const st = form.scheduled && form.schedDate ? 'programada' : 'borrador'
     const draft = {
-      id: Date.now(),
-      title: form.title, body: form.body, audience: form.audience,
-      status: 'borrador', sentAt: null, scheduledFor: null,
+      id:           `draft-${Date.now()}`,
+      isDraft:      true,
+      title:        form.title,
+      body:         form.body,
+      image:        form.image,
+      audience:     form.audience,
+      status:       st,
+      sentAt:       null,
+      scheduledFor,
+      sentCount:    null,
+      failedCount:  null,
     }
-    setNotifs(ns => [draft, ...ns])
+    setDrafts(d => [draft, ...d])
     closeModal()
   }
 
-  const doSend = async (save = false) => {
+  const doSend = async () => {
     setSending(true)
     try {
-      const result = await api.post('/api/push/send-direct', {
+      await api.post('/api/push/send-direct', {
         title:    form.title,
         body:     form.body,
         image:    form.image,
         audience: form.audience,
       })
-      const entry = {
-        id:          Date.now(),
-        title:       form.title,
-        body:        form.body,
-        image:       form.image,
-        audience:    form.audience,
-        status:      'enviada',
-        sentAt:      new Date().toISOString(),
-        scheduledFor: null,
-        sentCount:   result.sent,
-        failedCount: result.failed,
-      }
-      if (editNotif) {
-        setNotifs(ns => ns.map(n => n.id === editNotif.id ? entry : n))
-      } else if (save) {
-        setNotifs(ns => [entry, ...ns])
+      if (editNotif?.isDraft) {
+        setDrafts(d => d.filter(x => x.id !== editNotif.id))
       }
       closeModal()
+      setPage(1)
+      await loadHistory(1)
     } catch (err) {
       window.alert(err.message || 'Error al enviar la notificación')
     } finally {
@@ -197,13 +306,70 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
   }
 
   const handleSend = () => {
-    if (editNotif) { doSend(true) } else { setConfirmStep(true) }
+    if (editNotif) { doSend() } else { setConfirmStep(true) }
   }
 
-  const deleteNotif = (id) => setNotifs(ns => ns.filter(n => n.id !== id))
+  const deleteNotif = (row) => {
+    if (row?.isDraft) setDrafts(d => d.filter(x => x.id !== row.id))
+  }
+
+  const revokeSubscriber = async (s) => {
+    if (!window.confirm('¿Quitar esta suscripción? El dispositivo dejará de recibir push. El cliente puede volver a activarlas desde la app si no está bloqueado.')) return
+    try {
+      await api.delete(`/api/push/token/${s.tokenId}`)
+      notify('Suscripción quitada')
+      loadSubscribers(subPage)
+    } catch (e) {
+      notify(e.message || 'No se pudo quitar la suscripción', 'danger')
+    }
+  }
+
+  const blockSubscriber = async (s) => {
+    if (!window.confirm(`¿Bloquear notificaciones push para ${s.fullName}? No recibirá envíos y la app no podrá registrar un nuevo token hasta que lo desbloquees.`)) return
+    try {
+      await api.post(`/api/push/client/${s.clientId}/block-push`, {})
+      notify('Cliente bloqueado para push')
+      loadSubscribers(subPage)
+    } catch (e) {
+      notify(e.message || 'Error al bloquear', 'danger')
+    }
+  }
+
+  const unblockClientPush = async (c) => {
+    try {
+      await api.post(`/api/push/client/${c.clientId}/unblock-push`, {})
+      notify('Cliente desbloqueado. Ya puede activar push de nuevo desde la app.')
+      loadBlockedClients(subPage)
+    } catch (e) {
+      notify(e.message || 'Error al desbloquear', 'danger')
+    }
+  }
 
   const isValid   = form.title.trim() && form.body.trim()
   const sendLabel = sending ? 'Enviando...' : (form.scheduled ? 'Programar' : 'Enviar ahora')
+
+  const previewImgSrc = form.image ? resolveApiAsset(form.image) : ''
+  const previewHasHero = Boolean(previewImgSrc)
+
+  const uploadImageFile = async (file) => {
+    if (!file?.type?.startsWith('image/')) {
+      setUploadError('Elegí un archivo de imagen (PNG, JPG, WebP, GIF…).')
+      return
+    }
+    setUploading(true)
+    setUploadError('')
+    const formData = new FormData()
+    formData.append('image', file)
+    try {
+      const res = await api.post('/api/push/upload-image', formData)
+      setField('image', res.imageUrl)
+    } catch (err) {
+      setUploadError(err.message || 'Error al subir la imagen')
+    } finally {
+      setUploading(false)
+      if (inputRef.current) inputRef.current.value = ''
+    }
+  }
 
   const inner = (
     <>
@@ -237,161 +403,385 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
         )}
 
         {/* ── stats strip ── */}
-        <StatsStrip>
-          <StatCard>
-            <StatIconWrap $bg="rgba(34,197,94,0.10)" $br="rgba(34,197,94,0.20)" $cl="#4ade80">
-              <DoneAllOutlinedIcon />
-            </StatIconWrap>
-            <StatInfo>
-              <StatValue>{stats.enviadas}</StatValue>
-              <StatLabel>Enviadas</StatLabel>
-            </StatInfo>
-          </StatCard>
-          <StatCard>
-            <StatIconWrap $bg="rgba(14,165,233,0.10)" $br="rgba(14,165,233,0.20)" $cl="#38bdf8">
-              <AccessTimeOutlinedIcon />
-            </StatIconWrap>
-            <StatInfo>
-              <StatValue>{stats.programadas}</StatValue>
-              <StatLabel>Programadas</StatLabel>
-            </StatInfo>
-          </StatCard>
-          <StatCard>
-            <StatIconWrap $bg="rgba(255,255,255,0.05)" $br="rgba(255,255,255,0.10)" $cl="rgba(255,255,255,0.35)">
-              <ArticleOutlinedIcon />
-            </StatIconWrap>
-            <StatInfo>
-              <StatValue>{stats.borradores}</StatValue>
-              <StatLabel>Borradores</StatLabel>
-            </StatInfo>
-          </StatCard>
-        </StatsStrip>
+        {mainTab === TAB_ENVIOS ? (
+          <StatsStrip>
+            <StatCard>
+              <StatIconWrap $bg="rgba(34,197,94,0.10)" $br="rgba(34,197,94,0.20)" $cl="#4ade80">
+                <DoneAllOutlinedIcon />
+              </StatIconWrap>
+              <StatInfo>
+                <StatValue>{stats.enviadas}</StatValue>
+                <StatLabel>Enviadas (total)</StatLabel>
+              </StatInfo>
+            </StatCard>
+            <StatCard>
+              <StatIconWrap $bg="rgba(14,165,233,0.10)" $br="rgba(14,165,233,0.20)" $cl="#38bdf8">
+                <AccessTimeOutlinedIcon />
+              </StatIconWrap>
+              <StatInfo>
+                <StatValue>{stats.programadas}</StatValue>
+                <StatLabel>Programadas (local)</StatLabel>
+              </StatInfo>
+            </StatCard>
+            <StatCard>
+              <StatIconWrap $bg="rgba(255,255,255,0.05)" $br="rgba(255,255,255,0.10)" $cl="rgba(255,255,255,0.35)">
+                <ArticleOutlinedIcon />
+              </StatIconWrap>
+              <StatInfo>
+                <StatValue>{stats.borradores}</StatValue>
+                <StatLabel>Borradores (local)</StatLabel>
+              </StatInfo>
+            </StatCard>
+          </StatsStrip>
+        ) : (
+          <StatsStrip>
+            <StatCard>
+              <StatIconWrap $bg="rgba(99,102,241,0.12)" $br="rgba(99,102,241,0.22)" $cl="#a5b4fc">
+                <HttpsOutlinedIcon />
+              </StatIconWrap>
+              <StatInfo>
+                <StatValue>{subsListView === 'activos' ? subPagination.total : blockedPagination.total}</StatValue>
+                <StatLabel>
+                  {subsListView === 'activos' ? 'Suscriptores con token activo' : 'Clientes bloqueados para push'}
+                </StatLabel>
+              </StatInfo>
+            </StatCard>
+          </StatsStrip>
+        )}
 
-        {/* ── filters ── */}
-        <FiltersBar>
-          <SearchBox>
-            <SrchIcon><SearchIcon /></SrchIcon>
-            <SearchInput
-              placeholder="Buscar notificaciones..."
-              value={search}
-              onChange={e => { setSearch(e.target.value); setPage(1) }}
-            />
-          </SearchBox>
-          <FilterSelect
-            value={statusFilter}
-            onChange={e => { setStatusFilter(e.target.value); setPage(1) }}
-          >
-            <option value="">Todos los estados</option>
-            <option value="enviada">Enviadas</option>
-            <option value="programada">Programadas</option>
-            <option value="borrador">Borradores</option>
-          </FilterSelect>
-          <ResultCount>{filtered.length} resultado{filtered.length !== 1 ? 's' : ''}</ResultCount>
-        </FiltersBar>
+        <MainTabsWrap>
+          <MainTabBtn type="button" $active={mainTab === TAB_ENVIOS} onClick={() => setMainTab(TAB_ENVIOS)}>
+            <NotificationsOutlinedIcon style={{ fontSize: 18 }} />
+            Envíos y borradores
+          </MainTabBtn>
+          <MainTabBtn type="button" $active={mainTab === TAB_SUBS} onClick={() => setMainTab(TAB_SUBS)}>
+            <PeopleOutlinedIcon style={{ fontSize: 18 }} />
+            Suscriptores activos
+          </MainTabBtn>
+        </MainTabsWrap>
 
-        {/* ── table ── */}
-        <TableCard>
-          <TableScroll>
-            <Table>
-              <Thead>
-                <tr>
-                  <Th>Notificación</Th>
-                  <Th>Audiencia</Th>
-                  <Th>Programada para</Th>
-                  <Th>Enviada</Th>
-                  <Th>Estado</Th>
-                  <Th $center>Acciones</Th>
-                </tr>
-              </Thead>
-              <Tbody>
-                {paginated.length === 0 ? (
-                  <EmptyRow>
-                    <EmptyCell colSpan={6}>No hay notificaciones que mostrar</EmptyCell>
-                  </EmptyRow>
-                ) : paginated.map(n => (
-                  <Tr key={n.id}>
-                    <Td>
-                      <NotifCell>
-                        <NotifIconBadge $s={n.status}>
-                          <NotificationsOutlinedIcon />
-                        </NotifIconBadge>
-                        <NotifMeta>
-                          <NotifTitle>{n.title}</NotifTitle>
-                          <NotifBodyPreview>{n.body}</NotifBodyPreview>
-                        </NotifMeta>
-                      </NotifCell>
-                    </Td>
-                    <Td>
-                      <AudienceBadge>
-                        <PeopleOutlinedIcon style={{ fontSize: 13 }} />
-                        {audienceLabel(n.audience)}
-                      </AudienceBadge>
-                    </Td>
-                    <Td>
-                      {n.scheduledFor ? (
-                        <>
-                          <DateText>{fmtDate(n.scheduledFor)}</DateText>
-                          <DateSub>{fmtTime(n.scheduledFor)}</DateSub>
-                        </>
-                      ) : (
-                        <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
-                      )}
-                    </Td>
-                    <Td>
-                      {n.sentAt ? (
-                        <>
-                          <DateText>{fmtDate(n.sentAt)}</DateText>
-                          <DateSub>{fmtTime(n.sentAt)}</DateSub>
-                        </>
-                      ) : (
-                        <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
-                      )}
-                    </Td>
-                    <Td>
-                      <StatusBadge $s={n.status}>{statusLabel(n.status)}</StatusBadge>
-                    </Td>
-                    <Td $center>
-                      <ActionBtns style={{ justifyContent: 'center' }}>
-                        <ActionBtn title="Editar" onClick={() => openEdit(n)}>
-                          <EditOutlinedIcon />
-                        </ActionBtn>
-                        {n.status === 'enviada' && (
-                          <ActionBtn title="Reenviar" $v="send" onClick={() => openEdit(n)}>
-                            <ReplayOutlinedIcon />
-                          </ActionBtn>
-                        )}
-                        <ActionBtn title="Eliminar" $v="danger" onClick={() => deleteNotif(n.id)}>
-                          <DeleteOutlinedIcon />
-                        </ActionBtn>
-                      </ActionBtns>
-                    </Td>
-                  </Tr>
-                ))}
-              </Tbody>
-            </Table>
-          </TableScroll>
+        {mainTab === TAB_ENVIOS ? (
+          <>
+            <FiltersBar>
+              <SearchBox>
+                <SrchIcon><SearchIcon /></SrchIcon>
+                <SearchInput
+                  placeholder="Buscar en historial (título, mensaje, audiencia)…"
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setPage(1) }}
+                />
+              </SearchBox>
+              <FilterSelect
+                value={statusFilter}
+                onChange={e => setStatusFilter(e.target.value)}
+              >
+                <option value="">Historial de envíos</option>
+                <option value="programada">Programadas (esta sesión)</option>
+                <option value="borrador">Borradores (esta sesión)</option>
+              </FilterSelect>
+              <ResultCount>
+                {useApiHistory
+                  ? `${histPagination.total} registro${histPagination.total !== 1 ? 's' : ''}`
+                  : `${localFiltered.length} en esta vista`}
+              </ResultCount>
+            </FiltersBar>
 
-          {totalPages > 1 && (
-            <Pagination>
-              <PaginInfo>
-                Mostrando {Math.min((page - 1) * PAGE_SIZE + 1, filtered.length)}–{Math.min(page * PAGE_SIZE, filtered.length)} de {filtered.length}
-              </PaginInfo>
-              <PaginBtns>
-                <PaginBtn onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
-                  <ChevronLeftIcon />
-                </PaginBtn>
-                {pageItems.map(item => item.type === 'ellipsis' ? (
-                  <PaginBtn key={item.key} type="button" disabled>...</PaginBtn>
-                ) : (
-                  <PaginBtn key={item.key} type="button" $active={item.page === page} onClick={() => setPage(item.page)}>{item.page}</PaginBtn>
-                ))}
-                <PaginBtn onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
-                  <ChevronRightIcon />
-                </PaginBtn>
-              </PaginBtns>
-            </Pagination>
-          )}
-        </TableCard>
+            <TableCard>
+              <TableScroll>
+                <Table>
+                  <Thead>
+                    <tr>
+                      <Th>Notificación</Th>
+                      <Th>Audiencia</Th>
+                      <Th>Programada para</Th>
+                      <Th>Enviada</Th>
+                      <Th>Estado</Th>
+                      <Th $center>Acciones</Th>
+                    </tr>
+                  </Thead>
+                  <Tbody>
+                    {listLoading ? (
+                      <EmptyRow>
+                        <EmptyCell colSpan={6}>Cargando historial…</EmptyCell>
+                      </EmptyRow>
+                    ) : tableRows.length === 0 ? (
+                      <EmptyRow>
+                        <EmptyCell colSpan={6}>
+                          {useApiHistory ? 'No hay envíos en el historial' : 'No hay borradores o programadas con este filtro'}
+                        </EmptyCell>
+                      </EmptyRow>
+                    ) : tableRows.map(n => (
+                      <Tr key={n.id}>
+                        <Td>
+                          <NotifCell>
+                            <NotifIconBadge $s={n.status}>
+                              <NotificationsOutlinedIcon />
+                            </NotifIconBadge>
+                            <NotifMeta>
+                              <NotifTitle>{n.title}</NotifTitle>
+                              <NotifBodyPreview>{n.body}</NotifBodyPreview>
+                            </NotifMeta>
+                          </NotifCell>
+                        </Td>
+                        <Td>
+                          <AudienceBadge>
+                            <PeopleOutlinedIcon style={{ fontSize: 13 }} />
+                            {audienceLabel(n.audience)}
+                          </AudienceBadge>
+                        </Td>
+                        <Td>
+                          {n.scheduledFor ? (
+                            <>
+                              <DateText>{fmtDate(n.scheduledFor)}</DateText>
+                              <DateSub>{fmtTime(n.scheduledFor)}</DateSub>
+                            </>
+                          ) : (
+                            <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
+                          )}
+                        </Td>
+                        <Td>
+                          {n.sentAt ? (
+                            <>
+                              <DateText>{fmtDate(n.sentAt)}</DateText>
+                              <DateSub>{fmtTime(n.sentAt)}</DateSub>
+                            </>
+                          ) : (
+                            <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
+                          )}
+                        </Td>
+                        <Td>
+                          <StatusBadge $s={n.status}>{statusLabel(n.status)}</StatusBadge>
+                        </Td>
+                        <Td $center>
+                          <ActionBtns style={{ justifyContent: 'center' }}>
+                            <ActionBtn title="Editar" onClick={() => openEdit(n)}>
+                              <EditOutlinedIcon />
+                            </ActionBtn>
+                            {n.status === 'enviada' && (
+                              <ActionBtn title="Reenviar" $v="send" onClick={() => openEdit(n)}>
+                                <ReplayOutlinedIcon />
+                              </ActionBtn>
+                            )}
+                            {n.isDraft && (
+                              <ActionBtn title="Eliminar" $v="danger" onClick={() => deleteNotif(n)}>
+                                <DeleteOutlinedIcon />
+                              </ActionBtn>
+                            )}
+                          </ActionBtns>
+                        </Td>
+                      </Tr>
+                    ))}
+                  </Tbody>
+                </Table>
+              </TableScroll>
+
+              <Pagination>
+                <PaginInfo>
+                  {useApiHistory ? (
+                    histPagination.total === 0
+                      ? '0 envíos'
+                      : `${(page - 1) * ROWS_PER_PAGE + 1}–${Math.min(page * ROWS_PER_PAGE, histPagination.total)} de ${histPagination.total}`
+                  ) : (
+                    localFiltered.length === 0
+                      ? '0 en esta vista'
+                      : `${(page - 1) * ROWS_PER_PAGE + 1}–${Math.min(page * ROWS_PER_PAGE, localFiltered.length)} de ${localFiltered.length}`
+                  )}
+                </PaginInfo>
+                <PaginBtns>
+                  <PaginBtn type="button" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
+                    <ChevronLeftIcon />
+                  </PaginBtn>
+                  {pageItems.map(item => item.type === 'ellipsis' ? (
+                    <PaginBtn key={item.key} type="button" disabled>...</PaginBtn>
+                  ) : (
+                    <PaginBtn key={item.key} type="button" $active={item.page === page} onClick={() => setPage(item.page)}>{item.page}</PaginBtn>
+                  ))}
+                  <PaginBtn type="button" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
+                    <ChevronRightIcon />
+                  </PaginBtn>
+                </PaginBtns>
+              </Pagination>
+            </TableCard>
+          </>
+        ) : (
+          <>
+            <SubsSubTabsWrap>
+              <SubsSubTabBtn type="button" $active={subsListView === 'activos'} onClick={() => setSubsListView('activos')}>
+                Suscripciones activas
+              </SubsSubTabBtn>
+              <SubsSubTabBtn type="button" $active={subsListView === 'bloqueados'} onClick={() => setSubsListView('bloqueados')}>
+                Bloqueados para push
+              </SubsSubTabBtn>
+            </SubsSubTabsWrap>
+
+            <FiltersBar>
+              <SearchBox>
+                <SrchIcon><SearchIcon /></SrchIcon>
+                <SearchInput
+                  placeholder={subsListView === 'activos'
+                    ? 'Cliente, usuario, ID, CUIL, dispositivo…'
+                    : 'Buscar entre bloqueados…'}
+                  value={search}
+                  onChange={(e) => { setSearch(e.target.value); setSubPage(1) }}
+                />
+              </SearchBox>
+              <ResultCount>
+                {subsListView === 'activos'
+                  ? `${subPagination.total} suscriptor${subPagination.total !== 1 ? 'es' : ''}`
+                  : `${blockedPagination.total} bloqueado${blockedPagination.total !== 1 ? 's' : ''}`}
+              </ResultCount>
+            </FiltersBar>
+
+            <TableCard>
+              <TableScroll>
+                <Table>
+                  {subsListView === 'activos' ? (
+                    <>
+                      <Thead>
+                        <tr>
+                          <Th>Cliente</Th>
+                          <Th>Usuario</Th>
+                          <Th>ID externo</Th>
+                          <Th>Última actividad</Th>
+                          <Th>Dispositivo</Th>
+                          <Th $center>Acciones</Th>
+                        </tr>
+                      </Thead>
+                      <Tbody>
+                        {subLoading ? (
+                          <EmptyRow>
+                            <EmptyCell colSpan={6}>Cargando suscriptores…</EmptyCell>
+                          </EmptyRow>
+                        ) : subscribers.length === 0 ? (
+                          <EmptyRow>
+                            <EmptyCell colSpan={6}>No hay suscripciones push activas</EmptyCell>
+                          </EmptyRow>
+                        ) : subscribers.map(s => (
+                          <Tr key={s.tokenId}>
+                            <Td>
+                              <NotifTitle>{s.fullName}</NotifTitle>
+                              <CellMuted>ID #{s.clientId}</CellMuted>
+                            </Td>
+                            <Td><TruncateCell title={s.username}>{s.username}</TruncateCell></Td>
+                            <Td>{s.externalId || '—'}</Td>
+                            <Td>
+                              {s.tokenLastSeen ? (
+                                <>
+                                  <DateText>{fmtDate(s.tokenLastSeen)}</DateText>
+                                  <DateSub>{fmtTime(s.tokenLastSeen)}</DateSub>
+                                </>
+                              ) : (
+                                <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
+                              )}
+                            </Td>
+                            <Td>
+                              <TruncateCell title={s.device || ''}>{s.device || '—'}</TruncateCell>
+                            </Td>
+                            <Td $center>
+                              <ActionBtns style={{ justifyContent: 'center' }}>
+                                <ActionBtn type="button" title="Quitar suscripción (este dispositivo)" onClick={() => revokeSubscriber(s)}>
+                                  <LinkOffOutlinedIcon />
+                                </ActionBtn>
+                                <ActionBtn type="button" $v="warn" title="Bloquear push para este cliente" onClick={() => blockSubscriber(s)}>
+                                  <BlockOutlinedIcon />
+                                </ActionBtn>
+                              </ActionBtns>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </>
+                  ) : (
+                    <>
+                      <Thead>
+                        <tr>
+                          <Th>Cliente</Th>
+                          <Th>Usuario</Th>
+                          <Th>ID externo</Th>
+                          <Th>CUIL</Th>
+                          <Th>Actualizado</Th>
+                          <Th $center>Acciones</Th>
+                        </tr>
+                      </Thead>
+                      <Tbody>
+                        {subLoading ? (
+                          <EmptyRow>
+                            <EmptyCell colSpan={6}>Cargando…</EmptyCell>
+                          </EmptyRow>
+                        ) : blockedClients.length === 0 ? (
+                          <EmptyRow>
+                            <EmptyCell colSpan={6}>No hay clientes bloqueados para push</EmptyCell>
+                          </EmptyRow>
+                        ) : blockedClients.map(c => (
+                          <Tr key={c.clientId}>
+                            <Td>
+                              <NotifTitle>{c.fullName}</NotifTitle>
+                              <CellMuted>ID #{c.clientId}</CellMuted>
+                            </Td>
+                            <Td><TruncateCell title={c.username}>{c.username}</TruncateCell></Td>
+                            <Td>{c.externalId || '—'}</Td>
+                            <Td>{c.cuil || '—'}</Td>
+                            <Td>
+                              {c.updatedAt ? (
+                                <>
+                                  <DateText>{fmtDate(c.updatedAt)}</DateText>
+                                  <DateSub>{fmtTime(c.updatedAt)}</DateSub>
+                                </>
+                              ) : (
+                                <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
+                              )}
+                            </Td>
+                            <Td $center>
+                              <ActionBtns style={{ justifyContent: 'center' }}>
+                                <ActionBtn type="button" $v="send" title="Desbloquear push" onClick={() => unblockClientPush(c)}>
+                                  <CheckCircleOutlinedIcon />
+                                </ActionBtn>
+                              </ActionBtns>
+                            </Td>
+                          </Tr>
+                        ))}
+                      </Tbody>
+                    </>
+                  )}
+                </Table>
+              </TableScroll>
+
+              <Pagination>
+                <PaginInfo>
+                  {subsDataPagination.total === 0
+                    ? (subsListView === 'activos' ? '0 suscriptores' : '0 bloqueados')
+                    : `${(subPage - 1) * ROWS_PER_PAGE + 1}–${Math.min(subPage * ROWS_PER_PAGE, subsDataPagination.total)} de ${subsDataPagination.total}`}
+                </PaginInfo>
+                <PaginBtns>
+                  <PaginBtn type="button" onClick={() => setSubPage(p => Math.max(1, p - 1))} disabled={subPage === 1}>
+                    <ChevronLeftIcon />
+                  </PaginBtn>
+                  {subsPageItems.map(item => item.type === 'ellipsis' ? (
+                    <PaginBtn key={item.key} type="button" disabled>...</PaginBtn>
+                  ) : (
+                    <PaginBtn key={item.key} type="button" $active={item.page === subPage} onClick={() => setSubPage(item.page)}>{item.page}</PaginBtn>
+                  ))}
+                  <PaginBtn type="button" onClick={() => setSubPage(p => Math.min(subsDataPagination.totalPages, p + 1))} disabled={subPage === subsDataPagination.totalPages}>
+                    <ChevronRightIcon />
+                  </PaginBtn>
+                </PaginBtns>
+              </Pagination>
+            </TableCard>
+          </>
+        )}
+
+      {toast && (
+        <Toast $type={toast.type}>
+          <ToastIconBox $type={toast.type}>
+            {toast.type === 'danger' ? <ErrorOutlinedIcon /> : <CheckCircleOutlinedIcon />}
+          </ToastIconBox>
+          <ToastBody>
+            <ToastTitle>{toast.type === 'danger' ? 'Error' : 'Listo'}</ToastTitle>
+            <ToastMsg>{toast.message}</ToastMsg>
+          </ToastBody>
+          <ToastClose type="button" aria-label="Cerrar" onClick={() => setToast(null)}><CloseIcon /></ToastClose>
+        </Toast>
+      )}
 
       {/* ══ MODAL ══ */}
       {modalOpen && (
@@ -413,20 +803,30 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
 
             <ModalBody>
 
-              {/* live preview */}
+              {/* live preview — hero image como en Web Push (Chrome/Edge) */}
               <div>
                 <PreviewLabel>Vista previa</PreviewLabel>
-                <PreviewCard>
-                  <PreviewAppIcon><NotificationsOutlinedIcon /></PreviewAppIcon>
-                  <PreviewContent>
-                    <PreviewAppName>
-                      {systemConfig.appName}
-                      <PreviewTime>ahora</PreviewTime>
-                    </PreviewAppName>
-                    <PreviewTitle>{form.title || 'Título de la notificación'}</PreviewTitle>
-                    <PreviewBody>{form.body || 'El cuerpo de tu mensaje aparecerá aquí...'}</PreviewBody>
-                  </PreviewContent>
-                </PreviewCard>
+                <PreviewCaption>
+                  Así se verá en el dispositivo del cliente: imagen grande arriba (si hay) y texto debajo, similar a las notificaciones del navegador.
+                </PreviewCaption>
+                <PreviewShell>
+                  {previewHasHero && (
+                    <PreviewHero>
+                      <img src={previewImgSrc} alt="" />
+                    </PreviewHero>
+                  )}
+                  <PreviewBodyRow $withHero={previewHasHero}>
+                    <PreviewAppIcon><NotificationsOutlinedIcon /></PreviewAppIcon>
+                    <PreviewContent>
+                      <PreviewAppName>
+                        {systemConfig.appName}
+                        <PreviewTime>ahora</PreviewTime>
+                      </PreviewAppName>
+                      <PreviewTitle>{form.title || 'Título de la notificación'}</PreviewTitle>
+                      <PreviewBody>{form.body || 'El cuerpo de tu mensaje aparecerá aquí...'}</PreviewBody>
+                    </PreviewContent>
+                  </PreviewBodyRow>
+                </PreviewShell>
               </div>
 
               {/* title */}
@@ -456,39 +856,90 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
               {/* image */}
               <Field $full>
                 <FieldLabel>Imagen (opcional)</FieldLabel>
-                <FieldInput
-                  type="file"
-                  ref={inputRef}
-                  style={{ visibility: 'hidden', position: 'absolute' }}
-                  accept="image/*"
-                  disabled={uploading}
-                  onChange={async (e) => {
-                    const file = e.target.files[0]
-                    if (!file) return setField('image', '')
-                    setUploading(true)
-                    const formData = new FormData()
-                    formData.append('image', file)
-                    try {
-                      const res = await api.post('/api/push/upload-image', formData)
-                      setField('image', res.imageUrl)
-                      setUploadError('')
-                    } catch (err) {
-                      setUploadError('Error subiendo imagen: ' + err.message)
-                    } finally {
-                      setUploading(false)
-                    }
+                <ImageDropRoot
+                  onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setImgDrag(true) }}
+                  onDragEnter={(e) => { e.preventDefault(); setImgDrag(true) }}
+                  onDragLeave={(e) => {
+                    e.preventDefault()
+                    if (!e.currentTarget.contains(e.relatedTarget)) setImgDrag(false)
                   }}
-                />
-                <button type="button" onClick={() => inputRef.current.click()} disabled={uploading} style={{ padding: '8px 16px', background: '#007bff', color: 'white', border: 'none', borderRadius: 4, cursor: uploading ? 'not-allowed' : 'pointer' }}>
-                  {uploading ? 'Subiendo...' : 'Seleccionar imagen'}
-                </button>
-                {form.image && (
-                  <div style={{ marginTop: 8 }}>
-                    <img src={form.image} alt="Preview" style={{ maxWidth: 200, maxHeight: 200 }} />
-                  </div>
-                )}
+                  onDrop={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setImgDrag(false)
+                    const f = e.dataTransfer.files?.[0]
+                    if (f) uploadImageFile(f)
+                  }}
+                >
+                  <ImageUploadHiddenInput
+                    ref={inputRef}
+                    type="file"
+                    accept="image/*"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) {
+                        setField('image', '')
+                        return
+                      }
+                      uploadImageFile(file)
+                    }}
+                  />
+                  {form.image ? (
+                    <ImageAttachedRow>
+                      <ImageAttachedThumb src={resolveApiAsset(form.image)} alt="" />
+                      <ImageAttachedMeta>
+                        <ImageAttachedLabel>Imagen lista</ImageAttachedLabel>
+                        <ImageAttachedSub>
+                          Aparece arriba en la vista previa y como imagen grande en la notificación (según el navegador).
+                        </ImageAttachedSub>
+                      </ImageAttachedMeta>
+                      <ImageGhostBtn
+                        type="button"
+                        disabled={uploading}
+                        onClick={() => inputRef.current?.click()}
+                      >
+                        Reemplazar
+                      </ImageGhostBtn>
+                      <ImageRemoveBtn
+                        type="button"
+                        disabled={uploading}
+                        title="Quitar imagen"
+                        onClick={() => {
+                          setField('image', '')
+                          setUploadError('')
+                          if (inputRef.current) inputRef.current.value = ''
+                        }}
+                      >
+                        <DeleteOutlinedIcon />
+                      </ImageRemoveBtn>
+                    </ImageAttachedRow>
+                  ) : (
+                    <ImageUploadZone
+                      type="button"
+                      $drag={imgDrag}
+                      $disabled={uploading}
+                      disabled={uploading}
+                      onClick={() => !uploading && inputRef.current?.click()}
+                    >
+                      {uploading ? (
+                        <ImageUploadSpinner />
+                      ) : (
+                        <ImageUploadIconWrap>
+                          <AddPhotoAlternateOutlinedIcon />
+                        </ImageUploadIconWrap>
+                      )}
+                      <ImageUploadTitle>
+                        {uploading ? 'Subiendo imagen…' : 'Arrastrá una imagen o hacé clic para elegir'}
+                      </ImageUploadTitle>
+                      <ImageUploadHint>
+                        PNG, JPG, WebP o GIF · recomendado 16:9 o 1200×630 px · máx. según servidor
+                      </ImageUploadHint>
+                    </ImageUploadZone>
+                  )}
+                </ImageDropRoot>
               </Field>
-              {uploadError && <div style={{ color: 'red', marginTop: 8, fontSize: 14 }}>{uploadError}</div>}
+              {uploadError && <UploadErrorBanner role="alert">{uploadError}</UploadErrorBanner>}
 
               {/* audience */}
               <Field $full>
@@ -535,13 +986,13 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
               {/* confirm banner (new notifications only) */}
               {confirmStep && (
                 <ConfirmBanner>
-                  <ConfirmTitle>¿Guardar para uso futuro?</ConfirmTitle>
+                  <ConfirmTitle>¿Enviar esta notificación?</ConfirmTitle>
                   <ConfirmSub>
-                    Puedes conservar esta notificación en tu biblioteca para reenviarla fácilmente cuando quieras.
+                    Se enviará a la audiencia elegida. El envío quedará registrado en el historial.
                   </ConfirmSub>
                   <ConfirmBtns>
-                    <ConfirmBtn onClick={() => doSend(false)}>Solo enviar</ConfirmBtn>
-                    <ConfirmBtn $primary onClick={() => doSend(true)}>Guardar y enviar</ConfirmBtn>
+                    <ConfirmBtn onClick={() => setConfirmStep(false)}>Volver a editar</ConfirmBtn>
+                    <ConfirmBtn $primary onClick={() => doSend()}>Enviar ahora</ConfirmBtn>
                   </ConfirmBtns>
                 </ConfirmBanner>
               )}

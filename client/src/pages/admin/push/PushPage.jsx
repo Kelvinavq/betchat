@@ -7,7 +7,7 @@ import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import NotificationsActiveIcon from '@mui/icons-material/NotificationsActive'
 import PeopleOutlineIcon from '@mui/icons-material/GroupOutlined'
 import BarChartOutlinedIcon from '@mui/icons-material/BarChartOutlined'
-import { api } from '../../../utils/api'
+import { api, API_BASE_URL } from '../../../utils/api'
 import NotificationsPage from '../notifications/NotificationsPage'
 import {
   Wrap, TopBar, MenuBtn, TitleBlock, PageTitle, PageSub,
@@ -24,6 +24,7 @@ import {
   DayBadge, ConditionBadge, EventTypeBadge,
   AddBtn, SaveBtn, SendNowBtn, DeleteBtn, FooterRow,
   HistSection, HistTitle, HistTable, HistRow, HistName, HistSub, HistCount, HistRate, HistDate,
+  HistPager, HistPagerBtn, HistPagerInfo, HistPagerTotal,
   SettingsCard, SettingsGrid, SelectInput,
   Spinner, Empty, ErrorLine,
 } from './PushPage.styles'
@@ -48,6 +49,8 @@ const EVENT_META = {
   event_end:      { icon: '🏁', label: 'Evento terminó',      sub: 'Cuando el evento finaliza' },
   lottery_result: { icon: '🎰', label: 'Resultado sorteo',    sub: 'Cuando salen los ganadores' },
 }
+
+const HISTORY_PAGE_SIZE = 10
 
 const TIMEZONES = [
   'America/Argentina/Buenos_Aires',
@@ -144,11 +147,13 @@ function BaseCampaignCard({ camp, onChange, onSave, onDelete, onSendNow, saving,
         localStorage.getItem('talgibravi-istazo') ||
         ''
 
-      const response = await fetch('http://localhost:3000/api/push/upload-image', {
+      const uploadUrl = `${String(API_BASE_URL).replace(/\/+$/, '')}/api/push/upload-image`
+      const response = await fetch(uploadUrl, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
         },
+        credentials: 'include',
         body: formData,
       })
 
@@ -874,16 +879,27 @@ function SettingsSection({ settings, onSettings }) {
   const [saved, setSaved]     = useState(false)
   const [history, setHistory] = useState([])
   const [histLoading, setHL]  = useState(true)
+  const [historyPage, setHistoryPage] = useState(1)
+  const [histPagination, setHistPagination] = useState({
+    page: 1, limit: HISTORY_PAGE_SIZE, total: 0, totalPages: 1,
+  })
   const [error, setError]     = useState('')
 
   useEffect(() => { setForm(settings || {}) }, [settings])
 
   useEffect(() => {
-    api.get('/api/push/history?limit=20')
-      .then(d => setHistory(d.history || []))
-      .catch(() => {})
-      .finally(() => setHL(false))
-  }, [])
+    let cancelled = false
+    setHL(true)
+    api.get(`/api/push/history?page=${historyPage}&limit=${HISTORY_PAGE_SIZE}`)
+      .then((d) => {
+        if (cancelled) return
+        setHistory(d.history || [])
+        if (d.pagination) setHistPagination(d.pagination)
+      })
+      .catch(() => { if (!cancelled) setHistory([]) })
+      .finally(() => { if (!cancelled) setHL(false) })
+    return () => { cancelled = true }
+  }, [historyPage])
 
   const save = async () => {
     setSaving(true)
@@ -982,28 +998,52 @@ function SettingsSection({ settings, onSettings }) {
         ) : history.length === 0 ? (
           <Empty>Sin historial de envíos todavía</Empty>
         ) : (
-          <HistTable>
-            {history.map(h => (
-              <HistRow key={h.id}>
-                <div>
-                  <HistName>{h.title || '(sin título)'}</HistName>
-                  <HistSub>
-                    {TYPE_LABELS[h.campaignType] || h.campaignType}
-                    {h.campaignName ? ` · ${h.campaignName}` : ''}
-                    {h.triggerType === 'manual' ? ' · Manual' : ''}
-                  </HistSub>
-                </div>
-                <HistCount>
-                  📤 {fmtNum(h.targetCount)} objetivo
-                </HistCount>
-                <HistCount>
-                  ✅ {fmtNum(h.sentCount)} / ❌ {fmtNum(h.failedCount)}
-                </HistCount>
-                <HistRate $rate={h.deliveryRate}>{h.deliveryRate}%</HistRate>
-                <HistDate>{fmtDate(h.sentAt)}</HistDate>
-              </HistRow>
-            ))}
-          </HistTable>
+          <>
+            <HistTable>
+              {history.map(h => (
+                <HistRow key={h.id}>
+                  <div>
+                    <HistName>{h.title || '(sin título)'}</HistName>
+                    <HistSub>
+                      {TYPE_LABELS[h.campaignType] || h.campaignType}
+                      {h.campaignName ? ` · ${h.campaignName}` : ''}
+                      {h.triggerType === 'manual' ? ' · Manual' : ''}
+                    </HistSub>
+                  </div>
+                  <HistCount>
+                    📤 {fmtNum(h.targetCount)} objetivo
+                  </HistCount>
+                  <HistCount>
+                    ✅ {fmtNum(h.sentCount)} / ❌ {fmtNum(h.failedCount)}
+                  </HistCount>
+                  <HistRate $rate={h.deliveryRate}>{h.deliveryRate}%</HistRate>
+                  <HistDate>{fmtDate(h.sentAt)}</HistDate>
+                </HistRow>
+              ))}
+            </HistTable>
+            {histPagination.totalPages > 1 && (
+              <HistPager>
+                <HistPagerBtn
+                  type="button"
+                  disabled={historyPage <= 1 || histLoading}
+                  onClick={() => setHistoryPage(p => Math.max(1, p - 1))}
+                >
+                  Anterior
+                </HistPagerBtn>
+                <HistPagerInfo>
+                  Página {histPagination.page} de {histPagination.totalPages}
+                  <HistPagerTotal>({fmtNum(histPagination.total)} envíos)</HistPagerTotal>
+                </HistPagerInfo>
+                <HistPagerBtn
+                  type="button"
+                  disabled={historyPage >= histPagination.totalPages || histLoading}
+                  onClick={() => setHistoryPage(p => p + 1)}
+                >
+                  Siguiente
+                </HistPagerBtn>
+              </HistPager>
+            )}
+          </>
         )}
       </HistSection>
     </>

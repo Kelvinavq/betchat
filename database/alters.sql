@@ -477,3 +477,6 @@ CREATE TABLE IF NOT EXISTS `push_retention_log` (
 
 ALTER TABLE `push_campaigns` ADD COLUMN `image` VARCHAR(500) DEFAULT NULL AFTER `body`;
 ALTER TABLE `push_history` ADD COLUMN `image` VARCHAR(500) DEFAULT NULL AFTER `body`;
+
+-- Bloqueo push a nivel cliente (no recibe FCM; registerToken rechaza hasta desbloquear)
+ALTER TABLE `clients` ADD COLUMN `push_blocked` TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_active`;

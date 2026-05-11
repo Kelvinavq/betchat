@@ -10,25 +10,8 @@ firebase.initializeApp({
   appId: '1:334468398209:web:5678e849ee8453d2f56180',
 })
 
-const messaging = firebase.messaging()
+firebase.messaging()
 
-messaging.onBackgroundMessage((payload) => {
-  console.log('[firebase-messaging-sw] payload:', payload)
-
-  const title =
-    payload?.notification?.title ||
-    payload?.data?.title ||
-    'Nueva notificación'
-
-  const body =
-    payload?.notification?.body ||
-    payload?.data?.body ||
-    'Tenés una nueva notificación'
-
-  self.registration.showNotification(title, {
-    body,
-    icon: '/icon-192.png',
-    badge: '/icon-192.png',
-    data: payload?.data || {},
-  })
-})
+// Sin onBackgroundMessage + showNotification: si el servidor envía `notification` /
+// `webpush`, FCM ya muestra una notificación del sistema. Llamar a
+// showNotification aquí duplicaba el mismo aviso en escritorio y móvil.

@@ -5,6 +5,9 @@ const spin   = keyframes`to{transform:rotate(360deg)}`
 
 /* ── page shell ─────────────────────────────────────────────────── */
 export const Wrap = styled.div`
+  flex: 1;
+  min-width: 0;
+  width: 100%;
   display: flex;
   flex-direction: column;
   height: var(--app-height, 100dvh);
@@ -534,6 +537,53 @@ export const HistRate = styled.div`
 export const HistDate = styled.div`
   color: rgba(255,255,255,.35);
   font-size: 11px;
+`
+
+export const HistPager = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 12px 0 0;
+  flex-wrap: wrap;
+`
+
+export const HistPagerBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 88px;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.06);
+  color: rgba(255,255,255,.75);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, border-color .15s;
+  &:hover:not(:disabled) {
+    background: rgba(99,102,241,.12);
+    border-color: rgba(99,102,241,.35);
+    color: #c7d2fe;
+  }
+  &:disabled {
+    opacity: .35;
+    cursor: not-allowed;
+  }
+`
+
+export const HistPagerInfo = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,.38);
+  white-space: nowrap;
+`
+
+export const HistPagerTotal = styled.span`
+  margin-left: 8px;
+  opacity: 0.85;
 `
 
 /* ── settings form ──────────────────────────────────────────────── */

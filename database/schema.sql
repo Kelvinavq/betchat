@@ -41,6 +41,7 @@ CREATE TABLE IF NOT EXISTS `clients` (
   `external_id`     VARCHAR(120)     DEFAULT NULL         COMMENT 'ID on the casino platform',
   `is_new`          TINYINT(1)       NOT NULL DEFAULT 1,
   `is_active`       TINYINT(1)       NOT NULL DEFAULT 1,
+  `push_blocked`    TINYINT(1)       NOT NULL DEFAULT 0 COMMENT '1 = no recibir push ni registrar token',
   `is_online`       TINYINT(1)       NOT NULL DEFAULT 0,
   `is_temporary`    TINYINT(1)       NOT NULL DEFAULT 0,
   `temp_session_active` TINYINT(1)   NOT NULL DEFAULT 1,

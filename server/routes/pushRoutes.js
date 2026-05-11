@@ -9,7 +9,8 @@ import {
   getStats,
   getCampaigns, createCampaign, updateCampaign, deleteCampaign, sendCampaignNow,
   sendDirect,
-  getHistory,
+  getHistory, getPushSubscribers, getPushBlockedClients,
+  revokePushTokenAdmin, blockPushClient, unblockPushClient,
   registerToken, unregisterToken,
   uploadImage,
 } from '../controllers/pushController.js'
@@ -53,5 +54,10 @@ router.post('/campaigns/:id/send', sendCampaignNow)
 router.post('/send-direct',    sendDirect)
 router.post('/upload-image', upload.single('image'), uploadImage)
 router.get('/history', getHistory)
+router.get('/subscribers', getPushSubscribers)
+router.get('/blocked-subscribers', getPushBlockedClients)
+router.delete('/token/:id', revokePushTokenAdmin)
+router.post('/client/:clientId/block-push', blockPushClient)
+router.post('/client/:clientId/unblock-push', unblockPushClient)
 
 export default router

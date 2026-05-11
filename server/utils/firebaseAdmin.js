@@ -1,4 +1,5 @@
 import { query } from '../config/database.js'
+import { config } from '../config/config.js'
 
 let _messaging = null
 let _credHash = ''
@@ -54,6 +55,17 @@ function normalizeData(data = {}) {
   return Object.fromEntries(
     Object.entries(data || {}).map(([k, v]) => [String(k), String(v ?? '')])
   )
+}
+
+/** URLs relativas (/push/...) no sirven para la imagen grande en Web Push; forzar absoluta. */
+function resolveWebPushImageUrl(image) {
+  if (image == null) return null
+  const s = String(image).trim()
+  if (!s) return null
+  if (/^https?:\/\//i.test(s)) return s
+  const base = String(process.env.PUBLIC_API_URL || `http://localhost:${config.port}`).replace(/\/+$/, '')
+  if (s.startsWith('/')) return `${base}${s}`
+  return `${base}/${s.replace(/^\/+/, '')}`
 }
 
 export async function getFirebaseMessaging() {
@@ -124,6 +136,8 @@ export async function sendMulticast(tokenRows, title, body, data = {}, image = n
 
   const finalTitle = safeText(title, 'Nueva notificación')
   const finalBody = safeText(body, 'Tenés una nueva notificación')
+  const normalizedData = normalizeData(data)
+  const imageForWebPush = resolveWebPushImageUrl(image ?? normalizedData.image ?? null)
 
   const BATCH = 500
   const result = {
@@ -150,7 +164,7 @@ export async function sendMulticast(tokenRows, title, body, data = {}, image = n
             body: finalBody,
             icon: '/icon-192.png',
             badge: '/icon-192.png',
-            ...(image ? { image } : {}),
+            ...(imageForWebPush ? { image: imageForWebPush } : {}),
           },
           fcmOptions: {
             link: '/',
@@ -160,8 +174,7 @@ export async function sendMulticast(tokenRows, title, body, data = {}, image = n
         data: {
           title: finalTitle,
           body: finalBody,
-          ...(image ? { image } : {}),
-          ...normalizeData(data),
+          ...normalizedData,
         },
       })
 

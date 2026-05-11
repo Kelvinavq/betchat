@@ -43,9 +43,15 @@ const request = async (endpoint, options = {}) => {
   return res.json()
 }
 
+const serializeBody = (body) => {
+  if (body === undefined) return undefined
+  if (body instanceof FormData) return body
+  return JSON.stringify(body)
+}
+
 export const api = {
   get: (endpoint) => request(endpoint),
-  post: (endpoint, body) => request(endpoint, { method: 'POST', body: JSON.stringify(body) }),
-  put: (endpoint, body) => request(endpoint, { method: 'PUT', body: JSON.stringify(body) }),
+  post: (endpoint, body) => request(endpoint, { method: 'POST', body: serializeBody(body) }),
+  put: (endpoint, body) => request(endpoint, { method: 'PUT', body: serializeBody(body) }),
   delete: (endpoint) => request(endpoint, { method: 'DELETE' }),
 }

@@ -23,7 +23,6 @@ const upload = multer({ storage })
 
 export async function uploadImage(req, res, next) {
   try {
-    console.log('req.file:', req.file)
     if (!req.file) return res.status(400).json({ error: 'No se recibió imagen' })
 
     const imageUrl = `/push/${req.file.filename}`
@@ -216,7 +215,12 @@ export async function updateSettings(req, res, next) {
 export async function getStats(req, res, next) {
   try {
     const [subRows, sentRows, sent30Rows] = await Promise.all([
-      query('SELECT COUNT(DISTINCT client_id) AS cnt FROM push_tokens WHERE is_active = 1'),
+      query(`
+        SELECT COUNT(DISTINCT pt.client_id) AS cnt
+        FROM push_tokens pt
+        INNER JOIN clients c ON c.id = pt.client_id AND COALESCE(c.push_blocked, 0) = 0
+        WHERE pt.is_active = 1
+      `),
       query('SELECT COALESCE(SUM(sent_count), 0) AS total, COALESCE(SUM(failed_count), 0) AS failed FROM push_history'),
       query(`SELECT COALESCE(SUM(sent_count),0) AS s, COALESCE(SUM(failed_count),0) AS f
              FROM push_history WHERE sent_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`),
@@ -329,6 +333,7 @@ async function getTargetTokens(campaign, maxPerDay) {
       WHERE is_active = 1
       GROUP BY client_id
     ) last_pt ON last_pt.id = pt.id
+    INNER JOIN clients c ON c.id = pt.client_id AND COALESCE(c.push_blocked, 0) = 0
     WHERE pt.is_active = 1
   `;
 
@@ -484,9 +489,8 @@ async function getTargetTokens(campaign, maxPerDay) {
 
       const { rows } = await query(`
         ${activeTokenBase}
-          INNER JOIN clients cl ON cl.id = pt.client_id
           ${condSQL}
-          AND DATEDIFF(NOW(), cl.created_at) = ?
+          AND DATEDIFF(NOW(), c.created_at) = ?
           AND pt.client_id NOT IN (
             SELECT client_id
             FROM push_onboarding_log
@@ -521,6 +525,7 @@ async function getAudienceTokens(audience) {
       WHERE is_active = 1
       GROUP BY client_id
     ) last_pt ON last_pt.id = pt.id
+    INNER JOIN clients c ON c.id = pt.client_id AND COALESCE(c.push_blocked, 0) = 0
     WHERE pt.is_active = 1
   `;
 
@@ -689,14 +694,30 @@ export async function getHistory(req, res, next) {
     const page  = Math.max(1, parseInt(req.query.page  || '1', 10))
     const limit = Math.min(50, Math.max(1, parseInt(req.query.limit || '20', 10)))
     const offset = (page - 1) * limit
+    const rawQ = String(req.query.q || '').trim().slice(0, 120)
+    const esc = (s) => s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+    const searchParams = []
+    let whereSql = ''
+    if (rawQ) {
+      const like = `%${esc(rawQ)}%`
+      whereSql = 'WHERE (ph.title LIKE ? OR ph.body LIKE ? OR ph.campaign_name LIKE ?)'
+      searchParams.push(like, like, like)
+    }
 
-    const { rows: cntRows } = await query('SELECT COUNT(*) AS total FROM push_history')
+    const { rows: cntRows } = await query(
+      `SELECT COUNT(*) AS total FROM push_history ph ${whereSql}`,
+      searchParams
+    )
     const total = Number(cntRows?.[0]?.total || 0)
 
     const { rows } = await query(
-      `SELECT id, campaign_id, campaign_type, campaign_name, title, body, image,
-              target_count, sent_count, failed_count, trigger_type, sent_at
-       FROM push_history ORDER BY sent_at DESC LIMIT ${limit} OFFSET ${offset}`
+      `SELECT ph.id, ph.campaign_id, ph.campaign_type, ph.campaign_name, ph.title, ph.body, ph.image,
+              ph.target_count, ph.sent_count, ph.failed_count, ph.trigger_type, ph.sent_at
+       FROM push_history ph
+       ${whereSql}
+       ORDER BY ph.sent_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      searchParams
     )
 
     res.json({
@@ -720,6 +741,152 @@ export async function getHistory(req, res, next) {
   } catch (err) { next(err) }
 }
 
+/** Clientes con token FCM activo (un registro por cliente: último token). */
+export async function getPushSubscribers(req, res, next) {
+  try {
+    const page  = Math.max(1, parseInt(req.query.page  || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)))
+    const offset = (page - 1) * limit
+    const rawQ = String(req.query.q || '').trim().slice(0, 120)
+    const esc = (s) => s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+
+    const baseJoin = `
+      FROM push_tokens pt
+      INNER JOIN (
+        SELECT client_id, MAX(id) AS id
+        FROM push_tokens
+        WHERE is_active = 1
+        GROUP BY client_id
+      ) last_pt ON last_pt.id = pt.id
+      INNER JOIN clients c ON c.id = pt.client_id AND COALESCE(c.push_blocked, 0) = 0
+      WHERE pt.is_active = 1
+    `
+    const searchParams = []
+    let searchSql = ''
+    if (rawQ) {
+      const like = `%${esc(rawQ)}%`
+      searchSql = ` AND (c.username LIKE ? OR c.full_name LIKE ? OR COALESCE(c.external_id,'') LIKE ? OR COALESCE(c.cuil,'') LIKE ? OR COALESCE(pt.device,'') LIKE ?)`
+      searchParams.push(like, like, like, like, like)
+    }
+
+    const { rows: cntRows } = await query(
+      `SELECT COUNT(*) AS total ${baseJoin} ${searchSql}`,
+      searchParams
+    )
+    const total = Number(cntRows?.[0]?.total || 0)
+
+    const { rows } = await query(
+      `SELECT pt.id AS token_id, pt.client_id, pt.device, pt.last_seen AS token_last_seen, pt.created_at AS token_created_at,
+              c.username, c.full_name, c.external_id, c.cuil, c.last_seen_at, c.registered_at
+       ${baseJoin}
+       ${searchSql}
+       ORDER BY pt.last_seen DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      searchParams
+    )
+
+    res.json({
+      subscribers: (rows || []).map(r => ({
+        tokenId:        Number(r.token_id),
+        clientId:       Number(r.client_id),
+        username:       r.username,
+        fullName:       r.full_name,
+        externalId:     r.external_id,
+        cuil:           r.cuil,
+        device:         r.device,
+        tokenLastSeen:  r.token_last_seen,
+        tokenCreatedAt: r.token_created_at,
+        clientLastSeen: r.last_seen_at,
+        registeredAt:   r.registered_at,
+      })),
+      pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    })
+  } catch (err) { next(err) }
+}
+
+export async function getPushBlockedClients(req, res, next) {
+  try {
+    const page  = Math.max(1, parseInt(req.query.page  || '1', 10))
+    const limit = Math.min(100, Math.max(1, parseInt(req.query.limit || '20', 10)))
+    const offset = (page - 1) * limit
+    const rawQ = String(req.query.q || '').trim().slice(0, 120)
+    const esc = (s) => s.replace(/\\/g, '\\\\').replace(/%/g, '\\%').replace(/_/g, '\\_')
+
+    const searchParams = []
+    let searchSql = ''
+    if (rawQ) {
+      const like = `%${esc(rawQ)}%`
+      searchSql = ' AND (c.username LIKE ? OR c.full_name LIKE ? OR COALESCE(c.external_id,\'\') LIKE ? OR COALESCE(c.cuil,\'\') LIKE ?)'
+      searchParams.push(like, like, like, like)
+    }
+
+    const whereBase = 'WHERE COALESCE(c.push_blocked, 0) = 1'
+
+    const { rows: cntRows } = await query(
+      `SELECT COUNT(*) AS total FROM clients c ${whereBase} ${searchSql}`,
+      searchParams
+    )
+    const total = Number(cntRows?.[0]?.total || 0)
+
+    const { rows } = await query(
+      `SELECT c.id AS client_id, c.username, c.full_name, c.external_id, c.cuil, c.last_seen_at, c.updated_at
+       FROM clients c
+       ${whereBase}
+       ${searchSql}
+       ORDER BY c.updated_at DESC
+       LIMIT ${limit} OFFSET ${offset}`,
+      searchParams
+    )
+
+    res.json({
+      blocked: (rows || []).map(r => ({
+        clientId:     Number(r.client_id),
+        username:     r.username,
+        fullName:     r.full_name,
+        externalId:   r.external_id,
+        cuil:         r.cuil,
+        clientLastSeen: r.last_seen_at,
+        updatedAt:    r.updated_at,
+      })),
+      pagination: { page, limit, total, totalPages: Math.max(1, Math.ceil(total / limit)) },
+    })
+  } catch (err) { next(err) }
+}
+
+export async function revokePushTokenAdmin(req, res, next) {
+  try {
+    const id = Number(req.params.id)
+    if (!id) return res.status(400).json({ error: 'ID inválido' })
+    const { rows } = await query('SELECT id FROM push_tokens WHERE id = ? LIMIT 1', [id])
+    if (!rows?.length) return res.status(404).json({ error: 'Suscripción no encontrada' })
+    await query('UPDATE push_tokens SET is_active = 0 WHERE id = ?', [id])
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+}
+
+export async function blockPushClient(req, res, next) {
+  try {
+    const clientId = Number(req.params.clientId)
+    if (!clientId) return res.status(400).json({ error: 'Cliente inválido' })
+    const { rows } = await query('SELECT id FROM clients WHERE id = ? LIMIT 1', [clientId])
+    if (!rows?.length) return res.status(404).json({ error: 'Cliente no encontrado' })
+    await query('UPDATE clients SET push_blocked = 1 WHERE id = ?', [clientId])
+    await query('UPDATE push_tokens SET is_active = 0 WHERE client_id = ?', [clientId])
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+}
+
+export async function unblockPushClient(req, res, next) {
+  try {
+    const clientId = Number(req.params.clientId)
+    if (!clientId) return res.status(400).json({ error: 'Cliente inválido' })
+    const { rows } = await query('SELECT id FROM clients WHERE id = ? LIMIT 1', [clientId])
+    if (!rows?.length) return res.status(404).json({ error: 'Cliente no encontrado' })
+    await query('UPDATE clients SET push_blocked = 0 WHERE id = ?', [clientId])
+    res.json({ ok: true })
+  } catch (err) { next(err) }
+}
+
 /* ── client token registration ────────────────────────────────── */
 
 export async function registerToken(req, res, next) {
@@ -727,9 +894,16 @@ export async function registerToken(req, res, next) {
     const { clientId, token, device } = req.body
     if (!clientId || !token) return res.status(400).json({ error: 'clientId y token requeridos' })
 
-    // Verify client exists
-    const { rows: clientRows } = await query('SELECT id FROM clients WHERE id = ? LIMIT 1', [clientId])
+    const { rows: clientRows } = await query(
+      'SELECT id, COALESCE(push_blocked, 0) AS push_blocked FROM clients WHERE id = ? LIMIT 1',
+      [clientId]
+    )
     if (!clientRows?.length) return res.status(404).json({ error: 'Cliente no encontrado' })
+    if (Number(clientRows[0].push_blocked) === 1) {
+      return res.status(403).json({
+        error: 'Las notificaciones push están deshabilitadas para esta cuenta. Contactá al soporte.',
+      })
+    }
 
     // Deactivate old tokens for this token string (token might be reused)
     await query("UPDATE push_tokens SET is_active = 0 WHERE token = ? AND client_id != ?", [token, clientId])

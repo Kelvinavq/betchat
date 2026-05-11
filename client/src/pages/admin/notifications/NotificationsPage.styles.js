@@ -9,6 +9,10 @@ const slideUp = keyframes`
   from { opacity: 0; transform: translateY(20px) scale(0.98); }
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 `
+const slideFromRight = keyframes`
+  from { opacity: 0; transform: translateX(16px); }
+  to   { opacity: 1; transform: translateX(0); }
+`
 
 /* ── page shell ── */
 export const PageWrap = styled.div`
@@ -47,6 +51,68 @@ export const PageTitle = styled.h1`
 `
 export const PageSub = styled.p`
   font-size: 13px; color: rgba(255,255,255,0.32); margin-top: 3px;
+`
+
+export const MainTabsWrap = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+`
+export const MainTabBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 10px;
+  border: 1px solid ${({ $active }) => ($active ? 'rgba(30,133,255,0.42)' : 'transparent')};
+  background: ${({ $active }) => ($active ? 'rgba(30,133,255,0.12)' : 'rgba(255,255,255,0.04)')};
+  color: ${({ $active }) => ($active ? '#93c5fd' : 'rgba(255,255,255,0.42)')};
+  font-size: 13px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  &:hover {
+    background: rgba(30,133,255,0.08);
+    color: rgba(255,255,255,0.78);
+  }
+`
+
+export const SubsSubTabsWrap = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+`
+export const SubsSubTabBtn = styled.button`
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: 1px solid ${({ $active }) => ($active ? 'rgba(30,133,255,0.38)' : 'rgba(255,255,255,0.08)')};
+  background: ${({ $active }) => ($active ? 'rgba(30,133,255,0.10)' : 'transparent')};
+  color: ${({ $active }) => ($active ? '#93c5fd' : 'rgba(255,255,255,0.38)')};
+  font-size: 12.5px;
+  font-weight: ${({ $active }) => ($active ? 700 : 500)};
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  &:hover {
+    border-color: rgba(30,133,255,0.28);
+    color: rgba(255,255,255,0.72);
+  }
+`
+export const CellMuted = styled.span`
+  font-size: 12px;
+  color: rgba(255,255,255,0.28);
+`
+export const TruncateCell = styled.span`
+  display: block;
+  max-width: min(280px, 36vw);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `
 export const AddBtn = styled.button`
   display: flex; align-items: center; gap: 7px;
@@ -243,6 +309,8 @@ export const ActionBtn = styled.button`
   &:hover {
     ${({ $v }) => $v === 'danger' ? css`
       background: rgba(239,68,68,0.14); border-color: rgba(239,68,68,0.28); color: #f87171;
+    ` : $v === 'warn' ? css`
+      background: rgba(245,158,11,0.14); border-color: rgba(245,158,11,0.28); color: #f59e0b;
     ` : $v === 'send' ? css`
       background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.28); color: #4ade80;
     ` : css`
@@ -278,6 +346,42 @@ export const EmptyRow = styled.tr``
 export const EmptyCell = styled.td`
   padding: 64px 20px; text-align: center;
   color: rgba(255,255,255,0.20); font-size: 14px;
+`
+
+/* ── toast ── */
+export const Toast = styled.div`
+  position: fixed; top: 24px; right: 24px; z-index: 9999;
+  min-width: 300px; max-width: 400px;
+  padding: 14px 16px; border-radius: 16px;
+  background: #12122a;
+  border: 1px solid ${({ $type }) => ($type === 'danger'
+    ? 'rgba(239,68,68,0.30)' : 'rgba(34,197,94,0.30)')};
+  box-shadow: 0 24px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
+  display: flex; align-items: flex-start; gap: 12px;
+  animation: ${slideFromRight} 0.28s cubic-bezier(0.16,1,0.3,1) both;
+  @media (max-width: 480px) { right: 16px; left: 16px; min-width: unset; top: 16px; }
+`
+export const ToastIconBox = styled.div`
+  width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: ${({ $type }) => ($type === 'danger'
+    ? 'rgba(239,68,68,0.14)' : 'rgba(34,197,94,0.14)')};
+  color: ${({ $type }) => ($type === 'danger' ? '#f87171' : '#4ade80')};
+  svg { font-size: 20px; }
+`
+export const ToastBody = styled.div`flex: 1; min-width: 0; padding-top: 1px;`
+export const ToastTitle = styled.p`font-size: 13px; font-weight: 700; color: #fff;`
+export const ToastMsg = styled.p`
+  font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 3px; line-height: 1.45;
+`
+export const ToastClose = styled.button`
+  width: 22px; height: 22px; border-radius: 6px; flex-shrink: 0; margin-top: 1px;
+  background: rgba(255,255,255,0.06); border: none;
+  color: rgba(255,255,255,0.35);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s;
+  svg { font-size: 14px; }
+  &:hover { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.75); }
 `
 
 /* ════════════════ MODAL ════════════════ */
@@ -405,7 +509,37 @@ export const CharCount = styled.span`
   ${({ $warn }) => $warn && 'color: #fbbf24;'}
 `
 
-/* ── notification preview card ── */
+/* ── notification preview (approx. Web Push: hero image + fila texto) ── */
+export const PreviewShell = styled.div`
+  border-radius: 14px;
+  overflow: hidden;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  box-shadow: 0 10px 36px rgba(0,0,0,0.28);
+`
+export const PreviewHero = styled.div`
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  max-height: 148px;
+  background: linear-gradient(145deg, rgba(255,255,255,0.06), rgba(0,0,0,0.2));
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`
+export const PreviewBodyRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 13px 14px;
+  ${({ $withHero }) => $withHero && css`
+    border-top: 1px solid rgba(255,255,255,0.08);
+    background: rgba(0,0,0,0.22);
+  `}
+`
 export const PreviewCard = styled.div`
   display: flex; align-items: flex-start; gap: 11px;
   padding: 13px 14px; border-radius: 14px;
@@ -437,7 +571,120 @@ export const PreviewBody = styled.p`
 `
 export const PreviewLabel = styled.p`
   font-size: 10px; font-weight: 600; letter-spacing: 0.09em;
-  text-transform: uppercase; color: rgba(255,255,255,0.20); margin-bottom: 7px;
+  text-transform: uppercase; color: rgba(255,255,255,0.20); margin-bottom: 4px;
+`
+export const PreviewCaption = styled.p`
+  font-size: 11px; color: rgba(255,255,255,0.28); line-height: 1.45;
+  margin-bottom: 10px;
+`
+
+/* ── image upload (modal) ── */
+export const ImageUploadHiddenInput = styled.input`
+  position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none;
+`
+export const ImageDropRoot = styled.div`
+  display: flex; flex-direction: column; gap: 0;
+`
+export const ImageUploadZone = styled.button`
+  width: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 9px;
+  padding: 22px 18px;
+  border-radius: 12px;
+  border: 1px dashed ${({ $drag, $disabled }) =>
+    $disabled ? 'rgba(255,255,255,0.08)' : $drag ? 'rgba(30,133,255,0.55)' : 'rgba(255,255,255,0.14)'};
+  background: ${({ $drag, $disabled }) =>
+    $disabled ? 'rgba(255,255,255,0.02)' : $drag ? 'rgba(30,133,255,0.10)' : 'rgba(255,255,255,0.03)'};
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  font-family: inherit;
+  transition: border-color 0.2s, background 0.2s, transform 0.15s;
+  &:hover:not(:disabled) {
+    border-color: rgba(30,133,255,0.42);
+    background: rgba(30,133,255,0.07);
+  }
+  &:active:not(:disabled) { transform: scale(0.992); }
+`
+export const ImageUploadIconWrap = styled.div`
+  width: 46px; height: 46px; border-radius: 13px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(30,133,255,0.12);
+  border: 1px solid rgba(30,133,255,0.24);
+  svg { font-size: 24px; color: #6eb6ff; }
+`
+export const ImageUploadTitle = styled.span`
+  font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.82);
+`
+export const ImageUploadHint = styled.span`
+  font-size: 11px; color: rgba(255,255,255,0.30);
+  text-align: center; max-width: 280px; line-height: 1.45;
+`
+export const ImageUploadSpinner = styled.span`
+  width: 22px; height: 22px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.12);
+  border-top-color: rgba(30,133,255,0.9);
+  animation: spin 0.75s linear infinite;
+  @keyframes spin { to { transform: rotate(360deg); } }
+`
+export const ImageAttachedRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+`
+export const ImageAttachedThumb = styled.img`
+  width: 52px; height: 52px; border-radius: 10px; object-fit: cover; flex-shrink: 0;
+  background: rgba(0,0,0,0.3);
+`
+export const ImageAttachedMeta = styled.div`
+  flex: 1; min-width: 0;
+`
+export const ImageAttachedLabel = styled.p`
+  font-size: 12px; font-weight: 600; color: rgba(255,255,255,0.78);
+`
+export const ImageAttachedSub = styled.p`
+  font-size: 10.5px; color: rgba(255,255,255,0.28); margin-top: 2px;
+`
+export const ImageGhostBtn = styled.button`
+  padding: 7px 12px; border-radius: 9px;
+  font-size: 11.5px; font-weight: 600; font-family: inherit; cursor: pointer;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.10);
+  color: rgba(255,255,255,0.62);
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  &:hover:not(:disabled) {
+    background: rgba(30,133,255,0.12);
+    border-color: rgba(30,133,255,0.28);
+    color: #93c5fd;
+  }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+`
+export const ImageRemoveBtn = styled.button`
+  width: 34px; height: 34px; border-radius: 9px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(239,68,68,0.10);
+  border: 1px solid rgba(239,68,68,0.22);
+  color: #fca5a5;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  svg { font-size: 18px; }
+  &:hover:not(:disabled) {
+    background: rgba(239,68,68,0.18);
+    border-color: rgba(239,68,68,0.35);
+  }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+`
+export const UploadErrorBanner = styled.div`
+  display: flex; align-items: flex-start; gap: 8px;
+  padding: 10px 12px; border-radius: 10px; margin-top: 10px;
+  background: rgba(239,68,68,0.10);
+  border: 1px solid rgba(239,68,68,0.22);
+  font-size: 12px; color: #fca5a5; line-height: 1.45;
 `
 
 /* ── schedule toggle row ── */
