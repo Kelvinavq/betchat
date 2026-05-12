@@ -18,11 +18,32 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import { api, API_BASE_URL, resolveApiAsset } from '../../../utils/api'
 import { DESIGN_OPTIONS } from '../../../components/client/CasinoPopup'
 import {
-  PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
+  PageWrap, PageScroll,
+  PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
   StatsStrip, StatCard, StatIconWrap, StatInfo, StatValue, StatLabel,
-  MainGrid, SendPanel, PanelTitle, PanelSub,
-  PreviewHistoryPanel, PopupPreview, PopupPreviewImg, PopupPreviewBody, PopupPreviewClose,
-  PopupPreviewTitle, PopupPreviewMsg, PopupPreviewCta, PreviewPlaceholder,
+  MainGrid,
+  SendPanel, PanelTitle, PanelSub,
+
+  PreviewHistoryPanel,
+  PopupPreview, PopupPreviewImg, PopupPreviewBody, PopupPreviewClose,
+  PopupPreviewTitle, PopupPreviewMsg, PopupPreviewCta,
+  PreviewPlaceholder,
+
+  GoldPopup, GoldPopupImg, GoldPopupBody, GoldPopupClose,
+  GoldPopupTitle, GoldPopupMsg, GoldPopupCta,
+
+  DarkPopup, DarkPopupImg, DarkPopupBody, DarkPopupClose,
+  DarkPopupTitle, DarkPopupMsg, DarkPopupCta,
+
+  NeonPopup, NeonPopupImg, NeonPopupBody, NeonPopupClose,
+  NeonPopupTitle, NeonPopupMsg, NeonPopupCta,
+
+  PremiumPopup, PremiumPopupImg, PremiumPopupBody, PremiumPopupClose,
+  PremiumPopupTitle, PremiumPopupMsg, PremiumPopupCta,
+
+  MinimalPopup, MinimalPopupImg, MinimalPopupBody, MinimalPopupClose,
+  MinimalPopupTitle, MinimalPopupMsg, MinimalPopupCta,
+
   HistLabel, HistList, HistItem, HistItemTitle, HistItemMeta, HistItemDate, HistEmpty,
   FieldGroup, FieldLabel, FieldInput, FieldTextarea, FieldSelect, FieldRow, CharCount,
   ImgRow, ImgPathInput, ImgPickBtn, ImgPreview, UploadSpinner, UploadErr,
@@ -158,29 +179,131 @@ function getToken() {
 /* ── PopupLivePreview ─────────────────────────────────────────────────── */
 function PopupLivePreview({ form }) {
   const src = form.img ? resolveApiAsset(form.img) : ''
+  const design = form.design || 'gold'
+  
   if (!form.title && !form.body) {
     return (
       <PreviewPlaceholder>
         <VisibilityOutlinedIcon />
         <span>La vista previa aparecerá aquí</span>
+        <span style={{ fontSize: '10px', opacity: 0.5 }}>Completá el título para ver el diseño</span>
       </PreviewPlaceholder>
     )
   }
-  return (
-    <PopupPreview>
-      {src && (
-        <PopupPreviewImg>
-          <img src={src} alt="" />
-        </PopupPreviewImg>
-      )}
-      <PopupPreviewBody>
-        <PopupPreviewClose>✕</PopupPreviewClose>
-        {form.title && <PopupPreviewTitle>{form.title}</PopupPreviewTitle>}
-        {form.body && <PopupPreviewMsg>{form.body}</PopupPreviewMsg>}
-        {form.ctaLabel && <PopupPreviewCta>{form.ctaLabel}</PopupPreviewCta>}
-      </PopupPreviewBody>
-    </PopupPreview>
-  )
+  
+  // Datos comunes para todos los diseños
+  const commonProps = {
+    imgSrc: src,
+    title: form.title,
+    body: form.body,
+    ctaLabel: form.ctaLabel,
+    showClose: true
+  }
+  
+  // Renderizar según el diseño seleccionado
+  switch(design) {
+    case 'gold':
+      return (
+        <GoldPopup>
+          {src && (
+            <GoldPopupImg>
+              <img src={src} alt="" />
+            </GoldPopupImg>
+          )}
+          <GoldPopupBody>
+            <GoldPopupClose>✕</GoldPopupClose>
+            {form.title && <GoldPopupTitle>{form.title}</GoldPopupTitle>}
+            {form.body && <GoldPopupMsg>{form.body}</GoldPopupMsg>}
+            {form.ctaLabel && <GoldPopupCta>{form.ctaLabel}</GoldPopupCta>}
+          </GoldPopupBody>
+        </GoldPopup>
+      )
+      
+    case 'dark':
+      return (
+        <DarkPopup>
+          {src && (
+            <DarkPopupImg>
+              <img src={src} alt="" />
+            </DarkPopupImg>
+          )}
+          <DarkPopupBody>
+            <DarkPopupClose>✕</DarkPopupClose>
+            {form.title && <DarkPopupTitle>{form.title}</DarkPopupTitle>}
+            {form.body && <DarkPopupMsg>{form.body}</DarkPopupMsg>}
+            {form.ctaLabel && <DarkPopupCta>{form.ctaLabel}</DarkPopupCta>}
+          </DarkPopupBody>
+        </DarkPopup>
+      )
+      
+    case 'neon':
+      return (
+        <NeonPopup>
+          {src && (
+            <NeonPopupImg>
+              <img src={src} alt="" />
+            </NeonPopupImg>
+          )}
+          <NeonPopupBody>
+            <NeonPopupClose>✕</NeonPopupClose>
+            {form.title && <NeonPopupTitle>{form.title}</NeonPopupTitle>}
+            {form.body && <NeonPopupMsg>{form.body}</NeonPopupMsg>}
+            {form.ctaLabel && <NeonPopupCta>{form.ctaLabel}</NeonPopupCta>}
+          </NeonPopupBody>
+        </NeonPopup>
+      )
+      
+    case 'premium':
+      return (
+        <PremiumPopup>
+          {src && (
+            <PremiumPopupImg>
+              <img src={src} alt="" />
+            </PremiumPopupImg>
+          )}
+          <PremiumPopupBody>
+            <PremiumPopupClose>✕</PremiumPopupClose>
+            {form.title && <PremiumPopupTitle>{form.title}</PremiumPopupTitle>}
+            {form.body && <PremiumPopupMsg>{form.body}</PremiumPopupMsg>}
+            {form.ctaLabel && <PremiumPopupCta>{form.ctaLabel}</PremiumPopupCta>}
+          </PremiumPopupBody>
+        </PremiumPopup>
+      )
+      
+    case 'minimal':
+      return (
+        <MinimalPopup>
+          {src && (
+            <MinimalPopupImg>
+              <img src={src} alt="" />
+            </MinimalPopupImg>
+          )}
+          <MinimalPopupBody>
+            <MinimalPopupClose>✕</MinimalPopupClose>
+            {form.title && <MinimalPopupTitle>{form.title}</MinimalPopupTitle>}
+            {form.body && <MinimalPopupMsg>{form.body}</MinimalPopupMsg>}
+            {form.ctaLabel && <MinimalPopupCta>{form.ctaLabel}</MinimalPopupCta>}
+          </MinimalPopupBody>
+        </MinimalPopup>
+      )
+      
+    default:
+      return (
+        <GoldPopup>
+          {src && (
+            <GoldPopupImg>
+              <img src={src} alt="" />
+            </GoldPopupImg>
+          )}
+          <GoldPopupBody>
+            <GoldPopupClose>✕</GoldPopupClose>
+            {form.title && <GoldPopupTitle>{form.title}</GoldPopupTitle>}
+            {form.body && <GoldPopupMsg>{form.body}</GoldPopupMsg>}
+            {form.ctaLabel && <GoldPopupCta>{form.ctaLabel}</GoldPopupCta>}
+          </GoldPopupBody>
+        </GoldPopup>
+      )
+  }
 }
 
 /* ── ImageUploadField ─────────────────────────────────────────────────── */

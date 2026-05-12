@@ -475,8 +475,39 @@ export default function CasinoPopup({ popups = [], onCtaClick }) {
    Export design meta for admin picker
 ───────────────────────────────────────────────────────── */
 export const DESIGN_OPTIONS = [
-  { value: 'gold',    label: '✨ Gold',    accent: '#f5c842', bg: '#0c0b1e', desc: 'Lujo VIP' },
-  { value: 'neon',    label: '⚡ Neon',    accent: '#00f5ff', bg: '#000508', desc: 'Casino Eléctrico' },
-  { value: 'fire',    label: '🔥 Fire',    accent: '#ff4500', bg: '#0a0302', desc: 'Oferta Urgente' },
-  { value: 'diamond', label: '💎 Diamond', accent: '#8b5cf6', bg: '#06041a', desc: 'Premium Exclusivo' },
+  { 
+    value: 'gold', 
+    label: '✨ Gold', 
+    bg: 'linear-gradient(135deg, #FFD700, #FFA000)',
+    accent: '#FFD700',
+    desc: 'Elegancia dorada'
+  },
+  { 
+    value: 'dark', 
+    label: '🌙 Dark', 
+    bg: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
+    accent: '#8b5cf6',
+    desc: 'Moderno y elegante'
+  },
+  { 
+    value: 'neon', 
+    label: '💚 Neon', 
+    bg: 'linear-gradient(135deg, #0ff, #00aaff)',
+    accent: '#0ff',
+    desc: 'Vibrante y llamativo'
+  },
+  { 
+    value: 'premium', 
+    label: '💎 Premium', 
+    bg: 'linear-gradient(135deg, #FFD700, #FF8C00)',
+    accent: '#FFD700',
+    desc: 'Lujo exclusivo'
+  },
+  { 
+    value: 'minimal', 
+    label: '⬜ Minimal', 
+    bg: '#2a2a3a',
+    accent: '#ffffff',
+    desc: 'Limpio y moderno'
+  },
 ]

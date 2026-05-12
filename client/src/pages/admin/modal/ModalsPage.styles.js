@@ -1,109 +1,223 @@
 import styled, { css, keyframes } from 'styled-components'
-import { gradients, colors } from '../../../styles/theme'
+import { gradients } from '../../../styles/theme'
 
 const fadeUp = keyframes`
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
 `
+
 const slideUp = keyframes`
   from { opacity: 0; transform: translateY(22px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0)    scale(1); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
 `
+
 const pulse = keyframes`
-  0%,100% { opacity: 1; } 50% { opacity: .4; }
+  0%,100% { opacity: 1; }
+  50% { opacity: .4; }
 `
-const spin = keyframes`to { transform: rotate(360deg); }`
+
+const spin = keyframes`
+  to { transform: rotate(360deg); }
+`
+
+const neonPulse = keyframes`
+  0%, 100% { box-shadow: 0 0 0 0 rgba(0, 255, 255, 0); }
+  50% { box-shadow: 0 0 20px 2px rgba(0, 255, 255, 0.15); }
+`
+
+const shine = keyframes`
+  0% { left: -100%; }
+  100% { left: 100%; }
+`
 
 /* ── page shell ── */
 export const PageWrap = styled.div`
-  flex: 1; min-width: 0;
+  flex: 1;
+  min-width: 0;
   height: var(--app-height, 100dvh);
   background: #08080f;
-  display: flex; flex-direction: column; overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 `
+
 export const PageScroll = styled.div`
-  flex: 1; overflow-y: auto;
+  flex: 1;
+  overflow-y: auto;
   padding: 22px 24px 40px;
-  &::-webkit-scrollbar { width: 4px; }
-  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
-  @media (max-width: 600px) { padding: 16px 14px 28px; }
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+  }
+
+  @media (max-width: 600px) {
+    padding: 16px 14px 28px;
+  }
 `
 
 /* ── header ── */
 export const PageHeader = styled.div`
-  display: flex; align-items: flex-start;
-  justify-content: space-between; gap: 16px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 20px;
   animation: ${fadeUp} .22s ease both;
 `
-export const HeaderLeft = styled.div`display: flex; align-items: center; gap: 12px;`
+
+export const HeaderLeft = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+`
+
 export const MenuBtn = styled.button`
-  width: 36px; height: 36px; border-radius: 10px;
-  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.08);
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
   color: rgba(255,255,255,0.45);
-  display: flex; align-items: center; justify-content: center;
-  cursor: pointer; flex-shrink: 0;
-  svg { font-size: 20px; }
-  &:hover { background: rgba(255,255,255,0.10); color: rgba(255,255,255,0.85); }
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+
+  svg {
+    font-size: 20px;
+  }
+
+  &:hover {
+    background: rgba(255,255,255,0.10);
+    color: rgba(255,255,255,0.85);
+  }
 `
+
 export const TitleBlock = styled.div``
+
 export const PageTitle = styled.h1`
-  font-size: 20px; font-weight: 800; color: #fff; letter-spacing: -0.03em;
+  font-size: 20px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.03em;
 `
+
 export const PageSub = styled.p`
-  font-size: 12.5px; color: rgba(255,255,255,0.32); margin-top: 2px;
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.32);
+  margin-top: 2px;
 `
+
 export const AddBtn = styled.button`
-  display: flex; align-items: center; gap: 7px;
-  padding: 9px 16px; border-radius: 10px;
-  background: ${gradients.btn}; border: none; color: #fff;
-  font-size: 13px; font-weight: 600; font-family: inherit;
-  cursor: pointer; white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 16px;
+  border-radius: 10px;
+  background: ${gradients.btn};
+  border: none;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
   box-shadow: 0 4px 18px rgba(13,79,232,0.32);
   transition: opacity .2s, transform .15s;
   flex-shrink: 0;
-  svg { font-size: 17px; }
-  &:hover { opacity: .84; }
-  &:active { transform: scale(0.97); }
+
+  svg {
+    font-size: 17px;
+  }
+
+  &:hover {
+    opacity: .84;
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
 `
 
 /* ── stats strip ── */
 export const StatsStrip = styled.div`
-  display: flex; gap: 10px; margin-bottom: 22px; flex-wrap: wrap;
+  display: flex;
+  gap: 10px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
   animation: ${fadeUp} .24s ease both;
 `
+
 export const StatCard = styled.div`
-  flex: 1; min-width: 140px;
-  display: flex; align-items: center; gap: 12px;
-  padding: 14px 16px; border-radius: 14px;
+  flex: 1;
+  min-width: 140px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
   background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.06);
   transition: border-color .2s;
-  &:hover { border-color: rgba(255,255,255,.10); }
-`
-export const StatIconWrap = styled.div`
-  width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
-  display: flex; align-items: center; justify-content: center;
-  background: ${({ $bg }) => $bg}; border: 1px solid ${({ $br }) => $br};
-  svg { font-size: 18px; color: ${({ $cl }) => $cl}; }
-`
-export const StatInfo = styled.div``
-export const StatValue = styled.p`
-  font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.04em; line-height: 1;
-`
-export const StatLabel = styled.p`
-  font-size: 10.5px; color: rgba(255,255,255,0.28); margin-top: 3px;
-  font-weight: 600; text-transform: uppercase; letter-spacing: .04em;
+
+  &:hover {
+    border-color: rgba(255,255,255,.10);
+  }
 `
 
-/* ── main grid (send + preview) ── */
+export const StatIconWrap = styled.div`
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${({ $bg }) => $bg};
+  border: 1px solid ${({ $br }) => $br};
+
+  svg {
+    font-size: 18px;
+    color: ${({ $cl }) => $cl};
+  }
+`
+
+export const StatInfo = styled.div``
+
+export const StatValue = styled.p`
+  font-size: 22px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.04em;
+  line-height: 1;
+`
+
+export const StatLabel = styled.p`
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.28);
+  margin-top: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+`
+
+/* ── main grid ── */
 export const MainGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
   margin-bottom: 24px;
   animation: ${fadeUp} .26s ease both;
-  @media (max-width: 900px) { grid-template-columns: 1fr; }
+
+  @media (max-width: 900px) {
+    grid-template-columns: 1fr;
+  }
 `
 
 /* ── send panel ── */
@@ -112,16 +226,31 @@ export const SendPanel = styled.div`
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 18px;
   padding: 20px;
-  display: flex; flex-direction: column; gap: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
 `
+
 export const PanelTitle = styled.h2`
-  font-size: 14px; font-weight: 700; color: #fff;
-  letter-spacing: -.01em; margin: 0;
-  display: flex; align-items: center; gap: 8px;
-  svg { font-size: 17px; color: #7dd3fc; }
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -.01em;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+
+  svg {
+    font-size: 17px;
+    color: #7dd3fc;
+  }
 `
+
 export const PanelSub = styled.p`
-  font-size: 11.5px; color: rgba(255,255,255,.32); margin-top: 2px;
+  font-size: 11.5px;
+  color: rgba(255,255,255,.32);
+  margin-top: 2px;
 `
 
 /* ── preview + history panel ── */
@@ -130,54 +259,597 @@ export const PreviewHistoryPanel = styled.div`
   border: 1px solid rgba(255,255,255,.08);
   border-radius: 18px;
   padding: 20px;
-  display: flex; flex-direction: column; gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   min-height: 0;
 `
 
-export const PopupPreview = styled.div`
-  border-radius: 14px;
-  background: linear-gradient(145deg, #0e0e1f, #151528);
-  border: 1px solid rgba(255,255,255,.10);
-  box-shadow: 0 12px 36px rgba(0,0,0,.55);
+
+/* ── base popup ── */
+const popupBase = css`
+  border-radius: 24px;
   overflow: hidden;
-  min-height: 160px;
+  box-shadow: 0 32px 64px -12px rgba(0,0,0,0.4);
+  transition: all 0.25s ease;
+`
+
+
+export const PopupPreview = styled.div`
+  ${popupBase}
+  background: linear-gradient(145deg, #0d0d18 0%, #0a0a12 100%);
+  border: 1px solid rgba(255, 215, 0, 0.22);
   position: relative;
 `
+
 export const PopupPreviewImg = styled.div`
-  width: 100%; max-height: 120px; overflow: hidden;
-  img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  width: 100%;
+  max-height: 140px;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
 `
+
 export const PopupPreviewBody = styled.div`
-  padding: 14px 16px;
+  padding: 20px 20px 24px;
   position: relative;
 `
+
 export const PopupPreviewClose = styled.div`
-  position: absolute; top: 10px; right: 10px;
-  width: 22px; height: 22px; border-radius: 50%;
-  background: rgba(255,255,255,.12);
-  display: flex; align-items: center; justify-content: center;
-  font-size: 12px; color: rgba(255,255,255,.6); cursor: default;
-`
-export const PopupPreviewTitle = styled.p`
-  font-size: 14px; font-weight: 700; color: #fff;
-  margin-bottom: 6px; padding-right: 28px;
-  line-height: 1.35;
-`
-export const PopupPreviewMsg = styled.p`
-  font-size: 12.5px; color: rgba(255,255,255,.55);
-  line-height: 1.5; margin-bottom: 12px;
-`
-export const PopupPreviewCta = styled.button`
-  width: 100%; padding: 9px 14px; border-radius: 8px;
-  background: ${gradients.btn}; border: none; color: #fff;
-  font-size: 13px; font-weight: 700; font-family: inherit;
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.08);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255,255,255,.5);
   cursor: default;
 `
+
+export const PopupPreviewTitle = styled.p`
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff 30%, rgba(255,215,0,0.75) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 10px;
+  padding-right: 28px;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+`
+
+export const PopupPreviewMsg = styled.p`
+  font-size: 13px;
+  color: rgba(255,255,255,.65);
+  line-height: 1.5;
+  margin-bottom: 18px;
+`
+
+export const PopupPreviewCta = styled.button`
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: ${gradients.btn};
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: default;
+`
+
+/* ── Gold popup ── */
+export const GoldPopup = styled.div`
+  ${popupBase}
+  background: linear-gradient(145deg, #0d0d18 0%, #0a0a12 100%);
+  border: 1px solid rgba(255, 215, 0, 0.3);
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: linear-gradient(
+      90deg,
+      rgba(255,215,0,0),
+      rgba(255,215,0,0.6),
+      rgba(255,215,0,0)
+    );
+  }
+`
+
+export const GoldPopupImg = styled.div`
+  width: 100%;
+  max-height: 140px;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`
+
+export const GoldPopupBody = styled.div`
+  padding: 20px 20px 24px;
+  position: relative;
+`
+
+export const GoldPopupClose = styled.div`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.08);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255,255,255,.5);
+  cursor: default;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(255,255,255,.15);
+    color: rgba(255,255,255,.8);
+  }
+`
+
+export const GoldPopupTitle = styled.p`
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #fff 30%, rgba(255,215,0,0.7) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 10px;
+  padding-right: 28px;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+`
+
+export const GoldPopupMsg = styled.p`
+  font-size: 13px;
+  color: rgba(255,255,255,.65);
+  line-height: 1.5;
+  margin-bottom: 18px;
+`
+
+export const GoldPopupCta = styled.button`
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #FFD700, #FFA000);
+  border: none;
+  color: #0a0a12;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: default;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+
+  &:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 15px rgba(255,215,0,0.3);
+  }
+`
+
+/* ── Dark popup ── */
+export const DarkPopup = styled.div`
+  ${popupBase}
+  background: linear-gradient(145deg, #0a0a0e 0%, #08080c 100%);
+  border: 1px solid rgba(255,255,255,.1);
+  position: relative;
+
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 24px;
+    padding: 1px;
+    background: linear-gradient(135deg, rgba(255,255,255,.15), transparent);
+    -webkit-mask:
+      linear-gradient(#fff 0 0) content-box,
+      linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    pointer-events: none;
+  }
+`
+
+export const DarkPopupImg = styled.div`
+  width: 100%;
+  max-height: 140px;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`
+
+export const DarkPopupBody = styled.div`
+  padding: 20px 20px 24px;
+  position: relative;
+`
+
+export const DarkPopupClose = styled.div`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.06);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255,255,255,.4);
+  cursor: default;
+  transition: all 0.2s;
+
+  &:hover {
+    background: rgba(255,255,255,.12);
+    color: rgba(255,255,255,.7);
+  }
+`
+
+export const DarkPopupTitle = styled.p`
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin-bottom: 10px;
+  padding-right: 28px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+`
+
+export const DarkPopupMsg = styled.p`
+  font-size: 13px;
+  color: rgba(255,255,255,.55);
+  line-height: 1.5;
+  margin-bottom: 18px;
+`
+
+export const DarkPopupCta = styled.button`
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6366f1, #8b5cf6);
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: default;
+  transition: all 0.2s;
+  letter-spacing: 0.3px;
+
+  &:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 15px rgba(99,102,241,0.3);
+  }
+`
+
+/* ── Neon popup ── */
+export const NeonPopup = styled.div`
+  ${popupBase}
+  background: linear-gradient(135deg, #0a0a1a 0%, #0d0d24 100%);
+  border: 1px solid rgba(0, 255, 255, 0.3);
+  position: relative;
+  animation: ${neonPulse} 2s ease-in-out infinite;
+`
+
+export const NeonPopupImg = styled.div`
+  width: 100%;
+  max-height: 140px;
+  overflow: hidden;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`
+
+export const NeonPopupBody = styled.div`
+  padding: 20px 20px 24px;
+  position: relative;
+`
+
+export const NeonPopupClose = styled.div`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(0,255,255,.1);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(0,255,255,.6);
+  cursor: default;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: rgba(0,255,255,.2);
+    color: #0ff;
+  }
+`
+
+export const NeonPopupTitle = styled.p`
+  font-size: 17px;
+  font-weight: 800;
+  color: #0ff;
+  margin-bottom: 10px;
+  padding-right: 28px;
+  line-height: 1.35;
+  letter-spacing: -0.01em;
+  text-shadow: 0 0 10px rgba(0,255,255,0.3);
+`
+
+export const NeonPopupMsg = styled.p`
+  font-size: 13px;
+  color: rgba(255,255,255,.6);
+  line-height: 1.5;
+  margin-bottom: 18px;
+`
+
+export const NeonPopupCta = styled.button`
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #0ff, #00aaff);
+  border: none;
+  color: #0a0a1a;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: default;
+  transition: all 0.2s;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  
+  &:hover {
+    transform: scale(1.02);
+    box-shadow: 0 4px 15px rgba(0,255,255,0.4);
+  }
+`
+
+/* ── Diseño Premium (lujo) ── */
+export const PremiumPopup = styled.div`
+  ${popupBase}
+  background: linear-gradient(145deg, #0f0f1a 0%, #0c0c14 100%);
+  border: 1px solid rgba(255,255,255,.08);
+  position: relative;
+  
+  &::before {
+    content: '✦';
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    font-size: 12px;
+    color: rgba(255,215,0,0.5);
+    z-index: 2;
+  }
+`
+
+export const PremiumPopupImg = styled.div`
+  width: 100%;
+  max-height: 140px;
+  overflow: hidden;
+  position: relative;
+  
+  &::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, transparent 60%, rgba(0,0,0,0.4) 100%);
+  }
+  
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`
+
+export const PremiumPopupBody = styled.div`
+  padding: 20px 20px 24px;
+  position: relative;
+`
+
+export const PremiumPopupClose = styled.div`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.06);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255,255,255,.5);
+  cursor: default;
+`
+
+export const PremiumPopupTitle = styled.p`
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(135deg, #FFD700, #FFA500, #FFD700);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 10px;
+  padding-right: 28px;
+  line-height: 1.35;
+  letter-spacing: -0.02em;
+`
+
+export const PremiumPopupMsg = styled.p`
+  font-size: 13px;
+  color: rgba(255,255,255,.6);
+  line-height: 1.5;
+  margin-bottom: 18px;
+`
+
+export const PremiumPopupCta = styled.button`
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #FFD700, #FF8C00);
+  border: none;
+  color: #0a0a14;
+  font-size: 14px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: default;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+  position: relative;
+  overflow: hidden;
+  
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transition: left 0.5s;
+  }
+  
+  &:hover::before {
+    left: 100%;
+  }
+`
+
+/* ── Diseño Minimal (limpio y moderno) ── */
+export const MinimalPopup = styled.div`
+  ${popupBase}
+  background: #0f0f18;
+  border: 1px solid rgba(255,255,255,.06);
+`
+
+export const MinimalPopupImg = styled.div`
+  width: 100%;
+  max-height: 140px;
+  overflow: hidden;
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+`
+
+export const MinimalPopupBody = styled.div`
+  padding: 20px 20px 24px;
+  position: relative;
+`
+
+export const MinimalPopupClose = styled.div`
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.04);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: rgba(255,255,255,.4);
+  cursor: default;
+`
+
+export const MinimalPopupTitle = styled.p`
+  font-size: 17px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 10px;
+  padding-right: 28px;
+  line-height: 1.35;
+`
+
+export const MinimalPopupMsg = styled.p`
+  font-size: 13px;
+  color: rgba(255,255,255,.5);
+  line-height: 1.5;
+  margin-bottom: 18px;
+`
+
+export const MinimalPopupCta = styled.button`
+  width: 100%;
+  padding: 12px 20px;
+  border-radius: 14px;
+  background: #2a2a3a;
+  border: none;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: default;
+  transition: all 0.2s;
+  
+  &:hover {
+    background: #3a3a4a;
+  }
+`
+
+/* ── Preview Placeholder mejorado ── */
 export const PreviewPlaceholder = styled.div`
-  min-height: 160px; display: flex; flex-direction: column;
-  align-items: center; justify-content: center; gap: 8px;
-  color: rgba(255,255,255,.18); font-size: 13px;
-  svg { font-size: 32px; opacity: .3; }
+  min-height: 200px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: rgba(255,255,255,.12);
+  font-size: 13px;
+  background: linear-gradient(135deg, #0a0a10, #0d0d18);
+  border-radius: 20px;
+  border: 1px dashed rgba(255,255,255,.06);
+  
+  svg {
+    font-size: 42px;
+    opacity: .25;
+    margin-bottom: 4px;
+  }
 `
 
 /* ── history list ── */
@@ -620,7 +1292,7 @@ export const DlgSelect = styled.select`
 
 /* ── design picker ── */
 export const DesignPickerWrap = styled.div`
-  display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+  display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
 `
 export const DesignOption = styled.button`
   padding: 10px 6px; border-radius: 10px; cursor: pointer; transition: all .18s;
