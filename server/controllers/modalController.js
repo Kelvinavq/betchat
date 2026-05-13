@@ -1,4 +1,5 @@
 import { query } from '../config/database.js'
+import { getIo } from '../socket/socketServer.js'
 
 const ALLOWED_TYPES = ['info', 'promo', 'alert', 'form']
 const ALLOWED_TRIGGERS = ['on_login', 'on_deposit', 'manual', 'scheduled']
@@ -175,8 +176,16 @@ export async function createModal(req, res, next) {
   try {
     const { errors, payload } = validatePayload(req.body)
     if (errors.length > 0) {
-      return res.status(400).json({ error: 'Datos de ventana inválidos', details: errors, code: 'INVALID_MODAL_PAYLOAD' })
+      return res.status(400).json({ error: 'Datos de ventana inválido', details: errors, code: 'INVALID_MODAL_PAYLOAD' })
     }
+
+    console.debug('[createModal] Saving modal:', {
+      name: payload.name,
+      title: payload.title,
+      bodyLength: payload.body?.length || 0,
+      bodyPreview: payload.body?.substring(0, 50) || '(empty)',
+      isTemplate: payload.config.isTemplate,
+    })
 
     const { rows: result, error: insertError } = await query(
       'INSERT INTO modals (name, title, content, type, `trigger`, config, is_active) VALUES (?, ?, ?, ?, ?, ?, ?)',
@@ -198,7 +207,30 @@ export async function createModal(req, res, next) {
     )
     if (error) return next(error)
 
-    res.status(201).json({ modal: sanitizeModal(rows[0]) })
+    const modal = sanitizeModal(rows[0])
+    console.debug('[createModal] Modal saved and returned:', {
+      id: modal.id,
+      bodyLength: modal.body?.length || 0,
+      bodyPreview: modal.body?.substring(0, 50) || '(empty)',
+    })
+    const io = getIo()
+
+if (
+  io &&
+  modal.status === 'enviada' &&
+  !modal.scheduledFor &&
+  !modal.isTemplate
+) {
+  console.debug('[Popup] Emitting popup:new', {
+    id: modal.id,
+    title: modal.title,
+    clientsRoom: io.sockets.adapter.rooms.get('clients')?.size || 0,
+  })
+
+  io.to('clients').emit('popup:new', modal)
+}
+
+res.status(201).json({ modal })
   } catch (err) {
     next(err)
   }
@@ -215,6 +247,15 @@ export async function updateModal(req, res, next) {
     if (errors.length > 0) {
       return res.status(400).json({ error: 'Datos de ventana inválidos', details: errors, code: 'INVALID_MODAL_PAYLOAD' })
     }
+
+    console.debug('[updateModal] Updating modal:', {
+      id,
+      name: payload.name,
+      title: payload.title,
+      bodyLength: payload.body?.length || 0,
+      bodyPreview: payload.body?.substring(0, 50) || '(empty)',
+      isTemplate: payload.config.isTemplate,
+    })
 
     const { error: updateError } = await query(
       'UPDATE modals SET name = ?, title = ?, content = ?, type = ?, `trigger` = ?, config = ?, is_active = ? WHERE id = ?',
@@ -238,7 +279,18 @@ export async function updateModal(req, res, next) {
     if (error) return next(error)
     if (!rows?.length) return res.status(404).json({ error: 'Ventana no encontrada', code: 'MODAL_NOT_FOUND' })
 
-    res.json({ modal: sanitizeModal(rows[0]) })
+    const modal = sanitizeModal(rows[0])
+    console.debug('[updateModal] Modal updated and returned:', {
+      id: modal.id,
+      bodyLength: modal.body?.length || 0,
+      bodyPreview: modal.body?.substring(0, 50) || '(empty)',
+    })
+    const io = getIo()
+    if (io && payload.status === 'enviada' && !payload.scheduledFor) {
+      io.emit('popup:new', modal)
+    }
+
+    res.json({ modal })
   } catch (err) {
     next(err)
   }

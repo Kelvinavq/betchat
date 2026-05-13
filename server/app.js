@@ -33,6 +33,7 @@ import clientPopupRoutes from './routes/clientPopupRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { setupChatSockets } from './socket/chatSocket.js';
+import { setIo } from './socket/socketServer.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -138,6 +139,8 @@ app.get('/api/health', (req, res) => {
 // ============================================================
 //  SOCKET.IO EVENTOS BÁSICOS
 // ============================================================
+
+setIo(io);
 
 io.on('connection', (socket) => {
   console.log(`[Socket.IO] Cliente conectado: ${socket.id}`);

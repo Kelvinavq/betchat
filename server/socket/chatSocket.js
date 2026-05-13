@@ -76,6 +76,7 @@ export function setupChatSockets(io) {
       socket.join('admins')
     }
     if (payload?.type === 'client' && payload?.sub) {
+      socket.join('clients')
       socket.join(`client:${payload.sub}`)
       const clientId = Number(payload.sub)
       const count = clientSockets.get(clientId) || 0

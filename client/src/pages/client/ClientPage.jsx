@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useRef, useState } from 'react'
 import ChatBubble from '../../components/chat/ChatBubble'
 import { ChatContext } from '../../context/ChatContext'
 import { api } from '../../utils/api'
+import { getSocket } from '../../utils/socket'
 import { usePushNotification } from '../../hooks/usePushNotification'
 import PushPrompt from '../../components/chat/PushPrompt'
 import CasinoPopup from '../../components/client/CasinoPopup'
@@ -119,7 +120,23 @@ const ClientPage = () => {
     }
     fetchPopups()
     const id = setInterval(fetchPopups, POPUP_POLL_MS)
-    return () => { cancelled = true; clearInterval(id) }
+
+    const socket = getSocket('client')
+    console.debug('[ClientPage] socket init connected=', socket.connected)
+    const handleNewPopup = (popup) => {
+      console.debug('[ClientPage] popup:new received', popup)
+      setPopups((current) => {
+        const next = current.filter((item) => item.id !== popup.id)
+        return [popup, ...next]
+      })
+    }
+    socket.on('popup:new', handleNewPopup)
+
+    return () => {
+      cancelled = true
+      clearInterval(id)
+      socket.off('popup:new', handleNewPopup)
+    }
   }, [])
 
   const handlePopupCta = useCallback((popup) => {
