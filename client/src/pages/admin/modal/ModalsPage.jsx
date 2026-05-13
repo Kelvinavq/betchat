@@ -16,7 +16,7 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import { api, API_BASE_URL, resolveApiAsset } from '../../../utils/api'
-import { DESIGN_OPTIONS } from '../../../components/client/CasinoPopup'
+import { DESIGN_OPTIONS, DESIGNS } from '../../../components/client/CasinoPopup'
 import {
   PageWrap, PageScroll,
   PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
@@ -25,24 +25,7 @@ import {
   SendPanel, PanelTitle, PanelSub,
 
   PreviewHistoryPanel,
-  PopupPreview, PopupPreviewImg, PopupPreviewBody, PopupPreviewClose,
-  PopupPreviewTitle, PopupPreviewMsg, PopupPreviewCta,
   PreviewPlaceholder,
-
-  GoldPopup, GoldPopupImg, GoldPopupBody, GoldPopupClose,
-  GoldPopupTitle, GoldPopupMsg, GoldPopupCta,
-
-  DarkPopup, DarkPopupImg, DarkPopupBody, DarkPopupClose,
-  DarkPopupTitle, DarkPopupMsg, DarkPopupCta,
-
-  NeonPopup, NeonPopupImg, NeonPopupBody, NeonPopupClose,
-  NeonPopupTitle, NeonPopupMsg, NeonPopupCta,
-
-  PremiumPopup, PremiumPopupImg, PremiumPopupBody, PremiumPopupClose,
-  PremiumPopupTitle, PremiumPopupMsg, PremiumPopupCta,
-
-  MinimalPopup, MinimalPopupImg, MinimalPopupBody, MinimalPopupClose,
-  MinimalPopupTitle, MinimalPopupMsg, MinimalPopupCta,
 
   HistLabel, HistList, HistItem, HistItemTitle, HistItemMeta, HistItemDate, HistEmpty,
   FieldGroup, FieldLabel, FieldInput, FieldTextarea, FieldSelect, FieldRow, CharCount,
@@ -157,28 +140,16 @@ const fmtDate = (iso) => {
 const ctaLabel = (action) =>
   CTA_ACTIONS.find(a => a.value === action)?.label || action || '—'
 
-async function uploadImg(file, token) {
+async function uploadImg(file) {
   const formData = new FormData()
   formData.append('image', file)
-  const base = String(API_BASE_URL).replace(/\/+$/, '')
-  const res = await fetch(`${base}/api/push/upload-image`, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}` },
-    credentials: 'include',
-    body: formData,
-  })
-  const json = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(json.error || `Error HTTP ${res.status}`)
-  return json.imageUrl
-}
 
-function getToken() {
-  return localStorage.getItem('token') || localStorage.getItem('talgibravi-istazo') || ''
+  const data = await api.post('/api/push/upload-image', formData)
+  return data.imageUrl
 }
 
 /* ── PopupLivePreview ─────────────────────────────────────────────────── */
 function PopupLivePreview({ form }) {
-  const src = form.img ? resolveApiAsset(form.img) : ''
   const design = form.design || 'gold'
   
   if (!form.title && !form.body) {
@@ -191,119 +162,13 @@ function PopupLivePreview({ form }) {
     )
   }
   
-  // Datos comunes para todos los diseños
-  const commonProps = {
-    imgSrc: src,
-    title: form.title,
-    body: form.body,
-    ctaLabel: form.ctaLabel,
-    showClose: true
-  }
+  const Design = DESIGNS[design] || DESIGNS.gold
   
-  // Renderizar según el diseño seleccionado
-  switch(design) {
-    case 'gold':
-      return (
-        <GoldPopup>
-          {src && (
-            <GoldPopupImg>
-              <img src={src} alt="" />
-            </GoldPopupImg>
-          )}
-          <GoldPopupBody>
-            <GoldPopupClose>✕</GoldPopupClose>
-            {form.title && <GoldPopupTitle>{form.title}</GoldPopupTitle>}
-            {form.body && <GoldPopupMsg>{form.body}</GoldPopupMsg>}
-            {form.ctaLabel && <GoldPopupCta>{form.ctaLabel}</GoldPopupCta>}
-          </GoldPopupBody>
-        </GoldPopup>
-      )
-      
-    case 'dark':
-      return (
-        <DarkPopup>
-          {src && (
-            <DarkPopupImg>
-              <img src={src} alt="" />
-            </DarkPopupImg>
-          )}
-          <DarkPopupBody>
-            <DarkPopupClose>✕</DarkPopupClose>
-            {form.title && <DarkPopupTitle>{form.title}</DarkPopupTitle>}
-            {form.body && <DarkPopupMsg>{form.body}</DarkPopupMsg>}
-            {form.ctaLabel && <DarkPopupCta>{form.ctaLabel}</DarkPopupCta>}
-          </DarkPopupBody>
-        </DarkPopup>
-      )
-      
-    case 'neon':
-      return (
-        <NeonPopup>
-          {src && (
-            <NeonPopupImg>
-              <img src={src} alt="" />
-            </NeonPopupImg>
-          )}
-          <NeonPopupBody>
-            <NeonPopupClose>✕</NeonPopupClose>
-            {form.title && <NeonPopupTitle>{form.title}</NeonPopupTitle>}
-            {form.body && <NeonPopupMsg>{form.body}</NeonPopupMsg>}
-            {form.ctaLabel && <NeonPopupCta>{form.ctaLabel}</NeonPopupCta>}
-          </NeonPopupBody>
-        </NeonPopup>
-      )
-      
-    case 'premium':
-      return (
-        <PremiumPopup>
-          {src && (
-            <PremiumPopupImg>
-              <img src={src} alt="" />
-            </PremiumPopupImg>
-          )}
-          <PremiumPopupBody>
-            <PremiumPopupClose>✕</PremiumPopupClose>
-            {form.title && <PremiumPopupTitle>{form.title}</PremiumPopupTitle>}
-            {form.body && <PremiumPopupMsg>{form.body}</PremiumPopupMsg>}
-            {form.ctaLabel && <PremiumPopupCta>{form.ctaLabel}</PremiumPopupCta>}
-          </PremiumPopupBody>
-        </PremiumPopup>
-      )
-      
-    case 'minimal':
-      return (
-        <MinimalPopup>
-          {src && (
-            <MinimalPopupImg>
-              <img src={src} alt="" />
-            </MinimalPopupImg>
-          )}
-          <MinimalPopupBody>
-            <MinimalPopupClose>✕</MinimalPopupClose>
-            {form.title && <MinimalPopupTitle>{form.title}</MinimalPopupTitle>}
-            {form.body && <MinimalPopupMsg>{form.body}</MinimalPopupMsg>}
-            {form.ctaLabel && <MinimalPopupCta>{form.ctaLabel}</MinimalPopupCta>}
-          </MinimalPopupBody>
-        </MinimalPopup>
-      )
-      
-    default:
-      return (
-        <GoldPopup>
-          {src && (
-            <GoldPopupImg>
-              <img src={src} alt="" />
-            </GoldPopupImg>
-          )}
-          <GoldPopupBody>
-            <GoldPopupClose>✕</GoldPopupClose>
-            {form.title && <GoldPopupTitle>{form.title}</GoldPopupTitle>}
-            {form.body && <GoldPopupMsg>{form.body}</GoldPopupMsg>}
-            {form.ctaLabel && <GoldPopupCta>{form.ctaLabel}</GoldPopupCta>}
-          </GoldPopupBody>
-        </GoldPopup>
-      )
-  }
+  return (
+    <div style={{ pointerEvents: 'none' }}>
+      <Design popup={form} onDismiss={() => {}} onCta={() => {}} />
+    </div>
+  )
 }
 
 /* ── ImageUploadField ─────────────────────────────────────────────────── */
@@ -316,7 +181,7 @@ function ImageUploadField({ value, onChange, uploading, setUploading, error, set
     setUploading(true)
     setError('')
     try {
-      const url = await uploadImg(file, getToken())
+      const url = await uploadImg(file)
       onChange(url)
     } catch (e) {
       setError(e.message || 'Error al subir imagen')

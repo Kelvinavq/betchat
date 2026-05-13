@@ -14,136 +14,128 @@ const slideUp = keyframes`
   from { opacity: 0; transform: translateY(40px) scale(0.94); }
   to   { opacity: 1; transform: translateY(0)    scale(1); }
 `
-const goldShimmer = keyframes`
+const shimmer = keyframes`
   0%   { background-position: -200% center; }
   100% { background-position:  200% center; }
 `
 const goldPulse = keyframes`
-  0%,100% { box-shadow: 0 0 24px rgba(245,200,66,.45), 0 0 60px rgba(245,200,66,.18), inset 0 0 30px rgba(245,200,66,.06); }
-  50%     { box-shadow: 0 0 40px rgba(245,200,66,.70), 0 0 90px rgba(245,200,66,.30), inset 0 0 50px rgba(245,200,66,.10); }
+  0%,100% { box-shadow: 0 0 24px rgba(255,215,0,.3), 0 0 50px rgba(255,215,0,.1); }
+  50%     { box-shadow: 0 0 40px rgba(255,215,0,.6), 0 0 80px rgba(255,215,0,.2); }
 `
 const neonFlicker = keyframes`
-  0%,19%,21%,23%,25%,54%,56%,100% { box-shadow: 0 0 4px #00f5ff, 0 0 18px #00f5ff, 0 0 40px rgba(0,245,255,.45); }
+  0%,19%,21%,23%,25%,54%,56%,100% { box-shadow: 0 0 5px #0ff, 0 0 15px #0ff, 0 0 30px rgba(0,255,255,.5); }
   20%,24%,55%                     { box-shadow: none; }
 `
 const neonTextGlow = keyframes`
-  0%,100% { text-shadow: 0 0 8px #00f5ff, 0 0 20px rgba(0,245,255,.70); }
-  50%     { text-shadow: 0 0 14px #00f5ff, 0 0 40px rgba(0,245,255,.90); }
+  0%,100% { text-shadow: 0 0 5px #0ff, 0 0 15px rgba(0,255,255,.8); }
+  50%     { text-shadow: 0 0 10px #0ff, 0 0 25px rgba(0,255,255,1); }
 `
 const firePulse = keyframes`
-  0%   { box-shadow: 0 0 30px rgba(255,80,0,.50), 0 0 80px rgba(255,40,0,.25); }
-  50%  { box-shadow: 0 0 50px rgba(255,120,0,.75), 0 0 120px rgba(255,60,0,.40); }
-  100% { box-shadow: 0 0 30px rgba(255,80,0,.50), 0 0 80px rgba(255,40,0,.25); }
-`
-const fireGradient = keyframes`
-  0%   { background-position: 0% 50%; }
-  50%  { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-`
-const diamondSpin = keyframes`
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+  0%   { box-shadow: 0 0 30px rgba(255,69,0,.4), 0 0 60px rgba(255,69,0,.2); }
+  50%  { box-shadow: 0 0 50px rgba(255,140,0,.7), 0 0 100px rgba(255,69,0,.4); }
+  100% { box-shadow: 0 0 30px rgba(255,69,0,.4), 0 0 60px rgba(255,69,0,.2); }
 `
 const diamondPulse = keyframes`
-  0%,100% { box-shadow: 0 0 30px rgba(139,92,246,.50), 0 0 80px rgba(59,130,246,.25); }
-  50%     { box-shadow: 0 0 50px rgba(167,139,250,.75), 0 0 120px rgba(96,165,250,.40); }
+  0%,100% { box-shadow: 0 0 30px rgba(139,92,246,.4), 0 0 70px rgba(139,92,246,.2); }
+  50%     { box-shadow: 0 0 50px rgba(167,139,250,.7), 0 0 100px rgba(167,139,250,.4); }
+`
+const darkGlow = keyframes`
+  0%,100% { box-shadow: 0 0 20px rgba(255,255,255,.05); }
+  50%     { box-shadow: 0 0 40px rgba(255,255,255,.12); }
+`
+const sweep = keyframes`
+  0%   { left: -100%; }
+  100% { left: 100%; }
 `
 
 /* ─────────────────────────────────────────────────────────
-   Common overlay / close button
+   Common Components
 ───────────────────────────────────────────────────────── */
 const Overlay = styled.div`
   position: fixed; inset: 0; z-index: 9999;
   display: flex; align-items: center; justify-content: center;
   padding: 16px;
-  background: rgba(0,0,0,.75);
-  backdrop-filter: blur(6px);
-  animation: ${fadeIn} .22s ease both;
+  background: rgba(0,0,0,.8);
+  backdrop-filter: blur(8px);
+  animation: ${fadeIn} .25s ease both;
 `
-const CloseBtn = styled.button`
+
+export const CloseBtn = styled.button`
   position: absolute; top: 12px; right: 12px;
   width: 28px; height: 28px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;
   font-size: 14px; font-weight: 700; line-height: 1;
-  cursor: pointer; transition: all .15s;
-  border: 1px solid; padding: 0; flex-shrink: 0;
+  cursor: pointer; transition: all .2s;
+  border: 1px solid transparent; padding: 0; flex-shrink: 0;
+  z-index: 10;
 `
-const PopupImg = styled.img`
+
+export const PopupImg = styled.img`
   width: 100%; display: block;
-  border-radius: 12px 12px 0 0;
-  max-height: 140px; object-fit: cover;
+  max-height: 150px; object-fit: cover;
+`
+
+export const PopupContainer = styled.div`
+  width: 100%; max-width: 360px;
+  border-radius: 18px;
+  position: relative;
+  overflow: hidden;
+  animation: ${slideUp} .4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  box-sizing: border-box;
 `
 
 /* ════════════════════════════════════
-   DESIGN 1 — GOLD (Luxury VIP)
+   1. DESIGN: ROYAL GOLD (VIP)
 ════════════════════════════════════ */
-const GoldWrap = styled.div`
-  position: relative;
-  width: 100%; max-width: 380px;
-  border-radius: 20px;
-  background: linear-gradient(160deg, #0c0b1e 0%, #120f2a 60%, #0a0817 100%);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  animation: ${slideUp} .32s cubic-bezier(.16,1,.3,1) both, ${goldPulse} 3s ease-in-out infinite;
+const GoldWrap = styled(PopupContainer)`
+  background: linear-gradient(160deg, #141108 0%, #0a0804 100%);
+  border: 1px solid rgba(255,215,0,0.3);
+  animation: ${slideUp} .4s cubic-bezier(0.16, 1, 0.3, 1) both, ${goldPulse} 3s ease-in-out infinite;
+  
   &::before {
-    content: '';
-    position: absolute; inset: -2px;
-    border-radius: 22px; z-index: -1;
-    background: linear-gradient(135deg, #f5c842, #d4a017, #ffd700, #c8860a, #f5c842);
-    background-size: 300% 300%;
-    animation: ${goldShimmer} 4s linear infinite;
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px;
+    background: linear-gradient(90deg, transparent, #FFD700, #FFF8DC, #FFD700, transparent);
+    background-size: 200% auto; animation: ${shimmer} 3s linear infinite;
   }
 `
 const GoldInner = styled.div`
-  padding: 22px 22px 20px;
-  display: flex; flex-direction: column; gap: 12px;
-`
-const GoldStars = styled.div`
-  font-size: 18px; letter-spacing: 4px; text-align: center;
-  filter: drop-shadow(0 0 6px rgba(245,200,66,.7));
+  padding: 24px 22px; display: flex; flex-direction: column; gap: 12px; position: relative;
 `
 const GoldTitle = styled.h2`
   font-size: 20px; font-weight: 900; text-align: center; margin: 0;
-  background: linear-gradient(135deg, #ffd700, #f5c842, #fff8dc, #f5c842, #d4a017);
+  background: linear-gradient(135deg, #FFD700, #FFF8DC, #FFD700, #DAA520);
   background-size: 200% auto;
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  animation: ${goldShimmer} 3s linear infinite;
-  letter-spacing: -.01em; line-height: 1.2;
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  animation: ${shimmer} 4s linear infinite; line-height: 1.25;
 `
 const GoldBody = styled.p`
-  font-size: 14px; color: rgba(255,248,210,.75); text-align: center; line-height: 1.55;
-  margin: 0;
+  font-size: 14px; color: rgba(255,248,220,.8); text-align: center; line-height: 1.5; margin: 0;
 `
 const GoldBtn = styled.button`
-  width: 100%; padding: 13px 16px; border-radius: 12px; border: none;
-  background: linear-gradient(135deg, #f5c842, #d4a017, #f5c842);
-  background-size: 200% auto; animation: ${goldShimmer} 2.5s linear infinite;
-  color: #1a0f00; font-size: 14px; font-weight: 900; font-family: inherit;
-  cursor: pointer; letter-spacing: .05em;
-  box-shadow: 0 4px 20px rgba(212,160,23,.60), 0 2px 6px rgba(0,0,0,.40);
-  transition: transform .15s, box-shadow .15s;
-  &:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(212,160,23,.80); }
+  width: 100%; padding: 14px; border-radius: 12px; border: none;
+  background: linear-gradient(135deg, #DAA520, #FFD700, #DAA520);
+  background-size: 200% auto; animation: ${shimmer} 3s linear infinite;
+  color: #1a1100; font-size: 15px; font-weight: 900; font-family: inherit;
+  cursor: pointer; letter-spacing: 0.5px; text-transform: uppercase;
+  box-shadow: 0 4px 15px rgba(218,165,32,.5); transition: all .2s;
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(218,165,32,.7); }
   &:active { transform: scale(.98); }
 `
 const GoldClose = styled(CloseBtn)`
-  background: rgba(245,200,66,.12); border-color: rgba(245,200,66,.35); color: #f5c842;
-  &:hover { background: rgba(245,200,66,.25); }
+  background: rgba(255,215,0,.1); border-color: rgba(255,215,0,.2); color: #FFD700;
+  &:hover { background: rgba(255,215,0,.2); color: #FFF; }
 `
 
-function GoldDesign({ popup, onDismiss, onCta }) {
+export function GoldDesign({ popup, onDismiss, onCta }) {
   const src = popup.img ? resolveApiAsset(popup.img) : ''
   return (
     <GoldWrap>
       {src && <PopupImg src={src} alt="" />}
       <GoldInner>
-        <GoldStars>✨ ✨ ✨</GoldStars>
+        <div style={{ textAlign: 'center', fontSize: 20, marginBottom: -6 }}>👑</div>
         <GoldTitle>{popup.title}</GoldTitle>
         {popup.body && <GoldBody>{popup.body}</GoldBody>}
-        {popup.ctaLabel && (
-          <GoldBtn type="button" onClick={onCta}>
-            {popup.ctaLabel}
-          </GoldBtn>
-        )}
+        {popup.ctaLabel && <GoldBtn type="button" onClick={onCta}>{popup.ctaLabel}</GoldBtn>}
       </GoldInner>
       <GoldClose type="button" onClick={onDismiss}>✕</GoldClose>
     </GoldWrap>
@@ -151,90 +143,54 @@ function GoldDesign({ popup, onDismiss, onCta }) {
 }
 
 /* ════════════════════════════════════
-   DESIGN 2 — NEON (Electric Casino)
+   2. DESIGN: CYBER NEON
 ════════════════════════════════════ */
-const NeonWrap = styled.div`
-  position: relative;
-  width: 100%; max-width: 380px;
-  border-radius: 16px;
-  background: #000508;
-  border: 1.5px solid #00f5ff;
-  animation: ${slideUp} .32s cubic-bezier(.16,1,.3,1) both, ${neonFlicker} 6s step-start infinite;
-  overflow: hidden;
-  &::before {
-    content: '';
-    position: absolute; inset: 0;
-    background: repeating-linear-gradient(
-      0deg,
-      transparent,
-      transparent 2px,
-      rgba(0,245,255,.015) 2px,
-      rgba(0,245,255,.015) 4px
-    );
-    pointer-events: none;
-  }
+const NeonWrap = styled(PopupContainer)`
+  background: #020205; border: 1.5px solid #0ff;
+  animation: ${slideUp} .4s cubic-bezier(0.16, 1, 0.3, 1) both, ${neonFlicker} 6s step-start infinite;
+  box-shadow: 0 0 20px rgba(0,255,255,.2);
 `
 const NeonHeader = styled.div`
-  background: linear-gradient(90deg, #00f5ff18, #ff00ff18, #00f5ff18);
-  padding: 10px 16px;
-  display: flex; align-items: center; gap: 8px;
-  border-bottom: 1px solid rgba(0,245,255,.25);
-  font-size: 11px; font-weight: 700; letter-spacing: .15em;
-  text-transform: uppercase; color: rgba(0,245,255,.60);
-`
-const NeonDot = styled.span`
-  width: 7px; height: 7px; border-radius: 50%;
-  background: #00f5ff;
-  box-shadow: 0 0 8px #00f5ff, 0 0 16px #00f5ff;
-  animation: ${neonFlicker} 3s step-start infinite;
+  background: linear-gradient(90deg, rgba(0,255,255,.1), transparent);
+  padding: 10px 16px; display: flex; align-items: center; gap: 8px;
+  border-bottom: 1px solid rgba(0,255,255,.3);
+  font-size: 11px; font-weight: 800; letter-spacing: 2px;
+  text-transform: uppercase; color: #0ff;
 `
 const NeonInner = styled.div`
-  padding: 20px 22px 22px;
-  display: flex; flex-direction: column; gap: 12px;
+  padding: 22px; display: flex; flex-direction: column; gap: 14px;
 `
 const NeonTitle = styled.h2`
-  font-size: 19px; font-weight: 900; margin: 0; line-height: 1.2;
-  color: #00f5ff;
-  animation: ${neonTextGlow} 2.5s ease-in-out infinite;
-  letter-spacing: .02em;
+  font-size: 20px; font-weight: 900; margin: 0; line-height: 1.2;
+  color: #0ff; animation: ${neonTextGlow} 2s ease-in-out infinite;
 `
 const NeonBody = styled.p`
-  font-size: 13.5px; color: rgba(0,245,255,.55); line-height: 1.55; margin: 0;
+  font-size: 14px; color: rgba(255,255,255,.7); line-height: 1.5; margin: 0;
 `
 const NeonBtn = styled.button`
-  width: 100%; padding: 12px 16px; border-radius: 8px;
-  background: transparent;
-  border: 1.5px solid #00f5ff;
-  color: #00f5ff; font-size: 13.5px; font-weight: 800; font-family: inherit;
-  cursor: pointer; letter-spacing: .08em; text-transform: uppercase;
-  box-shadow: 0 0 12px rgba(0,245,255,.35), inset 0 0 12px rgba(0,245,255,.08);
+  width: 100%; padding: 14px; border-radius: 8px;
+  background: rgba(0,255,255,.05); border: 1.5px solid #0ff;
+  color: #0ff; font-size: 15px; font-weight: 800; font-family: inherit;
+  cursor: pointer; letter-spacing: 1px; text-transform: uppercase;
+  box-shadow: inset 0 0 10px rgba(0,255,255,.2), 0 0 10px rgba(0,255,255,.2);
   transition: all .2s;
-  &:hover {
-    background: rgba(0,245,255,.10);
-    box-shadow: 0 0 24px rgba(0,245,255,.65), inset 0 0 24px rgba(0,245,255,.14);
-  }
+  &:hover { background: rgba(0,255,255,.15); box-shadow: inset 0 0 15px rgba(0,255,255,.4), 0 0 20px rgba(0,255,255,.4); text-shadow: 0 0 8px #0ff; }
 `
 const NeonClose = styled(CloseBtn)`
-  background: transparent; border-color: rgba(0,245,255,.35); color: rgba(0,245,255,.70);
-  &:hover { background: rgba(0,245,255,.10); }
+  background: transparent; color: #0ff;
+  &:hover { background: rgba(0,255,255,.1); }
 `
 
-function NeonDesign({ popup, onDismiss, onCta }) {
+export function NeonDesign({ popup, onDismiss, onCta }) {
   const src = popup.img ? resolveApiAsset(popup.img) : ''
   return (
     <NeonWrap>
-      <NeonHeader>
-        <NeonDot /> 🎰 Casino Live &nbsp;·&nbsp; Oferta Especial
-      </NeonHeader>
-      {src && <PopupImg src={src} alt="" style={{ borderRadius: 0 }} />}
+      <NeonHeader><div style={{ width: 6, height: 6, background: '#0ff', borderRadius: '50%', boxShadow: '0 0 8px #0ff' }}/> JACKPOT LIVE</NeonHeader>
+      {src && <PopupImg src={src} alt="" />}
       <NeonInner>
         <NeonTitle>{popup.title}</NeonTitle>
         {popup.body && <NeonBody>{popup.body}</NeonBody>}
-        {popup.ctaLabel && (
-          <NeonBtn type="button" onClick={onCta}>
-            ⚡ {popup.ctaLabel}
-          </NeonBtn>
-        )}
+        {popup.ctaLabel && <NeonBtn type="button" onClick={onCta}>{popup.ctaLabel}</NeonBtn>}
       </NeonInner>
       <NeonClose type="button" onClick={onDismiss}>✕</NeonClose>
     </NeonWrap>
@@ -242,85 +198,51 @@ function NeonDesign({ popup, onDismiss, onCta }) {
 }
 
 /* ════════════════════════════════════
-   DESIGN 3 — FIRE (Hot Deal)
+   3. DESIGN: INFERNO (HOT STREAK)
 ════════════════════════════════════ */
-const FireWrap = styled.div`
-  position: relative;
-  width: 100%; max-width: 380px;
-  border-radius: 18px;
-  background: #0a0302;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  animation: ${slideUp} .32s cubic-bezier(.16,1,.3,1) both, ${firePulse} 2s ease-in-out infinite;
-  overflow: hidden;
+const FireWrap = styled(PopupContainer)`
+  background: #120300;
+  border: 1px solid #ff4500;
+  animation: ${slideUp} .4s cubic-bezier(0.16, 1, 0.3, 1) both, ${firePulse} 2s ease-in-out infinite;
   &::before {
-    content: '';
-    position: absolute; inset: -2px;
-    border-radius: 20px; z-index: -1;
-    background: linear-gradient(135deg, #ff4500, #ff8c00, #ff0000, #ff6b00, #ff4500);
-    background-size: 300% 300%;
-    animation: ${fireGradient} 3s ease infinite;
+    content: ''; position: absolute; inset: 0; pointer-events: none;
+    background: radial-gradient(circle at bottom, rgba(255,69,0,0.2) 0%, transparent 70%);
   }
-  &::after {
-    content: '';
-    position: absolute; inset: 0;
-    background: radial-gradient(ellipse at 50% 100%, rgba(255,80,0,.30) 0%, transparent 70%);
-    pointer-events: none;
-  }
-`
-const FireTop = styled.div`
-  padding: 8px 16px 4px;
-  text-align: center;
-  font-size: 24px; letter-spacing: 6px;
-  filter: drop-shadow(0 0 8px rgba(255,120,0,.8));
 `
 const FireInner = styled.div`
-  padding: 4px 22px 22px;
-  display: flex; flex-direction: column; gap: 12px;
-  position: relative; z-index: 1;
+  padding: 24px 22px; display: flex; flex-direction: column; gap: 12px; position: relative; z-index: 1;
 `
 const FireTitle = styled.h2`
-  font-size: 19px; font-weight: 900; margin: 0; line-height: 1.2; text-align: center;
-  background: linear-gradient(135deg, #ff8c00, #ff4500, #ffd700, #ff6b00);
-  background-size: 200% auto;
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  animation: ${goldShimmer} 2.5s linear infinite;
+  font-size: 22px; font-weight: 900; margin: 0; line-height: 1.2; text-align: center;
+  background: linear-gradient(135deg, #FF4500, #FF8C00, #FFD700);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 `
 const FireBody = styled.p`
-  font-size: 13.5px; color: rgba(255,200,150,.70); text-align: center; line-height: 1.55; margin: 0;
+  font-size: 14px; color: rgba(255,200,150,.8); text-align: center; line-height: 1.5; margin: 0;
 `
 const FireBtn = styled.button`
-  width: 100%; padding: 13px 16px; border-radius: 12px; border: none;
-  background: linear-gradient(135deg, #ff4500, #ff8c00, #ff4500);
-  background-size: 200% auto; animation: ${fireGradient} 2s ease infinite;
-  color: #fff; font-size: 14px; font-weight: 900; font-family: inherit; letter-spacing: .04em;
-  cursor: pointer;
-  box-shadow: 0 4px 20px rgba(255,80,0,.65), 0 2px 6px rgba(0,0,0,.50);
-  transition: transform .15s;
-  &:hover { transform: translateY(-1px); }
-  &:active { transform: scale(.98); }
+  width: 100%; padding: 14px; border-radius: 12px; border: none;
+  background: linear-gradient(135deg, #FF4500, #FF8C00);
+  color: #fff; font-size: 15px; font-weight: 900; font-family: inherit; letter-spacing: 0.5px;
+  cursor: pointer; text-transform: uppercase;
+  box-shadow: 0 4px 15px rgba(255,69,0,.5); transition: transform .2s, box-shadow .2s;
+  &:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(255,69,0,.7); }
 `
 const FireClose = styled(CloseBtn)`
-  background: rgba(255,80,0,.12); border-color: rgba(255,140,0,.40); color: #ff8c00;
-  &:hover { background: rgba(255,80,0,.22); }
+  background: rgba(255,69,0,.15); color: #FF8C00;
+  &:hover { background: rgba(255,69,0,.3); color: #FFF; }
 `
 
-function FireDesign({ popup, onDismiss, onCta }) {
+export function FireDesign({ popup, onDismiss, onCta }) {
   const src = popup.img ? resolveApiAsset(popup.img) : ''
   return (
     <FireWrap>
-      {src
-        ? <PopupImg src={src} alt="" style={{ borderRadius: '16px 16px 0 0' }} />
-        : <FireTop>🔥 🔥 🔥</FireTop>
-      }
+      {src && <PopupImg src={src} alt="" />}
       <FireInner>
+        {!src && <div style={{ textAlign: 'center', fontSize: 26, marginBottom: -4 }}>🔥</div>}
         <FireTitle>{popup.title}</FireTitle>
         {popup.body && <FireBody>{popup.body}</FireBody>}
-        {popup.ctaLabel && (
-          <FireBtn type="button" onClick={onCta}>
-            🔥 {popup.ctaLabel}
-          </FireBtn>
-        )}
+        {popup.ctaLabel && <FireBtn type="button" onClick={onCta}>{popup.ctaLabel}</FireBtn>}
       </FireInner>
       <FireClose type="button" onClick={onDismiss}>✕</FireClose>
     </FireWrap>
@@ -328,96 +250,124 @@ function FireDesign({ popup, onDismiss, onCta }) {
 }
 
 /* ════════════════════════════════════
-   DESIGN 4 — DIAMOND (Premium)
+   4. DESIGN: DIAMOND PREMIUM
 ════════════════════════════════════ */
-const DiamondWrap = styled.div`
-  position: relative;
-  width: 100%; max-width: 380px;
-  border-radius: 20px;
-  background: linear-gradient(160deg, #06041a 0%, #0d0830 50%, #060420 100%);
-  border: 2px solid transparent;
-  background-clip: padding-box;
-  animation: ${slideUp} .32s cubic-bezier(.16,1,.3,1) both, ${diamondPulse} 3s ease-in-out infinite;
-  overflow: hidden;
-  &::before {
-    content: '';
-    position: absolute; inset: -2px;
-    border-radius: 22px; z-index: -1;
-    background: linear-gradient(135deg, #8b5cf6, #3b82f6, #a78bfa, #60a5fa, #8b5cf6);
-    background-size: 300% 300%;
-    animation: ${goldShimmer} 5s linear infinite;
-  }
-`
-const DiamondSparkleRow = styled.div`
-  display: flex; align-items: center; justify-content: center; gap: 12px;
-  padding: 14px 16px 0;
-  font-size: 22px;
-  & span {
-    display: inline-block;
-    animation: ${diamondSpin} 8s linear infinite;
-    filter: drop-shadow(0 0 8px rgba(139,92,246,.80));
-  }
+const DiamondWrap = styled(PopupContainer)`
+  background: linear-gradient(160deg, #100b21 0%, #080512 100%);
+  border: 1px solid rgba(139,92,246,0.3);
+  animation: ${slideUp} .4s cubic-bezier(0.16, 1, 0.3, 1) both, ${diamondPulse} 3s ease-in-out infinite;
+  backdrop-filter: blur(10px);
 `
 const DiamondInner = styled.div`
-  padding: 10px 22px 22px;
-  display: flex; flex-direction: column; gap: 12px;
+  padding: 24px 22px; display: flex; flex-direction: column; gap: 12px; position: relative;
 `
 const DiamondTitle = styled.h2`
-  font-size: 19px; font-weight: 900; margin: 0; line-height: 1.2; text-align: center;
-  background: linear-gradient(135deg, #a78bfa, #60a5fa, #e879f9, #a78bfa);
-  background-size: 200% auto;
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
-  animation: ${goldShimmer} 3.5s linear infinite;
+  font-size: 20px; font-weight: 900; margin: 0; line-height: 1.25; text-align: center;
+  background: linear-gradient(135deg, #a78bfa, #c084fc, #e879f9);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
 `
 const DiamondBody = styled.p`
-  font-size: 13.5px; color: rgba(167,139,250,.65); text-align: center; line-height: 1.55; margin: 0;
+  font-size: 14px; color: rgba(196,181,253,.8); text-align: center; line-height: 1.5; margin: 0;
 `
 const DiamondBtn = styled.button`
-  width: 100%; padding: 13px 16px; border-radius: 12px; border: none;
-  background: linear-gradient(135deg, #7c3aed, #1d4ed8, #7c3aed);
-  background-size: 200% auto; animation: ${goldShimmer} 3s linear infinite;
-  color: #fff; font-size: 14px; font-weight: 800; font-family: inherit;
-  cursor: pointer; letter-spacing: .04em;
-  box-shadow: 0 4px 20px rgba(124,58,237,.65), 0 2px 6px rgba(0,0,0,.50);
-  transition: transform .15s;
-  &:hover { transform: translateY(-1px); }
-  &:active { transform: scale(.98); }
+  position: relative; overflow: hidden;
+  width: 100%; padding: 14px; border-radius: 12px; border: none;
+  background: linear-gradient(135deg, #7c3aed, #9333ea);
+  color: #fff; font-size: 15px; font-weight: 800; font-family: inherit; letter-spacing: 0.5px;
+  cursor: pointer; text-transform: uppercase;
+  box-shadow: 0 4px 15px rgba(124,58,237,.4); transition: transform .2s;
+  &::after {
+    content: ''; position: absolute; top: 0; left: -100%; width: 50%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transform: skewX(-20deg);
+  }
+  &:hover { transform: translateY(-2px); }
+  &:hover::after { animation: ${sweep} .8s ease-in-out; }
 `
 const DiamondClose = styled(CloseBtn)`
-  background: rgba(139,92,246,.12); border-color: rgba(139,92,246,.40); color: #a78bfa;
-  &:hover { background: rgba(139,92,246,.22); }
+  background: rgba(139,92,246,.15); color: #c084fc;
+  &:hover { background: rgba(139,92,246,.3); color: #FFF; }
 `
 
-function DiamondDesign({ popup, onDismiss, onCta }) {
+export function DiamondDesign({ popup, onDismiss, onCta }) {
   const src = popup.img ? resolveApiAsset(popup.img) : ''
   return (
     <DiamondWrap>
-      {src && <PopupImg src={src} alt="" style={{ borderRadius: '18px 18px 0 0' }} />}
-      {!src && (
-        <DiamondSparkleRow>
-          <span>💎</span>
-          <span style={{ animationDirection: 'reverse' }}>✨</span>
-          <span>💎</span>
-        </DiamondSparkleRow>
-      )}
+      {src && <PopupImg src={src} alt="" />}
       <DiamondInner>
+        {!src && <div style={{ textAlign: 'center', fontSize: 24, marginBottom: -4 }}>💎</div>}
         <DiamondTitle>{popup.title}</DiamondTitle>
         {popup.body && <DiamondBody>{popup.body}</DiamondBody>}
-        {popup.ctaLabel && (
-          <DiamondBtn type="button" onClick={onCta}>
-            💎 {popup.ctaLabel}
-          </DiamondBtn>
-        )}
+        {popup.ctaLabel && <DiamondBtn type="button" onClick={onCta}>{popup.ctaLabel}</DiamondBtn>}
       </DiamondInner>
       <DiamondClose type="button" onClick={onDismiss}>✕</DiamondClose>
     </DiamondWrap>
   )
 }
 
+/* ════════════════════════════════════
+   5. DESIGN: DARK ELEGANCE
+════════════════════════════════════ */
+const DarkWrap = styled(PopupContainer)`
+  background: #09090b;
+  border: 1px solid rgba(255,255,255,0.1);
+  animation: ${slideUp} .4s cubic-bezier(0.16, 1, 0.3, 1) both, ${darkGlow} 4s ease-in-out infinite;
+`
+const DarkInner = styled.div`
+  padding: 24px 22px; display: flex; flex-direction: column; gap: 14px; position: relative;
+`
+const DarkTitle = styled.h2`
+  font-size: 21px; font-weight: 700; margin: 0; line-height: 1.25; text-align: center; color: #fff;
+  letter-spacing: -0.5px;
+`
+const DarkBody = styled.p`
+  font-size: 14px; color: rgba(255,255,255,.6); text-align: center; line-height: 1.55; margin: 0;
+`
+const DarkBtn = styled.button`
+  width: 100%; padding: 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2);
+  background: rgba(255,255,255,0.05); color: #fff;
+  font-size: 14px; font-weight: 600; font-family: inherit; letter-spacing: 0.5px;
+  cursor: pointer; transition: all .2s;
+  &:hover { background: #fff; color: #000; }
+`
+const DarkClose = styled(CloseBtn)`
+  background: rgba(255,255,255,.05); color: #aaa;
+  &:hover { background: rgba(255,255,255,.15); color: #fff; }
+`
+
+export function DarkDesign({ popup, onDismiss, onCta }) {
+  const src = popup.img ? resolveApiAsset(popup.img) : ''
+  return (
+    <DarkWrap>
+      {src && <PopupImg src={src} alt="" />}
+      <DarkInner>
+        <DarkTitle>{popup.title}</DarkTitle>
+        {popup.body && <DarkBody>{popup.body}</DarkBody>}
+        {popup.ctaLabel && <DarkBtn type="button" onClick={onCta}>{popup.ctaLabel}</DarkBtn>}
+      </DarkInner>
+      <DarkClose type="button" onClick={onDismiss}>✕</DarkClose>
+    </DarkWrap>
+  )
+}
+
 /* ─────────────────────────────────────────────────────────
-   Design registry
+   Design Registry & Options
 ───────────────────────────────────────────────────────── */
-const DESIGNS = { gold: GoldDesign, neon: NeonDesign, fire: FireDesign, diamond: DiamondDesign }
+export const DESIGNS = {
+  gold: GoldDesign,
+  neon: NeonDesign,
+  fire: FireDesign,
+  diamond: DiamondDesign,
+  dark: DarkDesign
+}
+
+export const DESIGN_OPTIONS = [
+  { value: 'gold', label: '✨ Royal Gold', bg: 'linear-gradient(135deg, #FFD700, #DAA520)', accent: '#FFD700', desc: 'Lujo dorado VIP' },
+  { value: 'neon', label: '⚡ Cyber Neon', bg: 'linear-gradient(135deg, #0ff, #0055ff)', accent: '#0ff', desc: 'Llamativo y vibrante' },
+  { value: 'fire', label: '🔥 Inferno', bg: 'linear-gradient(135deg, #FF4500, #FF8C00)', accent: '#FF4500', desc: 'Alerta ardiente' },
+  { value: 'diamond', label: '💎 Diamond', bg: 'linear-gradient(135deg, #9333ea, #c084fc)', accent: '#c084fc', desc: 'Cristal premium' },
+  { value: 'dark', label: '🌙 Elegance', bg: '#1a1a1a', accent: '#ffffff', desc: 'Oscuro y exclusivo' }
+]
 
 /* ─────────────────────────────────────────────────────────
    Main CasinoPopup component
@@ -461,7 +411,7 @@ export default function CasinoPopup({ popups = [], onCtaClick }) {
 
   if (!visiblePopup) return null
 
-  const Design = DESIGNS[visiblePopup.design] || GoldDesign
+  const Design = DESIGNS[visiblePopup.design] || DESIGNS.gold
 
   return createPortal(
     <Overlay onClick={e => e.target === e.currentTarget && handleDismiss()}>
@@ -470,44 +420,3 @@ export default function CasinoPopup({ popups = [], onCtaClick }) {
     document.body
   )
 }
-
-/* ─────────────────────────────────────────────────────────
-   Export design meta for admin picker
-───────────────────────────────────────────────────────── */
-export const DESIGN_OPTIONS = [
-  { 
-    value: 'gold', 
-    label: '✨ Gold', 
-    bg: 'linear-gradient(135deg, #FFD700, #FFA000)',
-    accent: '#FFD700',
-    desc: 'Elegancia dorada'
-  },
-  { 
-    value: 'dark', 
-    label: '🌙 Dark', 
-    bg: 'linear-gradient(135deg, #6366f1, #8b5cf6)',
-    accent: '#8b5cf6',
-    desc: 'Moderno y elegante'
-  },
-  { 
-    value: 'neon', 
-    label: '💚 Neon', 
-    bg: 'linear-gradient(135deg, #0ff, #00aaff)',
-    accent: '#0ff',
-    desc: 'Vibrante y llamativo'
-  },
-  { 
-    value: 'premium', 
-    label: '💎 Premium', 
-    bg: 'linear-gradient(135deg, #FFD700, #FF8C00)',
-    accent: '#FFD700',
-    desc: 'Lujo exclusivo'
-  },
-  { 
-    value: 'minimal', 
-    label: '⬜ Minimal', 
-    bg: '#2a2a3a',
-    accent: '#ffffff',
-    desc: 'Limpio y moderno'
-  },
-]
