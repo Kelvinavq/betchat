@@ -486,3 +486,5 @@ ALTER TABLE `push_history` ADD COLUMN `image` VARCHAR(500) DEFAULT NULL AFTER `b
 
 -- Bloqueo push a nivel cliente (no recibe FCM; registerToken rechaza hasta desbloquear)
 ALTER TABLE `clients` ADD COLUMN `push_blocked` TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_active`;
+
+ALTER TABLE `clients` ADD `phone` VARCHAR(100) NULL AFTER `full_name`;

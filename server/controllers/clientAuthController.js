@@ -10,6 +10,40 @@ import { logClientSession } from './profileController.js'
 const normalizeUsername = (value) => String(value || '').trim()
 const hasWhitespace = (value) => /\s/.test(value)
 const hasUppercase = (value) => /[A-Z]/.test(value)
+const PHONE_COUNTRIES = {
+  ARS: { dial: '+54', min: 10, max: 11 },
+  USD: { dial: '+1', min: 10, max: 10 },
+  UYU: { dial: '+598', min: 8, max: 8 },
+  MX: { dial: '+52', min: 10, max: 10 },
+  COP: { dial: '+57', min: 10, max: 10 },
+  CLP: { dial: '+56', min: 9, max: 9 },
+}
+const normalizePhoneDigits = (value) => String(value || '').replace(/\D/g, '')
+const normalizeRegistrationPhone = (phoneCountry, phone) => {
+  const countryCode = String(phoneCountry || 'ARS').trim().toUpperCase()
+  const country = PHONE_COUNTRIES[countryCode]
+  if (!country) {
+    const err = new Error('Codigo de pais invalido.')
+    err.status = 400
+    err.code = 'INVALID_PHONE_COUNTRY'
+    throw err
+  }
+
+  let digits = normalizePhoneDigits(phone)
+  const dialDigits = normalizePhoneDigits(country.dial)
+  if (digits.startsWith(dialDigits) && digits.length > country.max) {
+    digits = digits.slice(dialDigits.length)
+  }
+
+  if (digits.length < country.min || digits.length > country.max) {
+    const err = new Error(`Ingresa un telefono valido para ${countryCode}.`)
+    err.status = 400
+    err.code = 'INVALID_PHONE'
+    throw err
+  }
+
+  return `${country.dial}${digits}`
+}
 const getExternalErrorMessage = (data) => {
   const message = data?.errorMessage || data?.message || data?.error
   return typeof message === 'string' ? message.trim() : ''
@@ -31,6 +65,7 @@ function sanitizeClient(client, chatId = null) {
     id: client.id,
     username: client.username,
     fullName: client.full_name || client.username,
+    phone: client.phone || null,
     externalId: client.external_id || null,
     active: Boolean(client.is_active),
     online: Boolean(client.is_online),
@@ -228,7 +263,7 @@ async function createExternalUser(apiUrl, apiKey, username, password) {
 
 async function findLocalClient(username) {
   const { rows, error } = await query(
-    `SELECT id, username, full_name, password, external_id, is_active, is_online
+    `SELECT id, username, full_name, phone, password, external_id, is_active, is_online
      FROM clients
      WHERE LOWER(username) = LOWER(?)
      LIMIT 1`,
@@ -238,10 +273,10 @@ async function findLocalClient(username) {
   return rows?.[0] || null
 }
 
-async function ensureClientAndChat({ username, password, externalId }) {
+async function ensureClientAndChat({ username, password, externalId, phone = null }) {
   return transaction(async (connection) => {
     const [clientRows] = await connection.execute(
-      `SELECT id, username, full_name, password, external_id, is_active, is_online
+      `SELECT id, username, full_name, phone, password, external_id, is_active, is_online
        FROM clients
        WHERE LOWER(username) = LOWER(?)
        LIMIT 1`,
@@ -252,15 +287,16 @@ async function ensureClientAndChat({ username, password, externalId }) {
 
     if (!client) {
       const [clientResult] = await connection.execute(
-        `INSERT INTO clients (username, full_name, password, external_id, is_active, is_online, registered_at)
-         VALUES (?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP)`,
-        [username, username, password, externalId || null]
+        `INSERT INTO clients (username, full_name, phone, password, external_id, is_active, is_online, registered_at)
+         VALUES (?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP)`,
+        [username, username, phone || null, password, externalId || null]
       )
 
       client = {
         id: clientResult.insertId,
         username,
         full_name: username,
+        phone: phone || null,
         password: password,
         external_id: externalId || null,
         is_active: 1,
@@ -269,12 +305,13 @@ async function ensureClientAndChat({ username, password, externalId }) {
     } else {
       await connection.execute(
         `UPDATE clients
-         SET external_id = COALESCE(external_id, ?), is_online = 1, last_seen_at = CURRENT_TIMESTAMP
+         SET phone = COALESCE(?, phone), external_id = COALESCE(external_id, ?), is_online = 1, last_seen_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
-        [externalId || null, client.id]
+        [phone || null, externalId || null, client.id]
       )
       client = {
         ...client,
+        phone: phone || client.phone || null,
         external_id: client.external_id || externalId || null,
         is_online: 1,
       }
@@ -493,10 +530,20 @@ export async function registerClient(req, res, next) {
 
     const username = normalizeUsername(req.body?.username)
     const password = String(req.body?.password || '')
+    let phone = ''
 
-    if (!username || !password) {
+    try {
+      phone = normalizeRegistrationPhone(req.body?.phoneCountry, req.body?.phone)
+    } catch (phoneError) {
+      return res.status(phoneError.status || 400).json({
+        error: phoneError.message,
+        code: phoneError.code || 'INVALID_PHONE',
+      })
+    }
+
+    if (!username || !phone || !password) {
       return res.status(400).json({
-        error: 'El nombre de usuario y la contrasena son obligatorios.',
+        error: 'El nombre de usuario, telefono y contrasena son obligatorios.',
       })
     }
 
@@ -538,6 +585,7 @@ export async function registerClient(req, res, next) {
     const { client, chatId } = await ensureClientAndChat({
       username,
       password,
+      phone,
       externalId: created.externalId,
     })
 
@@ -599,7 +647,7 @@ export async function meClient(req, res, next) {
     }
 
     const { rows, error } = await query(
-      `SELECT id, username, full_name, external_id, is_active, is_online, is_temporary, temp_session_active
+      `SELECT id, username, full_name, phone, external_id, is_active, is_online, is_temporary, temp_session_active
        FROM clients
        WHERE id = ?
        LIMIT 1`,

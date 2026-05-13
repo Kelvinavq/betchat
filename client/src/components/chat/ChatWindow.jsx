@@ -26,7 +26,7 @@ import {
   Window, VisualSection, CloseBtn, VisualLogo, AppLabel,
   FormSection, FormTitle, FormHint, FormGroup, InputLabel,
   ErrorBanner,
-  StyledInput, PasswordWrapper, PasswordInput, PasswordToggle,
+  StyledInput, PhoneInputRow, CountrySelect, PasswordWrapper, PasswordInput, PasswordToggle,
   ForgotLink, ActionBtn, OrDivider, SwitchText,
   HelpOverlay, HelpCard, HelpHead, HelpTitle, HelpSub, HelpClose,
   HelpOptionGrid, HelpOption, HelpTextarea, HelpActions, HelpBtn,
@@ -69,6 +69,23 @@ const HELP_OPTIONS = [
   { id: 'register', label: 'Quiero registrarme' },
   { id: 'other', label: 'Otra consulta' },
 ]
+
+const PHONE_COUNTRIES = [
+  { code: 'ARS', dial: '+54', label: 'ARS +54', min: 10, max: 11, example: '91123456789' },
+  { code: 'USD', dial: '+1', label: 'USD +1', min: 10, max: 10, example: '3055551234' },
+  { code: 'UYU', dial: '+598', label: 'UYU +598', min: 8, max: 8, example: '91234567' },
+  { code: 'MX', dial: '+52', label: 'MX +52', min: 10, max: 10, example: '5512345678' },
+  { code: 'COP', dial: '+57', label: 'COP +57', min: 10, max: 10, example: '3001234567' },
+  { code: 'CLP', dial: '+56', label: 'CLP +56', min: 9, max: 9, example: '912345678' },
+]
+
+const getPhoneCountry = (code) => PHONE_COUNTRIES.find(country => country.code === code) || PHONE_COUNTRIES[0]
+const phoneDigits = (value) => String(value || '').replace(/\D/g, '')
+const normalizePhone = (countryCode, value) => {
+  const country = getPhoneCountry(countryCode)
+  const digits = phoneDigits(value)
+  return digits ? `${country.dial}${digits}` : ''
+}
 
 const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled }) => {
   const [showPwd, setShowPwd] = useState(false)
@@ -131,11 +148,14 @@ const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled }
 const RegisterView = ({ onRegister, onLogin, loading }) => {
   const [showPwd, setShowPwd] = useState(false)
   const [username, setUsername] = useState('')
+  const [phoneCountry, setPhoneCountry] = useState('ARS')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
+  const selectedPhoneCountry = getPhoneCountry(phoneCountry)
 
   const submitRegister = (event) => {
     event.preventDefault()
-    onRegister({ username, password })
+    onRegister({ username, phoneCountry, phone, password })
   }
 
   return (
@@ -152,6 +172,29 @@ const RegisterView = ({ onRegister, onLogin, loading }) => {
           value={username}
           onChange={event => setUsername(event.target.value)}
         />
+      </FormGroup>
+
+      <FormGroup>
+        <InputLabel>Telefono</InputLabel>
+        <PhoneInputRow>
+          <CountrySelect
+            value={phoneCountry}
+            onChange={event => setPhoneCountry(event.target.value)}
+            aria-label="Codigo de pais"
+          >
+            {PHONE_COUNTRIES.map(country => (
+              <option key={country.code} value={country.code}>{country.label}</option>
+            ))}
+          </CountrySelect>
+          <StyledInput
+            type="tel"
+            inputMode="numeric"
+            placeholder={selectedPhoneCountry.example}
+            autoComplete="tel-national"
+            value={phone}
+            onChange={event => setPhone(event.target.value)}
+          />
+        </PhoneInputRow>
       </FormGroup>
 
       <FormGroup>
@@ -2172,13 +2215,18 @@ const ChatWindow = ({ onClose }) => {
     }
   }
 
-  const validateRegistration = ({ username, password }) => {
+  const validateRegistration = ({ username, phoneCountry, phone, password }) => {
     const cleanUsername = String(username || '').trim()
     const cleanPassword = String(password || '')
+    const country = getPhoneCountry(phoneCountry)
+    const cleanPhone = phoneDigits(phone)
 
-    if (!cleanUsername || !cleanPassword) return 'Completa usuario y contrasena.'
+    if (!cleanUsername || !cleanPhone || !cleanPassword) return 'Completa usuario, telefono y contrasena.'
     if (/\s/.test(cleanUsername) || /[A-Z]/.test(cleanUsername)) {
       return 'El usuario no puede tener espacios ni mayusculas.'
+    }
+    if (cleanPhone.length < country.min || cleanPhone.length > country.max) {
+      return `Ingresa un telefono valido para ${country.code} (${country.min === country.max ? `${country.min} digitos` : `${country.min} a ${country.max} digitos`}).`
     }
     if (cleanPassword.length < 4 || /\s/.test(cleanPassword) || /[A-Z]/.test(cleanPassword)) {
       return 'La contrasena debe tener minimo 4 caracteres, sin espacios ni mayusculas.'
@@ -2186,14 +2234,14 @@ const ChatWindow = ({ onClose }) => {
     return ''
   }
 
-  const handleRegister = async ({ username, password }) => {
+  const handleRegister = async ({ username, phoneCountry, phone, password }) => {
     if (!systemConfig.clientRegistrationEnabled) {
       setView('login')
       setError('El registro de clientes esta deshabilitado.')
       return
     }
 
-    const validationError = validateRegistration({ username, password })
+    const validationError = validateRegistration({ username, phoneCountry, phone, password })
     if (validationError) {
       setError(validationError)
       return
@@ -2207,6 +2255,8 @@ const ChatWindow = ({ onClose }) => {
     try {
       const session = await api.post('/api/client/auth/register', {
         username: username.trim(),
+        phoneCountry,
+        phone: normalizePhone(phoneCountry, phone),
         password,
       })
       setClientSession(session.client)

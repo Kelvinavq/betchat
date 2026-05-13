@@ -190,6 +190,33 @@ export const StyledInput = styled.input`
   }
 `
 
+export const PhoneInputRow = styled.div`
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+`
+
+export const CountrySelect = styled.select`
+  width: 100%;
+  height: 48px;
+  padding: 0 9px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  color: #ffffff;
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 700;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  &:focus {
+    border-color: var(--bc-client-accent, #1e85ff);
+    box-shadow: 0 0 0 3px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.14);
+  }
+  option { background: #1a1a2e; color: #fff; }
+`
+
 export const PasswordWrapper = styled.div`
   position: relative;
 `
