@@ -122,6 +122,13 @@ export const config = {
     apiKey: process.env.OPENROUTER_API_KEY,
   },
 
+  // Google OAuth / Google Identity Services
+  googleAuth: {
+    clientId: process.env.GOOGLE_CLIENT_ID,
+    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+    redirectUri: process.env.GOOGLE_REDIRECT_URI,
+  },
+
   // Redis cache (opcional)
   redis: {
     enabled: process.env.REDIS_ENABLED === 'true' || Boolean(process.env.REDIS_URL),
@@ -155,6 +162,14 @@ export function validateConfig() {
     if (!config.db.password) {
       errors.push('Contraseña de BD vacía en PRODUCCIÓN');
     }
+    if (!config.googleAuth.clientId) {
+      errors.push('GOOGLE_CLIENT_ID no configurado en PRODUCCIÓN');
+    }
+    if (!config.googleAuth.clientSecret) {
+      errors.push('GOOGLE_CLIENT_SECRET no configurado en PRODUCCIÓN');
+    }
+  } else if (!config.googleAuth.clientId) {
+    console.warn('Google OAuth deshabilitado: GOOGLE_CLIENT_ID no está configurado');
   }
 
   if (errors.length > 0) {

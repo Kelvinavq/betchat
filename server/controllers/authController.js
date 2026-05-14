@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import { randomUUID } from 'crypto';
 import crypto from 'crypto';
+import { OAuth2Client } from 'google-auth-library';
 import { query } from '../config/database.js';
 import { config } from '../config/config.js';
 import { verifyPassword } from '../utils/password.js';
@@ -12,6 +13,7 @@ const DUMMY_PASSWORD_HASH = '$2a$12$KIXxJp7LNqCAQsfyi.W8VOe3vlqZ29wxs2jR7NpuTR5s
 const WEBAUTHN_RP_ID = config.webAuthnRpId || 'localhost';
 const WEBAUTHN_RP_NAME = config.webAuthnRpName || 'BetChat';
 const WEBAUTHN_ORIGIN = config.webAuthnOrigin || 'http://localhost:5173';
+const googleClient = config.googleAuth.clientId ? new OAuth2Client(config.googleAuth.clientId) : null;
 
 function base64urlEncode(buffer) {
   return Buffer.from(buffer).toString('base64url');
@@ -248,6 +250,15 @@ async function issueLoginResponse(req, res, user) {
   };
 }
 
+async function findUserByGoogleEmail(email) {
+  const { rows, error } = await query(
+    'SELECT id, username, full_name, email, password_hash, role, avatar_url, is_active, last_login_at FROM users WHERE email = ? LIMIT 1',
+    [email]
+  );
+  if (error) throw error;
+  return rows?.[0] || null;
+}
+
 function sanitizeUser(user) {
   return {
     id: user.id,
@@ -313,6 +324,58 @@ export async function login(req, res, next) {
   } catch (error) {
     next(error);
   }
+}
+
+export async function googleLogin(req, res, next) {
+  try {
+    if (!googleClient) {
+      return res.status(500).json({ error: 'Google OAuth no configurado', code: 'GOOGLE_NOT_CONFIGURED' });
+    }
+
+    const { credential } = req.body || {};
+    if (!credential) {
+      return res.status(400).json({ error: 'Credencial de Google requerida', code: 'GOOGLE_CREDENTIAL_REQUIRED' });
+    }
+
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: config.googleAuth.clientId,
+    });
+    const payload = ticket.getPayload();
+    const email = payload?.email?.toLowerCase();
+    const emailVerified = Boolean(payload?.email_verified);
+
+    if (!email || !emailVerified) {
+      return res.status(401).json({ error: 'Cuenta de Google no verificada', code: 'GOOGLE_EMAIL_UNVERIFIED' });
+    }
+
+    const user = await findUserByGoogleEmail(email);
+    if (!user) {
+      return res.status(403).json({
+        error: 'Tu cuenta de Google no está registrada en el sistema',
+        code: 'GOOGLE_USER_NOT_REGISTERED',
+      });
+    }
+
+    if (!user.is_active) {
+      return res.status(403).json({ error: 'Usuario desactivado', code: 'USER_INACTIVE' });
+    }
+
+    if (!ALLOWED_ROLES.includes(user.role)) {
+      return res.status(403).json({ error: 'Usuario no autorizado', code: 'ROLE_NOT_ALLOWED' });
+    }
+
+    const response = await issueLoginResponse(req, res, user);
+    res.json(response);
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function googleConfig(req, res) {
+  res.json({
+    clientId: config.googleAuth.clientId || null,
+  });
 }
 
 export async function webauthnRegisterOptions(req, res, next) {

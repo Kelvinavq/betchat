@@ -76,6 +76,7 @@ export const Socials = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 10px;
+  width: 100%;
 `;
 
 export const SsoBtn = styled.button`
@@ -84,6 +85,7 @@ export const SsoBtn = styled.button`
   align-items: center;
   justify-content: center;
   gap: 9px;
+  width: 100%;
   background: ${colors.glass.bg};
   border: 1px solid ${colors.glass.border};
   color: ${colors.glass.textWhite60};
@@ -255,5 +257,72 @@ export const Footer = styled.p`
     &:hover {
       color: ${colors.primaryLighter};
     }
+  }
+`;
+
+export const ModalOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  background: rgba(4, 10, 24, 0.62);
+  backdrop-filter: blur(12px);
+`;
+
+export const ModalCard = styled.div`
+  width: 100%;
+  max-width: 460px;
+  border-radius: 28px;
+  border: 1px solid ${colors.glass.border};
+  background: rgba(10, 18, 38, 0.92);
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+  padding: 24px;
+  text-align: left;
+`;
+
+export const ModalTitle = styled.h3`
+  margin: 0;
+  font-size: 20px;
+  line-height: 1.2;
+  color: ${colors.white};
+`;
+
+export const ModalSub = styled.p`
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.55;
+  color: ${colors.glass.textWhite60};
+`;
+
+export const ModalFoot = styled.div`
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 24px;
+
+  @media (max-width: 520px) {
+    flex-direction: column-reverse;
+  }
+`;
+
+export const ModalBtn = styled.button`
+  ${inputButtonBase}
+  min-width: 132px;
+  border: 1px solid ${({ $v }) => ($v === 'primary' ? 'transparent' : colors.glass.border)};
+  background: ${({ $v }) => ($v === 'primary' ? gradients.btn : colors.glass.bg)};
+  color: ${({ $v }) => ($v === 'primary' ? colors.primaryAccent : colors.glass.textWhite85)};
+  cursor: pointer;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+
+  &:hover {
+    background: ${({ $v }) => ($v === 'primary' ? gradients.btnHover : colors.glass.bgHover)};
+  }
+
+  &:active {
+    transform: scale(0.98);
   }
 `;
