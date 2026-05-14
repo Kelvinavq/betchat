@@ -50,6 +50,8 @@ const LoginAdmin = ({ onSubmit, status }) => {
   const [attempts, setAttempts] = useState(0);
   const [cooldown, setCooldown] = useState(0);
   const [fieldErrors, setFieldErrors] = useState({});
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [biometricNotice, setBiometricNotice] = useState('');
 
   useWebGLBackground(canvasRef);
 
@@ -74,6 +76,10 @@ const LoginAdmin = ({ onSubmit, status }) => {
 
   const biometricIcon = deviceType === 'ios' ? faceid : fingerprint;
   const biometricLabel = deviceType === 'ios' ? 'FaceID' : 'Huella';
+  const canUseWebAuthn = typeof window !== 'undefined' && Boolean(window.PublicKeyCredential);
+
+  const base64UrlToBuffer = (value) => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  const bufferToBase64Url = (value) => btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
   const handleSubmit = async (event) => {
     event.preventDefault();
@@ -103,7 +109,7 @@ const LoginAdmin = ({ onSubmit, status }) => {
     try {
       await onSubmit({ username: trimmedUsername, password });
       setAttempts(0);
-    } catch (error) {
+    } catch {
       const nextAttempts = attempts + 1;
       setAttempts(nextAttempts);
 
@@ -115,6 +121,62 @@ const LoginAdmin = ({ onSubmit, status }) => {
     }
   };
 
+  const handleBiometric = async () => {
+    if (!canUseWebAuthn || biometricBusy || cooldown > 0) return;
+
+    const trimmedUsername = username.trim();
+    if (!trimmedUsername) {
+      setFieldErrors({ username: 'Ingresa tu usuario primero para usar biometría.' });
+      return;
+    }
+
+    setBiometricNotice('');
+    setBiometricBusy(true);
+
+    try {
+      const options = await onSubmit({
+        username: trimmedUsername,
+        password,
+        webauthnIntent: 'auth-options',
+      });
+
+      if (!options?.challenge) {
+        throw new Error('Biometría no disponible');
+      }
+
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          ...options,
+          challenge: base64UrlToBuffer(options.challenge),
+          allowCredentials: (options.allowCredentials || []).map((item) => ({
+            ...item,
+            id: base64UrlToBuffer(item.id),
+          })),
+        },
+      });
+
+      await onSubmit({
+        username: trimmedUsername,
+        webauthnIntent: 'auth-verify',
+        credential: {
+          id: credential.id,
+          rawId: bufferToBase64Url(credential.rawId),
+          type: credential.type,
+          response: {
+            clientDataJSON: bufferToBase64Url(credential.response.clientDataJSON),
+            authenticatorData: bufferToBase64Url(credential.response.authenticatorData),
+            signature: bufferToBase64Url(credential.response.signature),
+            userHandle: credential.response.userHandle ? bufferToBase64Url(credential.response.userHandle) : null,
+          },
+        },
+      });
+    } catch (error) {
+      setBiometricNotice(error.message || 'No se pudo usar la biometría en este dispositivo.');
+    } finally {
+      setBiometricBusy(false);
+    }
+  };
+
   const busyText = cooldown > 0 ? `Intenta nuevamente en ${cooldown}s` : 'Ingresar';
 
   return (
@@ -123,21 +185,20 @@ const LoginAdmin = ({ onSubmit, status }) => {
       <Card>
         <Logo src={systemConfig.logoUrl || logo} alt={systemConfig.appName} />
         <Subtitle>{systemConfig.appName}</Subtitle>
-        {status?.message && (
-          <AlertBox $type={status.type}>{status.message}</AlertBox>
-        )}
+        {status?.message && <AlertBox $type={status.type}>{status.message}</AlertBox>}
         <Form onSubmit={handleSubmit}>
           <Socials>
             <SsoBtn type="button">
               <img src={googleIcon} alt="Google" />
               <span>Google</span>
             </SsoBtn>
-            <SsoBtn type="button" invertIcon>
+            <SsoBtn type="button" invertIcon onClick={handleBiometric} disabled={!canUseWebAuthn || biometricBusy}>
               <img src={biometricIcon} alt={biometricLabel} />
-              <span>{biometricLabel}</span>
+              <span>{biometricBusy ? 'Verificando...' : biometricLabel}</span>
             </SsoBtn>
           </Socials>
-          <Or>ó</Or>
+          {biometricNotice && <FieldError>{biometricNotice}</FieldError>}
+          <Or>o</Or>
           <Textbox
             id="login-6-user"
             type="text"

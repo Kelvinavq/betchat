@@ -488,3 +488,32 @@ ALTER TABLE `push_history` ADD COLUMN `image` VARCHAR(500) DEFAULT NULL AFTER `b
 ALTER TABLE `clients` ADD COLUMN `push_blocked` TINYINT(1) NOT NULL DEFAULT 0 AFTER `is_active`;
 
 ALTER TABLE `clients` ADD `phone` VARCHAR(100) NULL AFTER `full_name`;
+
+CREATE TABLE IF NOT EXISTS `webauthn_credentials` (
+  `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`        INT UNSIGNED    NOT NULL,
+  `credential_id`  VARCHAR(255)    NOT NULL,
+  `public_key`     TEXT            NOT NULL,
+  `sign_count`     INT UNSIGNED    NOT NULL DEFAULT 0,
+  `transports`     JSON            DEFAULT NULL,
+  `created_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_webauthn_credential` (`credential_id`),
+  KEY `idx_webauthn_user` (`user_id`),
+  CONSTRAINT `fk_webauthn_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `webauthn_challenges` (
+  `id`          BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `user_id`     INT UNSIGNED    NOT NULL,
+  `challenge`   VARCHAR(255)    NOT NULL,
+  `type`        ENUM('register','auth') NOT NULL,
+  `expires_at`  DATETIME        NOT NULL,
+  `created_at`  DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_webauthn_user_type` (`user_id`, `type`),
+  KEY `idx_webauthn_challenge` (`challenge`),
+  KEY `idx_webauthn_expires` (`expires_at`),
+  CONSTRAINT `fk_webauthn_challenge_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
