@@ -261,3 +261,150 @@ export const ResultBadge = styled.div`
     svg { font-size: 14px; color: #f87171; }
   `}
 `
+
+
+export const PanicGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  margin-top: 18px;
+  @media (max-width: 860px) { grid-template-columns: 1fr; }
+`
+
+export const PanicCard = styled.div`
+  position: relative;
+  padding: 18px;
+  border-radius: 18px;
+  overflow: hidden;
+  background: ${({ $tone }) =>
+    $tone === 'danger'
+      ? 'linear-gradient(180deg, rgba(127,29,29,0.24), rgba(69,10,10,0.20))'
+      : 'linear-gradient(180deg, rgba(30,64,175,0.18), rgba(23,37,84,0.18))'};
+  border: 1px solid ${({ $tone }) =>
+    $tone === 'danger' ? 'rgba(248,113,113,0.28)' : 'rgba(96,165,250,0.24)'};
+  box-shadow: 0 18px 50px rgba(0,0,0,0.30);
+`
+
+export const PanicGlow = styled.div`
+  position: absolute;
+  inset: -60px auto auto -50px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: radial-gradient(circle, ${({ $tone }) => $tone === 'danger' ? 'rgba(248,113,113,0.28)' : 'rgba(96,165,250,0.24)'} 0%, transparent 68%);
+  pointer-events: none;
+`
+
+export const PanicHead = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
+`
+
+export const PanicIcon = styled.div`
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: ${({ $tone }) => $tone === 'danger' ? 'rgba(248,113,113,0.14)' : 'rgba(96,165,250,0.14)'};
+  border: 1px solid ${({ $tone }) => $tone === 'danger' ? 'rgba(248,113,113,0.25)' : 'rgba(96,165,250,0.24)'};
+  svg { font-size: 22px; color: ${({ $tone }) => $tone === 'danger' ? '#f87171' : '#60a5fa'}; }
+`
+
+export const PanicTitle = styled.p`
+  font-size: 14px;
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.01em;
+`
+
+export const PanicSub = styled.p`
+  font-size: 12px;
+  color: rgba(255,255,255,0.50);
+  line-height: 1.55;
+  margin-top: 3px;
+`
+
+export const PanicBody = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+  position: relative;
+  z-index: 1;
+`
+
+export const PanicActions = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+`
+
+export const PanicBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 16px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 800;
+  transition: transform 0.14s ease, opacity 0.18s ease, background 0.18s ease;
+  ${({ $tone, $secondary }) =>
+    $tone === 'danger'
+      ? ($secondary
+          ? 'background: rgba(248,113,113,0.09); color: #fecaca; border-color: rgba(248,113,113,0.22);'
+          : 'background: linear-gradient(180deg, rgba(220,38,38,0.95), rgba(153,27,27,0.95)); color: #fff; box-shadow: 0 12px 30px rgba(220,38,38,0.28);')
+      : 'background: linear-gradient(180deg, rgba(37,99,235,0.95), rgba(29,78,216,0.95)); color: #fff; box-shadow: 0 12px 30px rgba(37,99,235,0.22);'}
+  &:hover:not(:disabled) { transform: translateY(-1px); }
+  &:active:not(:disabled) { transform: translateY(0); }
+  &:disabled { opacity: 0.5; cursor: not-allowed; }
+  svg { font-size: 16px; }
+`
+
+export const PanicNotice = styled.div`
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(251,191,36,0.24);
+  background: rgba(251,191,36,0.08);
+  color: #fde68a;
+  font-size: 12px;
+  line-height: 1.55;
+`
+
+export const PanicConfirmBox = styled.div`
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(248,113,113,0.25);
+  background: rgba(69,10,10,0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+`
+
+export const PanicConfirmLabel = styled.p`
+  font-size: 12px;
+  color: #fecaca;
+  line-height: 1.5;
+`
+
+export const PanicConfirmInput = styled.input`
+  width: 100%;
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(248,113,113,0.24);
+  background: rgba(15,23,42,0.72);
+  color: #fff;
+  font-family: inherit;
+  outline: none;
+  &:focus { border-color: rgba(248,113,113,0.48); }
+`

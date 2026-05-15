@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useDateFormat } from '../../../hooks/useDateFormat'
+import { useConfirm } from '../../../components/common/ConfirmDialog'
 import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlined'
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
@@ -8,7 +9,9 @@ import ErrorOutlineIcon from '@mui/icons-material/ErrorOutlined'
 import AccessTimeOutlinedIcon from '@mui/icons-material/AccessTimeOutlined'
 import EventRepeatOutlinedIcon from '@mui/icons-material/EventRepeatOutlined'
 import PlayArrowOutlinedIcon from '@mui/icons-material/PlayArrowOutlined'
-import { api } from '../../../utils/api'
+import WarningAmberOutlinedIcon from '@mui/icons-material/WarningAmberOutlined'
+import DownloadOutlinedIcon from '@mui/icons-material/DownloadOutlined'
+import { api, API_BASE_URL } from '../../../utils/api'
 import {
   Card, CardHead, CardIcon, CardHeadText, CardTitle, CardSub,
   SubSection, SubTitle, SubDesc,
@@ -16,6 +19,8 @@ import {
   RunInfo, RunPill,
   DateRow, DateLabel, DateInput,
   ActionRow, RunBtn, SaveBtn, Spinner, ResultBadge,
+  PanicGrid, PanicCard, PanicGlow, PanicHead, PanicIcon, PanicTitle, PanicSub,
+  PanicBody, PanicActions, PanicBtn, PanicNotice, PanicConfirmBox, PanicConfirmLabel, PanicConfirmInput,
 } from './AdvancedSection.styles'
 
 const todayStr = () => new Date().toISOString().slice(0, 10)
@@ -40,6 +45,7 @@ const nextRunDate = (lastRunAt, intervalDays) => {
 
 export default function AdvancedSection() {
   const { timezone } = useDateFormat()
+  const { confirm, dialogNode } = useConfirm()
   const [config, setConfig] = useState({ intervalDays: 0, clearMessages: true, clearFiles: true, lastRunAt: null, lastRunStats: null })
   const [intervalInput, setIntervalInput] = useState('0')
   const [scheduleSaved, setScheduleSaved] = useState(false)
@@ -54,6 +60,8 @@ export default function AdvancedSection() {
   const [fileTo,   setFileTo]   = useState(daysAgoStr(7))
   const [runningFiles, setRunningFiles] = useState(false)
   const [fileResult, setFileResult] = useState(null)
+  const [wipeConfirm, setWipeConfirm] = useState('')
+  const [panicBusy, setPanicBusy] = useState(false)
 
   useEffect(() => {
     api.get('/api/maintenance').then(data => {
@@ -114,10 +122,56 @@ export default function AdvancedSection() {
     }
   }
 
+  const exportDatabase = async () => {
+    setPanicBusy(true)
+    try {
+      const res = await fetch(`${API_BASE_URL.replace(/\/+$/, '')}/api/maintenance/export`, { credentials: 'include' })
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null)
+        throw new Error(payload?.error || `HTTP ${res.status}`)
+      }
+      const blob = await res.blob()
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `betchat-backup-${new Date().toISOString().slice(0, 10)}.sql`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      window.URL.revokeObjectURL(url)
+    } finally {
+      setPanicBusy(false)
+    }
+  }
+
+  const wipeChats = async () => {
+    if (wipeConfirm !== 'BORRAR TODO') return
+    const ok = await confirm({
+      title: 'Vaciar chats',
+      message: 'Se borrarán TODOS los chats, mensajes y archivos asociados. Esta acción no se puede deshacer.',
+      confirmLabel: 'Sí, borrar todo',
+      variant: 'danger',
+    })
+    if (!ok) return
+
+    setPanicBusy(true)
+    try {
+      await api.post('/api/maintenance/purge-chats', { confirm: wipeConfirm })
+      setMsgResult({ ok: true, stats: { messagesDeleted: 'all', filesDeleted: 0 } })
+      setFileResult({ ok: true, stats: { filesDeleted: 0, filesSkipped: 0 } })
+    } catch (err) {
+      setMsgResult({ ok: false, error: err?.message || 'No se pudo vaciar chats' })
+    } finally {
+      setPanicBusy(false)
+      setWipeConfirm('')
+    }
+  }
+
   const next = nextRunDate(config.lastRunAt, config.intervalDays)
 
   return (
-    <Card>
+    <>
+      <Card>
       <CardHead>
         <CardIcon><BuildOutlinedIcon /></CardIcon>
         <CardHeadText>
@@ -126,7 +180,7 @@ export default function AdvancedSection() {
         </CardHeadText>
       </CardHead>
 
-      {/* ── Programación automática ── */}
+      {/* Programación automática */}
       <SubSection>
         <SubTitle>Programación automática</SubTitle>
         <SubDesc>
@@ -188,7 +242,7 @@ export default function AdvancedSection() {
         </RunInfo>
       </SubSection>
 
-      {/* ── Limpiar mensajes ── */}
+      {/* Limpiar mensajes */}
       <SubSection $bordered>
         <SubTitle>
           <ChatBubbleOutlineIcon style={{ fontSize: 14, marginRight: 6, verticalAlign: 'middle', opacity: 0.6 }} />
@@ -226,7 +280,98 @@ export default function AdvancedSection() {
         </ActionRow>
       </SubSection>
 
-      {/* ── Limpiar archivos ── */}
+      {/* Limpiar archivos */}
+      <SubSection $bordered>
+        <SubTitle>
+          <WarningAmberOutlinedIcon style={{ fontSize: 14, marginRight: 6, verticalAlign: 'middle', opacity: 0.8 }} />
+          Botones de pánico
+        </SubTitle>
+        <SubDesc>
+          Acciones irreversibles para soporte y recuperación. Requieren confirmación explícita y muestran advertencias personalizadas.
+        </SubDesc>
+
+        <PanicGrid>
+          <PanicCard $tone="danger">
+            <PanicGlow $tone="danger" />
+            <PanicHead>
+              <PanicIcon $tone="danger">
+                <WarningAmberOutlinedIcon />
+              </PanicIcon>
+              <div>
+                <PanicTitle>Vaciar chats</PanicTitle>
+                <PanicSub>Borra todos los chats, mensajes y adjuntos del sistema.</PanicSub>
+              </div>
+            </PanicHead>
+
+            <PanicBody>
+              <PanicNotice>
+                Esta acción es destructiva. Se eliminarán permanentemente todos los chats, mensajes y archivos asociados.
+              </PanicNotice>
+              <PanicConfirmBox>
+                <PanicConfirmLabel>
+                  Escribí <strong>BORRAR TODO</strong> para habilitar el botón.
+                </PanicConfirmLabel>
+                <PanicConfirmInput
+                  value={wipeConfirm}
+                  onChange={e => setWipeConfirm(e.target.value)}
+                  placeholder="BORRAR TODO"
+                />
+              </PanicConfirmBox>
+              <PanicActions>
+                <PanicBtn
+                  type="button"
+                  $tone="danger"
+                  disabled={panicBusy || wipeConfirm !== 'BORRAR TODO'}
+                  onClick={wipeChats}
+                >
+                  <WarningAmberOutlinedIcon />
+                  Vaciar chats
+                </PanicBtn>
+              </PanicActions>
+            </PanicBody>
+          </PanicCard>
+
+          <PanicCard $tone="info">
+            <PanicGlow $tone="info" />
+            <PanicHead>
+              <PanicIcon $tone="info">
+                <DownloadOutlinedIcon />
+              </PanicIcon>
+              <div>
+                <PanicTitle>Exportar base de datos</PanicTitle>
+                <PanicSub>Descarga un backup SQL completo con estructura y datos.</PanicSub>
+              </div>
+            </PanicHead>
+
+            <PanicBody>
+              <PanicNotice>
+                Se generará un archivo `.sql` listo para restaurar la base de datos más tarde.
+              </PanicNotice>
+              <PanicActions>
+                <PanicBtn
+                  type="button"
+                  $tone="info"
+                  disabled={panicBusy}
+                  onClick={() => {
+                    confirm({
+                      title: 'Exportar base de datos',
+                      message: 'Se descargará un respaldo SQL completo de la base de datos en formato .sql.',
+                      confirmLabel: 'Exportar SQL',
+                      variant: 'info',
+                    }).then(ok => {
+                      if (ok) exportDatabase()
+                    })
+                  }}
+                >
+                  <DownloadOutlinedIcon />
+                  Exportar SQL
+                </PanicBtn>
+              </PanicActions>
+            </PanicBody>
+          </PanicCard>
+        </PanicGrid>
+      </SubSection>
+
       <SubSection $bordered>
         <SubTitle>
           <ImageOutlinedIcon style={{ fontSize: 14, marginRight: 6, verticalAlign: 'middle', opacity: 0.6 }} />
@@ -263,6 +408,9 @@ export default function AdvancedSection() {
           )}
         </ActionRow>
       </SubSection>
-    </Card>
+      </Card>
+      {dialogNode}
+    </>
   )
 }
+

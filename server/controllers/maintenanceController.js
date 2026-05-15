@@ -2,6 +2,7 @@ import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
 import { promises as fs } from 'fs'
 import { query } from '../config/database.js'
+import { config } from '../config/config.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -22,6 +23,67 @@ async function deletePhysicalFile(fileUrl) {
   } catch {
     return false
   }
+}
+
+function escapeSqlString(value) {
+  return String(value ?? '')
+    .replace(/\\/g, '\\\\')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/'/g, "\\'")
+}
+
+function sqlValue(value) {
+  if (value === null || value === undefined) return 'NULL'
+  if (value instanceof Date) return `'${escapeSqlString(value.toISOString())}'`
+  if (typeof value === 'number') return Number.isFinite(value) ? String(value) : 'NULL'
+  if (typeof value === 'boolean') return value ? '1' : '0'
+  return `'${escapeSqlString(value)}'`
+}
+
+async function buildSqlDump() {
+  const { rows: tables, error } = await query(
+    `SELECT table_name AS name
+     FROM information_schema.tables
+     WHERE table_schema = ?
+       AND table_type = 'BASE TABLE'
+     ORDER BY table_name ASC`,
+    [config.db.database]
+  )
+  if (error) throw error
+
+  const output = []
+  output.push('-- BetChat SQL export')
+  output.push(`-- Generated at: ${new Date().toISOString()}`)
+  output.push('SET NAMES utf8mb4;')
+  output.push('SET FOREIGN_KEY_CHECKS = 0;')
+  output.push('')
+
+  for (const table of tables || []) {
+    const tableName = table.name
+    const { rows: createRows, error: createErr } = await query(`SHOW CREATE TABLE \`${tableName}\``)
+    if (createErr) throw createErr
+    const createSql = createRows?.[0]?.['Create Table']
+    if (!createSql) continue
+
+    output.push(`DROP TABLE IF EXISTS \`${tableName}\`;`)
+    output.push(`${createSql};`)
+
+    const { rows: dataRows, error: dataErr } = await query(`SELECT * FROM \`${tableName}\``)
+    if (dataErr) throw dataErr
+    const rows = dataRows || []
+    if (rows.length > 0) {
+      const columns = Object.keys(rows[0]).map(col => `\`${col}\``).join(', ')
+      for (const row of rows) {
+        const values = Object.values(row).map(sqlValue).join(', ')
+        output.push(`INSERT INTO \`${tableName}\` (${columns}) VALUES (${values});`)
+      }
+    }
+    output.push('')
+  }
+
+  output.push('SET FOREIGN_KEY_CHECKS = 1;')
+  return output.join('\n')
 }
 
 /* ── Core logic — shared by HTTP handler and auto-scheduler ── */
@@ -186,6 +248,51 @@ export async function runMaintenance(req, res, next) {
     const { clearMessages, clearFiles } = req.body || {}
     const stats = await runMaintenanceInternal({ clearMessages, clearFiles })
     res.json({ success: true, stats })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function purgeAllChats(req, res, next) {
+  try {
+    const confirm = String(req.body?.confirm || '').trim()
+    if (confirm !== 'BORRAR TODO') {
+      return res.status(400).json({ error: 'Confirmacion invalida' })
+    }
+
+    const { rows: files, error: filesErr } = await query(
+      `SELECT file_url FROM messages WHERE file_url IS NOT NULL AND file_url <> ''`
+    )
+    if (filesErr) throw filesErr
+
+    let deletedFiles = 0
+    for (const row of files || []) {
+      if (row.file_url && await deletePhysicalFile(row.file_url)) deletedFiles++
+    }
+
+    const { error: deleteMessagesErr } = await query('DELETE FROM messages')
+    if (deleteMessagesErr) throw deleteMessagesErr
+    const { error: deleteChatsErr } = await query('DELETE FROM chats')
+    if (deleteChatsErr) throw deleteChatsErr
+
+    await query(
+      `UPDATE maintenance_config SET last_run_at = CURRENT_TIMESTAMP, last_run_stats = ? WHERE id = 1`,
+      [JSON.stringify({ messagesDeleted: 'all', filesDeleted: deletedFiles, chatsDeleted: 'all' })]
+    )
+
+    res.json({ success: true, deletedFiles })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function exportDatabaseSql(req, res, next) {
+  try {
+    const sql = await buildSqlDump()
+    const fileName = `betchat-backup-${new Date().toISOString().slice(0, 10)}.sql`
+    res.setHeader('Content-Type', 'application/sql; charset=utf-8')
+    res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`)
+    res.send(sql)
   } catch (error) {
     next(error)
   }
