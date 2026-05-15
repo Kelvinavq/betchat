@@ -43,6 +43,10 @@ import {
   MontosGrid, MontoCard, MontoHead, MontoIconWrap, MontoInfo, MontoTitle, MontoDesc,
   MontoDivider, MontoBody, MontoInputRow, CurrencyPrefix, MontoInput, CurrencySelect, MontoNote,
   ApiStatusBadge, ApiNote,
+  ModelSectionLabel, ModelGrid, ModelCard, ModelCardRow, ModelMeta,
+  ModelProvider, ModelName, ModelTag, ModelDesc,
+  ModelCostRow, ModelCostValue, ModelCostLabel, ModelPriceDetail,
+  ModelCheck, ModelCostNote,
   ProviderGrid, ProviderCard, RadioCircle, ProviderAvatar, ProviderInfo, ProviderName, ProviderSub,
   AccountSelectCard, AccountSelectLabel, FieldSelect,
   ActiveProviderRow, ActiveProviderDot,
@@ -554,6 +558,62 @@ const TypeBtn = styled.button`
   &:hover { color: rgba(255,255,255,0.65); }
 `
 
+/* ─── AI receipt models ──────────────────────────────────────── */
+// costPer1k: estimated USD per 1000 receipt reads
+// Assumes ~1000 input tokens (image + prompt) + ~80 output tokens per read
+const RECEIPT_MODELS = [
+  {
+    id: 'google/gemini-flash-3.1-lite',
+    name: 'Gemini Flash 3.1 Lite',
+    provider: 'Google',
+    tag: 'Rápido y económico',
+    tagCl: '#10b981', tagBg: 'rgba(16,185,129,0.15)',
+    desc: 'Ideal para alto volumen. Excelente relación velocidad/costo para comprobantes simples.',
+    costPer1k: 0.10, tier: 'cheap',
+    inputPriceM: 0.075, outputPriceM: 0.30,
+  },
+  {
+    id: 'google/gemini-2.0-flash',
+    name: 'Gemini 2.0 Flash',
+    provider: 'Google',
+    tag: 'Equilibrado',
+    tagCl: '#3b82f6', tagBg: 'rgba(59,130,246,0.15)',
+    desc: 'Buen balance velocidad/calidad. Adecuado para la mayoría de los comprobantes.',
+    costPer1k: 0.13, tier: 'cheap',
+    inputPriceM: 0.10, outputPriceM: 0.40,
+  },
+  {
+    id: 'openai/gpt-4o-mini',
+    name: 'GPT-4o Mini',
+    provider: 'OpenAI',
+    tag: 'Preciso y económico',
+    tagCl: '#8b5cf6', tagBg: 'rgba(139,92,246,0.15)',
+    desc: 'Alta precisión de OpenAI a precio accesible. Recomendado para comprobantes variados.',
+    costPer1k: 0.20, tier: 'mid',
+    inputPriceM: 0.15, outputPriceM: 0.60,
+  },
+  {
+    id: 'google/gemini-2.5-flash-preview',
+    name: 'Gemini 2.5 Flash',
+    provider: 'Google',
+    tag: 'Alta precisión',
+    tagCl: '#f59e0b', tagBg: 'rgba(245,158,11,0.15)',
+    desc: 'Mayor razonamiento. Indicado para imágenes de baja calidad o comprobantes complejos.',
+    costPer1k: 0.22, tier: 'mid',
+    inputPriceM: 0.15, outputPriceM: 0.60,
+  },
+  {
+    id: 'openai/gpt-4o',
+    name: 'GPT-4o',
+    provider: 'OpenAI',
+    tag: 'Máxima precisión',
+    tagCl: '#ef4444', tagBg: 'rgba(239,68,68,0.15)',
+    desc: 'El mejor modelo de OpenAI. Para los casos más exigentes donde el costo es secundario.',
+    costPer1k: 3.30, tier: 'expensive',
+    inputPriceM: 2.50, outputPriceM: 10.00,
+  },
+]
+
 const BANK_STYLES = {
   hgcash: { initials: 'HG', color: '#818cf8', bg: 'rgba(99,102,241,0.10)', br: 'rgba(99,102,241,0.26)', avatarBg: 'linear-gradient(135deg,#4f46e5,#6366f1)', avatarBr: 'rgba(99,102,241,0.35)' },
   mercadopago: { initials: 'MP', color: '#38bdf8', bg: 'rgba(14,165,233,0.10)', br: 'rgba(14,165,233,0.26)', avatarBg: 'linear-gradient(135deg,#0284c7,#38bdf8)', avatarBr: 'rgba(14,165,233,0.35)' },
@@ -614,7 +674,7 @@ const SettingsPage = ({ onMenuOpen }) => {
   const [apis, setApis] = useState({
     casino:     { token: '', url: '' },
     aws:        { accessKey: '', secretKey: '' },
-    openrouter: { apiKey: '' },
+    openrouter: { apiKey: '', model: 'google/gemini-flash-3.1-lite' },
   })
   const [apiSaved, setApiSaved]       = useState({ casino: false, aws: false, openrouter: false })
   const [showSecret, setShowSecret]   = useState({
@@ -1566,8 +1626,9 @@ const SettingsPage = ({ onMenuOpen }) => {
                   </ApiStatusBadge>
                 </CardHead>
                 <CardBody>
+                  {/* API key */}
                   <Field>
-                    <FieldLabel>Clave de API de Open Router</FieldLabel>
+                    <FieldLabel>Clave de API de OpenRouter</FieldLabel>
                     <InputWrap>
                       <FieldInput
                         type={showSecret.openrouterKey ? 'text' : 'password'}
@@ -1584,13 +1645,57 @@ const SettingsPage = ({ onMenuOpen }) => {
                       </InputSuffix>
                     </InputWrap>
                   </Field>
+
+                  {/* Model selector */}
+                  <div>
+                    <ModelSectionLabel style={{ marginBottom: 10 }}>
+                      Modelo de IA — análisis de comprobantes
+                    </ModelSectionLabel>
+                    <ModelGrid>
+                      {RECEIPT_MODELS.map(m => {
+                        const active = apis.openrouter.model === m.id
+                        return (
+                          <ModelCard
+                            key={m.id}
+                            type="button"
+                            $active={active}
+                            onClick={() => setApi('openrouter', 'model', m.id)}
+                          >
+                            <ModelCheck $show={active}><CheckIcon /></ModelCheck>
+                            <ModelCardRow>
+                              <ModelMeta>
+                                <ModelProvider>{m.provider}</ModelProvider>
+                                <ModelName>{m.name}</ModelName>
+                              </ModelMeta>
+                              <ModelTag $bg={m.tagBg} $cl={m.tagCl}>{m.tag}</ModelTag>
+                            </ModelCardRow>
+                            <ModelDesc>{m.desc}</ModelDesc>
+                            <ModelCostRow>
+                              <ModelCostValue $tier={m.tier}>
+                                ${m.costPer1k.toFixed(2)}
+                              </ModelCostValue>
+                              <ModelCostLabel>/ 1.000 lecturas</ModelCostLabel>
+                              <ModelPriceDetail>
+                                ${m.inputPriceM}/M in · ${m.outputPriceM}/M out
+                              </ModelPriceDetail>
+                            </ModelCostRow>
+                          </ModelCard>
+                        )
+                      })}
+                    </ModelGrid>
+                  </div>
+
+                  <ModelCostNote>
+                    ⓘ Costos estimados asumiendo ~1.000 tokens de entrada (imagen + prompt) y ~80 tokens de salida por comprobante. Los precios son aproximados y pueden variar según OpenRouter. Consultá <strong style={{ color: 'rgba(255,255,255,0.35)' }}>openrouter.ai/models</strong> para tarifas actualizadas.
+                  </ModelCostNote>
+
                   <SaveFooter>
                     <SaveBtn type="button" $saved={apiSaved.openrouter} onClick={() => saveApi('openrouter')}>
                       {apiSaved.openrouter ? <><CheckIcon />Guardado</> : 'Guardar'}
                     </SaveBtn>
                   </SaveFooter>
                   <ApiNote>
-                    Proporciona acceso a modelos de IA para el asistente de soporte y el análisis automático de chats.
+                    Modelo utilizado para extraer y analizar automáticamente los comprobantes de depósito enviados por los clientes.
                   </ApiNote>
                 </CardBody>
               </Card>

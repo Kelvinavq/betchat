@@ -241,6 +241,31 @@ export const SubBtn = styled.button`
   }
 `
 
+/* ── scrollable nav area ── */
+export const NavScrollArea = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.10) transparent;
+
+  &::-webkit-scrollbar {
+    width: 3px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.10);
+    border-radius: 3px;
+    transition: background 0.2s;
+  }
+  &:hover::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.22);
+  }
+`
+
 /* ── spacer ── */
 export const SidebarSpacer = styled.div`
   flex: 1;

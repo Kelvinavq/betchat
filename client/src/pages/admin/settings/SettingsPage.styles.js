@@ -532,6 +532,97 @@ export const ApiInputPrefix = styled.span`
   font-family: 'Courier New', monospace;
 `
 
+/* ── AI model selector ── */
+export const ModelSectionLabel = styled.p`
+  font-size: 11px; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: rgba(255,255,255,0.28);
+`
+
+export const ModelGrid = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  @media (max-width: 580px) { grid-template-columns: 1fr; }
+`
+
+export const ModelCard = styled.button`
+  position: relative; text-align: left; display: flex; flex-direction: column; gap: 7px;
+  padding: 14px 14px 12px; border-radius: 14px; cursor: pointer; font-family: inherit;
+  border: 1.5px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.55)' : 'rgba(255,255,255,0.08)'};
+  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.08)' : 'rgba(255,255,255,0.028)'};
+  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
+  box-shadow: ${({ $active }) => $active ? '0 0 0 3px rgba(30,133,255,0.10)' : 'none'};
+  &:hover {
+    border-color: ${({ $active }) => $active ? 'rgba(30,133,255,0.65)' : 'rgba(255,255,255,0.18)'};
+    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.09)' : 'rgba(255,255,255,0.05)'};
+  }
+`
+
+export const ModelCardRow = styled.div`
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 6px;
+`
+
+export const ModelMeta = styled.div`
+  display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0;
+`
+
+export const ModelProvider = styled.span`
+  font-size: 9.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+  color: rgba(255,255,255,0.28);
+`
+
+export const ModelName = styled.span`
+  font-size: 13px; font-weight: 600; color: rgba(255,255,255,0.88); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+`
+
+export const ModelTag = styled.span`
+  flex-shrink: 0; display: inline-flex; align-items: center;
+  padding: 3px 8px; border-radius: 6px; font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.04em; white-space: nowrap;
+  background: ${({ $bg }) => $bg}; color: ${({ $cl }) => $cl};
+`
+
+export const ModelDesc = styled.span`
+  font-size: 11px; color: rgba(255,255,255,0.28); line-height: 1.45;
+`
+
+export const ModelCostRow = styled.div`
+  display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap;
+  margin-top: 6px; padding-top: 9px; border-top: 1px solid rgba(255,255,255,0.06);
+`
+
+export const ModelCostValue = styled.span`
+  font-size: 16px; font-weight: 700;
+  color: ${({ $tier }) =>
+    $tier === 'cheap' ? '#4ade80' :
+    $tier === 'mid'   ? '#fbbf24' :
+                        '#f87171'};
+`
+
+export const ModelCostLabel = styled.span`
+  font-size: 10.5px; color: rgba(255,255,255,0.24);
+`
+
+export const ModelPriceDetail = styled.span`
+  font-size: 9.5px; color: rgba(255,255,255,0.18); margin-left: auto;
+`
+
+export const ModelCheck = styled.span`
+  position: absolute; top: 10px; right: 10px;
+  width: 16px; height: 16px; border-radius: 50%;
+  background: rgba(30,133,255,0.90);
+  display: flex; align-items: center; justify-content: center;
+  opacity: ${({ $show }) => $show ? 1 : 0}; transition: opacity 0.18s;
+  svg { font-size: 11px; color: #fff; }
+`
+
+export const ModelCostNote = styled.p`
+  font-size: 10.5px; color: rgba(255,255,255,0.18); line-height: 1.5;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255,255,255,0.025); border: 1px solid rgba(255,255,255,0.06);
+`
+
 /* ── banco de chat ── */
 export const ProviderGrid = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px;

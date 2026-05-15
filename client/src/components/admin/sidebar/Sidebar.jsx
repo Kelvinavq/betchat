@@ -21,7 +21,7 @@ import {
   SidebarWrap, SidebarTop, LogoWrap, LogoBadge, LogoText, ToggleBtn,
   NavSection, SectionLabel, NavList, NavItem, NavBtn, NavIcon, NavLabel, NavArrow,
   SubList, SubBtn, NavTooltip,
-  SidebarSpacer, SidebarBottom,
+  NavScrollArea, SidebarSpacer, SidebarBottom,
   UserRow, UserAvatarWrap, UserMeta, UserName, UserRole, LogoutBtn, LogoutIconBtn,
 } from './Sidebar.styles'
 
@@ -170,70 +170,72 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
         </ToggleBtn>
       </SidebarTop>
 
-      {/* ── navigation ── */}
-      <NavSection $first>
-        <SectionLabel $visible={expanded}>Navegación</SectionLabel>
-      </NavSection>
+      {/* ── navigation (scrollable) ── */}
+      <NavScrollArea>
+        <NavSection $first>
+          <SectionLabel $visible={expanded}>Navegación</SectionLabel>
+        </NavSection>
 
-      <NavList>
-        {navItems.map(item => {
-          const childIds = item.children.map(c => c.id)
-          const isActive = expanded
-            ? (activeItem === item.id || childIds.includes(activeItem) || childIds.includes(activeSubsection))
-            : activeItem === item.id
-          const isOpen = expanded && openItems[item.id]
-          return (
-            <NavItem key={item.id}>
-              <NavBtn $active={isActive} $expanded={expanded} onClick={() => handleNavClick(item)}>
-                <NavIcon>{item.icon}</NavIcon>
-                {expanded && <NavLabel $active={isActive}>{item.label}</NavLabel>}
-                {expanded && item.children.length > 0 && (
-                  <NavArrow $open={isOpen}><ChevronRightIcon /></NavArrow>
+        <NavList>
+          {navItems.map(item => {
+            const childIds = item.children.map(c => c.id)
+            const isActive = expanded
+              ? (activeItem === item.id || childIds.includes(activeItem) || childIds.includes(activeSubsection))
+              : activeItem === item.id
+            const isOpen = expanded && openItems[item.id]
+            return (
+              <NavItem key={item.id}>
+                <NavBtn $active={isActive} $expanded={expanded} onClick={() => handleNavClick(item)}>
+                  <NavIcon>{item.icon}</NavIcon>
+                  {expanded && <NavLabel $active={isActive}>{item.label}</NavLabel>}
+                  {expanded && item.children.length > 0 && (
+                    <NavArrow $open={isOpen}><ChevronRightIcon /></NavArrow>
+                  )}
+                  {!expanded && <NavTooltip>{item.label}</NavTooltip>}
+                </NavBtn>
+
+                {item.children.length > 0 && expanded && (
+                  <SubList $open={isOpen}>
+                    {item.children.map(child => (
+                      <li key={child.id}>
+                        <SubBtn
+                          $expanded={expanded}
+                          $active={activeItem === child.id || (item.id === 'events' && activeSubsection === child.id)}
+                          onClick={() => handleNavClick(item, child)}
+                        >
+                          {child.label}
+                        </SubBtn>
+                      </li>
+                    ))}
+                  </SubList>
                 )}
-                {!expanded && <NavTooltip>{item.label}</NavTooltip>}
-              </NavBtn>
+              </NavItem>
+            )
+          })}
+        </NavList>
 
-              {item.children.length > 0 && expanded && (
-                <SubList $open={isOpen}>
-                  {item.children.map(child => (
-                    <li key={child.id}>
-                      <SubBtn
-                        $expanded={expanded}
-                        $active={activeItem === child.id || (item.id === 'events' && activeSubsection === child.id)}
-                        onClick={() => handleNavClick(item, child)}
-                      >
-                        {child.label}
-                      </SubBtn>
-                    </li>
-                  ))}
-                </SubList>
-              )}
-            </NavItem>
-          )
-        })}
-      </NavList>
+        <SidebarSpacer />
 
-      <SidebarSpacer />
+        {/* ── system section ── */}
+        <NavSection>
+          <SectionLabel $visible={expanded}>Sistema</SectionLabel>
+        </NavSection>
 
-      {/* ── system section ── */}
-      <NavSection>
-        <SectionLabel $visible={expanded}>Sistema</SectionLabel>
-      </NavSection>
-
-      <NavList>
-        {bottomItems.map(item => {
-          const isActive = activeItem === item.id
-          return (
-            <NavItem key={item.id}>
-              <NavBtn $active={isActive} $expanded={expanded} onClick={() => handleNavClick(item)}>
-                <NavIcon>{item.icon}</NavIcon>
-                {expanded && <NavLabel $active={isActive}>{item.label}</NavLabel>}
-                {!expanded && <NavTooltip>{item.label}</NavTooltip>}
-              </NavBtn>
-            </NavItem>
-          )
-        })}
-      </NavList>
+        <NavList>
+          {bottomItems.map(item => {
+            const isActive = activeItem === item.id
+            return (
+              <NavItem key={item.id}>
+                <NavBtn $active={isActive} $expanded={expanded} onClick={() => handleNavClick(item)}>
+                  <NavIcon>{item.icon}</NavIcon>
+                  {expanded && <NavLabel $active={isActive}>{item.label}</NavLabel>}
+                  {!expanded && <NavTooltip>{item.label}</NavTooltip>}
+                </NavBtn>
+              </NavItem>
+            )
+          })}
+        </NavList>
+      </NavScrollArea>
 
       {/* ── bottom: user info + logout ── */}
       <SidebarBottom>

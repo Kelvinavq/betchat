@@ -1,6 +1,6 @@
 import { query } from '../config/database.js'
 
-const RECEIPT_MODEL = 'google/gemini-3.1-flash-lite'
+const DEFAULT_RECEIPT_MODEL = 'google/gemini-flash-3.1-lite'
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 
 const EXTRACTION_PROMPT = `Extrae SOLO estos datos del texto de un comprobante y devuelve JSON ESTRICTO:
@@ -15,16 +15,16 @@ REGLAS:
 
 Devuelve únicamente el JSON, sin explicaciones.`
 
-async function getApiKey() {
-  const { rows, error } = await query('SELECT api_key FROM config_openrouter WHERE id = 1 LIMIT 1')
+async function getConfig() {
+  const { rows, error } = await query('SELECT api_key, model FROM config_openrouter WHERE id = 1 LIMIT 1')
   if (error) throw error
-  const key = rows?.[0]?.api_key
-  if (!key) throw new Error('OpenRouter API key no configurada')
-  return key
+  const row = rows?.[0] || {}
+  if (!row.api_key) throw new Error('OpenRouter API key no configurada')
+  return { apiKey: row.api_key, model: row.model || DEFAULT_RECEIPT_MODEL }
 }
 
 export async function extractReceiptData(dataUrl) {
-  const apiKey = await getApiKey()
+  const { apiKey, model } = await getConfig()
 
   const match = dataUrl.match(/^data:([^;]+);base64,(.+)$/)
   if (!match) throw new Error('dataUrl inválida')
@@ -38,7 +38,7 @@ export async function extractReceiptData(dataUrl) {
       'HTTP-Referer': 'https://betchat.app',
     },
     body: JSON.stringify({
-      model: RECEIPT_MODEL,
+      model,
       messages: [
         {
           role: 'user',
