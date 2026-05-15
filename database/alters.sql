@@ -40,6 +40,11 @@ WHERE m.sender_type = 'client'
 ALTER TABLE `system_config`
   ADD COLUMN `favicon_url` VARCHAR(500) DEFAULT NULL AFTER `logo_url`;
 
+ALTER TABLE `system_config`
+  ADD COLUMN `timezone`      VARCHAR(100) NOT NULL DEFAULT 'America/Bogota' AFTER `favicon_url`,
+  ADD COLUMN `support_type`  ENUM('link','phone')  NOT NULL DEFAULT 'phone'  AFTER `timezone`,
+  ADD COLUMN `support_value` VARCHAR(500)           DEFAULT NULL             AFTER `support_type`;
+
 ALTER TABLE `messages`
   MODIFY COLUMN `message_type` ENUM('text','image','pdf','file','audio') NOT NULL DEFAULT 'text';
 

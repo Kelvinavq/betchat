@@ -5,6 +5,9 @@ const DEFAULT_SYSTEM_CONFIG = {
   appName: 'BetChat',
   logoUrl: '',
   faviconUrl: '',
+  timezone: 'America/Bogota',
+  supportType: 'phone',
+  supportValue: '',
   clientRegistrationEnabled: true,
   clientLogoutEnabled: true,
 }
@@ -24,6 +27,9 @@ const normalizeSystemConfig = (config = {}) => ({
   appName: String(config.appName || config.app_name || DEFAULT_SYSTEM_CONFIG.appName).trim() || DEFAULT_SYSTEM_CONFIG.appName,
   logoUrl: resolveApiAsset(config.logoUrl || config.logo_url || ''),
   faviconUrl: resolveApiAsset(config.faviconUrl || config.favicon_url || ''),
+  timezone: String(config.timezone || DEFAULT_SYSTEM_CONFIG.timezone),
+  supportType: config.supportType === 'link' || config.support_type === 'link' ? 'link' : 'phone',
+  supportValue: String(config.supportValue || config.support_value || ''),
   clientRegistrationEnabled: configFlag(config.clientRegistrationEnabled ?? config.client_registration_enabled, true),
   clientLogoutEnabled: configFlag(config.clientLogoutEnabled ?? config.client_logout_enabled, true),
 })

@@ -466,6 +466,94 @@ function BrowserTabPreview({ favicon, appName }) {
   )
 }
 
+/* ─── timezone list ──────────────────────────────────────────── */
+const TIMEZONES = [
+  { group: 'América Latina', zones: [
+    { value: 'America/Bogota',                   label: 'Colombia — Bogotá (UTC-5)' },
+    { value: 'America/Lima',                     label: 'Perú — Lima (UTC-5)' },
+    { value: 'America/Guayaquil',                label: 'Ecuador — Guayaquil (UTC-5)' },
+    { value: 'America/Caracas',                  label: 'Venezuela — Caracas (UTC-4)' },
+    { value: 'America/La_Paz',                   label: 'Bolivia — La Paz (UTC-4)' },
+    { value: 'America/Santiago',                 label: 'Chile — Santiago (UTC-3/-4)' },
+    { value: 'America/Buenos_Aires',              label: 'Argentina — Buenos Aires (UTC-3)' },
+    { value: 'America/Sao_Paulo',                label: 'Brasil — São Paulo (UTC-3)' },
+    { value: 'America/Montevideo',               label: 'Uruguay — Montevideo (UTC-3)' },
+    { value: 'America/Asuncion',                 label: 'Paraguay — Asunción (UTC-4/-3)' },
+    { value: 'America/Panama',                   label: 'Panamá (UTC-5)' },
+    { value: 'America/Costa_Rica',               label: 'Costa Rica (UTC-6)' },
+    { value: 'America/Guatemala',                label: 'Guatemala (UTC-6)' },
+    { value: 'America/El_Salvador',              label: 'El Salvador (UTC-6)' },
+    { value: 'America/Tegucigalpa',              label: 'Honduras — Tegucigalpa (UTC-6)' },
+    { value: 'America/Managua',                  label: 'Nicaragua — Managua (UTC-6)' },
+    { value: 'America/Mexico_City',              label: 'México — Ciudad de México (UTC-6)' },
+    { value: 'America/Santo_Domingo',            label: 'Rep. Dominicana — Santo Domingo (UTC-4)' },
+    { value: 'America/Puerto_Rico',              label: 'Puerto Rico (UTC-4)' },
+    { value: 'America/Havana',                   label: 'Cuba — La Habana (UTC-5/-4)' },
+  ]},
+  { group: 'América del Norte', zones: [
+    { value: 'America/New_York',                 label: 'EE.UU. — Nueva York / Este (UTC-5)' },
+    { value: 'America/Chicago',                  label: 'EE.UU. — Chicago / Central (UTC-6)' },
+    { value: 'America/Denver',                   label: 'EE.UU. — Denver / Montaña (UTC-7)' },
+    { value: 'America/Los_Angeles',              label: 'EE.UU. — Los Ángeles / Pacífico (UTC-8)' },
+    { value: 'America/Toronto',                  label: 'Canadá — Toronto (UTC-5)' },
+    { value: 'America/Vancouver',                label: 'Canadá — Vancouver (UTC-8)' },
+  ]},
+  { group: 'Europa', zones: [
+    { value: 'Europe/Madrid',                    label: 'España — Madrid (UTC+1)' },
+    { value: 'Europe/London',                    label: 'Reino Unido — Londres (UTC+0)' },
+    { value: 'Europe/Paris',                     label: 'Francia / Alemania / Italia (UTC+1)' },
+    { value: 'Europe/Lisbon',                    label: 'Portugal — Lisboa (UTC+0)' },
+  ]},
+  { group: 'UTC', zones: [
+    { value: 'Etc/GMT',                           label: 'UTC / GMT — sin ajuste horario' },
+  ]},
+]
+
+/* ─── support section styled components ─────────────────────── */
+const SupportSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 8px 0 4px;
+`
+const SupportHeading = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.65);
+  letter-spacing: 0.01em;
+`
+const SupportDesc = styled.p`
+  font-size: 12px;
+  color: rgba(255,255,255,0.30);
+  margin: 0;
+  line-height: 1.5;
+`
+const TypeSegment = styled.div`
+  display: flex;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 10px;
+  padding: 3px;
+  gap: 3px;
+  width: fit-content;
+`
+const TypeBtn = styled.button`
+  padding: 6px 16px;
+  border-radius: 7px;
+  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'transparent'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.32)' : 'transparent'};
+  color: ${({ $active }) => $active ? 'rgba(90,170,255,0.95)' : 'rgba(255,255,255,0.34)'};
+  font-size: 12.5px;
+  font-weight: ${({ $active }) => $active ? 600 : 400};
+  cursor: pointer;
+  transition: all 0.18s;
+  font-family: inherit;
+  &:hover { color: rgba(255,255,255,0.65); }
+`
+
 const BANK_STYLES = {
   hgcash: { initials: 'HG', color: '#818cf8', bg: 'rgba(99,102,241,0.10)', br: 'rgba(99,102,241,0.26)', avatarBg: 'linear-gradient(135deg,#4f46e5,#6366f1)', avatarBr: 'rgba(99,102,241,0.35)' },
   mercadopago: { initials: 'MP', color: '#38bdf8', bg: 'rgba(14,165,233,0.10)', br: 'rgba(14,165,233,0.26)', avatarBg: 'linear-gradient(135deg,#0284c7,#38bdf8)', avatarBr: 'rgba(14,165,233,0.35)' },
@@ -503,6 +591,9 @@ const SettingsPage = ({ onMenuOpen }) => {
     logoDataUrl: '',
     faviconUrl: '',
     faviconDataUrl: '',
+    timezone: 'America/Bogota',
+    supportType: 'phone',
+    supportValue: '',
     clientRegistrationEnabled: true,
     clientLogoutEnabled: true,
     clearLogo: false,
@@ -617,6 +708,9 @@ const SettingsPage = ({ onMenuOpen }) => {
         logoDataUrl: '',
         faviconUrl: system.faviconUrl || '',
         faviconDataUrl: '',
+        timezone: system.timezone || 'America/Bogota',
+        supportType: system.supportType || 'phone',
+        supportValue: system.supportValue || '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
         clientLogoutEnabled: system.clientLogoutEnabled !== false,
         clearLogo: false,
@@ -751,6 +845,9 @@ const SettingsPage = ({ onMenuOpen }) => {
         logoDataUrl: '',
         faviconUrl: system.faviconUrl || '',
         faviconDataUrl: '',
+        timezone: system.timezone || 'America/Bogota',
+        supportType: system.supportType || 'phone',
+        supportValue: system.supportValue || '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
         clientLogoutEnabled: system.clientLogoutEnabled !== false,
         clearLogo: false,
@@ -1048,6 +1145,67 @@ const SettingsPage = ({ onMenuOpen }) => {
                       </InputWrap>
                     </Field>
                   </FormGrid>
+
+                  {/* ── timezone ── */}
+                  <FormGrid $cols={1}>
+                    <Field>
+                      <FieldLabel>Zona horaria del sistema</FieldLabel>
+                      <FieldSelect
+                        value={systemForm.timezone}
+                        onChange={e => setSystemForm(f => ({ ...f, timezone: e.target.value }))}
+                      >
+                        {TIMEZONES.map(group => (
+                          <optgroup key={group.group} label={group.group}>
+                            {group.zones.map(tz => (
+                              <option key={tz.value} value={tz.value}>{tz.label}</option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </FieldSelect>
+                    </Field>
+                  </FormGrid>
+
+                  {/* ── support contact ── */}
+                  <SupportSection>
+                    <SupportHeading>
+                      <HeadsetMicOutlinedIcon style={{ fontSize: 15, opacity: 0.6 }} />
+                      Contacto de soporte
+                    </SupportHeading>
+                    <SupportDesc>
+                      Aparece en el chat como botón de ayuda para que los clientes puedan contactarte.
+                    </SupportDesc>
+                    <TypeSegment>
+                      <TypeBtn
+                        type="button"
+                        $active={systemForm.supportType === 'phone'}
+                        onClick={() => setSystemForm(f => ({ ...f, supportType: 'phone' }))}
+                      >
+                        📞 Teléfono
+                      </TypeBtn>
+                      <TypeBtn
+                        type="button"
+                        $active={systemForm.supportType === 'link'}
+                        onClick={() => setSystemForm(f => ({ ...f, supportType: 'link' }))}
+                      >
+                        🔗 Enlace
+                      </TypeBtn>
+                    </TypeSegment>
+                    <FormGrid $cols={1}>
+                      <Field>
+                        <FieldLabel>
+                          {systemForm.supportType === 'phone' ? 'Número de teléfono / WhatsApp' : 'URL de soporte'}
+                        </FieldLabel>
+                        <InputWrap>
+                          <FieldInput
+                            type={systemForm.supportType === 'link' ? 'url' : 'tel'}
+                            placeholder={systemForm.supportType === 'phone' ? '+57 300 123 4567' : 'https://wa.me/57300...'}
+                            value={systemForm.supportValue}
+                            onChange={e => setSystemForm(f => ({ ...f, supportValue: e.target.value }))}
+                          />
+                        </InputWrap>
+                      </Field>
+                    </FormGrid>
+                  </SupportSection>
 
                   {/* ── favicon upload ── */}
                   <FaviconSection>
