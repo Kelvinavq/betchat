@@ -908,9 +908,11 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
   }
 
   let extracted = null
+  let aiModel = null
   let aiStatus = 'error'
   try {
     extracted = await extractReceiptData(dataUrl)
+    aiModel = extracted?.model || null
     aiStatus = 'ok'
   } catch (err) {
     console.error('[Receipt] Error extracción IA:', err.message)
@@ -931,8 +933,8 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
 
   await query(
     `INSERT INTO manual_payment_movements
-     (client_id, chat_id, message_id, bank_account_id, status, amount, ai_extracted_text, ai_status, transaction_id, is_duplicate, duplicate_of_id)
-     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)`,
+     (client_id, chat_id, message_id, bank_account_id, status, amount, ai_extracted_text, ai_status, ai_model, transaction_id, is_duplicate, duplicate_of_id)
+     VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)`,
     [
       clientId,
       chatId,
@@ -941,6 +943,7 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
       extracted?.amount ?? 0,
       JSON.stringify(extracted),
       aiStatus,
+      aiModel,
       extracted?.transaction_id ?? null,
       isDuplicate ? 1 : 0,
       duplicateOfId ?? null,

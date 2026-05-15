@@ -32,6 +32,19 @@ function normalizeText(value) {
   return String(value ?? '').trim()
 }
 
+const RECEIPT_MODELS = new Set([
+  'google/gemini-3.1-flash-lite',
+  'google/gemini-2.0-flash-001',
+  'openai/gpt-4o-mini',
+  'google/gemini-2.5-flash',
+  'openai/gpt-4o',
+])
+
+function normalizeReceiptModel(value) {
+  const model = normalizeText(value)
+  return RECEIPT_MODELS.has(model) ? model : 'openai/gpt-4o-mini'
+}
+
 const SUPPORTED_CURRENCIES = ['USD', 'ARS', 'MXN', 'COP', 'CLP', 'UYU']
 const SUPPORTED_OPERATIONS = ['deposit', 'withdrawal']
 
@@ -231,7 +244,7 @@ async function getApis() {
   return {
     casino: { token: casino.api_key || '', url: casino.api_url || '', secret: casino.api_secret || '' },
     aws: { accessKey: aws.access_key_id || '', secretKey: aws.secret_access_key || '', region: aws.region || 'us-east-1', bucket: aws.s3_bucket || '' },
-    openrouter: { apiKey: openrouter.api_key || '', model: openrouter.model || 'openai/gpt-4o-mini' },
+    openrouter: { apiKey: openrouter.api_key || '', model: normalizeReceiptModel(openrouter.model) },
   }
 }
 
@@ -759,11 +772,12 @@ export async function updateApiConfig(req, res, next) {
       )
       if (error) return next(error)
     } else if (provider === 'openrouter') {
+      const model = normalizeReceiptModel(req.body.model)
       const { error } = await query(
         `INSERT INTO config_openrouter (id, api_key, model)
          VALUES (1, ?, ?)
          ON DUPLICATE KEY UPDATE api_key = VALUES(api_key), model = VALUES(model)`,
-        [normalizeText(req.body.apiKey), normalizeText(req.body.model || 'openai/gpt-4o-mini')]
+        [normalizeText(req.body.apiKey), model]
       )
       if (error) return next(error)
     } else {

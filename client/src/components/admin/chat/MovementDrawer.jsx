@@ -51,6 +51,14 @@ const ID_TYPE_LABELS = {
   indefinido: 'Indefinido',
 }
 
+const AI_MODEL_LABELS = {
+  'google/gemini-3.1-flash-lite': 'Gemini 3.1 Flash Lite',
+  'google/gemini-2.0-flash-001': 'Gemini 2.0 Flash',
+  'openai/gpt-4o-mini': 'GPT-4o Mini',
+  'google/gemini-2.5-flash': 'Gemini 2.5 Flash',
+  'openai/gpt-4o': 'GPT-4o',
+}
+
 const PROVIDER_LABELS = PROVIDERS.reduce((acc, item) => ({ ...acc, [item.id]: item.label }), {})
 
 const money = (value) => new Intl.NumberFormat('es-AR', {
@@ -242,6 +250,7 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
             <DetailInfoRow label="Coelsa / ID" value={movement.coelsaId || movement.transactionId} mono />
             <DetailInfoRow label="Tipo de ID"  value={ID_TYPE_LABELS[ai.id_type] || ai.id_type} />
             <DetailInfoRow label="Monto extraído" value={ai.amount != null ? money(ai.amount) : null} />
+            <DetailInfoRow label="Modelo IA" value={movement.aiStatus === 'ok' ? (AI_MODEL_LABELS[movement.aiModel] || movement.aiModel || 'IA') : null} />
             <DetailInfoRow label="Mensaje origen" value={movement.messageId ? `#${movement.messageId}` : null} />
           </InfoGrid>
           {!movement.coelsaId && !movement.transactionId && movement.aiStatus !== 'ok' && (
@@ -571,7 +580,14 @@ const MovementDrawer = ({ chat, onClose }) => {
                     </Detail>
                     <Detail>
                       <span>IA</span>
-                      <strong>{movement.aiStatus === 'ok' ? '✓ OK' : movement.aiStatus === 'error' ? '✗ Error' : '-'}</strong>
+                      <strong style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                        <span>{movement.aiStatus === 'ok' ? '✓ OK' : movement.aiStatus === 'error' ? '✗ Error' : '-'}</span>
+                        {movement.aiStatus === 'ok' && movement.aiModel && (
+                          <small style={{ color: 'rgba(255,255,255,0.42)', fontSize: 10.5, fontWeight: 600 }}>
+                            {AI_MODEL_LABELS[movement.aiModel] || short(movement.aiModel)}
+                          </small>
+                        )}
+                      </strong>
                     </Detail>
                   </DetailGrid>
 

@@ -564,8 +564,8 @@ const TypeBtn = styled.button`
 // Assumes ~1000 input tokens (image + prompt) + ~80 output tokens per read
 const RECEIPT_MODELS = [
   {
-    id: 'google/gemini-flash-3.1-lite',
-    name: 'Gemini Flash 3.1 Lite',
+    id: 'google/gemini-3.1-flash-lite',
+    name: 'Gemini 3.1 Flash Lite',
     provider: 'Google',
     tag: 'Rápido y económico',
     tagCl: '#10b981', tagBg: 'rgba(16,185,129,0.15)',
@@ -574,7 +574,7 @@ const RECEIPT_MODELS = [
     inputPriceM: 0.075, outputPriceM: 0.30,
   },
   {
-    id: 'google/gemini-2.0-flash',
+    id: 'google/gemini-2.0-flash-001',
     name: 'Gemini 2.0 Flash',
     provider: 'Google',
     tag: 'Equilibrado',
@@ -594,7 +594,7 @@ const RECEIPT_MODELS = [
     inputPriceM: 0.15, outputPriceM: 0.60,
   },
   {
-    id: 'google/gemini-2.5-flash-preview',
+    id: 'google/gemini-2.5-flash',
     name: 'Gemini 2.5 Flash',
     provider: 'Google',
     tag: 'Alta precisión',
@@ -676,7 +676,7 @@ const SettingsPage = ({ onMenuOpen }) => {
   const [apis, setApis] = useState({
     casino:     { token: '', url: '' },
     aws:        { accessKey: '', secretKey: '' },
-    openrouter: { apiKey: '', model: 'google/gemini-flash-3.1-lite' },
+    openrouter: { apiKey: '', model: 'openai/gpt-4o-mini' },
   })
   const [apiSaved, setApiSaved]       = useState({ casino: false, aws: false, openrouter: false })
   const [showSecret, setShowSecret]   = useState({

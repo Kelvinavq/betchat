@@ -257,6 +257,9 @@ ON DUPLICATE KEY UPDATE `event` = `event`;
 
 ALTER TABLE `chats` ADD COLUMN `is_pinned` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'pinned in admin chat list' AFTER `is_archived`;
 
+ALTER TABLE `manual_payment_movements`
+  ADD COLUMN `ai_model` VARCHAR(120) NULL AFTER `ai_status`;
+
 -- ============================================================
 --  Solicitudes de retiro
 -- ============================================================

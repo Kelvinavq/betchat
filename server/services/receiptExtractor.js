@@ -1,7 +1,14 @@
 import { query } from '../config/database.js'
 
-const DEFAULT_RECEIPT_MODEL = 'google/gemini-flash-3.1-lite'
+const DEFAULT_RECEIPT_MODEL = 'openai/gpt-4o-mini'
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
+const ALLOWED_RECEIPT_MODELS = new Set([
+  'google/gemini-3.1-flash-lite',
+  'google/gemini-2.0-flash-001',
+  'openai/gpt-4o-mini',
+  'google/gemini-2.5-flash',
+  'openai/gpt-4o',
+])
 
 const EXTRACTION_PROMPT = `Extrae SOLO estos datos del texto de un comprobante y devuelve JSON ESTRICTO:
 {"amount": number|null, "transaction_id": string|null, "id_type":"numerico"|"alfanumerico"|"indefinido"}
@@ -20,7 +27,11 @@ async function getConfig() {
   if (error) throw error
   const row = rows?.[0] || {}
   if (!row.api_key) throw new Error('OpenRouter API key no configurada')
-  return { apiKey: row.api_key, model: row.model || DEFAULT_RECEIPT_MODEL }
+  const model = ALLOWED_RECEIPT_MODELS.has(row.model) ? row.model : DEFAULT_RECEIPT_MODEL
+  return {
+    apiKey: row.api_key,
+    model,
+  }
 }
 
 export async function extractReceiptData(dataUrl) {
@@ -77,5 +88,6 @@ export async function extractReceiptData(dataUrl) {
     id_type: parsed.id_type || 'indefinido',
     mimeType,
     rawResponse: content,
+    model,
   }
 }
