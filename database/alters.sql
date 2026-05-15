@@ -517,3 +517,143 @@ CREATE TABLE IF NOT EXISTS `webauthn_challenges` (
   KEY `idx_webauthn_expires` (`expires_at`),
   CONSTRAINT `fk_webauthn_challenge_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  EVENTS / GAMES / PRIZES
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS `events` (
+  `id`                 BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `type`               ENUM('sorteo','quiz','scratch','roulette','slots','red_black','briefcase','treasure_chest','ranking') NOT NULL,
+  `title`              VARCHAR(160)    NOT NULL,
+  `description`        TEXT            DEFAULT NULL,
+  `status`             ENUM('draft','scheduled','active','finished','cancelled') NOT NULL DEFAULT 'draft',
+  `config_json`        JSON            NOT NULL,
+  `preview_json`       JSON            DEFAULT NULL,
+  `min_deposit_amount` DECIMAL(18,2)   DEFAULT NULL,
+  `prize_type`         VARCHAR(60)     DEFAULT NULL,
+  `prize_amount`       DECIMAL(18,2)   DEFAULT NULL,
+  `starts_at`          DATETIME        DEFAULT NULL,
+  `ends_at`            DATETIME        DEFAULT NULL,
+  `duration_minutes`   INT UNSIGNED    DEFAULT NULL,
+  `created_by`         INT UNSIGNED    DEFAULT NULL,
+  `created_at`         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`         DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_events_type_status` (`type`, `status`),
+  KEY `idx_events_dates` (`starts_at`, `ends_at`),
+  KEY `idx_events_created_by` (`created_by`),
+  CONSTRAINT `fk_events_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `event_participants` (
+  `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `event_id`     BIGINT UNSIGNED NOT NULL,
+  `client_id`    INT UNSIGNED DEFAULT NULL,
+  `user_id`      INT UNSIGNED DEFAULT NULL,
+  `username`     VARCHAR(120)  DEFAULT NULL,
+  `payload_json` JSON          DEFAULT NULL,
+  `is_winner`    TINYINT(1)    NOT NULL DEFAULT 0,
+  `reward_id`    BIGINT UNSIGNED DEFAULT NULL,
+  `receipt_url`  VARCHAR(500)    DEFAULT NULL,
+  `result_json`  JSON            DEFAULT NULL,
+  `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_event_participant_user` (`event_id`, `client_id`, `user_id`),
+  KEY `idx_ep_event` (`event_id`),
+  KEY `idx_ep_reward` (`reward_id`),
+  CONSTRAINT `fk_ep_event` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- Add new columns to event_participants if upgrading from a previous version
+ALTER TABLE `event_participants` ADD COLUMN IF NOT EXISTS `receipt_url` VARCHAR(500) DEFAULT NULL;
+ALTER TABLE `event_participants` ADD COLUMN IF NOT EXISTS `result_json` JSON DEFAULT NULL;
+
+CREATE TABLE IF NOT EXISTS `event_rewards` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `event_id`         BIGINT UNSIGNED NOT NULL,
+  `event_type`       VARCHAR(40)     NOT NULL,
+  `client_id`        INT UNSIGNED    DEFAULT NULL,
+  `user_id`          INT UNSIGNED    DEFAULT NULL,
+  `username`         VARCHAR(120)    DEFAULT NULL,
+  `reward_type`      VARCHAR(80)     NOT NULL,
+  `reward_amount`    DECIMAL(18,2)   DEFAULT NULL,
+  `reward_description` TEXT          DEFAULT NULL,
+  `source`           VARCHAR(80)     DEFAULT NULL,
+  `status`           ENUM('pending','paid','failed','discarded') NOT NULL DEFAULT 'pending',
+  `error_code`       VARCHAR(80)     DEFAULT NULL,
+  `error_message`    VARCHAR(255)    DEFAULT NULL,
+  `attempts`         INT UNSIGNED    NOT NULL DEFAULT 0,
+  `paid_at`          DATETIME        DEFAULT NULL,
+  `discarded_at`     DATETIME        DEFAULT NULL,
+  `discard_reason`   VARCHAR(255)    DEFAULT NULL,
+  `created_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_er_status` (`status`),
+  KEY `idx_er_event_type` (`event_type`),
+  KEY `idx_er_client_user` (`client_id`, `user_id`),
+  KEY `idx_er_event` (`event_id`),
+  CONSTRAINT `fk_er_event` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `event_templates` (
+  `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name`         VARCHAR(160)    NOT NULL,
+  `event_type`   VARCHAR(40)     NOT NULL,
+  `config_json`  JSON            NOT NULL,
+  `created_by`   INT UNSIGNED    DEFAULT NULL,
+  `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_et_event_type` (`event_type`),
+  CONSTRAINT `fk_et_created_by` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `event_automations` (
+  `id`               BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `name`             VARCHAR(160)    NOT NULL,
+  `event_type`       VARCHAR(40)     NOT NULL,
+  `template_id`      BIGINT UNSIGNED DEFAULT NULL,
+  `automation_type`   ENUM('schedule','goal') NOT NULL,
+  `days_of_week`     JSON            DEFAULT NULL,
+  `launch_time`      TIME            DEFAULT NULL,
+  `condition_type`   VARCHAR(80)     DEFAULT NULL,
+  `condition_value`  DECIMAL(18,2)   DEFAULT NULL,
+  `is_active`        TINYINT(1)      NOT NULL DEFAULT 1,
+  `last_run_at`      DATETIME        DEFAULT NULL,
+  `created_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`       DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ea_active` (`is_active`),
+  KEY `idx_ea_event_type` (`event_type`),
+  KEY `idx_ea_template` (`template_id`),
+  CONSTRAINT `fk_ea_template` FOREIGN KEY (`template_id`) REFERENCES `event_templates` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `event_votes` (
+  `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `event_id`     BIGINT UNSIGNED NOT NULL,
+  `client_id`    INT UNSIGNED DEFAULT NULL,
+  `user_id`      INT UNSIGNED DEFAULT NULL,
+  `vote_key`     VARCHAR(80)   NOT NULL,
+  `created_at`   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ev_event_vote` (`event_id`, `vote_key`),
+  KEY `idx_ev_client_user` (`client_id`, `user_id`),
+  CONSTRAINT `fk_ev_event` FOREIGN KEY (`event_id`) REFERENCES `events` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS `event_stats_daily` (
+  `id`             BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `date`           DATE            NOT NULL,
+  `event_type`     VARCHAR(40)     NOT NULL,
+  `rewards_count`  INT UNSIGNED    NOT NULL DEFAULT 0,
+  `rewards_amount` DECIMAL(18,2)   NOT NULL DEFAULT 0.00,
+  `winners_count`  INT UNSIGNED    NOT NULL DEFAULT 0,
+  `failed_count`   INT UNSIGNED    NOT NULL DEFAULT 0,
+  `created_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at`     DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_esd_date_type` (`date`, `event_type`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -6,6 +6,7 @@ import { getSocket } from '../../utils/socket'
 import { usePushNotification } from '../../hooks/usePushNotification'
 import PushPrompt from '../../components/chat/PushPrompt'
 import CasinoPopup from '../../components/client/CasinoPopup'
+import EventsOverlay from '../../components/client/events/EventsOverlay'
 
 const HOST_ORIGIN = 'https://463.life'
 
@@ -160,6 +161,7 @@ const ClientPage = () => {
       <ChatBubble />
       <PushPrompt clientId={clientSession?.id ?? null} onActivate={triggerPush} />
       <CasinoPopup popups={popups} onCtaClick={handlePopupCta} />
+      <EventsOverlay />
     </div>
   )
 }

@@ -163,7 +163,10 @@ export const NavBtn = styled.button`
   gap: 11px;
   width: 100%;
   padding: 9px 10px;
-  background: ${({ $active }) => $active ? 'rgba(255, 255, 255, 0.08)' : 'none'};
+  background: ${({ $active, $expanded }) =>
+    $active
+      ? ($expanded ? 'rgba(255, 255, 255, 0.08)' : 'rgba(255, 255, 255, 0.04)')
+      : 'none'};
   border: none;
   border-radius: 10px;
   cursor: pointer;
@@ -210,10 +213,10 @@ export const NavArrow = styled.span`
 
 export const SubList = styled.ul`
   list-style: none;
-  padding: 2px 0 4px 33px;
+  padding: ${({ $open }) => $open ? '2px 0 4px 33px' : '0 0 0 33px'};
   overflow: hidden;
   max-height: ${({ $open }) => $open ? '200px' : '0'};
-  transition: max-height 0.26s ease;
+  transition: max-height 0.26s ease, padding 0.26s ease;
 `
 
 export const SubBtn = styled.button`
@@ -221,7 +224,8 @@ export const SubBtn = styled.button`
   padding: 7px 10px;
   background: none;
   border: none;
-  border-left: 1.5px solid ${({ $active }) => $active ? colors.primaryLight : 'rgba(255,255,255,0.08)'};
+  border-left: 1.5px solid ${({ $active, $expanded }) =>
+    $active && $expanded ? colors.primaryLight : 'rgba(255,255,255,0.08)'};
   color: ${({ $active }) => $active ? colors.primaryLighter : 'rgba(255, 255, 255, 0.32)'};
   font-size: 12.5px;
   font-weight: ${({ $active }) => $active ? 600 : 400};

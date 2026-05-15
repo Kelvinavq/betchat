@@ -10,6 +10,7 @@ import VideoLabelOutlinedIcon            from '@mui/icons-material/VideoLabelOut
 import SmartToyOutlinedIcon              from '@mui/icons-material/SmartToyOutlined'
 import BarChartOutlinedIcon              from '@mui/icons-material/BarChartOutlined'
 import AccountBalanceWalletOutlinedIcon  from '@mui/icons-material/AccountBalanceWalletOutlined'
+import SportsEsportsOutlinedIcon         from '@mui/icons-material/SportsEsportsOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import ChevronRightIcon from '@mui/icons-material/ChevronRight'
 import useAuth from '../../../hooks/useAuth'
@@ -70,6 +71,17 @@ const NAV_ITEMS = [
     children: [],
   },
   {
+    id: 'events',
+    label: 'Eventos',
+    icon: <SportsEsportsOutlinedIcon />,
+    children: [
+      { id: 'games', label: 'Juegos' },
+      { id: 'agenda', label: 'Agenda' },
+      { id: 'stats', label: 'Estadísticas' },
+      { id: 'rewards', label: 'Premios' },
+    ],
+  },
+  {
     id: 'metricas',
     label: 'Métricas',
     icon: <BarChartOutlinedIcon />,
@@ -98,7 +110,7 @@ const BOTTOM_ITEMS = [
   },
 ]
 
-const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
+const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsection }) => {
   const { user } = useAuth()
   const { systemConfig } = useSystemConfig()
   const [openItems, setOpenItems]   = useState({})
@@ -107,8 +119,18 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
 
   const toggleSub = (id) => setOpenItems(p => ({ ...p, [id]: !p[id] }))
 
-  const handleNavClick = (item) => {
-    if (item.children.length && expanded) toggleSub(item.id)
+  const handleNavClick = (item, child = null) => {
+    if (item.children.length && expanded && !child) {
+      toggleSub(item.id)
+      onNavigate?.(item.id)
+      return
+    }
+
+    if (child) {
+      onNavigate?.(item.id === 'events' ? `events-${child.id}` : child.id)
+      return
+    }
+
     onNavigate?.(item.id)
   }
 
@@ -137,11 +159,14 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
 
       <NavList>
         {navItems.map(item => {
-          const isActive = activeItem === item.id || item.children.some(c => c.id === activeItem)
+          const childIds = item.children.map(c => c.id)
+          const isActive = expanded
+            ? (activeItem === item.id || childIds.includes(activeItem) || childIds.includes(activeSubsection))
+            : activeItem === item.id
           const isOpen   = expanded && openItems[item.id]
           return (
             <NavItem key={item.id}>
-              <NavBtn $active={isActive} onClick={() => handleNavClick(item)}>
+              <NavBtn $active={isActive} $expanded={expanded} onClick={() => handleNavClick(item)}>
                 <NavIcon>{item.icon}</NavIcon>
                 {expanded && <NavLabel $active={isActive}>{item.label}</NavLabel>}
                 {expanded && item.children.length > 0 && (
@@ -150,13 +175,14 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
                 {!expanded && <NavTooltip>{item.label}</NavTooltip>}
               </NavBtn>
 
-              {item.children.length > 0 && (
+              {item.children.length > 0 && expanded && (
                 <SubList $open={isOpen}>
                   {item.children.map(child => (
                     <li key={child.id}>
                       <SubBtn
-                        $active={activeItem === child.id}
-                        onClick={() => onNavigate?.(item.id)}
+                        $expanded={expanded}
+                        $active={activeItem === child.id || (item.id === 'events' && activeSubsection === child.id)}
+                        onClick={() => handleNavClick(item, child)}
                       >
                         {child.label}
                       </SubBtn>
@@ -181,7 +207,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection }) => {
           const isActive = activeItem === item.id
           return (
             <NavItem key={item.id}>
-              <NavBtn $active={isActive} onClick={() => handleNavClick(item)}>
+              <NavBtn $active={isActive} $expanded={expanded} onClick={() => handleNavClick(item)}>
                 <NavIcon>{item.icon}</NavIcon>
                 {expanded && <NavLabel $active={isActive}>{item.label}</NavLabel>}
                 {!expanded && <NavTooltip>{item.label}</NavTooltip>}

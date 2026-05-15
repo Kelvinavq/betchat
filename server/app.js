@@ -22,6 +22,7 @@ import botBuilderRoutes from './routes/botBuilderRoutes.js';
 import clientBotRoutes from './routes/clientBotRoutes.js';
 import chatRoutes from './routes/chatRoutes.js';
 import clientChatRoutes from './routes/clientChatRoutes.js';
+import eventsRoutes from './routes/eventsRoutes.js';
 import autoMessagesRoutes from './routes/autoMessagesRoutes.js'
 import maintenanceRoutes from './routes/maintenanceRoutes.js'
 import metricsRoutes from './routes/metricsRoutes.js'
@@ -30,8 +31,10 @@ import hgCashRoutes from './routes/hgCashRoutes.js'
 import mercadoPagoRoutes from './routes/mercadoPagoRoutes.js'
 import pushRoutes from './routes/pushRoutes.js'
 import clientPopupRoutes from './routes/clientPopupRoutes.js'
+import clientEventsRoutes from './routes/clientEventsRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
+import { startEventScheduler, stopEventScheduler } from './utils/eventScheduler.js'
 import { setupChatSockets } from './socket/chatSocket.js';
 import { setIo } from './socket/socketServer.js';
 
@@ -94,6 +97,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/bot-builder', botBuilderRoutes);
 app.use('/api/chats', chatRoutes);
+app.use('/api/events', eventsRoutes);
 app.use('/api/settings/auto-messages', autoMessagesRoutes)
 app.use('/api/maintenance', maintenanceRoutes)
 app.use('/api/metrics', metricsRoutes);
@@ -102,6 +106,8 @@ app.use('/api/hgcash', hgCashRoutes);
 app.use('/api/mercadopago', mercadoPagoRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/client/popups', clientPopupRoutes);
+app.use('/api/client/events', clientEventsRoutes);
+app.use('/event-receipts', express.static(path.join(process.cwd(), 'public', 'event-receipts')));
 
 // Middleware para logging de requests
 app.use((req, res, next) => {
@@ -202,6 +208,7 @@ async function startServer() {
     // Iniciar scheduler de mantenimiento
     startMaintenanceScheduler()
     startPushScheduler(15)
+    startEventScheduler()
 
     // Iniciar servidor
     const PORT = config.port;
@@ -232,6 +239,7 @@ async function gracefulShutdown() {
   try {
     stopMaintenanceScheduler()
     stopPushScheduler()
+    stopEventScheduler()
 
     // Cerrar Socket.IO
     io.close();

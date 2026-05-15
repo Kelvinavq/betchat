@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 import Sidebar from '../../components/admin/sidebar/Sidebar'
 import ChatList from '../../components/admin/chat/ChatList'
@@ -14,6 +14,7 @@ import NotificationsPage  from './notifications/NotificationsPage'
 import PushPage           from './push/PushPage'
 import ModalsPage      from './modal/ModalsPage'
 import BotBuilderPage    from './botbuilder/BotBuilderPage'
+import EventsPage        from './events/EventsPage'
 import MetricsPage       from './metrics/MetricsPage'
 import WithdrawalsPage   from './withdrawals/WithdrawalsPage'
 import useAuth from '../../hooks/useAuth'
@@ -128,15 +129,23 @@ const DashboardPage = () => {
   const [listWidth, setListWidth]   = useState(() => load('admin_list_w',  DEF_LIST))
   const [panelWidth, setPanelWidth] = useState(() => load('admin_panel_w', DEF_PANEL))
   const { section = 'chat' }        = useParams()
+  const { search }                  = useLocation()
   const navigate                    = useNavigate()
   const { user }                    = useAuth()
+  const eventsSubsection = new URLSearchParams(search).get('tab') || 'games'
 
   const allowedSections = Object.keys(SECTION_MODULES).filter(id => canViewSection(user, id))
   const firstAllowedSection = allowedSections[0]
   const canViewCurrentSection = canViewSection(user, section)
+  const currentSection = section.startsWith('events-') ? 'events' : section
 
   const handleNavigate = (id) => {
-    navigate(`/admin/${id}`)
+    if (id === 'events-games' || id === 'events-agenda' || id === 'events-stats' || id === 'events-rewards') {
+      const tab = id.replace('events-', '')
+      navigate(`/admin/events?tab=${tab}`)
+    } else {
+      navigate(`/admin/${id}`)
+    }
     if (isMobile) { setMobileView('list'); setMobileSidebar(false) }
   }
 
@@ -144,10 +153,10 @@ const DashboardPage = () => {
   useEffect(() => { localStorage.setItem('admin_panel_w', String(panelWidth)) }, [panelWidth])
 
   useEffect(() => {
-    if (!canViewCurrentSection && firstAllowedSection) {
+    if (!canViewSection(user, currentSection) && firstAllowedSection) {
       navigate(`/admin/${firstAllowedSection}`, { replace: true })
     }
-  }, [canViewCurrentSection, firstAllowedSection, navigate, section])
+  }, [currentSection, firstAllowedSection, navigate, section, user])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 1024)
@@ -204,6 +213,7 @@ const DashboardPage = () => {
                 onToggle={() => setMobileSidebar(false)}
                 onNavigate={handleNavigate}
                 activeSection={section}
+                activeSubsection={eventsSubsection}
               />
             </MobileDrawer>
           </>
@@ -241,6 +251,10 @@ const DashboardPage = () => {
 
         {canViewCurrentSection && section === 'bot' && (
           <BotBuilderPage onMenuOpen={() => setMobileSidebar(true)} />
+        )}
+
+        {canViewCurrentSection && currentSection === 'events' && (
+          <EventsPage onMenuOpen={() => setMobileSidebar(true)} activeSubsection={eventsSubsection} />
         )}
 
         {canViewCurrentSection && section === 'metricas' && (
@@ -293,6 +307,7 @@ const DashboardPage = () => {
         onToggle={() => setSidebarExpanded(p => !p)}
         onNavigate={handleNavigate}
         activeSection={section}
+        activeSubsection={eventsSubsection}
       />
 
       {!canViewCurrentSection && renderAccessDenied()}
@@ -305,6 +320,7 @@ const DashboardPage = () => {
       {canViewCurrentSection && section === 'notificaciones' && <PushPage />}
       {canViewCurrentSection && section === 'modales'        && <ModalsPage />}
       {canViewCurrentSection && section === 'bot'            && <BotBuilderPage />}
+      {canViewCurrentSection && currentSection === 'events'         && <EventsPage activeSubsection={eventsSubsection} />}
       {canViewCurrentSection && section === 'metricas'       && <MetricsPage />}
       {canViewCurrentSection && section === 'retiros'        && <WithdrawalsPage />}
 

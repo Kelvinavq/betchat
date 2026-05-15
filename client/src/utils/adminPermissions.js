@@ -6,6 +6,7 @@ export const SECTION_MODULES = {
   notificaciones: 'push_notifications',
   modales: 'modals',
   bot: 'bot_builder',
+  events: 'events',
   retiros: 'chats_withdrawals',
   cuentas: 'settings',
   ajustes: 'settings',
