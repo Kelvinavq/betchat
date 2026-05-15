@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import SearchIcon from '@mui/icons-material/Search'
 import AddIcon from '@mui/icons-material/Add'
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
@@ -229,6 +230,7 @@ const initForm = (user = null) => ({
 
 /* ── component ── */
 const UsersPage = ({ onMenuOpen }) => {
+  const { timezone }                   = useDateFormat()
   const { user: currentUser, setUser } = useAuth()
   const [users, setUsers]         = useState([])
   const [loading, setLoading]     = useState(true)
@@ -450,11 +452,9 @@ const UsersPage = ({ onMenuOpen }) => {
   const formatDate = (value) => {
     if (!value) return 'Sin registro'
     return new Intl.DateTimeFormat('es', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
+      day: '2-digit', month: '2-digit', year: 'numeric',
+      hour: '2-digit', minute: '2-digit',
+      ...(timezone && { timeZone: timezone }),
     }).format(new Date(value))
   }
 

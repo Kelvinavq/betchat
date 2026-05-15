@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import MenuIcon from '@mui/icons-material/Menu'
 import CheckIcon from '@mui/icons-material/Check'
 import SendIcon from '@mui/icons-material/Send'
@@ -69,15 +70,16 @@ const TIMEZONES = [
 ]
 
 /* ── helpers ───────────────────────────────────────────────────── */
-const fmtDate = (v) => {
+const fmtDate = (v, tz) => {
   if (!v) return '—'
-  return new Date(v).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return new Date(v).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
 const fmtNum = (n) => Number(n || 0).toLocaleString('es-AR')
 
 /* ── shared CampaignCard for Retention + Reconsumo ─────────────── */
 function BaseCampaignCard({ camp, onChange, onSave, onDelete, onSendNow, saving, sending, extra }) {
+  const { timezone } = useDateFormat()
   const [saved, setSaved] = useState(false)
   const [error, setError] = useState('')
   const [uploading, setUploading] = useState(false)
@@ -881,6 +883,7 @@ function VipSection({ settings, onGlobalToggle }) {
 const SUBS_PAGE_SIZE = 15
 
 function SubscribersSection() {
+  const { timezone }            = useDateFormat()
   const [rows, setRows]         = useState([])
   const [loading, setLoading]   = useState(true)
   const [toggling, setToggling] = useState(null)
@@ -930,7 +933,7 @@ function SubscribersSection() {
     const d = Math.floor((Date.now() - new Date(iso)) / 86400000)
     if (d === 0) return 'Hoy'
     if (d === 1) return 'Ayer'
-    return `hace ${d} días`
+    return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', ...(timezone && { timeZone: timezone }) })
   }
 
   return (
@@ -1180,7 +1183,7 @@ function SettingsSection({ settings, onSettings }) {
                     ✅ {fmtNum(h.sentCount)} / ❌ {fmtNum(h.failedCount)}
                   </HistCount>
                   <HistRate $rate={h.deliveryRate}>{h.deliveryRate}%</HistRate>
-                  <HistDate>{fmtDate(h.sentAt)}</HistDate>
+                  <HistDate>{fmtDate(h.sentAt, timezone)}</HistDate>
                 </HistRow>
               ))}
             </HistTable>

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import SettingsOutlinedIcon       from '@mui/icons-material/SettingsOutlined'
 import BoltIcon                   from '@mui/icons-material/Bolt'
 import SearchIcon                 from '@mui/icons-material/Search'
@@ -52,15 +53,11 @@ const fmtAmount = (n) => {
   return `$${new Intl.NumberFormat('es-AR').format(n)}`
 }
 
-const fmtDate = (str) => {
+const fmtDate = (str, tz) => {
   if (!str) return '—'
   const d = new Date(str)
   if (isNaN(d)) return '—'
-  const day  = d.getDate()
-  const mon  = d.getMonth() + 1
-  const hh   = String(d.getHours()).padStart(2, '0')
-  const mm   = String(d.getMinutes()).padStart(2, '0')
-  return `${day}/${mon}, ${hh}:${mm}`
+  return d.toLocaleString('es', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
 const truncCbu = (s, max = 22) => {
@@ -243,7 +240,8 @@ function ExpandedDetail({
   analysisData, analysisLoading,
   onResolve, resolving,
 }) {
-  const [action,      setAction]      = useState(null)   // 'approve' | 'reject' | null
+  const { timezone }             = useDateFormat()
+  const [action,      setAction] = useState(null)   // 'approve' | 'reject' | null
   const [rejectMsg,   setRejectMsg]   = useState('')
   const [submitting,  setSubmitting]  = useState(false)
 
@@ -304,7 +302,7 @@ function ExpandedDetail({
 
             <DetailRow2>
               <DetailKey>Procesado</DetailKey>
-              <DetailVal>{fmtDate(w.processedAt)}</DetailVal>
+              <DetailVal>{fmtDate(w.processedAt, timezone)}</DetailVal>
             </DetailRow2>
 
             <DetailRow2>
@@ -401,6 +399,7 @@ function ExpandedDetail({
    Main component
 ──────────────────────────────────────────────── */
 export default function WithdrawalsPage({ onMenuOpen }) {
+  const { timezone } = useDateFormat()
   /* ── config ── */
   const [config,        setConfig]        = useState({ mode: 'manual', manualThreshold: 80000, maxPerDay: 5 })
   const [thresholdDraft, setThresholdDraft] = useState(80000)
@@ -845,7 +844,7 @@ export default function WithdrawalsPage({ onMenuOpen }) {
                         <Tr key={w.id} $i={i}>
                           <Td><IdText>{w.id}</IdText></Td>
                           <Td style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)' }}>
-                            {fmtDate(w.createdAt)}
+                            {fmtDate(w.createdAt, timezone)}
                           </Td>
                           <Td><ClientLink>{w.clientUsername || '—'}</ClientLink></Td>
                           <Td><AmountText>{fmtAmount(w.amount)}</AmountText></Td>

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import styled, { css, keyframes } from 'styled-components'
 import CloseIcon from '@mui/icons-material/Close'
 import SearchIcon from '@mui/icons-material/Search'
@@ -58,11 +59,11 @@ const money = (value) => new Intl.NumberFormat('es-AR', {
   maximumFractionDigits: 2,
 }).format(Number(value || 0))
 
-const dateTime = (value) => {
+const dateTime = (value, tz) => {
   if (!value) return '-'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return String(value)
-  return date.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return date.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
 const short = (value, fallback = '-') => {
@@ -90,6 +91,7 @@ const DetailInfoRow = ({ label, value, mono }) => (
 const REJECT_EVENTS = ['deposit_failed', 'receipt_invalid', 'receipt_amount_low', 'receipt_duplicate', 'receipt_insufficient_info']
 
 const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialAction }) => {
+  const { timezone } = useDateFormat()
   const toast = useToast()
   const [updatingId, setUpdatingId] = useState(null)
   const [pendingAction, setPendingAction] = useState(null)
@@ -194,12 +196,12 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
           <DetailHeroSub>
             {movement.accountLabel || 'Sin cuenta'}
             <span>·</span>
-            {dateTime(movement.createdAt)}
+            {dateTime(movement.createdAt, timezone)}
           </DetailHeroSub>
           {movement.processedBy && (
             <DetailHeroSub>
               Procesado por <strong>{movement.processedBy}</strong>
-              {movement.processedAt ? ` · ${dateTime(movement.processedAt)}` : ''}
+              {movement.processedAt ? ` · ${dateTime(movement.processedAt, timezone)}` : ''}
             </DetailHeroSub>
           )}
         </DetailHero>
@@ -365,6 +367,7 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
 
 /* ─── Main Component ────────────────────────────────────────────────── */
 const MovementDrawer = ({ chat, onClose }) => {
+  const { timezone } = useDateFormat()
   const toast = useToast()
   const [provider, setProvider] = useState('all')
   const [accountId, setAccountId] = useState('all')
@@ -558,7 +561,7 @@ const MovementDrawer = ({ chat, onClose }) => {
                   <MainCell>
                     <ProviderPill>{PROVIDER_LABELS[movement.provider] || movement.provider}</ProviderPill>
                     <Amount>{money(movement.amount)}</Amount>
-                    <SubLine>{movement.accountLabel || 'Sin cuenta'} · {dateTime(movement.createdAt)}</SubLine>
+                    <SubLine>{movement.accountLabel || 'Sin cuenta'} · {dateTime(movement.createdAt, timezone)}</SubLine>
                   </MainCell>
 
                   <DetailGrid>

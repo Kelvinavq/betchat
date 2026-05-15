@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import SearchIcon from '@mui/icons-material/Search'
 import AddIcon from '@mui/icons-material/Add'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
@@ -69,6 +70,7 @@ const todayStr = () =>
 
 /* ── view / add modal ── */
 const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }) => {
+  const { timezone } = useDateFormat()
   const [form, setForm] = useState(() =>
     mode === 'view' && client
       ? {
@@ -78,7 +80,7 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
           externalId: client.externalId || '',
           cuil: client.cuil || '',
           active: client.active,
-          registeredAt: client.registeredAt ? new Date(client.registeredAt).toLocaleDateString('es-AR') : '',
+          registeredAt: client.registeredAt || '',
         }
       : { username: '', password: '', balance: '' }
   )
@@ -220,7 +222,7 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
                 <Field $full>
                   <FieldLabel>Fecha de registro</FieldLabel>
                   <FieldInput
-                    value={form.registeredAt}
+                    value={form.registeredAt ? new Date(form.registeredAt).toLocaleDateString('es-AR', { day: '2-digit', month: '2-digit', year: 'numeric', ...(timezone && { timeZone: timezone }) }) : ''}
                     readOnly
                   />
                 </Field>
@@ -434,6 +436,7 @@ const BalanceModal = ({ client, onClose, notify }) => {
 
 /* ── main page ── */
 const ClientsPage = ({ onMenuOpen }) => {
+  const { timezone } = useDateFormat()
   const confirm = useConfirm()
   const [clients, setClients]       = useState([])
   const [loading, setLoading]       = useState(true)
@@ -527,7 +530,7 @@ const ClientsPage = ({ onMenuOpen }) => {
           c.cuil || '',
           c.externalId || '',
           c.active ? 'Activo' : 'Inactivo',
-          c.registeredAt ? new Date(c.registeredAt).toLocaleDateString('es-AR') : ''
+          c.registeredAt ? new Date(c.registeredAt).toLocaleDateString('es-AR', { ...(timezone && { timeZone: timezone }) }) : ''
         ].join(',')
       )
       const content = '﻿' + [header, ...rows].join('\n')
@@ -766,7 +769,7 @@ const ClientsPage = ({ onMenuOpen }) => {
                         </ClientMeta>
                       </ClientCell>
                     </Td>
-                    <Td><MonoText>{c.registeredAt ? new Date(c.registeredAt).toLocaleDateString('es-AR') : ''}</MonoText></Td>
+                    <Td><MonoText>{c.registeredAt ? new Date(c.registeredAt).toLocaleDateString('es-AR', { ...(timezone && { timeZone: timezone }) }) : ''}</MonoText></Td>
                     <Td><MonoText>{c.externalId}</MonoText></Td>
                     <Td><MonoText>{c.cuil}</MonoText></Td>
                     <Td>

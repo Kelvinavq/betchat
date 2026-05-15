@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDateFormat } from '../../../../hooks/useDateFormat';
 import {
   Card, CardTitle, CardDesc, BtnRow, Btn, Divider,
 } from '../EventsPage.styles.js';
@@ -148,7 +149,7 @@ const MutedText = styled.div`
 `;
 
 /* ── Helpers ─────────────────────────────────────────────────────────── */
-function timeAgo(date) {
+const timeAgo = (date, tz) => {
   const diff = Date.now() - new Date(date).getTime();
   const mins = Math.floor(diff / 60000);
   if (mins < 1) return 'ahora';
@@ -156,8 +157,9 @@ function timeAgo(date) {
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `hace ${hrs}h`;
   const days = Math.floor(hrs / 24);
-  return `hace ${days}d`;
-}
+  if (days < 7) return `hace ${days}d`;
+  return new Date(date).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', ...(tz && { timeZone: tz }) });
+};
 
 const SOURCE_NAMES = {
   sorteo: 'Sorteo',
@@ -196,6 +198,7 @@ const FILTERS = [
 
 /* ── Component ────────────────────────────────────────────────────────── */
 const RewardsPanel = () => {
+  const { timezone } = useDateFormat();
   const [statusFilter, setStatusFilter] = useState('pending');
   const [rewards, setRewards] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -368,7 +371,7 @@ const RewardsPanel = () => {
 
                     {/* Cuándo */}
                     <td style={{ color: 'rgba(255,255,255,.48)', fontSize: 12 }}>
-                      {r.created_at ? timeAgo(r.created_at) : '—'}
+                      {r.created_at ? timeAgo(r.created_at, timezone) : '—'}
                     </td>
 
                     {/* Acciones */}

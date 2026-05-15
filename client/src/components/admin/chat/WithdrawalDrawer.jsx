@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import styled, { css, keyframes } from 'styled-components'
 import CloseIcon from '@mui/icons-material/Close'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
@@ -12,11 +13,11 @@ import { useToast } from '../../../context/ToastContext'
 
 const STATUS_LABELS = { pending: 'Pendiente', approved: 'Aprobado', rejected: 'Rechazado' }
 
-const dateTime = (value) => {
+const dateTime = (value, tz) => {
   if (!value) return '-'
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return String(value)
-  return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
 const statusTone = (s) => s === 'approved' ? 'good' : s === 'rejected' ? 'bad' : 'wait'
@@ -32,6 +33,7 @@ function parseFormData(text) {
 
 /* ─── Detail Component ──────────────────────────────────────── */
 const WithdrawalDetail = ({ withdrawal, chatId, onBack, onStatusChange }) => {
+  const { timezone } = useDateFormat()
   const toast = useToast()
   const [updatingId, setUpdatingId] = useState(null)
   const [pendingAction, setPendingAction] = useState(null)
@@ -112,11 +114,11 @@ const WithdrawalDetail = ({ withdrawal, chatId, onBack, onStatusChange }) => {
             </StatusBadge>
           </DetailHeroChips>
           <DetailTitle>{titleRow?.value || 'Solicitud de retiro'}</DetailTitle>
-          <DetailHeroSub>{dateTime(withdrawal.createdAt)}</DetailHeroSub>
+          <DetailHeroSub>{dateTime(withdrawal.createdAt, timezone)}</DetailHeroSub>
           {withdrawal.processedBy && (
             <DetailHeroSub>
               Procesado por <strong>{withdrawal.processedBy}</strong>
-              {withdrawal.processedAt ? ` · ${dateTime(withdrawal.processedAt)}` : ''}
+              {withdrawal.processedAt ? ` · ${dateTime(withdrawal.processedAt, timezone)}` : ''}
             </DetailHeroSub>
           )}
         </DetailHero>
@@ -221,6 +223,7 @@ const WithdrawalDetail = ({ withdrawal, chatId, onBack, onStatusChange }) => {
 
 /* ─── Main Component ────────────────────────────────────────── */
 const WithdrawalDrawer = ({ chat, onClose }) => {
+  const { timezone } = useDateFormat()
   const [withdrawals, setWithdrawals] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -298,7 +301,7 @@ const WithdrawalDrawer = ({ chat, onClose }) => {
                   <WithdrawalRow key={w.id} onClick={() => setSelected(w)}>
                     <RowMain>
                       <RowTitle>{titleRow?.value || 'Solicitud de retiro'}</RowTitle>
-                      <RowSub>{dateTime(w.createdAt)}</RowSub>
+                      <RowSub>{dateTime(w.createdAt, timezone)}</RowSub>
                       {previewRows.map((r, i) => (
                         <RowField key={i}><span>{r.label}:</span> {r.value}</RowField>
                       ))}

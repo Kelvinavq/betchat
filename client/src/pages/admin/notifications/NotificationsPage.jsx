@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import { api, resolveApiAsset } from '../../../utils/api'
 import MenuIcon from '@mui/icons-material/Menu'
 import NotificationsOutlinedIcon from '@mui/icons-material/NotificationsOutlined'
@@ -70,20 +71,21 @@ const AUDIENCE_OPTIONS = [
 const audienceLabel = (v) => AUDIENCE_OPTIONS.find(o => o.value === v)?.label ?? v
 
 
-const fmtDate = (iso) => {
+const fmtDate = (iso, tz) => {
   if (!iso) return null
-  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
+  return new Date(iso).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', ...(tz && { timeZone: tz }) })
 }
-const fmtTime = (iso) => {
+const fmtTime = (iso, tz) => {
   if (!iso) return null
-  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  return new Date(iso).toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
 const statusLabel = (s) =>
   s === 'enviada' ? 'Enviada' : s === 'programada' ? 'Programada' : 'Borrador'
 
 const NotificationsPage = ({ onMenuOpen, embedded }) => {
-  const { systemConfig } = useSystemConfig()
+  const { systemConfig }  = useSystemConfig()
+  const { timezone }      = useDateFormat()
   const toast = useToast()
   const confirm = useConfirm()
   const [mainTab, setMainTab]           = useState(TAB_ENVIOS)
@@ -539,8 +541,8 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
                         <Td>
                           {n.scheduledFor ? (
                             <>
-                              <DateText>{fmtDate(n.scheduledFor)}</DateText>
-                              <DateSub>{fmtTime(n.scheduledFor)}</DateSub>
+                              <DateText>{fmtDate(n.scheduledFor, timezone)}</DateText>
+                              <DateSub>{fmtTime(n.scheduledFor, timezone)}</DateSub>
                             </>
                           ) : (
                             <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
@@ -549,8 +551,8 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
                         <Td>
                           {n.sentAt ? (
                             <>
-                              <DateText>{fmtDate(n.sentAt)}</DateText>
-                              <DateSub>{fmtTime(n.sentAt)}</DateSub>
+                              <DateText>{fmtDate(n.sentAt, timezone)}</DateText>
+                              <DateSub>{fmtTime(n.sentAt, timezone)}</DateSub>
                             </>
                           ) : (
                             <DateText style={{ color: 'rgba(255,255,255,0.14)' }}>—</DateText>
@@ -685,8 +687,8 @@ const NotificationsPage = ({ onMenuOpen, embedded }) => {
                             <Td>
                               {s.tokenLastSeen ? (
                                 <>
-                                  <DateText>{fmtDate(s.tokenLastSeen)}</DateText>
-                                  <DateSub>{fmtTime(s.tokenLastSeen)}</DateSub>
+                                  <DateText>{fmtDate(s.tokenLastSeen, timezone)}</DateText>
+                                  <DateSub>{fmtTime(s.tokenLastSeen, timezone)}</DateSub>
                                 </>
                               ) : <DateText style={{ color: 'rgba(255,255,255,.14)' }}>—</DateText>}
                             </Td>

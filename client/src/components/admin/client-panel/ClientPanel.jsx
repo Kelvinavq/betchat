@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import { createPortal } from 'react-dom'
 import CloseIcon from '@mui/icons-material/Close'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
@@ -217,7 +218,7 @@ const DEVICE_ICONS = {
   desktop: <DesktopWindowsOutlinedIcon />,
 }
 
-const relativeTime = (value) => {
+const relativeTime = (value, tz) => {
   if (!value) return ''
   const diff = Date.now() - new Date(value).getTime()
   const m = Math.floor(diff / 60000)
@@ -228,14 +229,15 @@ const relativeTime = (value) => {
   if (h < 24) return `hace ${h}h`
   if (d === 1) return 'ayer'
   if (d < 30) return `hace ${d} días`
-  return new Date(value).toLocaleDateString('es', { day: '2-digit', month: 'short', year: '2-digit' })
+  return new Date(value).toLocaleDateString('es', { day: '2-digit', month: 'short', year: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
 const ProfileTab = ({ chatId }) => {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [copied, setCopied] = useState(false)
-  const copyTimer = useRef(null)
+  const { timezone }                    = useDateFormat()
+  const [data, setData]                 = useState(null)
+  const [loading, setLoading]           = useState(false)
+  const [copied, setCopied]             = useState(false)
+  const copyTimer                       = useRef(null)
 
   useEffect(() => {
     let active = true
@@ -325,7 +327,7 @@ const ProfileTab = ({ chatId }) => {
                       )}
                     </SessionMeta>
                   </SessionBody>
-                  <SessionTime>{relativeTime(s.createdAt)}</SessionTime>
+                  <SessionTime>{relativeTime(s.createdAt, timezone)}</SessionTime>
                 </SessionItem>
               )
             })}
@@ -358,17 +360,14 @@ const buildFallbackDetails = (client) => ({
   files: (client.files || []).map(normalizeFile),
 })
 
-const formatDateTime = (value) => {
+const formatDateTime = (value, tz) => {
   if (!value) return 'Sin valor'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return 'Sin valor'
   return date.toLocaleString('es', {
-    day: '2-digit',
-    month: '2-digit',
-    year: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
+    day: '2-digit', month: '2-digit', year: '2-digit',
+    hour: '2-digit', minute: '2-digit', hour12: false,
+    ...(tz && { timeZone: tz }),
   })
 }
 
@@ -474,6 +473,7 @@ const FileViewer = ({ data, onClose }) => {
 }
 
 const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
+  const { timezone } = useDateFormat()
   const toast = useToast()
   const [tab, setTab] = useState('info')
   const [fileFilter, setFileFilter] = useState('all')
@@ -647,7 +647,7 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
               <InfoCardTitle>Datos de cuenta</InfoCardTitle>
               <FieldRow>
                 <FieldLabel>Fecha de registro</FieldLabel>
-                <FieldValue>{formatDateTime(details.registeredAt)}</FieldValue>
+                <FieldValue>{formatDateTime(details.registeredAt, timezone)}</FieldValue>
               </FieldRow>
               <EditableField
                 label="CUIT / CUIL"
@@ -754,7 +754,7 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
                     </FileThumb>
                     <FileInfo>
                       <FileName>{file.name}</FileName>
-                      <FileDate>{formatDateTime(file.date)}</FileDate>
+                      <FileDate>{formatDateTime(file.date, timezone)}</FileDate>
                     </FileInfo>
                   </FileCard>
                 ))}

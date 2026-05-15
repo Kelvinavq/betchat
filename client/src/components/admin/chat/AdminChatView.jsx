@@ -1,4 +1,6 @@
 import { useState, useRef, useEffect, useContext } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
+import { parseDateValue } from '../../../utils/dateUtils'
 import { AuthContext } from '../../../context/AuthContext'
 import { createPortal } from 'react-dom'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatOutlined'
@@ -89,7 +91,8 @@ const EMOJI_GROUPS = [
   },
 ]
 
-const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+let _adminChatTz = undefined
+const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', ...(_adminChatTz && { timeZone: _adminChatTz }) })
 
 const replyPreviewText = (message) => {
   if (!message) return ''
@@ -109,8 +112,8 @@ const replyAuthorLabel = (reply, currentUserSent = false) => {
 const formatPreviousDayLabel = (dateString) => {
   if (!dateString) return 'Cargar dia anterior'
   const [year, month, day] = dateString.split('-').map(Number)
-  const date = new Date(year, month - 1, day)
-  return `Cargar ${date.toLocaleDateString('es', { day: '2-digit', month: 'short' })}`
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return `Cargar ${date.toLocaleDateString('es', { day: '2-digit', month: 'short', ...(_adminChatTz && { timeZone: _adminChatTz }) })}`
 }
 
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
@@ -151,6 +154,7 @@ const mapDbMessage = (msg) => ({
   duration: msg.messageType === 'audio' ? Number(msg.content) || 0 : undefined,
   fileName: msg.fileName,
   sent: msg.senderType !== 'client',
+  createdAt: parseDateValue(msg.createdAtUtc || msg.createdAt),
   time: msg.time,
   deliveredAt: msg.deliveredAt || null,
   readAt: msg.readAt || null,
@@ -408,7 +412,9 @@ const MediaViewer = ({ data, onClose }) => {
 
 /* ── main component ── */
 const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
+  const { timezone, formatTime } = useDateFormat()
   const { user } = useContext(AuthContext) || {}
+  useEffect(() => { _adminChatTz = timezone; return () => { _adminChatTz = undefined } }, [timezone])
   const { confirm, alert: alertDialog, dialogNode } = useConfirm()
   const [input, setInput]           = useState('')
   const [messages, setMessages]     = useState([])
@@ -728,6 +734,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
       type: 'text',
       text,
       sent: true,
+      createdAt: new Date(),
       time: messageTime(),
       deliveryState: 'sent',
       replyTo: replyingTo ? {
@@ -804,7 +811,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
     const sendingId = makeClientMessageId(`admin-${type}`)
     const replyToMessageId = replyingTo?.dbId || null
     shouldScrollBottomRef.current = true
-    setMessages(prev => [...prev, { id: sendingId, clientMessageId: sendingId, type: 'sending', mediaType: type, sent: true, time: messageTime(), deliveryState: 'sent', replyTo: replyingTo }])
+    setMessages(prev => [...prev, { id: sendingId, clientMessageId: sendingId, type: 'sending', mediaType: type, sent: true, createdAt: new Date(), time: messageTime(), deliveryState: 'sent', replyTo: replyingTo }])
     setReplyingTo(null)
     try {
       const dataUrl = await fileToDataUrl(file)
@@ -868,7 +875,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
         const blob = new Blob(audioChunks.current, { type: mr.mimeType || 'audio/webm' })
         const extension = audioExtensionFromMime(blob.type)
         const url  = URL.createObjectURL(blob)
-        const time = new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+        const time = messageTime()
         const voiceId = makeClientMessageId('admin-audio')
         const replyToMessageId = replyingTo?.dbId || null
         shouldScrollBottomRef.current = true
@@ -1378,7 +1385,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                   })()
                 )}
                 <MsgMeta>
-                  <MsgTime>{msg.time}</MsgTime>
+                  <MsgTime>{msg.createdAt ? formatTime(msg.createdAt) : msg.time}</MsgTime>
                   {msg.sent && <MsgStatus $state={msg.deliveryState}>{deliveryLabel(msg)}</MsgStatus>}
                 </MsgMeta>
               </MsgContent>

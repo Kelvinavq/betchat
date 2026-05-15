@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import AddIcon                  from '@mui/icons-material/Add'
 import ArrowBackIcon             from '@mui/icons-material/ArrowBack'
 import SendIcon                  from '@mui/icons-material/Send'
@@ -130,15 +131,15 @@ const INITIAL_TICKETS = [
 ───────────────────────────── */
 const makeId = () => `${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
 
-const fmt = (iso) => {
+const fmt = (iso, tz) => {
   const d = new Date(iso)
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
-    + ' · ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', ...(tz && { timeZone: tz }) })
+    + ' · ' + d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
-const fmtShort = (iso) => {
+const fmtShort = (iso, tz) => {
   const d = new Date(iso)
-  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+  return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', ...(tz && { timeZone: tz }) })
 }
 
 const catLabel = (id) => CATEGORIES.find(c => c.id === id)?.label ?? id
@@ -314,6 +315,7 @@ const CreateModal = ({ onClose, onCreate }) => {
    Ticket Detail View
 ═══════════════════════════════════ */
 const TicketDetail = ({ ticket, onBack, onUpdate }) => {
+  const { timezone }                = useDateFormat()
   const [replyText, setReplyText]   = useState('')
   const [attachments, setAttachments] = useState([])
   const [lightboxSrc, setLightboxSrc] = useState(null)
@@ -420,7 +422,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate }) => {
         <MetaDivider />
         <MetaChip>
           <AccessTimeOutlinedIcon />
-          Creado {fmtShort(ticket.createdAt)}
+          Creado {fmtShort(ticket.createdAt, timezone)}
         </MetaChip>
       </DetailMetaRow>
 
@@ -434,7 +436,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate }) => {
                 Estado cambiado a <strong style={{ color: 'rgba(255,255,255,0.55)', marginLeft: 4 }}>
                   {STATUS_CFG[msg.to]?.label}
                 </strong>
-                <span style={{ color: 'rgba(255,255,255,0.16)', marginLeft: 6 }}>{fmtShort(msg.timestamp)}</span>
+                <span style={{ color: 'rgba(255,255,255,0.16)', marginLeft: 6 }}>{fmtShort(msg.timestamp, timezone)}</span>
               </StatusEvent>
             )
           }
@@ -446,7 +448,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate }) => {
                   {(msg.senderName || 'A')[0].toUpperCase()}
                 </MsgSenderAvatar>
                 <MsgSender>{msg.senderName}</MsgSender>
-                <MsgTime>{fmt(msg.timestamp)}</MsgTime>
+                <MsgTime>{fmt(msg.timestamp, timezone)}</MsgTime>
               </MsgHeader>
 
               {msg.text && (
@@ -547,6 +549,7 @@ const TicketDetail = ({ ticket, onBack, onUpdate }) => {
    Main TicketsSection
 ═══════════════════════════════════ */
 const TicketsSection = () => {
+  const { timezone }                    = useDateFormat()
   const [tickets, setTickets]           = useState(INITIAL_TICKETS)
   const [selectedId, setSelectedId]     = useState(null)
   const [filter, setFilter]             = useState('all')
@@ -668,7 +671,7 @@ const TicketsSection = () => {
                 )}
                 <TkMetaItem>
                   <AccessTimeOutlinedIcon />
-                  {fmtShort(ticket.createdAt)}
+                  {fmtShort(ticket.createdAt, timezone)}
                 </TkMetaItem>
                 {ticket.messages.length > 1 && (
                   <TkMetaItem>

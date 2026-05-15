@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import BuildOutlinedIcon from '@mui/icons-material/BuildOutlined'
 import ChatBubbleOutlineIcon from '@mui/icons-material/ChatBubbleOutlined'
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
@@ -24,10 +25,10 @@ const daysAgoStr = (n) => {
   return d.toISOString().slice(0, 10)
 }
 
-const formatDate = (iso) => {
+const formatDate = (iso, tz) => {
   if (!iso) return null
   const d = new Date(iso)
-  return d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  return d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
 const nextRunDate = (lastRunAt, intervalDays) => {
@@ -38,6 +39,7 @@ const nextRunDate = (lastRunAt, intervalDays) => {
 }
 
 export default function AdvancedSection() {
+  const { timezone } = useDateFormat()
   const [config, setConfig] = useState({ intervalDays: 0, clearMessages: true, clearFiles: true, lastRunAt: null, lastRunStats: null })
   const [intervalInput, setIntervalInput] = useState('0')
   const [scheduleSaved, setScheduleSaved] = useState(false)
@@ -164,7 +166,7 @@ export default function AdvancedSection() {
           <RunPill>
             <AccessTimeOutlinedIcon />
             {config.lastRunAt
-              ? `Última ejecución: ${formatDate(config.lastRunAt)}`
+              ? `Última ejecución: ${formatDate(config.lastRunAt, timezone)}`
               : 'Nunca ejecutado'
             }
           </RunPill>
@@ -172,7 +174,7 @@ export default function AdvancedSection() {
             <RunPill $accent>
               <EventRepeatOutlinedIcon />
               {next
-                ? `Próxima: ${new Date(next).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' })}`
+                ? `Próxima: ${new Date(next).toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric', ...(timezone && { timeZone: timezone }) })}`
                 : `Cada ${config.intervalDays} días`
               }
             </RunPill>

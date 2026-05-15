@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDateFormat } from '../../../../hooks/useDateFormat';
 import {
   Card, CardTitle, CardDesc, FieldGrid, FieldGroup, Label, Input, Select,
   BtnRow, Btn, AddRowBtn, Divider,
@@ -178,6 +179,7 @@ const INIT_FORM = {
 
 /* ── Component ────────────────────────────────────────────────────────── */
 const AgendaPanel = ({ onUseTemplate }) => {
+  const { timezone } = useDateFormat();
   const [activeTab, setActiveTab] = useState('templates');
   const [templates, setTemplates] = useState([]);
   const [automations, setAutomations] = useState([]);
@@ -311,7 +313,7 @@ const AgendaPanel = ({ onUseTemplate }) => {
               <Badge>{t.event_type}</Badge>
               <div style={{ fontWeight: 700, fontSize: 14, color: '#f1f5f9' }}>{t.name}</div>
               <div style={{ fontSize: 12, color: 'rgba(255,255,255,.45)' }}>
-                {new Date(t.created_at).toLocaleDateString('es-AR')}
+                {new Date(t.created_at).toLocaleDateString('es-AR', { ...(timezone && { timeZone: timezone }) })}
               </div>
               <BtnRow style={{ marginTop: 4 }}>
                 <Btn
@@ -377,7 +379,7 @@ const AgendaPanel = ({ onUseTemplate }) => {
                   </td>
                   <td style={{ color: 'rgba(255,255,255,.5)', fontSize: 12 }}>
                     {a.last_run_at
-                      ? new Date(a.last_run_at).toLocaleDateString('es-AR')
+                      ? new Date(a.last_run_at).toLocaleDateString('es-AR', { ...(timezone && { timeZone: timezone }) })
                       : '—'}
                   </td>
                   <td>

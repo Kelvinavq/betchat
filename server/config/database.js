@@ -23,12 +23,18 @@ export async function initializePool() {
         user: dbConfig.user,
         password: dbConfig.password,
         database: dbConfig.database,
+        timezone: 'Z',
+        dateStrings: true,
         waitForConnections: true,
         connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT || 10),
         queueLimit: parseInt(process.env.DB_QUEUE_LIMIT || 0),
         enableKeepAlive: process.env.DB_ENABLE_KEEP_ALIVE === 'true',
         multipleStatements: false,
       });
+
+      pool.on('connection', (connection) => {
+        connection.query("SET time_zone = '+00:00'")
+      })
 
       // Verificar la conexión
       const connection = await pool.getConnection();

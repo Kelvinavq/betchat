@@ -98,7 +98,19 @@ const emitMessageStatus = (chatId, statuses) => {
 }
 
 function timeOf(date) {
-  return new Date(date).toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+  return moment.utc(date).tz(MESSAGE_DAY_TIMEZONE).format('HH:mm')
+}
+
+function toUtcIso(value) {
+  if (!value) return null
+  const raw = String(value).trim()
+  if (!raw) return null
+  const parsed = raw.endsWith('Z') || /[+-]\d{2}:\d{2}$/.test(raw)
+    ? moment(raw)
+    : /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(raw)
+      ? moment.utc(raw, 'YYYY-MM-DD HH:mm:ss', true)
+      : moment.utc(raw)
+  return parsed.isValid() ? parsed.toISOString() : null
 }
 
 function dayOf(date) {
@@ -256,13 +268,13 @@ function sanitizeMessage(row) {
     fileName: row.file_name || '',
     fileSize: row.file_size ? Number(row.file_size) : null,
     isRead: Boolean(row.is_read),
-    deliveredAt: row.delivered_at || null,
-    readAt: row.read_at || null,
+    deliveredAt: toUtcIso(row.delivered_at),
+    readAt: toUtcIso(row.read_at),
     senderAvatarUrl,
     replyTo,
-    createdAt: row.created_at,
-    createdAtUtc: row.created_at_utc || null,
-    time: timeOf(row.created_at),
+    createdAt: toUtcIso(row.created_at),
+    createdAtUtc: toUtcIso(row.created_at_utc || row.created_at),
+    time: timeOf(row.created_at_utc || row.created_at),
   }
 }
 
@@ -323,9 +335,10 @@ function sanitizeChat(row) {
     lastMessageAt: row.last_message_at,
     botScreenId: row.bot_screen_id || null,
     botLastButtonId: row.bot_last_button_id || null,
-    createdAt: row.created_at,
+    createdAt: toUtcIso(row.created_at),
+    lastMessageAt: toUtcIso(row.last_message_at),
     time: row.last_message_at ? timeOf(row.last_message_at) : '',
-    joinDate: row.registered_at,
+    joinDate: toUtcIso(row.registered_at),
     files: [],
     clientTags,
   }
@@ -478,7 +491,7 @@ function formatPanelFile(row) {
     type: row.message_type === 'image' ? 'image' : 'pdf',
     name: row.file_name || (row.message_type === 'image' ? 'Imagen' : 'Documento PDF'),
     url: row.file_url || '',
-    date: row.created_at ? new Date(row.created_at).toISOString() : null,
+    date: toUtcIso(row.created_at),
   }
 }
 

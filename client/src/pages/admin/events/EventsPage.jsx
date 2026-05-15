@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import { createPortal } from 'react-dom'
 import MenuIcon from '@mui/icons-material/Menu'
 import SorteoForm from './components/forms/SorteoForm.jsx'
@@ -315,7 +316,7 @@ function EventHistoryTable({ events, loading, onActivate, onFinish, onCancel, on
               <Td style={{ fontWeight: 600, color: '#f1f5f9' }}>{ev.title}</Td>
               <Td><Badge $v={ev.status}>{STATUS_LABEL[ev.status] ?? ev.status}</Badge></Td>
               <Td style={{ color: '#94a3b8', fontSize: 12 }}>
-                {ev.starts_at ? new Date(ev.starts_at).toLocaleString('es-AR') : '—'}
+                {ev.starts_at ? new Date(ev.starts_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', ...(timezone && { timeZone: timezone }) }) : '—'}
               </Td>
               <Td style={{ color: '#94a3b8', fontSize: 12 }}>
                 {ev.duration_minutes ? `${ev.duration_minutes} min` : '—'}
@@ -362,6 +363,7 @@ const FORM_COMPONENTS = {
    EVENTS PAGE
 ═══════════════════════════════════════════════════════════════ */
 const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
+  const { timezone }                = useDateFormat()
   const [activeTab, setActiveTab]   = useState('sorteo')
   const [sectionTab, setSectionTab] = useState(activeSubsection)
   const [subTab,    setSubTab]      = useState('create')

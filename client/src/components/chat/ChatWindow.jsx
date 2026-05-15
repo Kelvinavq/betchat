@@ -1,4 +1,5 @@
 import { useCallback, useContext, useState, useRef, useEffect } from 'react'
+import { useDateFormat } from '../../hooks/useDateFormat'
 import { createPortal } from 'react-dom'
 import CloseIcon from '@mui/icons-material/Close'
 import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined'
@@ -22,6 +23,7 @@ import { useSystemConfig } from '../../context/SystemConfigContext'
 import { api, resolveApiAsset } from '../../utils/api'
 import { getSocket, makeClientMessageId } from '../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../utils/richText'
+import { parseDateValue } from '../../utils/dateUtils'
 import {
   Window, VisualSection, CloseBtn, VisualLogo, AppLabel,
   FormSection, FormTitle, FormHint, FormGroup, InputLabel,
@@ -394,7 +396,8 @@ const WAVEFORM = [
   0.62,0.90,0.48,0.74,0.56,0.80,0.58,0.42,0.70,0.50,
 ]
 
-const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit' })
+let _chatTz = undefined
+const messageTime = () => new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', ...(_chatTz && { timeZone: _chatTz }) })
 const fmt = (s) => {
   const n = Math.floor(s || 0)
   return `${Math.floor(n / 60)}:${(n % 60).toString().padStart(2, '0')}`
@@ -415,8 +418,8 @@ const replyAuthorLabel = (reply, currentReceived = false) => {
 const formatPreviousDayLabel = (dateString) => {
   if (!dateString) return 'Cargar dia anterior'
   const [year, month, day] = dateString.split('-').map(Number)
-  const date = new Date(year, month - 1, day)
-  return `Cargar ${date.toLocaleDateString('es', { day: '2-digit', month: 'short' })}`
+  const date = new Date(Date.UTC(year, month - 1, day))
+  return `Cargar ${date.toLocaleDateString('es', { day: '2-digit', month: 'short', ...(_chatTz && { timeZone: _chatTz }) })}`
 }
 const fileToDataUrl = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader()
@@ -439,6 +442,7 @@ const mapDbMessage = (msg) => ({
   duration: msg.messageType === 'audio' ? Number(msg.content) || 0 : undefined,
   fileName: msg.fileName,
   received: msg.senderType !== 'client',
+  createdAt: parseDateValue(msg.createdAtUtc || msg.createdAt),
   time: msg.time,
   avatarUrl: resolveApiAsset(msg.senderAvatarUrl),
   avatar: BOT_AVATAR,
@@ -618,12 +622,14 @@ const mapQueuedMessage = (payload) => ({
   fileName: payload.fileName || '',
   replyTo: payload.replyTo || null,
   received: false,
+  createdAt: new Date(),
   time: payload.time || messageTime(),
 })
 
 const isMediaPayload = (payload) => payload?.messageType === 'image' || payload?.messageType === 'pdf'
 
 const createBotMessages = (screen, reason = 'screen', hiddenFormIds = []) => {
+  const createdAt = new Date()
   const time = messageTime()
 
   if (!screen) {
@@ -632,6 +638,7 @@ const createBotMessages = (screen, reason = 'screen', hiddenFormIds = []) => {
       type: 'text',
       text: 'No encontramos esta opcion. Probemos de nuevo desde el inicio.',
       received: true,
+      createdAt,
       time,
       avatar: BOT_AVATAR,
     }]
@@ -644,6 +651,7 @@ const createBotMessages = (screen, reason = 'screen', hiddenFormIds = []) => {
         type: 'text',
         text: item.text,
         received: true,
+        createdAt,
         time,
         avatar: BOT_AVATAR,
       }]
@@ -654,6 +662,7 @@ const createBotMessages = (screen, reason = 'screen', hiddenFormIds = []) => {
         type: 'bot-form',
         form: item,
         received: true,
+        createdAt,
         time,
         avatar: BOT_AVATAR,
       }]
@@ -668,6 +677,7 @@ const createBotMessages = (screen, reason = 'screen', hiddenFormIds = []) => {
       type: 'bot-buttons',
       buttons,
       received: true,
+      createdAt,
       time,
       avatar: BOT_AVATAR,
     })
@@ -678,6 +688,7 @@ const createBotMessages = (screen, reason = 'screen', hiddenFormIds = []) => {
     type: 'text',
     text: 'Esta seccion todavia no tiene contenido.',
     received: true,
+    createdAt,
     time,
     avatar: BOT_AVATAR,
   }]
@@ -932,6 +943,7 @@ const mergeDbMessage = (incoming) => (prev) => {
 }
 
 const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) => {
+  const { formatTime } = useDateFormat()
   const { systemConfig } = useSystemConfig()
   const [input, setInput]             = useState('')
   const [messages, setMessages]       = useState([])
@@ -2039,7 +2051,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                     )
                   })()
                 )}
-                <MessageTime>{msg.time}</MessageTime>
+                <MessageTime>{msg.createdAt ? formatTime(msg.createdAt) : msg.time}</MessageTime>
               </MessageContent>
             </MessageRow>
           ))}
@@ -2153,7 +2165,9 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
 /* ── main window ── */
 
 const ChatWindow = ({ onClose }) => {
-  const { systemConfig } = useSystemConfig()
+  const { timezone } = useDateFormat()
+  const { systemConfig }  = useSystemConfig()
+  useEffect(() => { _chatTz = timezone; return () => { _chatTz = undefined } }, [timezone])
   const { clientSession, setClientSession, clientAuthLoading, setClientAuthLoading } = useContext(ChatContext)
   const [view, setView] = useState(clientSession ? 'chat' : 'login')
   const [loading, setLoading] = useState(false)

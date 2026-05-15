@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import styled, { css, keyframes } from 'styled-components'
 import CloseIcon from '@mui/icons-material/Close'
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
@@ -27,13 +28,14 @@ const fmtAmount = (n) => {
   return Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 }
 
-const fmtDate = (value) => {
+const fmtDate = (value, tz) => {
   if (!value) return '—'
   const d = new Date(value)
   if (isNaN(d)) return String(value)
   return d.toLocaleString('es-AR', {
     day: '2-digit', month: '2-digit', year: '2-digit',
     hour: '2-digit', minute: '2-digit',
+    ...(tz && { timeZone: tz }),
   })
 }
 
@@ -426,6 +428,7 @@ const PageInfo = styled.div`
 
 /* ─── main component ──────────────────────────────────────── */
 const TransactionHistoryDrawer = ({ chat, onClose }) => {
+  const { timezone }                    = useDateFormat()
   const [transactions, setTransactions] = useState([])
   const [stats, setStats]               = useState(DEFAULT_STATS)
   const [pagination, setPagination]     = useState(DEFAULT_PAGINATION)
@@ -605,7 +608,7 @@ const TransactionHistoryDrawer = ({ chat, onClose }) => {
                       <TxStatusBadge $tone={statusMeta.tone}>{statusMeta.label}</TxStatusBadge>
                     </TxTopRow>
                     <TxMeta>
-                      <TxDate>{fmtDate(tx.createdAt)}</TxDate>
+                      <TxDate>{fmtDate(tx.createdAt, timezone)}</TxDate>
                       {tx.transactionId && <TxIdBadge title={tx.transactionId}>{tx.transactionId}</TxIdBadge>}
                     </TxMeta>
                   </TxBody>

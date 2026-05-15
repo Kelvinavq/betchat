@@ -14,6 +14,7 @@ import PushPinIcon from '@mui/icons-material/PushPin'
 import DeleteSweepOutlinedIcon from '@mui/icons-material/DeleteSweepOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
 import { AuthContext } from '../../../context/AuthContext'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import { useConfirm } from '../../common/ConfirmDialog'
 import { api } from '../../../utils/api'
 import { getSocket } from '../../../utils/socket'
@@ -69,6 +70,7 @@ const normalizeLabel = (value) => String(value || '').replace(/^[^\p{L}\p{N}]+/u
 
 const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }) => {
   const { user } = useContext(AuthContext) || {}
+  const { formatTime } = useDateFormat()
   const { confirm, alert: alertDialog, dialogNode } = useConfirm()
   const [search, setSearch] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
@@ -502,7 +504,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
                       {isAssignedToMe ? 'Atendido por mi' : `Atendiendo ${chat.assignedUsername}`}
                     </AssignedPill>
                   ) : (
-                    <ChatTime>{chat.time}</ChatTime>
+                    <ChatTime>{chat.lastMessageAt ? formatTime(chat.lastMessageAt) : chat.time}</ChatTime>
                   )}
                 </ChatRow>
                 <ChatRow>

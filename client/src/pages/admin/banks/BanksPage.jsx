@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import SearchIcon        from '@mui/icons-material/Search'
 import AddIcon           from '@mui/icons-material/Add'
 import EditOutlinedIcon  from '@mui/icons-material/EditOutlined'
@@ -50,11 +51,11 @@ const todayStr = () => {
 const fmtAmount = (n) =>
   n == null ? '—' : `$${new Intl.NumberFormat('es-AR').format(n)}`
 
-const fmtMovDate = (str) => {
+const fmtMovDate = (str, tz) => {
   if (!str) return '—'
   const d = new Date(str)
   if (isNaN(d)) return '—'
-  return `${d.getDate()}/${d.getMonth() + 1}, ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`
+  return d.toLocaleString('es', { day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit', ...(tz && { timeZone: tz }) })
 }
 
 const STATUS_LABEL = { paid: 'Pagado', pending: 'Pendiente', rejected: 'Rechazado' }
@@ -126,7 +127,7 @@ const EMPTY_COUNTS = { hgcash: 0, mercadopago: 0, telepagos: 0, manual: 0 }
 const maskCBU   = (v) => v ? `${v.slice(0, 8)}...${v.slice(-4)}` : '-'
 const maskToken = (v) => v ? `${v.slice(0, 10)}...${v.slice(-4)}` : '-'
 const isExpired = (d) => d && new Date(d) < new Date()
-const fmtDate   = (d) => d ? new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' }) : null
+const fmtDate   = (d, tz) => d ? new Date(d).toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric', ...(tz && { timeZone: tz }) }) : null
 
 const initForm = (bank, account = null) => {
   if (bank === 'hgcash') {
@@ -198,6 +199,7 @@ const validateForm = (bank, form, editing) => {
 }
 
 const BanksPage = ({ onMenuOpen }) => {
+  const { timezone } = useDateFormat()
   const toast = useToast()
   const confirm = useConfirm()
   const [activeBank, setActiveBank] = useState('hgcash')
@@ -566,8 +568,8 @@ const BanksPage = ({ onMenuOpen }) => {
                         {acc.expires_at && (
                           <div style={{ marginTop: 4 }}>
                             {isExpired(acc.expires_at)
-                              ? <ExpiredBadge>Vencido {fmtDate(acc.expires_at)}</ExpiredBadge>
-                              : <TokenBadge $ok>Vence {fmtDate(acc.expires_at)}</TokenBadge>}
+                              ? <ExpiredBadge>Vencido {fmtDate(acc.expires_at, timezone)}</ExpiredBadge>
+                              : <TokenBadge $ok>Vence {fmtDate(acc.expires_at, timezone)}</TokenBadge>}
                           </div>
                         )}
                       </Td>
@@ -799,7 +801,7 @@ const BanksPage = ({ onMenuOpen }) => {
                       ) : movements.map(m => (
                         <Tr key={m.id}>
                           <Td><MonoText style={{ fontSize: 11 }}>{m.id}</MonoText></Td>
-                          <Td style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>{fmtMovDate(m.createdAt)}</Td>
+                          <Td style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)' }}>{fmtMovDate(m.createdAt, timezone)}</Td>
                           <Td $right>
                             <span style={{ fontWeight: 700, color: m.status === 'paid' ? '#c7d9ff' : 'rgba(255,255,255,0.55)', fontSize: 13 }}>
                               {fmtAmount(m.amount)}

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import MenuIcon from '@mui/icons-material/Menu'
 import AddIcon from '@mui/icons-material/Add'
 import CloseIcon from '@mui/icons-material/Close'
@@ -129,11 +130,12 @@ const CASINO_TEMPLATES = [
 ]
 
 /* ── helpers ─────────────────────────────────────────────────────────── */
-const fmtDate = (iso) => {
+const fmtDate = (iso, tz) => {
   if (!iso) return '—'
   return new Date(iso).toLocaleString('es-AR', {
     day: '2-digit', month: '2-digit', year: '2-digit',
     hour: '2-digit', minute: '2-digit',
+    ...(tz && { timeZone: tz }),
   })
 }
 
@@ -394,6 +396,7 @@ function TemplateDialog({ open, editing, onClose, onSaved }) {
 
 /* ── MAIN PAGE ───────────────────────────────────────────────────────── */
 export default function ModalsPage({ onMenuOpen }) {
+  const { timezone }                  = useDateFormat()
   const [templates, setTemplates]     = useState([])
   const [tplLoading, setTplLoading]   = useState(true)
   const [history, setHistory]         = useState([])
@@ -734,7 +737,7 @@ export default function ModalsPage({ onMenuOpen }) {
               <HistList>
                 {history.map(h => (
                   <HistItem key={h.id} onClick={() => useTpl(h)}>
-                    <HistItemDate>{fmtDate(h.sentAt || h.scheduledFor)}</HistItemDate>
+                    <HistItemDate>{fmtDate(h.sentAt || h.scheduledFor, timezone)}</HistItemDate>
                     <HistItemTitle>{h.title || '(sin título)'}</HistItemTitle>
                     <HistItemMeta>{h.body || '—'}</HistItemMeta>
                   </HistItem>

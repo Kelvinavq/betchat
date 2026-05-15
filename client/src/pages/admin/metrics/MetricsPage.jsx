@@ -1,4 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { useDateFormat } from '../../../hooks/useDateFormat'
 import MenuOutlinedIcon          from '@mui/icons-material/MenuOutlined'
 import PaymentsOutlinedIcon      from '@mui/icons-material/PaymentsOutlined'
 import CheckCircleOutlinedIcon   from '@mui/icons-material/CheckCircleOutlined'
@@ -85,6 +86,7 @@ function PieTip({ active, payload }) {
 
 /* ── component ── */
 export default function MetricsPage({ onMenuOpen }) {
+  const { timezone } = useDateFormat()
   const [from, setFrom] = useState(daysAgoStr(29))
   const [to,   setTo]   = useState(todayStr())
   const [preset, setPreset] = useState('30d')
@@ -306,7 +308,7 @@ export default function MetricsPage({ onMenuOpen }) {
   const formatXAxisDate = (tick) => {
     if (!tick) return ''
     const d = new Date(tick + 'T12:00:00')
-    return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+    return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', ...(timezone && { timeZone: timezone }) })
   }
 
   const KPI_CARDS = data ? [

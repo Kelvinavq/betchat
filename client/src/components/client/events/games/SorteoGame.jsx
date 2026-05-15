@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import { useDateFormat } from '../../../../hooks/useDateFormat'
 import styled, { keyframes } from 'styled-components'
 import { api, resolveApiAsset } from '../../../../utils/api.js'
 
@@ -121,16 +122,18 @@ function prizeLabel(prize_type) {
   return 'premio especial'
 }
 
-function formatDate(dateStr) {
+const formatDate = (dateStr, tz) => {
   if (!dateStr) return null
   try {
     return new Date(dateStr).toLocaleDateString('es', {
       day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+      ...(tz && { timeZone: tz }),
     })
   } catch { return null }
 }
 
 export default function SorteoGame({ event, clientId, onResult, onClose }) {
+  const { timezone } = useDateFormat()
   const cfg = event?.config_json || {}
   const requiresDeposit = Number(event?.min_deposit_amount) > 0
 
@@ -141,7 +144,7 @@ export default function SorteoGame({ event, clientId, onResult, onClose }) {
   const fileRef = useRef(null)
 
   const bannerSrc = cfg.image_url ? resolveApiAsset(cfg.image_url) : null
-  const endDate = formatDate(event?.ends_at)
+  const endDate = formatDate(event?.ends_at, timezone)
 
   /* ── Handlers ── */
   const handleFileChange = (e) => {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useDateFormat } from '../../../../hooks/useDateFormat';
 import {
   Card, CardTitle, CardDesc, BtnRow, Btn,
   StatGrid, Divider,
@@ -122,15 +123,9 @@ const SOURCE_NAMES = {
 
 const friendlySource = (key) => SOURCE_NAMES[key] || key;
 
-const formatDate = (value) => {
-  if (!value) return '—';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return '—';
-  return date.toLocaleDateString('es-AR');
-};
-
 /* ── Component ────────────────────────────────────────────────────────── */
 const StatsPanel = () => {
+  const { timezone } = useDateFormat();
   const [period, setPeriod] = useState('today');
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState(null);
@@ -273,7 +268,7 @@ const StatsPanel = () => {
                   {daily.map((row, i) => (
                     <tr key={i}>
                       <td style={{ color: 'rgba(255,255,255,.6)', fontSize: 12 }}>
-                        {formatDate(row.day)}
+                        {row.day ? new Date(row.day + 'T12:00:00').toLocaleDateString('es-AR', { day: '2-digit', month: 'short', ...(timezone && { timeZone: timezone }) }) : '—'}
                       </td>
                       <td style={{ color: '#f1f5f9', fontWeight: 600 }}>
                         {friendlySource(row.event_type)}
