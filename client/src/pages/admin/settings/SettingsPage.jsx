@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import styled from 'styled-components'
 import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
@@ -143,6 +144,35 @@ const resolveAssetUrl = (url) => {
   return `${API_ORIGIN}${url.startsWith('/') ? url : `/${url}`}`
 }
 
+const optimizeFavicon = (file) => new Promise((resolve, reject) => {
+  if (!file?.type?.startsWith('image/')) {
+    reject(new Error('Selecciona una imagen válida.'))
+    return
+  }
+  const reader = new FileReader()
+  reader.onload = () => {
+    const img = new Image()
+    img.onload = () => {
+      const size = 128
+      const canvas = document.createElement('canvas')
+      canvas.width = size
+      canvas.height = size
+      const ctx = canvas.getContext('2d')
+      ctx.imageSmoothingEnabled = true
+      ctx.imageSmoothingQuality = 'high'
+      const minDim = Math.min(img.width, img.height)
+      const sx = (img.width - minDim) / 2
+      const sy = (img.height - minDim) / 2
+      ctx.drawImage(img, sx, sy, minDim, minDim, 0, 0, size, size)
+      resolve(canvas.toDataURL('image/png', 1.0))
+    }
+    img.onerror = () => reject(new Error('No se pudo procesar la imagen.'))
+    img.src = reader.result
+  }
+  reader.onerror = () => reject(new Error('No se pudo leer la imagen.'))
+  reader.readAsDataURL(file)
+})
+
 const optimizeAvatar = (file) => new Promise((resolve, reject) => {
   if (!file?.type?.startsWith('image/')) {
     reject(new Error('Selecciona una imagen valida.'))
@@ -171,6 +201,271 @@ const optimizeAvatar = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file)
 })
 
+/* ─── browser tab preview ─────────────────────────────────────── */
+const BrowserWrap = styled.div`
+  background: #16162a;
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+  box-shadow: 0 12px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03);
+  user-select: none;
+  margin: 4px 0 14px;
+`
+const BrowserChrome = styled.div`
+  background: #1e1e38;
+  padding: 10px 12px 0;
+`
+const TrafficLights = styled.div`
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 10px;
+`
+const TrafficDot = styled.span`
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: ${({ $c }) => $c};
+  opacity: 0.85;
+  display: block;
+  flex-shrink: 0;
+`
+const TabStrip = styled.div`
+  display: flex;
+  align-items: flex-end;
+  gap: 2px;
+`
+const ActiveTab = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: #0d0d1c;
+  border-radius: 8px 8px 0 0;
+  padding: 7px 10px 7px 10px;
+  width: 190px;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-bottom: 1px solid #0d0d1c;
+  position: relative;
+  bottom: -1px;
+`
+const TabFavWrap = styled.span`
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  overflow: hidden;
+  img { width: 100%; height: 100%; object-fit: contain; display: block; }
+`
+const TabFavPlaceholder = styled.span`
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: linear-gradient(135deg, rgba(30,133,255,0.7), rgba(99,102,241,0.7));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 8px;
+  font-weight: 800;
+  color: #fff;
+  flex-shrink: 0;
+`
+const TabTitleText = styled.span`
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.78);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
+`
+const TabCloseX = styled.span`
+  font-size: 14px;
+  color: rgba(255,255,255,0.22);
+  flex-shrink: 0;
+  line-height: 1;
+  cursor: default;
+`
+const TabNewBtn = styled.div`
+  padding: 6px 10px 7px;
+  font-size: 15px;
+  color: rgba(255,255,255,0.18);
+  line-height: 1;
+  cursor: default;
+`
+const BrowserToolbar = styled.div`
+  background: #0d0d1c;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+`
+const ToolbarNav = styled.div`
+  display: flex;
+  gap: 2px;
+  align-items: center;
+  flex-shrink: 0;
+`
+const ToolbarNavBtn = styled.span`
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: rgba(255,255,255,0.22);
+  cursor: default;
+`
+const ToolbarUrl = styled.div`
+  flex: 1;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 20px;
+  padding: 5px 14px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.38);
+  overflow: hidden;
+  white-space: nowrap;
+`
+const ToolbarLock = styled.span`
+  font-size: 10px;
+  color: rgba(100,220,100,0.65);
+  flex-shrink: 0;
+`
+const BrowserPage = styled.div`
+  background: #0a0a17;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+const PageLine = styled.div`
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.04);
+  width: ${({ $w }) => $w || '100%'};
+`
+
+const FaviconSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 8px 0 4px;
+`
+const FaviconHeading = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.65);
+  letter-spacing: 0.01em;
+  margin-bottom: 2px;
+`
+const FaviconDesc = styled.p`
+  font-size: 12px;
+  color: rgba(255,255,255,0.30);
+  margin: 0 0 4px;
+  line-height: 1.5;
+`
+const FaviconActions = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+`
+const FaviconUploadBtn = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 14px;
+  border-radius: 9px;
+  border: 1px dashed rgba(255,255,255,0.18);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.55);
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.18s, color 0.18s, background 0.18s;
+  font-family: inherit;
+  svg { font-size: 15px; }
+  &:hover {
+    border-color: rgba(30,133,255,0.55);
+    color: rgba(30,133,255,0.85);
+    background: rgba(30,133,255,0.06);
+  }
+`
+const FaviconClearBtn = styled.button`
+  font-size: 12px;
+  color: rgba(255,255,255,0.30);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  &:hover { color: #f87171; }
+`
+const FaviconHint = styled.p`
+  font-size: 11px;
+  color: rgba(255,255,255,0.20);
+  margin: 2px 0 0;
+`
+
+function BrowserTabPreview({ favicon, appName }) {
+  const displayFavicon = favicon || null
+  const urlSlug = (appName || 'app').toLowerCase().replace(/[^a-z0-9]/g, '')
+  const title = appName || 'Mi App'
+  return (
+    <BrowserWrap>
+      <BrowserChrome>
+        <TrafficLights>
+          <TrafficDot $c="#ff5f57" />
+          <TrafficDot $c="#febc2e" />
+          <TrafficDot $c="#28c840" />
+        </TrafficLights>
+        <TabStrip>
+          <ActiveTab>
+            <TabFavWrap>
+              {displayFavicon
+                ? <img src={displayFavicon} alt="" />
+                : <TabFavPlaceholder>{title[0].toUpperCase()}</TabFavPlaceholder>
+              }
+            </TabFavWrap>
+            <TabTitleText>{title}</TabTitleText>
+            <TabCloseX>×</TabCloseX>
+          </ActiveTab>
+          <TabNewBtn>+</TabNewBtn>
+        </TabStrip>
+      </BrowserChrome>
+      <BrowserToolbar>
+        <ToolbarNav>
+          <ToolbarNavBtn>‹</ToolbarNavBtn>
+          <ToolbarNavBtn>›</ToolbarNavBtn>
+          <ToolbarNavBtn>↻</ToolbarNavBtn>
+        </ToolbarNav>
+        <ToolbarUrl>
+          <ToolbarLock>🔒</ToolbarLock>
+          {urlSlug}.com
+        </ToolbarUrl>
+      </BrowserToolbar>
+      <BrowserPage>
+        <PageLine $w="60%" />
+        <PageLine $w="90%" />
+        <PageLine $w="75%" />
+      </BrowserPage>
+    </BrowserWrap>
+  )
+}
+
 const BANK_STYLES = {
   hgcash: { initials: 'HG', color: '#818cf8', bg: 'rgba(99,102,241,0.10)', br: 'rgba(99,102,241,0.26)', avatarBg: 'linear-gradient(135deg,#4f46e5,#6366f1)', avatarBr: 'rgba(99,102,241,0.35)' },
   mercadopago: { initials: 'MP', color: '#38bdf8', bg: 'rgba(14,165,233,0.10)', br: 'rgba(14,165,233,0.26)', avatarBg: 'linear-gradient(135deg,#0284c7,#38bdf8)', avatarBr: 'rgba(14,165,233,0.35)' },
@@ -182,8 +477,9 @@ const SettingsPage = ({ onMenuOpen }) => {
   const { user, setUser } = useAuth()
   const { setSystemConfig: setGlobalSystemConfig } = useSystemConfig()
   const toast = useToast()
-  const avatarInputRef = useRef(null)
-  const logoInputRef = useRef(null)
+  const avatarInputRef  = useRef(null)
+  const logoInputRef    = useRef(null)
+  const faviconInputRef = useRef(null)
   const [activeTab, setActiveTab] = useState('perfil')
 
   /* ── profile form ── */
@@ -205,12 +501,16 @@ const SettingsPage = ({ onMenuOpen }) => {
     appName: 'BetChat',
     logoUrl: '',
     logoDataUrl: '',
+    faviconUrl: '',
+    faviconDataUrl: '',
     clientRegistrationEnabled: true,
     clientLogoutEnabled: true,
     clearLogo: false,
+    clearFavicon: false,
   })
-  const [logoPreview, setLogoPreview] = useState('')
-  const [systemSaved, setSystemSaved] = useState(false)
+  const [logoPreview, setLogoPreview]       = useState('')
+  const [faviconPreview, setFaviconPreview] = useState('')
+  const [systemSaved, setSystemSaved]       = useState(false)
 
   /* ── montos form ── */
   const [montos, setMontos] = useState({
@@ -315,12 +615,16 @@ const SettingsPage = ({ onMenuOpen }) => {
         appName: system.appName || 'BetChat',
         logoUrl: system.logoUrl || '',
         logoDataUrl: '',
+        faviconUrl: system.faviconUrl || '',
+        faviconDataUrl: '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
         clientLogoutEnabled: system.clientLogoutEnabled !== false,
         clearLogo: false,
+        clearFavicon: false,
       }
       setSystemForm(nextSystem)
       setLogoPreview(system.logoUrl ? resolveAssetUrl(system.logoUrl) : '')
+      setFaviconPreview(system.faviconUrl ? resolveAssetUrl(system.faviconUrl) : '')
       setGlobalSystemConfig(nextSystem)
     } catch (error) {
       toast.error(error.message || 'No se pudieron cargar los ajustes.')
@@ -368,6 +672,24 @@ const SettingsPage = ({ onMenuOpen }) => {
   const clearLogo = () => {
     setLogoPreview('')
     setSystemForm(prev => ({ ...prev, logoUrl: '', logoDataUrl: '', clearLogo: true }))
+  }
+
+  const handleFaviconFile = async (event) => {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    try {
+      const dataUrl = await optimizeFavicon(file)
+      setFaviconPreview(dataUrl)
+      setSystemForm(prev => ({ ...prev, faviconDataUrl: dataUrl, clearFavicon: false }))
+    } catch (error) {
+      toast.error(error.message)
+    }
+  }
+
+  const clearFaviconFn = () => {
+    setFaviconPreview('')
+    setSystemForm(prev => ({ ...prev, faviconUrl: '', faviconDataUrl: '', clearFavicon: true }))
   }
 
   const saveProfile = async () => {
@@ -427,12 +749,16 @@ const SettingsPage = ({ onMenuOpen }) => {
         appName: system.appName || 'BetChat',
         logoUrl: system.logoUrl || '',
         logoDataUrl: '',
+        faviconUrl: system.faviconUrl || '',
+        faviconDataUrl: '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
         clientLogoutEnabled: system.clientLogoutEnabled !== false,
         clearLogo: false,
+        clearFavicon: false,
       }
       setSystemForm(nextSystem)
       setLogoPreview(system.logoUrl ? resolveAssetUrl(system.logoUrl) : '')
+      setFaviconPreview(system.faviconUrl ? resolveAssetUrl(system.faviconUrl) : '')
       setGlobalSystemConfig(nextSystem)
       triggerSaved(setSystemSaved)
     } catch (error) {
@@ -722,6 +1048,41 @@ const SettingsPage = ({ onMenuOpen }) => {
                       </InputWrap>
                     </Field>
                   </FormGrid>
+
+                  {/* ── favicon upload ── */}
+                  <FaviconSection>
+                    <FaviconHeading>
+                      <PhotoCameraOutlinedIcon style={{ fontSize: 15, opacity: 0.6 }} />
+                      Favicon de la pestaña
+                    </FaviconHeading>
+                    <FaviconDesc>
+                      Aparece en la pestaña del navegador junto al nombre de la app.
+                      Si no subes uno, se usará el logo automáticamente.
+                    </FaviconDesc>
+                    <BrowserTabPreview
+                      favicon={faviconPreview || logoPreview}
+                      appName={systemForm.appName}
+                    />
+                    <FaviconActions>
+                      <FaviconUploadBtn type="button" onClick={() => faviconInputRef.current?.click()}>
+                        <PhotoCameraOutlinedIcon />
+                        {faviconPreview ? 'Cambiar favicon' : 'Subir favicon'}
+                      </FaviconUploadBtn>
+                      {faviconPreview && (
+                        <FaviconClearBtn type="button" onClick={clearFaviconFn}>
+                          Quitar favicon
+                        </FaviconClearBtn>
+                      )}
+                      <input
+                        ref={faviconInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleFaviconFile}
+                        style={{ display: 'none' }}
+                      />
+                    </FaviconActions>
+                    <FaviconHint>Recomendado: imagen cuadrada, mínimo 64×64 px (PNG, WebP o JPG)</FaviconHint>
+                  </FaviconSection>
 
                   <ToggleRow>
                     <ToggleText>

@@ -4,6 +4,7 @@ import { api, resolveApiAsset } from '../utils/api'
 const DEFAULT_SYSTEM_CONFIG = {
   appName: 'BetChat',
   logoUrl: '',
+  faviconUrl: '',
   clientRegistrationEnabled: true,
   clientLogoutEnabled: true,
 }
@@ -22,6 +23,7 @@ const configFlag = (value, fallback = true) => {
 const normalizeSystemConfig = (config = {}) => ({
   appName: String(config.appName || config.app_name || DEFAULT_SYSTEM_CONFIG.appName).trim() || DEFAULT_SYSTEM_CONFIG.appName,
   logoUrl: resolveApiAsset(config.logoUrl || config.logo_url || ''),
+  faviconUrl: resolveApiAsset(config.faviconUrl || config.favicon_url || ''),
   clientRegistrationEnabled: configFlag(config.clientRegistrationEnabled ?? config.client_registration_enabled, true),
   clientLogoutEnabled: configFlag(config.clientLogoutEnabled ?? config.client_logout_enabled, true),
 })
@@ -37,9 +39,25 @@ export const SystemConfigProvider = ({ children }) => {
     const data = await api.get('/api/settings/public')
     const next = normalizeSystemConfig(data.system || data.systemConfig || {})
     setSystemConfigState(next)
-    document.title = next.appName
     return next
   }, [])
+
+  /* keep browser title + favicon in sync with config */
+  useEffect(() => {
+    document.title = systemConfig.appName
+
+    const link = document.querySelector("link[rel~='icon']")
+    if (link) {
+      const iconUrl = systemConfig.faviconUrl || systemConfig.logoUrl
+      if (iconUrl) {
+        link.type = ''
+        link.href = iconUrl
+      } else {
+        link.type = 'image/svg+xml'
+        link.href = '/favicon.svg'
+      }
+    }
+  }, [systemConfig.appName, systemConfig.faviconUrl, systemConfig.logoUrl])
 
   useEffect(() => {
     refreshSystemConfig().catch(() => {})

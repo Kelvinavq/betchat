@@ -247,83 +247,120 @@ export const SidebarSpacer = styled.div`
   min-height: 12px;
 `
 
-/* ── bottom: theme toggle ── */
+/* ── bottom: user + logout ── */
 export const SidebarBottom = styled.div`
-  padding: 12px 8px 18px;
+  padding: 10px 8px 16px;
   flex-shrink: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   display: flex;
   align-items: center;
   justify-content: center;
+  position: relative;
 `
 
-export const ThemeRow = styled.div`
+/* expanded: pill with avatar + name + logout icon */
+export const UserRow = styled.div`
   display: flex;
   align-items: center;
   gap: 9px;
+  padding: 6px 7px 6px 8px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  width: 100%;
   overflow: hidden;
-  white-space: nowrap;
   opacity: ${({ $expanded }) => $expanded ? 1 : 0};
   pointer-events: ${({ $expanded }) => $expanded ? 'auto' : 'none'};
-  transition: opacity 0.2s;
+  max-width: ${({ $expanded }) => $expanded ? '224px' : '0'};
+  transition: opacity 0.2s, max-width 0.25s;
 `
 
-export const ThemeIcon = styled.span`
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.35);
+export const UserAvatarWrap = styled.div`
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(30,133,255,0.28), rgba(30,133,255,0.14));
+  border: 1px solid rgba(30,133,255,0.22);
   display: flex;
   align-items: center;
-  line-height: 1;
-`
-
-export const ThemePill = styled.button`
-  width: 44px;
-  height: 25px;
-  border-radius: 13px;
-  border: none;
-  cursor: pointer;
-  position: relative;
-  background: ${({ $dark }) => $dark
-    ? 'linear-gradient(90deg, rgba(30,133,255,0.55) 0%, rgba(30,133,255,0.38) 100%)'
-    : 'rgba(255, 255, 255, 0.12)'};
-  transition: background 0.3s;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(100,180,255,0.90);
   flex-shrink: 0;
+  letter-spacing: 0.02em;
 `
 
-export const ThemeThumb = styled.span`
-  position: absolute;
-  top: 3.5px;
-  left: ${({ $dark }) => $dark ? '22px' : '3.5px'};
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: #ffffff;
-  transition: left 0.28s cubic-bezier(0.34, 1.56, 0.64, 1);
+export const UserMeta = styled.div`
+  flex: 1;
+  overflow: hidden;
+  min-width: 0;
+`
+
+export const UserName = styled.span`
   display: block;
-  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 `
 
-/* collapsed-state theme icon button */
-export const ThemeIconBtn = styled.button`
+export const UserRole = styled.span`
+  display: block;
+  font-size: 10.5px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.30);
+  white-space: nowrap;
+`
+
+export const LogoutBtn = styled.button`
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: 7px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: rgba(255, 255, 255, 0.26);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color 0.18s, background 0.18s, border-color 0.18s;
+  svg { font-size: 16px; }
+  &:hover:not(:disabled) {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.10);
+    border-color: rgba(239, 68, 68, 0.18);
+  }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
+`
+
+/* collapsed: icon-only button (same pattern as ToggleBtn) */
+export const LogoutIconBtn = styled.button`
   width: 34px;
   height: 34px;
   border-radius: 9px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.07);
-  color: rgba(255, 255, 255, 0.38);
+  color: rgba(255, 255, 255, 0.36);
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: color 0.2s, background 0.2s;
-  font-size: 16px;
-  line-height: 1;
   opacity: ${({ $expanded }) => $expanded ? 0 : 1};
   pointer-events: ${({ $expanded }) => $expanded ? 'none' : 'auto'};
   position: ${({ $expanded }) => $expanded ? 'absolute' : 'static'};
-  transition: opacity 0.2s;
-  &:hover {
-    color: rgba(255, 255, 255, 0.85);
-    background: rgba(255, 255, 255, 0.09);
+  transition: opacity 0.2s, color 0.18s, background 0.18s;
+  overflow: visible;
+  svg { font-size: 18px; }
+  &:hover:not(:disabled) {
+    color: #f87171;
+    background: rgba(239, 68, 68, 0.10);
+    border-color: rgba(239, 68, 68, 0.18);
   }
+  &:disabled { opacity: 0.4; cursor: not-allowed; }
 `

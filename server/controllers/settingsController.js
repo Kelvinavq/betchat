@@ -125,7 +125,7 @@ async function removeBrandingFile(url) {
 
 export async function getSystemConfig() {
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, client_registration_enabled, client_logout_enabled FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, favicon_url, client_registration_enabled, client_logout_enabled FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -133,6 +133,7 @@ export async function getSystemConfig() {
   return {
     appName: row.app_name || 'BetChat',
     logoUrl: row.logo_url || '',
+    faviconUrl: row.favicon_url || '',
     clientRegistrationEnabled: row.client_registration_enabled !== 0,
     clientLogoutEnabled: row.client_logout_enabled !== 0,
   }
@@ -442,7 +443,8 @@ export async function updateSystemConfig(req, res, next) {
     const clientRegistrationEnabled = registrationValue === false || registrationValue === 0 || registrationValue === '0' ? 0 : 1
     const logoutValue = req.body.clientLogoutEnabled ?? req.body.client_logout_enabled ?? current.clientLogoutEnabled
     const clientLogoutEnabled = logoutValue === false || logoutValue === 0 || logoutValue === '0' ? 0 : 1
-    let logoUrl = normalizeText(req.body.logoUrl || req.body.logo_url || current.logoUrl)
+    let logoUrl    = normalizeText(req.body.logoUrl    || req.body.logo_url    || current.logoUrl)
+    let faviconUrl = normalizeText(req.body.faviconUrl || req.body.favicon_url || current.faviconUrl)
 
     if (req.body.logoDataUrl || req.body.logo_data_url) {
       const image = dataUrlToBrandFile(req.body.logoDataUrl || req.body.logo_data_url)
@@ -458,11 +460,25 @@ export async function updateSystemConfig(req, res, next) {
       logoUrl = ''
     }
 
+    if (req.body.faviconDataUrl || req.body.favicon_data_url) {
+      const image = dataUrlToBrandFile(req.body.faviconDataUrl || req.body.favicon_data_url)
+      if (!image) return res.status(400).json({ error: 'Favicon invalido', code: 'INVALID_FAVICON' })
+      await mkdir(BRANDING_DIR, { recursive: true })
+      await writeFile(join(BRANDING_DIR, image.filename), image.buffer)
+      await removeBrandingFile(current.faviconUrl)
+      faviconUrl = image.url
+    }
+
+    if (req.body.clearFavicon) {
+      await removeBrandingFile(current.faviconUrl)
+      faviconUrl = ''
+    }
+
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, client_registration_enabled, client_logout_enabled)
-       VALUES (1, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled)`,
-      [appName.slice(0, 120), logoUrl || null, clientRegistrationEnabled, clientLogoutEnabled]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, client_registration_enabled, client_logout_enabled)
+       VALUES (1, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled)`,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, clientRegistrationEnabled, clientLogoutEnabled]
     )
     if (error) return next(error)
 

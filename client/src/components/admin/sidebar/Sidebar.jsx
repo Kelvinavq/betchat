@@ -11,17 +11,18 @@ import SmartToyOutlinedIcon              from '@mui/icons-material/SmartToyOutli
 import BarChartOutlinedIcon              from '@mui/icons-material/BarChartOutlined'
 import AccountBalanceWalletOutlinedIcon  from '@mui/icons-material/AccountBalanceWalletOutlined'
 import SportsEsportsOutlinedIcon         from '@mui/icons-material/SportsEsportsOutlined'
-import MenuIcon from '@mui/icons-material/Menu'
-import ChevronRightIcon from '@mui/icons-material/ChevronRight'
-import useAuth from '../../../hooks/useAuth'
-import { useSystemConfig } from '../../../context/SystemConfigContext'
-import { canViewSection } from '../../../utils/adminPermissions'
+import MenuIcon                          from '@mui/icons-material/Menu'
+import ChevronRightIcon                  from '@mui/icons-material/ChevronRight'
+import LogoutOutlinedIcon                from '@mui/icons-material/LogoutOutlined'
+import useAuth                           from '../../../hooks/useAuth'
+import { useSystemConfig }               from '../../../context/SystemConfigContext'
+import { canViewSection }                from '../../../utils/adminPermissions'
 import {
   SidebarWrap, SidebarTop, LogoWrap, LogoBadge, LogoText, ToggleBtn,
   NavSection, SectionLabel, NavList, NavItem, NavBtn, NavIcon, NavLabel, NavArrow,
   SubList, SubBtn, NavTooltip,
   SidebarSpacer, SidebarBottom,
-  ThemeRow, ThemeIcon, ThemePill, ThemeThumb, ThemeIconBtn,
+  UserRow, UserAvatarWrap, UserMeta, UserName, UserRole, LogoutBtn, LogoutIconBtn,
 } from './Sidebar.styles'
 
 const NAV_ITEMS = [
@@ -110,11 +111,18 @@ const BOTTOM_ITEMS = [
   },
 ]
 
+const ROLE_LABELS = {
+  admin:    'Administrador',
+  manager:  'Gerente',
+  support:  'Soporte',
+  operator: 'Operador',
+}
+
 const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsection }) => {
-  const { user } = useAuth()
-  const { systemConfig } = useSystemConfig()
-  const [openItems, setOpenItems]   = useState({})
-  const [darkMode, setDarkMode]     = useState(true)
+  const { user, logout }     = useAuth()
+  const { systemConfig }     = useSystemConfig()
+  const [openItems, setOpenItems] = useState({})
+  const [loggingOut, setLoggingOut] = useState(false)
   const activeItem = activeSection ?? 'chat'
 
   const toggleSub = (id) => setOpenItems(p => ({ ...p, [id]: !p[id] }))
@@ -125,18 +133,28 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
       onNavigate?.(item.id)
       return
     }
-
     if (child) {
       onNavigate?.(item.id === 'events' ? `events-${child.id}` : child.id)
       return
     }
-
     onNavigate?.(item.id)
   }
 
-  const navItems = NAV_ITEMS.filter(item => canViewSection(user, item.id))
+  const handleLogout = async () => {
+    if (loggingOut) return
+    setLoggingOut(true)
+    try {
+      await logout()
+    } finally {
+      setLoggingOut(false)
+    }
+  }
+
+  const navItems    = NAV_ITEMS.filter(item => canViewSection(user, item.id))
   const bottomItems = BOTTOM_ITEMS.filter(item => canViewSection(user, item.id))
-  const logoInitials = systemConfig.appName.split(/\s+/).filter(Boolean).slice(0, 2).map(word => word[0]).join('').toUpperCase() || 'BC'
+  const logoInitials = systemConfig.appName.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'BC'
+  const userInitials = (user?.username || user?.name || 'U').slice(0, 2).toUpperCase()
+  const roleLabel    = ROLE_LABELS[user?.role] || 'Operador'
 
   return (
     <SidebarWrap $expanded={expanded}>
@@ -163,7 +181,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
           const isActive = expanded
             ? (activeItem === item.id || childIds.includes(activeItem) || childIds.includes(activeSubsection))
             : activeItem === item.id
-          const isOpen   = expanded && openItems[item.id]
+          const isOpen = expanded && openItems[item.id]
           return (
             <NavItem key={item.id}>
               <NavBtn $active={isActive} $expanded={expanded} onClick={() => handleNavClick(item)}>
@@ -197,7 +215,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
 
       <SidebarSpacer />
 
-      {/* ── system section (ajustes) ── */}
+      {/* ── system section ── */}
       <NavSection>
         <SectionLabel $visible={expanded}>Sistema</SectionLabel>
       </NavSection>
@@ -217,25 +235,37 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
         })}
       </NavList>
 
-      {/* ── bottom: theme toggle ── */}
+      {/* ── bottom: user info + logout ── */}
       <SidebarBottom>
-        {/* expanded: full sun/toggle/moon row */}
-        <ThemeRow $expanded={expanded}>
-          <ThemeIcon>☀</ThemeIcon>
-          <ThemePill $dark={darkMode} onClick={() => setDarkMode(p => !p)} aria-label="Cambiar tema">
-            <ThemeThumb $dark={darkMode} />
-          </ThemePill>
-          <ThemeIcon>☽</ThemeIcon>
-        </ThemeRow>
 
-        {/* collapsed: single icon button */}
-        <ThemeIconBtn
+        {/* expanded: avatar pill */}
+        <UserRow $expanded={expanded}>
+          <UserAvatarWrap>{userInitials}</UserAvatarWrap>
+          <UserMeta>
+            <UserName>{user?.username || user?.name || 'Admin'}</UserName>
+            <UserRole>{roleLabel}</UserRole>
+          </UserMeta>
+          <LogoutBtn
+            onClick={handleLogout}
+            disabled={loggingOut}
+            aria-label="Cerrar sesión"
+            title="Cerrar sesión"
+          >
+            <LogoutOutlinedIcon />
+          </LogoutBtn>
+        </UserRow>
+
+        {/* collapsed: icon button with tooltip */}
+        <LogoutIconBtn
           $expanded={expanded}
-          onClick={() => setDarkMode(p => !p)}
-          aria-label="Cambiar tema"
+          onClick={handleLogout}
+          disabled={loggingOut}
+          aria-label="Cerrar sesión"
         >
-          {darkMode ? '☽' : '☀'}
-        </ThemeIconBtn>
+          <LogoutOutlinedIcon />
+          <NavTooltip>Cerrar sesión</NavTooltip>
+        </LogoutIconBtn>
+
       </SidebarBottom>
 
     </SidebarWrap>

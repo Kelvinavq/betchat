@@ -37,6 +37,9 @@ SET m.client_id = ch.client_id
 WHERE m.sender_type = 'client'
   AND m.client_id IS NULL;
 
+ALTER TABLE `system_config`
+  ADD COLUMN `favicon_url` VARCHAR(500) DEFAULT NULL AFTER `logo_url`;
+
 ALTER TABLE `messages`
   MODIFY COLUMN `message_type` ENUM('text','image','pdf','file','audio') NOT NULL DEFAULT 'text';
 
