@@ -21,6 +21,7 @@ import SmsOutlinedIcon from '@mui/icons-material/SmsOutlined'
 import HeadsetMicOutlinedIcon from '@mui/icons-material/HeadsetMicOutlined'
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
+import HighlightOffOutlinedIcon from '@mui/icons-material/HighlightOffOutlined'
 import BrandingWatermarkOutlinedIcon from '@mui/icons-material/BrandingWatermarkOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import useAuth from '../../../hooks/useAuth'
@@ -35,7 +36,7 @@ import {
   PageWrap, PageHeader, MenuBtn, TitleBlock, PageTitle, PageSub,
   Body, SettingsNav, NavGroupLabel, NavBtn, ActiveBar, NavIcon, NavTextWrap, NavLabel, NavSub, SoonPill,
   Content, Section,
-  ProfileCard, ProfileAvatar, ProfileAvatarImg, ProfileAvatarBtn, ProfileInfo, ProfileName, ProfileRole, ProfileBadge,
+  ProfileCard, AvatarStack, AvatarRemoveBtn, ProfileAvatar, ProfileAvatarImg, ProfileAvatarBtn, ProfileInfo, ProfileName, ProfileRole, ProfileBadge,
   Card, CardHead, CardIcon, CardHeadText, CardTitle, CardSub, CardBody,
   FormGrid, Field, FieldLabel, InputWrap, FieldInput, InputSuffix,
   SaveFooter, SaveBtn,
@@ -637,6 +638,7 @@ const SettingsPage = ({ onMenuOpen }) => {
     email: user?.email ?? '',
     avatar_url: user?.avatar_url ?? '',
     avatar_data_url: '',
+    clearAvatar: false,
   })
   const [avatarPreview, setAvatarPreview] = useState(user?.avatar_url ? resolveAssetUrl(user.avatar_url) : '')
   const [loadingSettings, setLoadingSettings] = useState(true)
@@ -744,6 +746,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         email: profile.email || '',
         avatar_url: profile.avatar_url || '',
         avatar_data_url: '',
+        clearAvatar: false,
       })
       setAvatarPreview(profile.avatar_url ? resolveAssetUrl(profile.avatar_url) : '')
       setMontos(data.amounts || { carga: { amount: '10', currency: 'USD' }, retiro: { amount: '50', currency: 'USD' } })
@@ -803,10 +806,16 @@ const SettingsPage = ({ onMenuOpen }) => {
     try {
       const dataUrl = await optimizeAvatar(file)
       setAvatarPreview(dataUrl)
-      setProfileForm(prev => ({ ...prev, avatar_data_url: dataUrl }))
+      setProfileForm(prev => ({ ...prev, avatar_data_url: dataUrl, clearAvatar: false }))
     } catch (error) {
       toast.error(error.message)
     }
+  }
+
+  const clearAvatar = () => {
+    setAvatarPreview('')
+    setProfileForm(prev => ({ ...prev, avatar_url: '', avatar_data_url: '', clearAvatar: true }))
+    if (avatarInputRef.current) avatarInputRef.current.value = ''
   }
 
   const handleLogoFile = async (event) => {
@@ -856,6 +865,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         email: profile.email || '',
         avatar_url: profile.avatar_url || '',
         avatar_data_url: '',
+        clearAvatar: false,
       })
       setAvatarPreview(profile.avatar_url ? resolveAssetUrl(profile.avatar_url) : '')
       setUser(prev => prev ? { ...prev, ...profile } : prev)
@@ -988,21 +998,29 @@ const SettingsPage = ({ onMenuOpen }) => {
 
               {/* profile summary */}
               <ProfileCard>
-                <ProfileAvatar>
-                  {avatarPreview ? <ProfileAvatarImg src={avatarPreview} alt="" /> : initials}
-                  <ProfileAvatarBtn type="button" onClick={() => avatarInputRef.current?.click()} title="Subir avatar">
-                    <PhotoCameraOutlinedIcon />
-                  </ProfileAvatarBtn>
-                  <input
-                    ref={avatarInputRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarFile}
-                    style={{ display: 'none' }}
-                  />
-                </ProfileAvatar>
-                <ProfileInfo>
-                  <ProfileName>{profileForm.full_name || profileForm.username || 'Usuario'}</ProfileName>
+                  <AvatarStack>
+                    <ProfileAvatar>
+                      {avatarPreview ? <ProfileAvatarImg src={avatarPreview} alt="" /> : initials}
+                      <ProfileAvatarBtn type="button" onClick={() => avatarInputRef.current?.click()} title="Subir avatar">
+                        <PhotoCameraOutlinedIcon />
+                      </ProfileAvatarBtn>
+                      <input
+                        ref={avatarInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handleAvatarFile}
+                        style={{ display: 'none' }}
+                      />
+                    </ProfileAvatar>
+                    {avatarPreview && (
+                      <AvatarRemoveBtn type="button" onClick={clearAvatar}>
+                        <HighlightOffOutlinedIcon />
+                        Quitar foto
+                      </AvatarRemoveBtn>
+                    )}
+                  </AvatarStack>
+                  <ProfileInfo>
+                    <ProfileName>{profileForm.full_name || profileForm.username || 'Usuario'}</ProfileName>
                   <ProfileRole>{profileForm.email}</ProfileRole>
                   <ProfileBadge $role={user?.role}>
                     {user?.role === 'admin' ? 'Administrador' : 'Cajero'}

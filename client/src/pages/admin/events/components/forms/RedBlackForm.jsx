@@ -65,6 +65,17 @@ export default function RedBlackForm({ form, onChange }) {
         </Label>
       </FieldGrid>
 
+      <div style={{ marginTop: 12 }}>
+        <Label>
+          Fecha y hora de inicio
+          <Input
+            type="datetime-local"
+            value={form.starts_at || ''}
+            onChange={(e) => onChange({ ...form, starts_at: e.target.value })}
+          />
+        </Label>
+      </div>
+
       <Divider />
 
       <CardTitle style={{ fontSize: 13, marginBottom: 8 }}>Opciones de apuesta</CardTitle>

@@ -97,6 +97,17 @@ const ScratchForm = ({ form, onChange }) => {
         </Label>
       </FieldGrid>
 
+      <div style={{ marginTop: 12 }}>
+        <Label>
+          Fecha y hora de inicio
+          <Input
+            type="datetime-local"
+            value={form.starts_at || ''}
+            onChange={(e) => set({ starts_at: e.target.value })}
+          />
+        </Label>
+      </div>
+
       <Divider />
 
       {/* Prizes list */}

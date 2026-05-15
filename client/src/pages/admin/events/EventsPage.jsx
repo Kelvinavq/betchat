@@ -442,6 +442,9 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
       setAlert({ type: 'error', msg: 'El título del evento es obligatorio.' })
       return
     }
+    const hasFutureStart =
+      form.starts_at && new Date(form.starts_at).getTime() > Date.now()
+    const nextStatus = hasFutureStart && status === 'active' ? 'scheduled' : status
     setSaving(true)
     setAlert(null)
     try {
@@ -449,7 +452,7 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
         type:               activeTab,
         title:              form.title.trim(),
         description:        form.description || null,
-        status,
+        status:             nextStatus,
         prize_type:         form.prize_type  || null,
         prize_amount:       form.prize_amount ?? null,
         duration_minutes:   form.duration_minutes ?? null,
@@ -458,9 +461,14 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
         ends_at:            form.ends_at   || null,
         config_json:        form.config_json ?? {},
       })
-      const label = status === 'draft' ? 'Borrador guardado' : status === 'active' ? 'Evento lanzado' : 'Evento creado'
+      const label =
+        nextStatus === 'draft'
+          ? 'Borrador guardado'
+          : nextStatus === 'scheduled'
+            ? 'Evento programado'
+            : 'Evento creado'
       setAlert({ type: 'success', msg: `✓ ${label} correctamente.` })
-      if (status === 'active') {
+      if (nextStatus === 'active') {
         handleSubTab('active')
       } else {
         loadEvents()

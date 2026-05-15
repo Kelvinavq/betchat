@@ -259,10 +259,12 @@ function buildMessage(result) {
 export async function getActiveEvents(req, res, next) {
   try {
     const { rows, error } = await query(
-      `SELECT id, type, title, description, prize_type, prize_amount, min_deposit_amount,
+       `SELECT id, type, title, description, prize_type, prize_amount, min_deposit_amount,
               duration_minutes, starts_at, ends_at, config_json
-       FROM events
-       WHERE status = 'active' AND (ends_at IS NULL OR ends_at > NOW())
+         FROM events
+       WHERE status = 'active'
+         AND (starts_at IS NULL OR starts_at <= NOW())
+         AND (ends_at IS NULL OR ends_at > NOW())
        ORDER BY created_at DESC
        LIMIT 20`
     )
@@ -311,7 +313,9 @@ export async function playEvent(req, res, next) {
 
     // Fetch event
     const { rows: eventRows, error: eventErr } = await query(
-      'SELECT * FROM events WHERE id = ? AND status = ? LIMIT 1',
+      `SELECT * FROM events
+       WHERE id = ? AND status = ? AND (starts_at IS NULL OR starts_at <= NOW())
+       LIMIT 1`,
       [eventId, 'active']
     )
     if (eventErr) return next(eventErr)
@@ -423,7 +427,9 @@ export async function uploadReceipt(req, res, next) {
 
     // Fetch event
     const { rows: eventRows, error: eventErr } = await query(
-      'SELECT * FROM events WHERE id = ? AND status = ? LIMIT 1',
+      `SELECT * FROM events
+       WHERE id = ? AND status = ? AND (starts_at IS NULL OR starts_at <= NOW())
+       LIMIT 1`,
       [eventId, 'active']
     )
     if (eventErr) return next(eventErr)

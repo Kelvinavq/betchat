@@ -59,6 +59,62 @@ function parseJsonObject(value) {
   }
 }
 
+async function getCasinoConfig() {
+  const { rows, error } = await query('SELECT api_url, api_key FROM config_casino WHERE id = 1 LIMIT 1')
+  if (error) throw error
+  const cfg = rows?.[0] || {}
+  if (!cfg.api_url || !cfg.api_key) throw new Error('Configuración de casino no encontrada.')
+  return cfg
+}
+
+async function getChatExternalClient(chatId) {
+  const { rows, error } = await query(
+    `SELECT c.external_id, c.username
+     FROM chats ch
+     JOIN clients c ON c.id = ch.client_id
+     WHERE ch.id = ?
+     LIMIT 1`,
+    [chatId]
+  )
+  if (error) throw error
+  return rows?.[0] || null
+}
+
+function parseExternalAmount(val) {
+  if (val === null || val === undefined) return null
+  if (typeof val === 'number') return val
+  let s = String(val).trim()
+  if (s.indexOf(',') > -1 && s.indexOf('.') > -1 && s.indexOf(',') > s.indexOf('.')) {
+    s = s.replace(/\./g, '').replace(',', '.')
+  } else {
+    s = s.replace(/[^0-9.,-]/g, '')
+    if (s.indexOf('.') === -1 && s.indexOf(',') !== -1) s = s.replace(',', '.')
+    else s = s.replace(/,/g, '')
+  }
+  const n = parseFloat(s)
+  return Number.isNaN(n) ? null : n
+}
+
+async function getWithdrawableBalanceByChatId(chatId) {
+  const client = await getChatExternalClient(chatId)
+  if (!client?.external_id) return null
+  const { api_url: apiUrl, api_key: apiKey } = await getCasinoConfig()
+  const url = `${apiUrl}index.php?act=admin&area=balance&id=${client.external_id}&response=js`
+  const formData = new URLSearchParams()
+  formData.append('api_token', apiKey)
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: formData,
+  })
+  const data = await response.json()
+  const arsBalance = parseExternalAmount(data.currencies?.ARS ?? data.dataList?.currencies?.ARS)
+  const wager = parseExternalAmount(data.wager ?? data.dataList?.wager)
+  return arsBalance !== null
+    ? (wager !== null && wager > 0 ? Math.max(0, arsBalance - wager) : arsBalance)
+    : null
+}
+
 function normalizeFormConfig(rawConfig, fallbackTitle = '') {
   const config = parseJsonObject(rawConfig)
   const fields = Array.isArray(config.fields) ? config.fields : []
@@ -66,6 +122,7 @@ function normalizeFormConfig(rawConfig, fallbackTitle = '') {
     title: String(config.title || fallbackTitle || 'Formulario').trim().slice(0, 120),
     description: String(config.description || '').trim().slice(0, 500),
     submitLabel: String(config.submitLabel || config.submit_label || 'Enviar').trim().slice(0, 60) || 'Enviar',
+    withdrawalMinAmount: config.withdrawalMinAmount == null ? null : Number(config.withdrawalMinAmount),
     responseMessages: parseJsonArray(config.responseMessages || config.response_messages)
       .map(message => String(message || '').trim())
       .filter(Boolean)
@@ -307,7 +364,25 @@ function getClientPayload(req) {
   }
 }
 
+async function getWithdrawalMinimum() {
+  const { rows, error } = await query(
+    `SELECT currency, min_amount
+       FROM amounts
+      WHERE operation = 'withdrawal' AND is_active = 1
+      ORDER BY updated_at DESC, id DESC
+      LIMIT 1`,
+    []
+  )
+  if (error) throw error
+  const value = Number(rows?.[0]?.min_amount)
+  return {
+    currency: rows?.[0]?.currency || 'ARS',
+    amount: Number.isFinite(value) ? value : null,
+  }
+}
+
 async function loadBotFlow() {
+  const withdrawalMinAmount = await getWithdrawalMinimum()
   const { rows: screenRows, error: screenError } = await query(
     `SELECT id, name, is_root, sort_order
        FROM bot_screens
@@ -330,7 +405,7 @@ async function loadBotFlow() {
     if (screen) screen.items.push(sanitizeItem(item))
   }
 
-  return { flow: { screens } }
+  return { flow: { screens }, withdrawalMinAmount }
 }
 
 export async function getBotFlow(req, res, next) {
@@ -592,6 +667,53 @@ export async function submitClientBotForm(req, res, next) {
     const validationErrors = validateFormValues(formConfig, values)
     if (validationErrors.length) {
       return res.status(400).json({ error: 'Formulario incompleto.', details: validationErrors, code: 'INVALID_BOT_FORM_VALUES' })
+    }
+
+    if (formConfig.isWithdrawal) {
+      const amountFieldDef = (formConfig.fields || []).find(f =>
+        f.type === 'number' && /monto|amount|importe|retiro/i.test(`${f.key} ${f.label}`)
+      )
+      const rawAmount = amountFieldDef?.key != null
+        ? values?.[amountFieldDef.key]
+        : (values?.monto ?? values?.amount ?? values?.monto_retiro ?? values?.importe ?? values?.monto_solicitado)
+
+      const invalidErr = (msg) => res.status(400).json({ error: msg, details: [msg], code: 'INVALID_WITHDRAWAL_AMOUNT' })
+
+      if (rawAmount == null || String(rawAmount).trim() === '') {
+        const label = amountFieldDef?.label || 'monto'
+        return invalidErr(`Ingresá el ${label} que querés retirar.`)
+      }
+      const requestedAmount = Number(rawAmount)
+      if (Number.isNaN(requestedAmount)) {
+        return invalidErr('El monto ingresado no es un número válido.')
+      }
+      if (requestedAmount <= 0) {
+        return invalidErr('El monto del retiro debe ser mayor a cero.')
+      }
+
+      const minConfig = Number.isFinite(Number(formConfig.withdrawalMinAmount))
+        ? { amount: Number(formConfig.withdrawalMinAmount), currency: null }
+        : await getWithdrawalMinimum()
+      const minAmount = Number(minConfig?.amount)
+      if (Number.isFinite(minAmount) && requestedAmount < minAmount) {
+        return res.status(400).json({
+          error: `El monto mínimo de retiro es ${minAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${minConfig?.currency || 'ARS'}.`,
+          details: [`El monto mínimo de retiro es ${minAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${minConfig?.currency || 'ARS'}.`],
+          code: 'WITHDRAWAL_MIN_AMOUNT',
+        })
+      }
+
+      const withdrawable = await getWithdrawableBalanceByChatId(chatId)
+      if (!Number.isFinite(withdrawable) || withdrawable < requestedAmount) {
+        const errMsg = Number.isFinite(withdrawable)
+          ? `Tu saldo retirable es de ${withdrawable.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS. No es suficiente para ese retiro.`
+          : 'No tenés saldo cobrable suficiente para ese retiro.'
+        return res.status(400).json({
+          error: errMsg,
+          details: [errMsg],
+          code: 'INSUFFICIENT_WITHDRAWABLE_BALANCE',
+        })
+      }
     }
 
     const created = []

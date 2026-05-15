@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import ChatOutlinedIcon                  from '@mui/icons-material/ChatOutlined'
 import GroupOutlinedIcon                 from '@mui/icons-material/GroupOutlined'
 import PersonOutlinedIcon                from '@mui/icons-material/PersonOutlined'
@@ -17,12 +17,13 @@ import LogoutOutlinedIcon                from '@mui/icons-material/LogoutOutline
 import useAuth                           from '../../../hooks/useAuth'
 import { useSystemConfig }               from '../../../context/SystemConfigContext'
 import { canViewSection }                from '../../../utils/adminPermissions'
+import { resolveApiAsset }                from '../../../utils/api'
 import {
   SidebarWrap, SidebarTop, LogoWrap, LogoBadge, LogoText, ToggleBtn,
   NavSection, SectionLabel, NavList, NavItem, NavBtn, NavIcon, NavLabel, NavArrow,
   SubList, SubBtn, NavTooltip,
   NavScrollArea, SidebarSpacer, SidebarBottom,
-  UserRow, UserAvatarWrap, UserMeta, UserName, UserRole, LogoutBtn, LogoutIconBtn,
+  UserRow, UserAvatarWrap, UserAvatarImg, UserMeta, UserName, UserRole, LogoutBtn, LogoutIconBtn,
 } from './Sidebar.styles'
 
 const NAV_ITEMS = [
@@ -123,6 +124,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
   const { systemConfig }     = useSystemConfig()
   const [openItems, setOpenItems] = useState({})
   const [loggingOut, setLoggingOut] = useState(false)
+  const [avatarFailed, setAvatarFailed] = useState(false)
   const activeItem = activeSection ?? 'chat'
 
   const toggleSub = (id) => setOpenItems(p => ({ ...p, [id]: !p[id] }))
@@ -155,6 +157,12 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
   const logoInitials = systemConfig.appName.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'BC'
   const userInitials = (user?.username || user?.name || 'U').slice(0, 2).toUpperCase()
   const roleLabel    = ROLE_LABELS[user?.role] || 'Operador'
+  const userAvatarUrl = resolveApiAsset(user?.avatar_url || user?.avatarUrl || '')
+  const showAvatarImage = Boolean(userAvatarUrl) && !avatarFailed
+
+  useEffect(() => {
+    setAvatarFailed(false)
+  }, [userAvatarUrl])
 
   return (
     <SidebarWrap $expanded={expanded}>
@@ -242,7 +250,17 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
 
         {/* expanded: avatar pill */}
         <UserRow $expanded={expanded}>
-          <UserAvatarWrap>{userInitials}</UserAvatarWrap>
+          <UserAvatarWrap>
+            {showAvatarImage ? (
+              <UserAvatarImg
+                src={userAvatarUrl}
+                alt={user?.full_name || user?.name || user?.username || 'Usuario'}
+                onError={() => setAvatarFailed(true)}
+              />
+            ) : (
+              userInitials
+            )}
+          </UserAvatarWrap>
           <UserMeta>
             <UserName>{user?.username || user?.name || 'Admin'}</UserName>
             <UserRole>{roleLabel}</UserRole>

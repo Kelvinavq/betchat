@@ -471,7 +471,7 @@ export const ChatHeaderCenter = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 3px;
   min-width: 0;
 `
 
@@ -522,6 +522,50 @@ export const HeaderPillBadge = styled.span`
   border-radius: 8px;
   padding: 2px 7px;
   letter-spacing: 0.04em;
+`
+
+export const HeaderBalanceRow = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+`
+
+export const HeaderBalanceLabel = styled.span`
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.28);
+  flex-shrink: 0;
+`
+
+export const HeaderBalanceValue = styled.span`
+  font-size: 9px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.52);
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+`
+
+export const HeaderBalanceBtn = styled.button`
+  width: 14px;
+  height: 14px;
+  border-radius: 4px;
+  border: none;
+  background: none;
+  color: rgba(255, 255, 255, 0.28);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 0;
+  transition: color 0.16s ease;
+
+  svg { font-size: 10px; }
+  &:hover:not(:disabled) { color: rgba(255, 255, 255, 0.60); }
+  &:disabled { opacity: 0.40; cursor: default; }
 `
 
 export const ConnectionBanner = styled.div`
@@ -1106,6 +1150,7 @@ const scrollBtnIn = keyframes`
 
 export const BotFormCard = styled.form`
   width: min(100%, 286px);
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 10px;
@@ -1114,6 +1159,41 @@ export const BotFormCard = styled.form`
   border: 1px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.18);
   background: rgba(255, 255, 255, 0.055);
   color: rgba(255,255,255,0.88);
+`
+
+const spin = keyframes`
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+`
+
+export const BotFormLoadingOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  border-radius: 14px;
+  background: rgba(6, 8, 20, 0.75);
+  backdrop-filter: blur(3px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+`
+
+export const BotFormSpinner = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.18);
+  border-top-color: var(--bc-client-accent, #46aaff);
+  animation: ${spin} 0.7s linear infinite;
+`
+
+export const BotFormLoadingText = styled.span`
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.52);
+  letter-spacing: 0.04em;
 `
 
 export const BotFormTitle = styled.div`
@@ -1184,9 +1264,98 @@ export const BotFormSubmit = styled.button`
 `
 
 export const BotFormError = styled.div`
-  font-size: 11px;
-  color: #fca5a5;
-  line-height: 1.35;
+  margin-top: 10px;
+  padding: 10px 12px 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(248,113,113,0.22);
+  background:
+    radial-gradient(circle at top left, rgba(248,113,113,0.16), transparent 42%),
+    rgba(248,113,113,0.10);
+  color: #fecaca;
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.03),
+    0 10px 26px rgba(0,0,0,0.18);
+  .bot-form-error__title {
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: #fff5f5;
+    margin-bottom: 4px;
+  }
+  .bot-form-error__text {
+    font-size: 12px;
+    line-height: 1.45;
+    color: #fecaca;
+  }
+`
+
+export const BotFormModalOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  padding: 14px;
+  background: rgba(3, 7, 18, 0.46);
+  backdrop-filter: blur(4px);
+  border-radius: 18px;
+`
+
+export const BotFormModalCard = styled.div`
+  width: min(100%, 330px);
+  border-radius: 20px;
+  border: 1px solid rgba(248,113,113,0.22);
+  background:
+    radial-gradient(circle at top, rgba(248,113,113,0.16), transparent 44%),
+    linear-gradient(180deg, rgba(17,24,39,0.98), rgba(8,15,30,0.98));
+  box-shadow: 0 22px 48px rgba(0,0,0,0.38);
+  padding: 18px 16px 16px;
+  text-align: center;
+`
+
+export const BotFormModalIcon = styled.div`
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  margin: 0 auto 10px;
+  display: grid;
+  place-items: center;
+  background: rgba(248,113,113,0.14);
+  color: #fecaca;
+  svg { font-size: 24px; }
+`
+
+export const BotFormModalTitle = styled.div`
+  font-size: 15px;
+  font-weight: 800;
+  color: #fff;
+  margin-bottom: 6px;
+`
+
+export const BotFormModalText = styled.div`
+  font-size: 13px;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.82);
+  margin-bottom: 14px;
+`
+
+export const BotFormModalActions = styled.div`
+  display: flex;
+  justify-content: center;
+`
+
+export const BotFormModalBtn = styled.button`
+  height: 36px;
+  min-width: 110px;
+  border: none;
+  border-radius: 999px;
+  padding: 0 16px;
+  background: linear-gradient(135deg, #ef4444, #f97316);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
 `
 
 export const BotFormSelect = styled.select`

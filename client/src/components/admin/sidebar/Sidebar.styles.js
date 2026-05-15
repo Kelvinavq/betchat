@@ -315,6 +315,14 @@ export const UserAvatarWrap = styled.div`
   color: rgba(100,180,255,0.90);
   flex-shrink: 0;
   letter-spacing: 0.02em;
+  overflow: hidden;
+`
+
+export const UserAvatarImg = styled.img`
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 `
 
 export const UserMeta = styled.div`

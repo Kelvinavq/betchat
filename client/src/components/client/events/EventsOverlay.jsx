@@ -255,8 +255,8 @@ export default function EventsOverlay() {
 
   const availableCount = events.filter((e) => !e.has_played).length
 
-  // Don't render when there are no active events
-  if (events.length === 0) return null
+  // Don't render when there are no playable events left for this client
+  if (availableCount === 0) return null
 
   return createPortal(
     <>

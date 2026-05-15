@@ -1588,6 +1588,10 @@ export async function adjustChatClientBalance(req, res, next) {
       message: data.successMessage,
       balance: data.currencies?.ARS ?? null,
     })
+    io?.to(`chat:${chatId}`).emit('balance:updated', {
+      chatId,
+      balance: data.currencies?.ARS ?? null,
+    })
   } catch (error) {
     next(error)
   }

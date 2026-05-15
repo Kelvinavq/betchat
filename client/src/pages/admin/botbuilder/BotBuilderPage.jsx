@@ -77,6 +77,7 @@ const normalizeFormConfig = (config = {}) => ({
   description: config.description || '',
   submitLabel: config.submitLabel || 'Enviar',
   isWithdrawal: Boolean(config.isWithdrawal),
+  withdrawalMinAmount: config.withdrawalMinAmount == null ? '' : config.withdrawalMinAmount,
   responseMessages: Array.isArray(config.responseMessages) ? config.responseMessages : [],
   fields: Array.isArray(config.fields) && config.fields.length
     ? config.fields.map((field, index) => {
@@ -515,7 +516,7 @@ const EditButtonModal = ({ item, screens, currentScreenId, onClose, onSave }) =>
   )
 }
 
-const EditFormModal = ({ item, onClose, onSave }) => {
+const EditFormModal = ({ item, onClose, onSave, withdrawalMinAmount }) => {
   const [form, setForm] = useState(() => normalizeFormConfig(item?.formConfig))
 
   const updateField = (index, patch) => {
@@ -566,6 +567,9 @@ const EditFormModal = ({ item, onClose, onSave }) => {
     description: form.description.trim(),
     submitLabel: form.submitLabel.trim() || 'Enviar',
     isWithdrawal: Boolean(form.isWithdrawal),
+    withdrawalMinAmount: form.withdrawalMinAmount === '' || form.withdrawalMinAmount == null
+      ? null
+      : Number(form.withdrawalMinAmount),
     responseMessages: form.responseMessages.map(message => message.trim()).filter(Boolean),
     fields: form.fields
       .map((field, index) => ({
@@ -798,6 +802,24 @@ const EditFormModal = ({ item, onClose, onSave }) => {
               </FieldCheckInfo>
             </FieldCheckRow>
           </FieldGroup>
+          {form.isWithdrawal && (
+            <FieldGroup>
+              <FieldLabel>Monto mínimo de retiro</FieldLabel>
+              <FieldInput
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.withdrawalMinAmount ?? withdrawalMinAmount.amount ?? ''}
+                onChange={e => setForm(c => ({ ...c, withdrawalMinAmount: e.target.value }))}
+                placeholder={withdrawalMinAmount.amount ? String(withdrawalMinAmount.amount) : '0'}
+              />
+              <FieldHint>
+                {withdrawalMinAmount.amount
+                  ? `Sugerencia desde la base: ${Number(withdrawalMinAmount.amount).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${withdrawalMinAmount.currency || 'ARS'}`
+                  : 'Se usará la configuración guardada en el bot.'}
+              </FieldHint>
+            </FieldGroup>
+          )}
         </ModalBody>
 
         <ModalFoot>
@@ -1072,6 +1094,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
   const [toast, setToast]                       = useState(null)
   const [loading, setLoading]                   = useState(true)
   const [saving, setSaving]                     = useState(false)
+  const [withdrawalMinAmount, setWithdrawalMinAmount] = useState({ amount: null, currency: 'ARS' })
   const [isMobile, setIsMobile]                 = useState(() => window.innerWidth < 768)
   const [mobilePanel, setMobilePanel]           = useState('flow')
   const toastTimerRef = useRef(null)
@@ -1098,6 +1121,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
         const nextFlow = data.flow?.screens?.length ? data.flow : INITIAL_FLOW
         if (!alive) return
         setFlow(nextFlow)
+        setWithdrawalMinAmount(data.withdrawalMinAmount || { amount: null, currency: 'ARS' })
         setSelectedScreenId(nextFlow.screens.find(s => s.isRoot)?.id || nextFlow.screens[0]?.id || 'root')
       } catch (error) {
         if (!alive) return
@@ -1535,6 +1559,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
           item={modal.item}
           onClose={() => setModal(null)}
           onSave={handleSaveForm}
+          withdrawalMinAmount={withdrawalMinAmount}
         />
       )}
 

@@ -523,6 +523,10 @@ export async function updateProfile(req, res, next) {
     if (!current) return res.status(404).json({ error: 'Usuario no encontrado', code: 'USER_NOT_FOUND' })
 
     let avatarUrl = current.avatar_url || null
+    if (req.body.clearAvatar) {
+      await removeProfileFile(current.avatar_url)
+      avatarUrl = null
+    }
     if (req.body.avatar_data_url) {
       const image = dataUrlToFile(req.body.avatar_data_url)
       if (!image) return res.status(400).json({ error: 'Imagen de perfil invalida', code: 'INVALID_AVATAR' })

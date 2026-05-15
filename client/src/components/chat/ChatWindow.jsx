@@ -17,6 +17,8 @@ import ReplyIcon from '@mui/icons-material/Reply'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PauseIcon from '@mui/icons-material/Pause'
 import LogoutIcon from '@mui/icons-material/Logout'
+import RefreshIcon from '@mui/icons-material/Refresh'
+import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import WavingHandOutlinedIcon from '@mui/icons-material/WavingHandOutlined'
 import { ChatContext } from '../../context/ChatContext'
 import { useSystemConfig } from '../../context/SystemConfigContext'
@@ -36,6 +38,7 @@ import {
   ChatHeader, ChatHeaderSide, ChatHeaderCenter,
   ChatHeaderBtn,
   HeaderPill, HeaderPillText, HeaderPillBadge,
+  HeaderBalanceRow, HeaderBalanceLabel, HeaderBalanceValue, HeaderBalanceBtn,
   LogoutNoticeOverlay, LogoutNoticeCard, LogoutNoticeIcon, LogoutNoticeTitle,
   LogoutNoticeText, LogoutNoticeBtn,
   ConnectionBanner,
@@ -46,6 +49,8 @@ import {
   BotButtonsWrap, BotOptionBtn,
   BotFormCard, BotFormTitle, BotFormDesc, BotFormField, BotFormInputRow,
   BotFormInput, BotFormSelect, BotFormPasteBtn, BotFormSubmit, BotFormError,
+  BotFormLoadingOverlay, BotFormSpinner, BotFormLoadingText,
+  BotFormModalOverlay, BotFormModalCard, BotFormModalIcon, BotFormModalTitle, BotFormModalText, BotFormModalActions, BotFormModalBtn,
   FormSentCard, FormSentTitle, FormSentRow, FormSentLabel, FormSentValue,
   ScrollDownBtn,
   BottomArea, AttachPanel, AttachGrid, AttachOption,
@@ -772,21 +777,32 @@ const parseFormSubmission = (text = '') => {
   }
 }
 
-const BotFormMessage = ({ form, disabled, onSubmit }) => {
+const BotFormMessage = ({ form, disabled, onSubmit, initialError = '', initialErrorCode = '' }) => {
   const config = form?.formConfig || {}
   const [values, setValues] = useState(() => {
+    const saved = form?.initialValues || {}
     const init = {}
     for (const field of config.fields || []) {
-      init[field.key] = ''
+      init[field.key] = saved[field.key] ?? ''
       if (field.type === 'select' && field.conditionalFields) {
         for (const cf of Object.values(field.conditionalFields)) {
-          if (cf?.key) init[cf.key] = ''
+          if (cf?.key) init[cf.key] = saved[cf.key] ?? ''
         }
       }
     }
     return init
   })
-  const [error, setError] = useState('')
+  const [error, setError] = useState(initialError)
+  const [showErrorModal, setShowErrorModal] = useState(Boolean(initialError))
+  const [errorCode, setErrorCode] = useState(initialErrorCode)
+
+  useEffect(() => {
+    if (initialError) {
+      setError(initialError)
+      setShowErrorModal(true)
+    }
+    if (initialErrorCode) setErrorCode(initialErrorCode)
+  }, [initialError, initialErrorCode])
 
   const pasteInto = async (key) => {
     try {
@@ -797,7 +813,7 @@ const BotFormMessage = ({ form, disabled, onSubmit }) => {
     }
   }
 
-  const submit = (event) => {
+  const submit = async (event) => {
     event.preventDefault()
     for (const field of config.fields || []) {
       const raw = String(values[field.key] ?? '').trim()
@@ -841,14 +857,94 @@ const BotFormMessage = ({ form, disabled, onSubmit }) => {
         }
       }
     }
+
+    if (config.isWithdrawal) {
+      const withdrawalField = config.fields.find(field =>
+        field.type === 'number'
+        && /monto|amount|importe|retiro/i.test(`${field.key} ${field.label}`)
+      )
+      const rawAmount = withdrawalField ? String(values[withdrawalField.key] ?? '').trim() : ''
+      const amount = Number(rawAmount)
+      const minAmount = Number(config.withdrawalMinAmount || 0)
+      const showAmountErr = (msg) => { setError(msg); setErrorCode('INVALID_WITHDRAWAL_AMOUNT'); setShowErrorModal(true) }
+      if (!rawAmount) return showAmountErr(`Ingresá el ${withdrawalField?.label || 'monto'} que querés retirar.`)
+      if (Number.isNaN(amount)) return showAmountErr('El monto ingresado no es un número válido.')
+      if (amount <= 0) return showAmountErr('El monto del retiro debe ser mayor a cero.')
+      if (minAmount > 0 && amount < minAmount) {
+        setError(`El monto mínimo de retiro es ${minAmount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS.`)
+        setErrorCode('WITHDRAWAL_MIN_AMOUNT')
+        setShowErrorModal(true)
+        return
+      }
+    }
+
     setError('')
-    onSubmit(form, values)
+    setErrorCode('')
+    try {
+      await onSubmit(form, values)
+    } catch (err) {
+      const backendDetails = err?.payload?.details
+      const backendError = err?.payload?.error
+      const backendCode = err?.payload?.code || ''
+      const message =
+        (Array.isArray(backendDetails) && backendDetails[0]) ||
+        backendError ||
+        err?.message ||
+        'No se pudo enviar el formulario.'
+      setError(message)
+      setErrorCode(backendCode)
+      setShowErrorModal(true)
+    }
   }
+
+  const errorCopy = (() => {
+    const fmtARS = (n) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+
+    const withdrawalField = config.isWithdrawal
+      ? (config.fields || []).find(f =>
+          f.type === 'number' && /monto|amount|importe|retiro/i.test(`${f.key} ${f.label}`)
+        )
+      : null
+    const rawEntered = withdrawalField ? String(values[withdrawalField.key] ?? '').trim() : ''
+    const entered = Number(rawEntered)
+    const enteredStr = rawEntered && Number.isFinite(entered) && entered > 0 ? fmtARS(entered) : null
+
+    if (errorCode === 'WITHDRAWAL_MIN_AMOUNT') {
+      const min = Number(config.withdrawalMinAmount || 0)
+      const minStr = min > 0 ? fmtARS(min) : null
+      return {
+        title: 'Monto por debajo del mínimo',
+        text: enteredStr && minStr
+          ? `Ingresaste ${enteredStr} ARS, pero el mínimo de retiro es ${minStr} ARS. Ajustá el monto para continuar.`
+          : error,
+      }
+    }
+    if (errorCode === 'INSUFFICIENT_WITHDRAWABLE_BALANCE') {
+      return {
+        title: 'Saldo insuficiente para retirar',
+        text: enteredStr
+          ? `Querés retirar ${enteredStr} ARS. ${error}`
+          : error,
+      }
+    }
+    if (errorCode === 'INVALID_WITHDRAWAL_AMOUNT') {
+      return { title: 'Monto inválido', text: error }
+    }
+    return {
+      title: 'No pudimos enviar tu solicitud',
+      text: error,
+    }
+  })()
 
   return (
     <BotFormCard onSubmit={submit}>
       <BotFormTitle>{config.title || form?.label || 'Formulario'}</BotFormTitle>
       {config.description && <BotFormDesc>{config.description}</BotFormDesc>}
+      {config.isWithdrawal && Number(config.withdrawalMinAmount || 0) > 0 && (
+        <BotFormDesc style={{ marginTop: -2, color: 'rgba(96,165,250,0.92)' }}>
+          Mínimo de retiro: {Number(config.withdrawalMinAmount).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS
+        </BotFormDesc>
+      )}
       {(config.fields || []).map(field => {
         const selectedOpt = values[field.key] || ''
         const condField = field.type === 'select' && selectedOpt ? field.conditionalFields?.[selectedOpt] : null
@@ -920,8 +1016,34 @@ const BotFormMessage = ({ form, disabled, onSubmit }) => {
           </div>
         )
       })}
-      {error && <BotFormError>{error}</BotFormError>}
-      <BotFormSubmit type="submit" disabled={disabled}>{config.submitLabel || 'Enviar'}</BotFormSubmit>
+      {disabled && (
+        <BotFormLoadingOverlay>
+          <BotFormSpinner />
+          <BotFormLoadingText>Enviando...</BotFormLoadingText>
+        </BotFormLoadingOverlay>
+      )}
+      {showErrorModal && error && (
+        <BotFormModalOverlay role="dialog" aria-modal="true" aria-labelledby={`bot-form-error-title-${form?.id || 'form'}`}>
+          <BotFormModalCard>
+            <BotFormModalIcon>
+              <WarningAmberIcon />
+            </BotFormModalIcon>
+            <BotFormModalTitle id={`bot-form-error-title-${form?.id || 'form'}`}>
+              {errorCopy.title}
+            </BotFormModalTitle>
+            <BotFormModalText>{errorCopy.text}</BotFormModalText>
+            <BotFormModalActions>
+              <BotFormModalBtn
+                type="button"
+                onClick={() => setShowErrorModal(false)}
+              >
+                Revisar
+              </BotFormModalBtn>
+            </BotFormModalActions>
+          </BotFormModalCard>
+        </BotFormModalOverlay>
+      )}
+      <BotFormSubmit type="submit" disabled={disabled || showErrorModal}>{config.submitLabel || 'Enviar'}</BotFormSubmit>
     </BotFormCard>
   )
 }
@@ -953,6 +1075,8 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const [currentBotScreenId, setCurrentBotScreenId] = useState(null)
   const [botActionPending, setBotActionPending] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('online')
+  const [withdrawableBalance, setWithdrawableBalance] = useState(null)
+  const [balanceLoading, setBalanceLoading] = useState(false)
   const [attachOpen, setAttachOpen]   = useState(false)
   const [showScroll, setShowScroll]   = useState(false)
   const [previewData, setPreviewData] = useState(null)
@@ -990,12 +1114,34 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const connectionBanner = connectionStatus === 'offline'
     ? 'Sin conexion. Guardamos tus mensajes para reenviarlos.'
     : connectionStatus === 'reconnecting' ? 'Reconectando...' : 'Conexion restablecida'
-  const showConnectionBanner = connectionStatus !== 'online'
+  const showConnectionBanner = connectionStatus === 'offline' || connectionStatus === 'reconnecting'
   const chatId = client?.chatId
+  const formatWithdrawable = (value) =>
+    value == null
+      ? '—'
+      : `${Number(value).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS`
 
   useEffect(() => {
     connectionStatusRef.current = connectionStatus
   }, [connectionStatus])
+
+  const fetchWithdrawableBalance = useCallback(async () => {
+    if (!chatId) return
+    setBalanceLoading(true)
+    try {
+      const data = await api.get(`/api/client/chats/${chatId}/balance`)
+      setWithdrawableBalance(data.withdrawable == null ? null : Number(data.withdrawable))
+    } catch {
+      setWithdrawableBalance(null)
+    } finally {
+      setBalanceLoading(false)
+    }
+  }, [chatId])
+
+  useEffect(() => {
+    setWithdrawableBalance(null)
+    fetchWithdrawableBalance()
+  }, [fetchWithdrawableBalance])
 
   const scrollToBottom = (smooth = true) => {
     const el = messagesRef.current
@@ -1012,7 +1158,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
 
   const markConnectionRestored = useCallback(() => {
     window.clearTimeout(connectionTimerRef.current)
-    setConnectionStatus(previous => previous === 'online' ? 'online' : 'connected')
+    setConnectionStatus('online')
     connectionTimerRef.current = window.setTimeout(() => setConnectionStatus('online'), 1800)
   }, [])
 
@@ -1224,66 +1370,32 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     emitTyping(false)
   }
 
-  const handleBotFormSubmit = (form, values) => {
+  const handleBotFormSubmit = async (form, values) => {
     if (!chatId || botActionPendingRef.current) return
     botActionPendingRef.current = true
     setBotActionPending(true)
-    const text = formatFormSubmission(form, values)
-    const time = messageTime()
     const clientMessageId = makeClientMessageId('client-form')
-    const responseMessages = createFormResponseMessages(form, time)
-    const botMessageIds = responseMessages.map(() => makeClientMessageId('bot-form-auto'))
-    const optimisticResponses = responseMessages.map((message, index) => ({
-      ...message,
-      id: botMessageIds[index],
-      clientMessageId: botMessageIds[index],
-    }))
-    shouldScrollBottomRef.current = true
-    setMessages(prev => [
-      ...prev.filter(message => message.id !== form.__messageId),
-      {
-        id: clientMessageId,
+    try {
+      const data = await api.post(`/api/client/bot/chats/${chatId}/forms`, {
+        formId: form.id,
+        values,
         clientMessageId,
-        type: 'text',
-        text,
-        received: false,
-        time,
-      },
-      ...optimisticResponses,
-    ])
-
-    api.post(`/api/client/bot/chats/${chatId}/forms`, {
-      formId: form.id,
-      values,
-      clientMessageId,
-      botMessageIds,
-    })
-      .then((data) => {
-        markConnectionRestored()
-        setCurrentBotScreenId(data.state?.currentScreenId || currentBotScreenId)
-        for (const message of data.messages || []) {
-          setMessages(mergeDbMessage(message))
-        }
+        botMessageIds: [],
       })
-      .catch(() => {
-        setMessages(prev => [
-          ...prev.filter(message =>
-            message.clientMessageId !== clientMessageId && !botMessageIds.includes(message.clientMessageId)
-          ),
-          {
-            id: form.__messageId || `bot-form-restore-${form.id}-${Date.now()}`,
-            type: 'bot-form',
-            form,
-            received: true,
-            time: messageTime(),
-            avatar: BOT_AVATAR,
-          },
-        ])
-      })
-      .finally(() => {
-        botActionPendingRef.current = false
-        setBotActionPending(false)
-      })
+      markConnectionRestored()
+      setCurrentBotScreenId(data.state?.currentScreenId || currentBotScreenId)
+      shouldScrollBottomRef.current = true
+      setMessages(prev => prev.filter(msg => msg.id !== form.__messageId))
+      for (const message of data.messages || []) {
+        setMessages(mergeDbMessage(message))
+      }
+    } catch (error) {
+      const message = error?.payload?.details?.[0] || error?.payload?.error || error?.message || 'No se pudo enviar el formulario.'
+      throw new Error(message)
+    } finally {
+      botActionPendingRef.current = false
+      setBotActionPending(false)
+    }
   }
 
   const emitTyping = useCallback((isTyping) => {
@@ -1671,14 +1783,19 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         adminTypingTimerRef.current = window.setTimeout(() => setAdminTyping(false), TYPING_IDLE_MS + 1600)
       }
     }
+    const onBalanceUpdated = () => {
+      fetchWithdrawableBalance()
+    }
     socket.on('message:new', onNewMessage)
     socket.on('typing', onTyping)
+    socket.on('balance:updated', onBalanceUpdated)
     return () => {
       socket.off('message:new', onNewMessage)
       socket.off('typing', onTyping)
+      socket.off('balance:updated', onBalanceUpdated)
       socket.emit('chat:leave', { chatId })
     }
-  }, [chatId, markOutboundDelivered, markOutboundReadSoon])
+  }, [chatId, fetchWithdrawableBalance, markOutboundDelivered, markOutboundReadSoon])
 
   useEffect(() => {
     if (!chatId) return
@@ -1903,6 +2020,20 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
             <HeaderPillText>{username}</HeaderPillText>
             <HeaderPillBadge>{onlineLabel}</HeaderPillBadge>
           </HeaderPill>
+          <HeaderBalanceRow>
+            <HeaderBalanceLabel>Saldo</HeaderBalanceLabel>
+            <HeaderBalanceValue>
+              {balanceLoading ? '···' : formatWithdrawable(withdrawableBalance)}
+            </HeaderBalanceValue>
+            <HeaderBalanceBtn
+              type="button"
+              onClick={fetchWithdrawableBalance}
+              aria-label="Actualizar saldo retirable"
+              disabled={balanceLoading || !chatId}
+            >
+              <RefreshIcon />
+            </HeaderBalanceBtn>
+          </HeaderBalanceRow>
           <ConnectionBanner
             $visible={showConnectionBanner}
             $tone={connectionStatus === 'connected' ? 'ok' : connectionStatus === 'reconnecting' ? 'warn' : 'danger'}
@@ -1995,6 +2126,8 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                   <BotFormMessage
                     form={{ ...msg.form, __messageId: msg.id }}
                     disabled={botActionPending}
+                    initialError={msg.form?.submitError || ''}
+                    initialErrorCode={msg.form?.submitErrorCode || ''}
                     onSubmit={handleBotFormSubmit}
                   />
                 ) : msg.type === 'image' ? (

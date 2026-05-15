@@ -185,6 +185,20 @@ export const ProfileCard = styled.div`
   animation: ${fadeUp} 0.22s ease both;
 `
 
+export const AvatarStack = styled.div`
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+`
+
+export const AvatarRemoveBtn = styled.button`
+  background: transparent; border: none; padding: 2px 6px;
+  font-family: inherit; font-size: 11px; font-weight: 500; letter-spacing: 0.01em;
+  color: rgba(255,255,255,0.35); cursor: pointer;
+  display: flex; align-items: center; gap: 3px;
+  border-radius: 5px; transition: color 0.18s, background 0.18s;
+  svg { font-size: 13px; }
+  &:hover { color: rgba(248,113,113,0.9); background: rgba(248,113,113,0.08); }
+`
+
 export const ProfileAvatar = styled.div`
   width: 64px; height: 64px; min-width: 64px;
   border-radius: 18px; background: ${gradients.btn};

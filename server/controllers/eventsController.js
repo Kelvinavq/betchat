@@ -86,18 +86,25 @@ export async function createEvent(req, res, next) {
   try {
     const body = req.body || {};
     assertEnum(body.type, EVENT_TYPES, 'Tipo de evento');
-    assertEnum(body.status || 'draft', EVENT_STATUSES, 'Estado');
+    const requestedStatus = body.status || 'draft';
+    assertEnum(requestedStatus, EVENT_STATUSES, 'Estado');
     const title = String(body.title || '').trim();
     if (!title) return res.status(400).json({ error: 'El título es obligatorio', code: 'TITLE_REQUIRED' });
     if (!body.config_json || typeof body.config_json !== 'object') {
       return res.status(400).json({ error: 'config_json es obligatorio', code: 'CONFIG_REQUIRED' });
     }
 
+    const startsAt = body.starts_at || null;
+    const nextStatus =
+      startsAt && requestedStatus === 'active' && new Date(startsAt).getTime() > Date.now()
+        ? 'scheduled'
+        : requestedStatus;
+
     const payload = {
       type: body.type,
       title,
       description: body.description || null,
-      status: body.status || 'draft',
+      status: nextStatus,
       config_json: jsonStringify(body.config_json),
       preview_json: body.preview_json ? jsonStringify(body.preview_json) : null,
       min_deposit_amount: body.min_deposit_amount ?? null,
@@ -141,7 +148,12 @@ export async function updateEvent(req, res, next) {
     const body = req.body || {};
     const nextType = body.type || event.type;
     assertEnum(nextType, EVENT_TYPES, 'Tipo de evento');
-    const nextStatus = body.status || event.status;
+    const requestedStatus = body.status || event.status;
+    const startsAt = body.starts_at ?? event.starts_at;
+    const nextStatus =
+      startsAt && requestedStatus === 'active' && new Date(startsAt).getTime() > Date.now()
+        ? 'scheduled'
+        : requestedStatus;
     assertEnum(nextStatus, EVENT_STATUSES, 'Estado');
 
     const configJson = body.config_json ? jsonStringify(body.config_json) : jsonStringify(event.config_json);

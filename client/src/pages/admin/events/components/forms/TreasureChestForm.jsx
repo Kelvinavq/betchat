@@ -110,6 +110,8 @@ export default function TreasureChestForm({ form, onChange }) {
         </Label>
       </FieldGrid>
 
+      <Divider />
+
       <Label style={{ marginTop: 12 }}>
         Descripción
         <Textarea
@@ -142,6 +144,17 @@ export default function TreasureChestForm({ form, onChange }) {
           />
         </Label>
       </FieldGrid>
+
+      <div style={{ marginTop: 12 }}>
+        <Label>
+          Fecha y hora de inicio
+          <Input
+            type="datetime-local"
+            value={form.starts_at || ''}
+            onChange={(e) => onChange({ ...form, starts_at: e.target.value })}
+          />
+        </Label>
+      </div>
 
       <Label style={{ marginTop: 12 }}>
         Tipo de premio
