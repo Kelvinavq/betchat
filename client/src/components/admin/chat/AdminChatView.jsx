@@ -45,7 +45,7 @@ import {
   HeaderMenuWrap, HeaderMenuBtn, HeaderBtnWrap, HeaderBtnBadge, DropdownMenu, DropdownItem,
   PinnedMessageBar, PinnedMessageMain, PinnedMessageIcon, PinnedMessageText,
   PinnedMessageTitle, PinnedMessagePreview, PinnedMessageClose,
-  MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgBubble, MsgMeta, MsgStatus, MsgTime,
+  MessagesArea, MessagesList, MsgRow, MsgAvatar, MsgContent, MsgSenderName, MsgBubble, MsgMeta, MsgStatus, MsgTime,
   FormSubmissionCard, FormSubmissionTitle, FormSubmissionRow, FormSubmissionLabel, FormSubmissionValue, FormSubmissionCopy,
   MessageActionMenu, MessageActionItem, ReplyQuote, ReplyAuthor, ReplyText,
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
@@ -160,6 +160,7 @@ const mapDbMessage = (msg) => ({
   readAt: msg.readAt || null,
   deliveryState: msg.readAt ? 'read' : msg.deliveredAt ? 'delivered' : 'sent',
   replyTo: msg.replyTo,
+  senderDisplayName: msg.senderDisplayName || '',
 })
 
 const mapApiCommand = (command) => ({
@@ -175,6 +176,11 @@ const deliveryLabel = (msg) => {
   if (msg.readAt || msg.deliveryState === 'read') return 'Visto'
   if (msg.deliveredAt || msg.deliveryState === 'delivered') return 'Entregado'
   return 'Enviado'
+}
+
+const adminDisplayName = (user) => {
+  const name = String(user?.full_name || user?.username || '').trim()
+  return name || 'Admin'
 }
 
 /* ── voice waveform pattern (visual only) ── */
@@ -738,6 +744,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
       createdAt: new Date(),
       time: messageTime(),
       deliveryState: 'sent',
+      senderDisplayName: adminDisplayName(user),
       replyTo: replyingTo ? {
         id: replyingTo.dbId,
         senderType: replyingTo.sent ? 'admin' : 'client',
@@ -812,7 +819,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
     const sendingId = makeClientMessageId(`admin-${type}`)
     const replyToMessageId = replyingTo?.dbId || null
     shouldScrollBottomRef.current = true
-    setMessages(prev => [...prev, { id: sendingId, clientMessageId: sendingId, type: 'sending', mediaType: type, sent: true, createdAt: new Date(), time: messageTime(), deliveryState: 'sent', replyTo: replyingTo }])
+    setMessages(prev => [...prev, { id: sendingId, clientMessageId: sendingId, type: 'sending', mediaType: type, sent: true, createdAt: new Date(), time: messageTime(), deliveryState: 'sent', senderDisplayName: adminDisplayName(user), replyTo: replyingTo }])
     setReplyingTo(null)
     try {
       const dataUrl = await fileToDataUrl(file)
@@ -889,6 +896,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
           sent: true,
           time,
           deliveryState: 'sent',
+          senderDisplayName: adminDisplayName(user),
           replyTo: replyingTo ? {
             id: replyingTo.dbId,
             senderType: replyingTo.sent ? 'admin' : 'client',
@@ -1325,6 +1333,11 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
             >
               {!msg.sent && <MsgAvatar>{chat.username?.[0]?.toUpperCase() || '?'}</MsgAvatar>}
               <MsgContent $sent={msg.sent}>
+                {msg.sent && (
+                  <MsgSenderName title={msg.senderDisplayName || adminDisplayName(user)}>
+                    {msg.senderDisplayName || adminDisplayName(user)}
+                  </MsgSenderName>
+                )}
                 {msg.type === 'sending' ? (
                   <>
                     {renderReplyQuote(msg.replyTo, msg.sent)}

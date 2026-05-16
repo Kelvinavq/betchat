@@ -1476,6 +1476,9 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const adminTypingTimerRef = useRef(null)
   const receiptProcessingTimerRef = useRef(null)
   const receiptResultsRef = useRef(new Map())
+  const hasClientCuit = Boolean(String(clientSession?.cuil || clientSession?.cuit || '').trim())
+  const isHgCashReceipt = receiptRequest?.processing === 'auto'
+  const receiptActionLabel = hasClientCuit && isHgCashReceipt ? '📣 Reportar pago' : '📎 Subir comprobante'
   const typingActiveRef = useRef(false)
   const shouldScrollBottomRef = useRef(false)
   const messageMenuRef = useRef(null)
@@ -1803,7 +1806,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         buttons: [
           {
             id: `receipt-upload-restore-${request.buttonId || 'file'}`,
-            label: '📎 Subir comprobante',
+            label: receiptActionLabel,
             buttonType: 'receipt_upload',
             receiptRequest: request,
           },
@@ -1948,7 +1951,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
               buttons: [
                 {
                   id: `receipt-upload-btn-${button.id}`,
-                  label: '📎 Subir comprobante',
+                  label: receiptActionLabel,
                   buttonType: 'receipt_upload',
                   receiptRequest: nextReceiptRequest,
                 },

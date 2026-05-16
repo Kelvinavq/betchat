@@ -272,6 +272,7 @@ function sanitizeMessage(row) {
     deliveredAt: toUtcIso(row.delivered_at),
     readAt: toUtcIso(row.read_at),
     senderAvatarUrl,
+    senderDisplayName: row.sender_display_name || '',
     replyTo,
     createdAt: toUtcIso(row.created_at),
     createdAtUtc: toUtcIso(row.created_at_utc || row.created_at),
@@ -282,6 +283,7 @@ function sanitizeMessage(row) {
 function messageSelectSql(whereClause) {
   return `SELECT m.*, DATE_FORMAT(m.created_at, '%Y-%m-%d %H:%i:%s') AS created_at_utc,
                  u.avatar_url AS sender_avatar_url,
+                 COALESCE(u.full_name, u.username, '') AS sender_display_name,
                  r.sender_type AS reply_sender_type,
                  r.message_type AS reply_message_type,
                  r.content AS reply_content,
@@ -1034,6 +1036,18 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
       if (result?.status === 'paid') {
         io.to(`chat:${chatId}`).emit('bot:reset', { chatId: Number(chatId), screenId: null })
       }
+      return result
+    }
+
+    if (active_provider === 'hgcash') {
+      const { processHgCashClientReceipt } = await import('./hgCashController.js')
+      const result = await processHgCashClientReceipt({
+        chatId,
+        clientId,
+        messageId,
+        dataUrl,
+        fileName: '',
+      })
       return result
     }
 

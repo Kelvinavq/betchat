@@ -444,6 +444,27 @@ export const ReplyText = styled.div`
   text-overflow: ellipsis;
 `
 
+export const MsgSenderName = styled.span`
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  max-width: 160px;
+  margin: 0 2px 3px;
+  padding: 1px 6px 2px;
+  border-radius: 999px;
+  background: rgba(139, 92, 246, 0.18);
+  border: 1px solid rgba(139, 92, 246, 0.32);
+  color: rgba(196, 170, 255, 0.9);
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.4;
+  letter-spacing: 0.045em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
 export const MsgBubble = styled.div`
   padding: 9px 13px;
   font-size: 13.5px;
