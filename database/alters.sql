@@ -342,6 +342,11 @@ ALTER TABLE `mercadopago_movements`
   MODIFY COLUMN `chat_id`    INT UNSIGNED DEFAULT NULL,
   MODIFY COLUMN `message_id` BIGINT UNSIGNED DEFAULT NULL;
 
+ALTER TABLE `mercadopago_movements`
+  ADD COLUMN `result_status` VARCHAR(30) NULL AFTER `sync_status`,
+  ADD COLUMN `result_reason` VARCHAR(255) NULL AFTER `result_status`,
+  ADD COLUMN `ai_model` VARCHAR(120) NULL AFTER `result_reason`;
+
 ALTER TABLE `telepagos_movements`
   MODIFY COLUMN `client_id`  INT UNSIGNED DEFAULT NULL,
   MODIFY COLUMN `chat_id`    INT UNSIGNED DEFAULT NULL,

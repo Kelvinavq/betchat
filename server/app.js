@@ -37,6 +37,7 @@ import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { startEventScheduler, stopEventScheduler } from './utils/eventScheduler.js'
 import { setupChatSockets } from './socket/chatSocket.js';
 import { setIo } from './socket/socketServer.js';
+import { query } from './config/database.js';
 
 // Variables globales
 const __filename = fileURLToPath(import.meta.url);
@@ -204,6 +205,10 @@ async function startServer() {
 
     // Conectar a BD
     await initializePool();
+
+    // Migraciones automáticas al arranque
+    await query(`ALTER TABLE chats ADD COLUMN IF NOT EXISTS client_unread_count INT UNSIGNED NOT NULL DEFAULT 0`).catch(() => {})
+    await query(`ALTER TABLE system_config ADD COLUMN IF NOT EXISTS iframe_url VARCHAR(2048) NULL DEFAULT NULL`).catch(() => {})
 
     // Iniciar scheduler de mantenimiento
     startMaintenanceScheduler()

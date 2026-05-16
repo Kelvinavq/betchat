@@ -5,6 +5,7 @@ const DEFAULT_SYSTEM_CONFIG = {
   appName: 'BetChat',
   logoUrl: '',
   faviconUrl: '',
+  iframeUrl: '',
   timezone: 'America/Bogota',
   supportType: 'phone',
   supportValue: '',
@@ -14,6 +15,7 @@ const DEFAULT_SYSTEM_CONFIG = {
 
 const SystemConfigContext = createContext({
   systemConfig: DEFAULT_SYSTEM_CONFIG,
+  configLoading: true,
   refreshSystemConfig: async () => DEFAULT_SYSTEM_CONFIG,
   setSystemConfig: () => {},
 })
@@ -27,6 +29,7 @@ const normalizeSystemConfig = (config = {}) => ({
   appName: String(config.appName || config.app_name || DEFAULT_SYSTEM_CONFIG.appName).trim() || DEFAULT_SYSTEM_CONFIG.appName,
   logoUrl: resolveApiAsset(config.logoUrl || config.logo_url || ''),
   faviconUrl: resolveApiAsset(config.faviconUrl || config.favicon_url || ''),
+  iframeUrl: String(config.iframeUrl || config.iframe_url || ''),
   timezone: String(config.timezone || DEFAULT_SYSTEM_CONFIG.timezone),
   supportType: config.supportType === 'link' || config.support_type === 'link' ? 'link' : 'phone',
   supportValue: String(config.supportValue || config.support_value || ''),
@@ -36,6 +39,7 @@ const normalizeSystemConfig = (config = {}) => ({
 
 export const SystemConfigProvider = ({ children }) => {
   const [systemConfig, setSystemConfigState] = useState(DEFAULT_SYSTEM_CONFIG)
+  const [configLoading, setConfigLoading] = useState(true)
 
   const setSystemConfig = useCallback((config) => {
     setSystemConfigState(normalizeSystemConfig(config))
@@ -66,14 +70,17 @@ export const SystemConfigProvider = ({ children }) => {
   }, [systemConfig.appName, systemConfig.faviconUrl, systemConfig.logoUrl])
 
   useEffect(() => {
-    refreshSystemConfig().catch(() => {})
+    refreshSystemConfig()
+      .catch(() => {})
+      .finally(() => setConfigLoading(false))
   }, [refreshSystemConfig])
 
   const value = useMemo(() => ({
     systemConfig,
+    configLoading,
     refreshSystemConfig,
     setSystemConfig,
-  }), [refreshSystemConfig, setSystemConfig, systemConfig])
+  }), [refreshSystemConfig, setSystemConfig, systemConfig, configLoading])
 
   return (
     <SystemConfigContext.Provider value={value}>

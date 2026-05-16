@@ -1358,6 +1358,87 @@ export const BotFormModalBtn = styled.button`
   cursor: pointer;
 `
 
+export const BankDetailsCard = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+  margin-bottom: 2px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid ${({ $received }) => $received ? 'rgba(96,165,250,0.18)' : 'rgba(255,255,255,0.12)'};
+  background:
+    radial-gradient(circle at top left, ${({ $received }) => $received ? 'rgba(96,165,250,0.12)' : 'rgba(255,255,255,0.06)'} 0%, transparent 45%),
+    ${({ $received }) => $received ? 'rgba(11,18,32,0.88)' : 'rgba(255,255,255,0.05)'};
+`
+
+export const BankDetailsHead = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`
+
+export const BankDetailsTitle = styled.div`
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.82);
+`
+
+export const BankDetailsSubtitle = styled.div`
+  font-size: 11px;
+  line-height: 1.4;
+  color: rgba(255,255,255,0.42);
+`
+
+export const BankDetailRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+`
+
+export const BankDetailLabel = styled.div`
+  font-size: 10px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(255,255,255,0.38);
+  margin-bottom: 2px;
+`
+
+export const BankDetailValue = styled.div`
+  font-size: 13px;
+  line-height: 1.4;
+  color: #fff;
+  word-break: break-word;
+  ${({ $mono }) => $mono ? 'font-family: "JetBrains Mono", "SFMono-Regular", Consolas, monospace;' : ''}
+`
+
+export const BankCopyBtn = styled.button`
+  flex-shrink: 0;
+  height: 32px;
+  border: 1px solid rgba(96,165,250,0.20);
+  background: rgba(96,165,250,0.10);
+  color: #dbeafe;
+  border-radius: 999px;
+  padding: 0 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  svg { font-size: 14px; }
+  &:hover {
+    background: rgba(96,165,250,0.16);
+    border-color: rgba(96,165,250,0.32);
+    transform: translateY(-1px);
+  }
+`
+
 export const BotFormSelect = styled.select`
   flex: 1;
   min-width: 0;
@@ -1726,8 +1807,9 @@ export const PreviewBtn = styled.button`
     color: rgba(255, 255, 255, 0.62);
   `}
 
-  &:hover { opacity: 0.82; }
-  &:active { transform: scale(0.97); }
+  &:hover:not(:disabled) { opacity: 0.82; }
+  &:active:not(:disabled) { transform: scale(0.97); }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
 `
 
 /* ── sending animation bubble ── */
@@ -1763,6 +1845,14 @@ export const PendingMediaHint = styled.div`
   color: rgba(255, 255, 255, 0.48);
   font-size: 11px;
   line-height: 1.35;
+`
+
+export const LoaderSubtext = styled.div`
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.58);
+  font-size: 11px;
+  line-height: 1.35;
+  text-align: center;
 `
 
 export const PendingMediaActions = styled.div`
@@ -1925,4 +2015,371 @@ export const ViewerBtn = styled.button`
 
   svg { font-size: 17px; }
   &:hover { opacity: 0.80; }
+`
+
+/* ── deposit credited celebration overlay ── */
+
+const depositFadeIn = keyframes`
+  from { opacity: 0; }
+  to   { opacity: 1; }
+`
+const depositScaleIn = keyframes`
+  from { opacity: 0; transform: scale(0.82) translateY(16px); }
+  to   { opacity: 1; transform: scale(1)    translateY(0);    }
+`
+const depositPulse = keyframes`
+  0%, 100% { box-shadow: 0 0 0 0 rgba(var(--alert-rgb, 0, 210, 110), 0.35); }
+  50%       { box-shadow: 0 0 0 14px rgba(var(--alert-rgb, 0, 210, 110), 0);  }
+`
+const depositSpin = keyframes`
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+`
+const depositBounce = keyframes`
+  0%   { transform: scale(0.4); opacity: 0; }
+  60%  { transform: scale(1.18); opacity: 1; }
+  80%  { transform: scale(0.92); }
+  100% { transform: scale(1); }
+`
+
+export const DepositAlertOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ${depositFadeIn} 0.25s ease both;
+`
+
+export const DepositAlertCard = styled.div.attrs(({ $accentRgb = '0, 210, 110' }) => ({
+  style: { '--alert-rgb': $accentRgb },
+}))`
+  width: 272px;
+  padding: 32px 24px 28px;
+  border-radius: 28px;
+  background: rgba(10, 14, 24, 0.97);
+  border: 1px solid rgba(var(--alert-rgb), 0.28);
+  box-shadow:
+    0 0 0 1px rgba(var(--alert-rgb), 0.08),
+    0 0 40px rgba(var(--alert-rgb), 0.12),
+    0 24px 64px rgba(0, 0, 0, 0.6);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: ${depositScaleIn} 0.42s cubic-bezier(0.16, 1, 0.3, 1) both;
+`
+
+export const DepositAlertRing = styled.div`
+  position: relative;
+  width: 80px;
+  height: 80px;
+  margin-bottom: 22px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: -6px;
+    border-radius: 50%;
+    border: 2px dashed rgba(var(--alert-rgb, 0, 210, 110), 0.22);
+    animation: ${depositSpin} 12s linear infinite;
+  }
+`
+
+export const DepositAlertIconCircle = styled.div`
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(var(--alert-rgb, 0, 210, 110), 0.12);
+  border: 2.5px solid rgba(var(--alert-rgb, 0, 210, 110), 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: ${depositPulse} 2.4s ease infinite, ${depositBounce} 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+
+  svg {
+    font-size: 36px;
+    color: rgba(var(--alert-rgb, 0, 210, 110), 1);
+  }
+`
+
+export const DepositAlertTitle = styled.h3`
+  font-size: 19px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.4px;
+  margin: 0 0 8px;
+`
+
+export const DepositAlertAmount = styled.div`
+  font-size: 30px;
+  font-weight: 800;
+  color: rgba(var(--alert-rgb, 0, 210, 110), 1);
+  letter-spacing: -1.5px;
+  line-height: 1;
+  margin-bottom: 6px;
+`
+
+export const DepositAlertSub = styled.p`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.48);
+  margin: 0 0 26px;
+  line-height: 1.5;
+`
+
+export const DepositAlertBtn = styled.button`
+  width: 100%;
+  height: 46px;
+  border-radius: 23px;
+  border: none;
+  background: linear-gradient(135deg,
+    rgba(var(--alert-rgb, 0, 210, 110), 0.75) 0%,
+    rgba(var(--alert-rgb, 0, 210, 110), 1) 100%
+  );
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 6px 24px rgba(var(--alert-rgb, 0, 210, 110), 0.35);
+  transition: opacity 0.2s, transform 0.15s;
+
+  &:hover  { opacity: 0.88; }
+  &:active { transform: scale(0.97); }
+`
+
+/* ── deposit success system message bubble ── */
+
+export const DepositSuccessBubble = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 11px 14px;
+  border-radius: 14px 14px 14px 4px;
+  background: rgba(0, 210, 110, 0.07);
+  border: 1px solid rgba(0, 210, 110, 0.22);
+  border-left: 3px solid #00d26e;
+  max-width: 260px;
+`
+
+export const DepositSuccessIcon = styled.div`
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 210, 110, 0.18);
+  border: 1.5px solid rgba(0, 210, 110, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+
+  svg { font-size: 14px; color: #00d26e; }
+`
+
+export const DepositSuccessBody = styled.div`
+  flex: 1;
+  min-width: 0;
+`
+
+export const DepositSuccessTitle = styled.div`
+  font-size: 12px;
+  font-weight: 700;
+  color: #00d26e;
+  letter-spacing: 0.2px;
+  margin-bottom: 3px;
+  text-transform: uppercase;
+`
+
+export const DepositSuccessText = styled.div`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.82);
+  line-height: 1.45;
+`
+
+/* ── receipt detail modal ── */
+
+export const ReceiptDetailOverlay = styled.div`
+  position: absolute;
+  inset: 0;
+  z-index: 80;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: ${depositFadeIn} 0.22s ease both;
+`
+
+export const ReceiptDetailCard = styled.div`
+  width: 100%;
+  max-height: 92%;
+  border-radius: 22px 22px 0 0;
+  background: rgba(12, 18, 28, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: none;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: ${depositScaleIn} 0.32s cubic-bezier(0.16, 1, 0.3, 1) both;
+`
+
+export const ReceiptDetailHeader = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  flex-shrink: 0;
+`
+
+export const ReceiptDetailTitle = styled.h3`
+  font-size: 15px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0;
+`
+
+export const ReceiptDetailClose = styled.button`
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+  flex-shrink: 0;
+  svg { font-size: 16px; }
+  &:hover { background: rgba(255, 255, 255, 0.14); }
+`
+
+export const ReceiptDetailBody = styled.div`
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px 18px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`
+
+export const ReceiptDetailPreview = styled.div`
+  width: 100%;
+  max-height: 160px;
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+
+  img {
+    width: 100%;
+    max-height: 160px;
+    object-fit: contain;
+  }
+
+  &:hover { opacity: 0.85; }
+`
+
+export const ReceiptDetailPdfPreview = styled.div`
+  width: 100%;
+  padding: 20px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  flex-shrink: 0;
+
+  svg { font-size: 28px; color: rgba(255, 255, 255, 0.35); }
+  span { font-size: 13px; color: rgba(255, 255, 255, 0.55); }
+  &:hover { opacity: 0.85; }
+`
+
+export const ReceiptDetailStatusBadge = styled.div`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: ${({ $bg }) => $bg || 'rgba(255,255,255,0.07)'};
+  color: ${({ $color }) => $color || 'rgba(255,255,255,0.6)'};
+  border: 1px solid ${({ $color }) => $color ? `${$color}33` : 'rgba(255,255,255,0.1)'};
+  svg { font-size: 15px; }
+`
+
+export const ReceiptDetailRows = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+`
+
+export const ReceiptDetailRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+
+  &:not(:last-child) {
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  }
+`
+
+export const ReceiptDetailLabel = styled.span`
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.38);
+  font-weight: 500;
+`
+
+export const ReceiptDetailValue = styled.span`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.78);
+  font-weight: 500;
+  text-align: right;
+  max-width: 60%;
+  word-break: break-all;
+`
+
+export const ReceiptDetailViewBtn = styled.button`
+  width: 100%;
+  height: 42px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex-shrink: 0;
+
+  svg { font-size: 16px; }
+  &:hover { background: rgba(255, 255, 255, 0.1); }
 `

@@ -476,6 +476,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
           visibleChats.map(chat => {
             const process = processById.get(chat.botLastButtonId)
             const isAssignedToMe = chat.assignedUserId && Number(chat.assignedUserId) === Number(user?.id)
+            const showAssigned = chat.assignedUserId && chat.botLastButtonId
             return (
             <ChatItem
               key={chat.id}
@@ -499,7 +500,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
                     <TagEl style={{ background: 'rgba(250,204,21,0.12)', color: '#facc15', border: '1px solid rgba(250,204,21,0.30)' }}>
                       {HELP_REASON_LABELS[chat.helpReason] || 'Ayuda'}
                     </TagEl>
-                  ) : chat.assignedUserId ? (
+                  ) : showAssigned ? (
                     <AssignedPill $own={isAssignedToMe}>
                       {isAssignedToMe ? 'Atendido por mi' : `Atendiendo ${chat.assignedUsername}`}
                     </AssignedPill>

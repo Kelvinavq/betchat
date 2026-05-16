@@ -86,6 +86,14 @@ export function setupChatSockets(io) {
           console.warn('[Socket.IO] No se pudo actualizar presencia online:', error.message)
         })
       }
+      // Emit persisted unread count so client badge survives page reload
+      query(
+        'SELECT client_unread_count FROM chats WHERE client_id = ? ORDER BY updated_at DESC LIMIT 1',
+        [clientId]
+      ).then(({ rows }) => {
+        const unread = Number(rows?.[0]?.client_unread_count) || 0
+        socket.emit('notify:unread', { count: unread })
+      }).catch(() => {})
     }
 
     socket.on('chat:join', async ({ chatId } = {}, ack) => {
@@ -98,6 +106,14 @@ export function setupChatSockets(io) {
         socket.join(`chat:${numericChatId}`)
         if ((payload?.role === 'admin' || payload?.role === 'cashier') && payload?.sub) {
           await assignChatIfUnassigned(numericChatId, payload.sub)
+        }
+        // Reset client unread count when client opens the chat
+        if (payload?.type === 'client' && payload?.sub) {
+          await query(
+            'UPDATE chats SET client_unread_count = 0 WHERE id = ? AND client_id = ?',
+            [numericChatId, payload.sub]
+          ).catch(() => {})
+          socket.emit('notify:unread', { count: 0 })
         }
         ack?.({ ok: true })
       } catch (error) {

@@ -23,6 +23,7 @@ import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
 import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
 import HighlightOffOutlinedIcon from '@mui/icons-material/HighlightOffOutlined'
 import BrandingWatermarkOutlinedIcon from '@mui/icons-material/BrandingWatermarkOutlined'
+import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import useAuth from '../../../hooks/useAuth'
 import { useSystemConfig } from '../../../context/SystemConfigContext'
@@ -559,6 +560,143 @@ const TypeBtn = styled.button`
   &:hover { color: rgba(255,255,255,0.65); }
 `
 
+/* ─── iframe URL section ─────────────────────────────────────── */
+const IframeSection = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 4px 0;
+`
+const IframeLabel = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.65);
+  letter-spacing: 0.01em;
+`
+const IframeDesc = styled.p`
+  font-size: 12px;
+  color: rgba(255,255,255,0.30);
+  margin: 0 0 6px;
+  line-height: 1.5;
+`
+const IframeBrowserWrap = styled.div`
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: #0d0d1a;
+  flex-shrink: 0;
+`
+const IframeBrowserBar = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.04);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+`
+const IframeTrafficDots = styled.div`
+  display: flex;
+  gap: 5px;
+  flex-shrink: 0;
+`
+const IframeTrafficDot = styled.span`
+  width: 9px; height: 9px;
+  border-radius: 50%;
+  background: ${({ $c }) => $c};
+  opacity: 0.7;
+`
+const IframeAddressBar = styled.div`
+  flex: 1;
+  height: 24px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 6px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.35);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+`
+const IframeViewport = styled.div`
+  width: 100%;
+  height: 200px;
+  overflow: hidden;
+  position: relative;
+  background: #0a0a14;
+`
+const IframeScaled = styled.iframe`
+  width: 320%;
+  height: 320%;
+  border: none;
+  transform: scale(0.3125);
+  transform-origin: top left;
+  pointer-events: none;
+`
+const IframePlaceholder = styled.div`
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: rgba(255,255,255,0.14);
+  font-size: 12.5px;
+`
+const IframePlaceholderIcon = styled.div`
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  display: flex; align-items: center; justify-content: center;
+  svg { font-size: 22px; opacity: 0.4; }
+`
+
+function IframeLivePreview({ url }) {
+  const isValid = (() => {
+    if (!url) return false
+    try { const u = new URL(url); return u.protocol === 'https:' || u.protocol === 'http:' }
+    catch { return false }
+  })()
+
+  const displayUrl = isValid ? (() => {
+    try { const u = new URL(url); return u.hostname + (u.pathname !== '/' ? u.pathname : '') }
+    catch { return url }
+  })() : (url || 'Sin URL configurada')
+
+  return (
+    <IframeBrowserWrap>
+      <IframeBrowserBar>
+        <IframeTrafficDots>
+          <IframeTrafficDot $c="#ff5f57" />
+          <IframeTrafficDot $c="#febc2e" />
+          <IframeTrafficDot $c="#28c840" />
+        </IframeTrafficDots>
+        <IframeAddressBar>
+          {isValid ? '🔒 ' : ''}{displayUrl}
+        </IframeAddressBar>
+      </IframeBrowserBar>
+      <IframeViewport>
+        {isValid ? (
+          <IframeScaled src={url} title="Preview" sandbox="allow-scripts allow-same-origin" />
+        ) : (
+          <IframePlaceholder>
+            <IframePlaceholderIcon><LanguageOutlinedIcon /></IframePlaceholderIcon>
+            {url ? 'URL inválida — usa https://...' : 'Ingresa una URL para ver la previsualización'}
+          </IframePlaceholder>
+        )}
+      </IframeViewport>
+    </IframeBrowserWrap>
+  )
+}
+
 /* ─── AI receipt models ──────────────────────────────────────── */
 // costPer1k: estimated USD per 1000 receipt reads
 // Assumes ~1000 input tokens (image + prompt) + ~80 output tokens per read
@@ -653,6 +791,7 @@ const SettingsPage = ({ onMenuOpen }) => {
     logoDataUrl: '',
     faviconUrl: '',
     faviconDataUrl: '',
+    iframeUrl: '',
     timezone: 'America/Bogota',
     supportType: 'phone',
     supportValue: '',
@@ -751,19 +890,31 @@ const SettingsPage = ({ onMenuOpen }) => {
       setAvatarPreview(profile.avatar_url ? resolveAssetUrl(profile.avatar_url) : '')
       setMontos(data.amounts || { carga: { amount: '10', currency: 'USD' }, retiro: { amount: '50', currency: 'USD' } })
       setApis(prev => ({ ...prev, ...(data.apis || {}) }))
-      setChatBank(data.chatBank || { provider: null, accountId: '' })
-      setChatAccounts(data.bankAccounts || {})
-      try {
+        setChatBank(data.chatBank || { provider: null, accountId: '' })
+        setChatAccounts(data.bankAccounts || {})
+        try {
         const creds = await api.get('/api/push/credentials')
         if (creds?.credentials && typeof creds.credentials === 'object') {
           setFirebase(prev => ({ ...prev, ...creds.credentials }))
         }
       } catch { /* firebase not configured yet */ }
-      setChatBanks((data.bankProviders || []).map(provider => ({
-        ...provider,
-        ...(BANK_STYLES[provider.id] || BANK_STYLES.manual),
-      })))
-      setThemeConfig(data.themeConfig || { clientTheme: 'betchat-dark', adminTheme: 'dark-blue' })
+        setChatBanks((data.bankProviders || []).map(provider => ({
+          ...provider,
+          ...(BANK_STYLES[provider.id] || BANK_STYLES.manual),
+        })))
+        if (!data.chatBank?.provider && Array.isArray(data.bankProviders)) {
+          const defaultProvider = data.bankProviders.find(provider => provider.id !== 'manual' && Number(provider.count || 0) > 0)
+            || data.bankProviders.find(provider => provider.id !== 'manual')
+            || data.bankProviders[0]
+          if (defaultProvider?.id) {
+            const defaultAccount = (data.bankAccounts?.[defaultProvider.id] || [])[0]
+            setChatBank({
+              provider: defaultProvider.id,
+              accountId: defaultAccount?.id ? String(defaultAccount.id) : '',
+            })
+          }
+        }
+        setThemeConfig(data.themeConfig || { clientTheme: 'betchat-dark', adminTheme: 'dark-blue' })
       const system = data.systemConfig || {}
       const nextSystem = {
         appName: system.appName || 'BetChat',
@@ -771,6 +922,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         logoDataUrl: '',
         faviconUrl: system.faviconUrl || '',
         faviconDataUrl: '',
+        iframeUrl: system.iframeUrl || '',
         timezone: system.timezone || 'America/Bogota',
         supportType: system.supportType || 'phone',
         supportValue: system.supportValue || '',
@@ -915,6 +1067,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         logoDataUrl: '',
         faviconUrl: system.faviconUrl || '',
         faviconDataUrl: '',
+        iframeUrl: system.iframeUrl || '',
         timezone: system.timezone || 'America/Bogota',
         supportType: system.supportType || 'phone',
         supportValue: system.supportValue || '',
@@ -1346,6 +1499,47 @@ const SettingsPage = ({ onMenuOpen }) => {
                     />
                   </ToggleRow>
 
+                  <SaveFooter>
+                    <SaveBtn type="button" $saved={systemSaved} onClick={saveSystem}>
+                      {systemSaved ? <><CheckIcon />Guardado</> : 'Guardar ajustes'}
+                    </SaveBtn>
+                  </SaveFooter>
+                </CardBody>
+              </Card>
+
+              {/* ── iframe URL ── */}
+              <Card $delay="80ms">
+                <CardHead>
+                  <CardIcon><LanguageOutlinedIcon /></CardIcon>
+                  <CardHeadText>
+                    <CardTitle>Página del cliente</CardTitle>
+                    <CardSub>Sitio web que se muestra como fondo en la página de clientes</CardSub>
+                  </CardHeadText>
+                </CardHead>
+                <CardBody>
+                  <IframeSection>
+                    <IframeLabel>
+                      <LanguageOutlinedIcon style={{ fontSize: 15, opacity: 0.6 }} />
+                      URL del iframe
+                    </IframeLabel>
+                    <IframeDesc>
+                      Ingresa la dirección del sitio que se mostrará embebido detrás del chat.
+                      Algunos sitios bloquean el embedding por seguridad.
+                    </IframeDesc>
+                    <FormGrid $cols={1}>
+                      <Field>
+                        <InputWrap>
+                          <FieldInput
+                            type="url"
+                            placeholder="https://tusite.com"
+                            value={systemForm.iframeUrl}
+                            onChange={e => setSystemForm(f => ({ ...f, iframeUrl: e.target.value }))}
+                          />
+                        </InputWrap>
+                      </Field>
+                    </FormGrid>
+                    <IframeLivePreview url={systemForm.iframeUrl} />
+                  </IframeSection>
                   <SaveFooter>
                     <SaveBtn type="button" $saved={systemSaved} onClick={saveSystem}>
                       {systemSaved ? <><CheckIcon />Guardado</> : 'Guardar ajustes'}

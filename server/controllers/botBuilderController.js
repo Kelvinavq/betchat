@@ -2,7 +2,7 @@ import jwt from 'jsonwebtoken'
 import { query, transaction } from '../config/database.js'
 import { config } from '../config/config.js'
 import { getCookieValue } from '../middlewares/authMiddleware.js'
-import { persistMessage } from './chatController.js'
+import { persistMessage, emitChatRefresh } from './chatController.js'
 
 const ITEM_TYPES = ['message', 'button', 'form']
 const BUTTON_TYPES = ['navigate', 'receipt_request', 'messages_only']
@@ -526,7 +526,7 @@ export async function selectClientBotOption(req, res, next) {
     }
 
     const { rows: buttonRows, error: buttonError } = await query(
-      `SELECT bi.id, bi.label, bi.button_type, bi.receipt_processing, bi.receipt_prompt, bi.show_receipt_after, bi.response_messages, bi.action_screen_id, bi.screen_id
+      `SELECT bi.id, bi.label, bi.button_type, bi.receipt_processing, bi.receipt_prompt, bi.show_receipt_after, bi.response_messages, bi.action_screen_id, bi.screen_id, bi.is_back
        FROM bot_items bi
        WHERE bi.id = ? AND bi.type = 'button'
        LIMIT 1`,
@@ -588,15 +588,27 @@ export async function selectClientBotOption(req, res, next) {
       created.push(result.message)
     }
 
-    const { rows: updateRows, error: updateError } = await query(
-      `UPDATE chats
-       SET bot_screen_id = ?, bot_last_button_id = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ? AND client_id = ?`,
-      [targetScreenId, buttonId, chatId, client.sub]
-    )
+    const isBackButton = Boolean(button.is_back)
+    const { rows: updateRows, error: updateError } = isBackButton
+      ? await query(
+          `UPDATE chats
+           SET bot_screen_id = ?, bot_last_button_id = NULL, assigned_user_id = NULL, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND client_id = ?`,
+          [targetScreenId, chatId, client.sub]
+        )
+      : await query(
+          `UPDATE chats
+           SET bot_screen_id = ?, bot_last_button_id = ?, updated_at = CURRENT_TIMESTAMP
+           WHERE id = ? AND client_id = ?`,
+          [targetScreenId, buttonId, chatId, client.sub]
+        )
     if (updateError) return next(updateError)
     if (!updateRows?.affectedRows) {
       return res.status(404).json({ error: 'Chat no encontrado.', code: 'CHAT_NOT_FOUND' })
+    }
+
+    if (isBackButton) {
+      void emitChatRefresh(chatId).catch(() => {})
     }
 
     res.status(201).json({
@@ -613,7 +625,7 @@ export async function selectClientBotOption(req, res, next) {
       state: {
         chatId,
         currentScreenId: targetScreenId,
-        lastButtonId: buttonId,
+        lastButtonId: isBackButton ? null : buttonId,
       },
     })
   } catch (error) {

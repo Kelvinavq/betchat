@@ -138,7 +138,7 @@ async function removeBrandingFile(url) {
 
 export async function getSystemConfig() {
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, favicon_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -147,6 +147,7 @@ export async function getSystemConfig() {
     appName: row.app_name || 'BetChat',
     logoUrl: row.logo_url || '',
     faviconUrl: row.favicon_url || '',
+    iframeUrl: row.iframe_url || '',
     timezone: row.timezone || 'America/Bogota',
     supportType: row.support_type || 'phone',
     supportValue: row.support_value || '',
@@ -497,12 +498,13 @@ export async function updateSystemConfig(req, res, next) {
     const timezone = isValidTimezone(req.body.timezone) ? req.body.timezone : (current.timezone || 'America/Bogota')
     const supportType = ['link', 'phone'].includes(req.body.supportType) ? req.body.supportType : (current.supportType || 'phone')
     const supportValue = normalizeText(req.body.supportValue ?? req.body.support_value ?? current.supportValue ?? '').slice(0, 500)
+    const iframeUrl = normalizeText(req.body.iframeUrl ?? req.body.iframe_url ?? current.iframeUrl ?? '').slice(0, 2048)
 
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled)`,
-      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, timezone, supportType, supportValue || null, clientRegistrationEnabled, clientLogoutEnabled]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled)`,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, clientRegistrationEnabled, clientLogoutEnabled]
     )
     if (error) return next(error)
 

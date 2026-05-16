@@ -87,9 +87,10 @@ export async function resetClientBotAdmin(req, res, next) {
   }
 }
 
-const emitMessage = (chatId, message) => {
-  io.to(`chat:${chatId}`).emit('message:new', message)
-  io.to('admins').emit('message:new', message)
+const emitMessage = (chatId, message, extra = {}) => {
+  const payload = Object.keys(extra).length > 0 ? { ...message, ...extra } : message
+  io.to(`chat:${chatId}`).emit('message:new', payload)
+  io.to('admins').emit('message:new', payload)
 }
 
 const emitMessageStatus = (chatId, statuses) => {
@@ -807,6 +808,7 @@ export async function persistMessage({
   fileName = '',
   clientMessageId = '',
   replyToMessageId = null,
+  extra = {},
 }) {
   if (messageType === 'text' && !String(content || '').trim()) {
     const error = new Error('El mensaje no puede estar vacio')
@@ -875,11 +877,12 @@ export async function persistMessage({
       content,
       fileName: filePayload.fileName,
     })
+    const isClientSender = senderType === 'client'
     await connection.execute(
       `UPDATE chats
-       SET unread_count = unread_count + ?, last_message = ?, last_message_type = ?, last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+       SET unread_count = unread_count + ?, client_unread_count = client_unread_count + ?, last_message = ?, last_message_type = ?, last_message_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
        WHERE id = ?`,
-      [senderType === 'client' ? 1 : 0, preview.slice(0, 500), messageType, chatId]
+      [isClientSender ? 1 : 0, isClientSender ? 0 : 1, preview.slice(0, 500), messageType, chatId]
     )
 
     const [messageRows] = await connection.execute(
@@ -894,8 +897,19 @@ export async function persistMessage({
   const message = sanitizeMessage(result)
   message.clientMessageId = clientMessageId || ''
   await invalidateMessageCache(chatId, messageDay)
-  const chat = sanitizeChat(await getChat(chatId))
-  emitMessage(chatId, message)
+  const chatRow = await getChat(chatId)
+  const chat = sanitizeChat(chatRow)
+  emitMessage(chatId, message, extra)
+  if (chatRow?.client_id && message.senderType !== 'client') {
+    io.to(`client:${chatRow.client_id}`).emit('message:notify', {
+      id: message.id,
+      chatId: Number(chatId),
+      senderType: message.senderType,
+      content: message.content || '',
+      messageType: message.messageType || 'text',
+      fileName: message.fileName || '',
+    })
+  }
   emitChatUpdate(chat)
   return { message, chat }
 }
@@ -913,8 +927,7 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
   try {
     extracted = await extractReceiptData(dataUrl)
     aiModel = extracted?.model || null
-    aiStatus = 'ok'
-  } catch (err) {
+    aiStatus = 'ok'  } catch (err) {
     console.error('[Receipt] Error extracción IA:', err.message)
   }
 
@@ -995,6 +1008,34 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
     const bankAccountId = bank_account_id || null
 
     console.log(`[Receipt] Contexto — receipt_processing=${receipt_processing} active_provider=${active_provider} bankAccountId=${bankAccountId}`)
+
+    if (active_provider === 'mercadopago') {
+      const { processMercadoPagoClientReceipt } = await import('./mercadoPagoController.js')
+      const result = await processMercadoPagoClientReceipt({
+        chatId,
+        clientId,
+        messageId,
+        dataUrl,
+        fileName: '',
+      })
+      const amount = result?.extractedData?.amount ? Number(result.extractedData.amount) : null
+      if (result?.status) {
+        io.to(`chat:${chatId}`).emit('receipt:result', {
+          chatId: Number(chatId),
+          messageId: Number(messageId),
+          status: result.status,
+          amount,
+          date: result?.extractedData?.date || null,
+          time: result?.extractedData?.time || null,
+          transactionId: result?.extractedData?.transaction_id || null,
+          resultReason: result.resultReason || null,
+        })
+      }
+      if (result?.status === 'paid') {
+        io.to(`chat:${chatId}`).emit('bot:reset', { chatId: Number(chatId), screenId: null })
+      }
+      return result
+    }
 
     // Manual por operador, o sin botón seleccionado (null → tratar como manual)
     if (!receipt_processing || receipt_processing === 'manual') {
@@ -1599,3 +1640,5 @@ export async function adjustChatClientBalance(req, res, next) {
     next(error)
   }
 }
+
+

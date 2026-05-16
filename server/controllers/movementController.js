@@ -62,7 +62,7 @@ function serializeMovement(row) {
     description: row.description || '',
     accountHolder: row.account_holder || '',
     aiExtractedText,
-    aiStatus: row.ai_status || '',
+    aiStatus: row.ai_status || (row.provider === 'mercadopago' ? 'ok' : ''),
     aiModel: row.ai_model || '',
     isDuplicate: Boolean(row.is_duplicate),
     duplicateOfId: row.duplicate_of_id ? Number(row.duplicate_of_id) : null,
@@ -117,7 +117,7 @@ function baseBankSelect(provider, table, whereSql) {
     ${provider === 'mercadopago' ? 'm.mercadopago_id' : 'NULL'} AS mercadopago_id,
     ${provider === 'telepagos' ? 'm.description' : 'NULL'} AS description,
     ${provider === 'telepagos' ? 'm.account_holder' : 'NULL'} AS account_holder,
-    NULL AS ai_extracted_text, NULL AS ai_status, NULL AS ai_model, 0 AS is_duplicate, NULL AS duplicate_of_id, '' AS duplicate_summary,
+    NULL AS ai_extracted_text, NULL AS ai_status, ${provider === 'mercadopago' ? 'm.ai_model' : 'NULL'} AS ai_model, 0 AS is_duplicate, NULL AS duplicate_of_id, '' AS duplicate_summary,
     '' AS processed_by, NULL AS processed_at,
     m.game_platform_load_id, m.game_load_date, m.game_load_time, m.game_load_amount, m.sync_status,
     m.created_at, m.updated_at,
@@ -380,3 +380,4 @@ export async function resolveManualMovement(req, res, next) {
     next(error)
   }
 }
+

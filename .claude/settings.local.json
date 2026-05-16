@@ -16,7 +16,16 @@
       "PowerShell(git -C \"c:\\\\laragon\\\\www\\\\betchat\" diff --stat HEAD)",
       "PowerShell(git -C \"c:\\\\laragon\\\\www\\\\betchat\" status --short)",
       "Bash(dir \"c:\\\\laragon\\\\www\\\\betchat\\\\client\\\\node_modules\\\\@mui\\\\icons-material\" /b)",
-      "Bash(findstr /i \"CurrencyExchange\")"
+      "Bash(findstr /i \"CurrencyExchange\")",
+      "Bash(node --input-type=module --experimental-vm-modules)",
+      "Bash(npx react-scripts *)",
+      "Bash(node -e ' *)",
+      "Bash(grep -E \"\\\\.\\(js|jsx|ts|tsx\\)$\")",
+      "Bash(Test-Path \"c:\\\\laragon\\\\www\\\\betchat\\\\node_modules\\\\@mui\\\\icons-material\\\\SupportAgent.js\")",
+      "Bash(mysql -u root -e \"ALTER TABLE betchat.chats ADD COLUMN IF NOT EXISTS client_unread_count INT UNSIGNED NOT NULL DEFAULT 0;\")",
+      "PowerShell(& \"C:\\\\laragon\\\\bin\\\\mysql\\\\mysql-8.0.30-winx64\\\\bin\\\\mysql.exe\" -u root -e \"ALTER TABLE betchat.chats ADD COLUMN IF NOT EXISTS client_unread_count INT UNSIGNED NOT NULL DEFAULT 0;\")",
+      "Read(//c/laragon/bin/mysql/**)",
+      "Read(//c/laragon/**)"
     ]
   }
 }

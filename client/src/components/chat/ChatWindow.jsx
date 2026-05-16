@@ -19,7 +19,10 @@ import PauseIcon from '@mui/icons-material/Pause'
 import LogoutIcon from '@mui/icons-material/Logout'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
+import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
 import WavingHandOutlinedIcon from '@mui/icons-material/WavingHandOutlined'
+import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
+import CheckIcon from '@mui/icons-material/Check'
 import { ChatContext } from '../../context/ChatContext'
 import { useSystemConfig } from '../../context/SystemConfigContext'
 import { api, resolveApiAsset } from '../../utils/api'
@@ -51,6 +54,7 @@ import {
   BotFormInput, BotFormSelect, BotFormPasteBtn, BotFormSubmit, BotFormError,
   BotFormLoadingOverlay, BotFormSpinner, BotFormLoadingText,
   BotFormModalOverlay, BotFormModalCard, BotFormModalIcon, BotFormModalTitle, BotFormModalText, BotFormModalActions, BotFormModalBtn,
+  BankDetailsCard, BankDetailsHead, BankDetailsTitle, BankDetailsSubtitle, BankDetailRow, BankDetailLabel, BankDetailValue, BankCopyBtn,
   FormSentCard, FormSentTitle, FormSentRow, FormSentLabel, FormSentValue,
   ScrollDownBtn,
   BottomArea, AttachPanel, AttachGrid, AttachOption,
@@ -60,12 +64,22 @@ import {
   PreviewActions, PreviewBtn,
   SendingBubbleWrap,
   PendingMediaWrap, PendingMediaTitle, PendingMediaHint,
+  LoaderSubtext,
   PendingMediaActions, PendingMediaBtn,
   MediaMsgImg, MediaMsgPdf,
   VoiceBubble, VoicePlayBtn, VoiceWave, VoiceProgress, VoiceBar, VoiceSeek, VoiceTime, VoiceSpeedBtn,
   ViewerOverlay, ViewerContent, ViewerFileName, ViewerImg,
   ViewerEmbed, ViewerActions, ViewerBtn,
   AuthLoadingScreen,
+  DepositAlertOverlay, DepositAlertCard, DepositAlertRing, DepositAlertIconCircle,
+  DepositAlertTitle, DepositAlertAmount, DepositAlertSub, DepositAlertBtn,
+  DepositSuccessBubble, DepositSuccessIcon, DepositSuccessBody,
+  DepositSuccessTitle, DepositSuccessText,
+  ReceiptDetailOverlay, ReceiptDetailCard, ReceiptDetailHeader,
+  ReceiptDetailTitle, ReceiptDetailClose, ReceiptDetailBody,
+  ReceiptDetailPreview, ReceiptDetailPdfPreview, ReceiptDetailStatusBadge,
+  ReceiptDetailRows, ReceiptDetailRow, ReceiptDetailLabel, ReceiptDetailValue,
+  ReceiptDetailViewBtn,
 } from './ChatWindow.styles'
 
 /* ── login view ── */
@@ -280,9 +294,10 @@ const HelpDialog = ({ open, onClose, onStart, loading, registrationEnabled }) =>
 /* ── sending loader ── */
 
 const LOADER_TEXTS = {
-  image: ['Enviando imagen', 'Ya casi terminamos', 'Un momento más'],
-  pdf:   ['Enviando archivo', 'Ya casi terminamos', 'Un momento más'],
-  login: ['Ingresando al chat', 'Preparando sesión', 'Ya casi terminamos'],
+  image:   ['Enviando imagen',      'Ya casi terminamos', 'Un momento más'],
+  pdf:     ['Enviando archivo',     'Ya casi terminamos', 'Un momento más'],
+  receipt: ['Enviando comprobante', 'Verificando pago',   'Un momento más'],
+  login:   ['Ingresando al chat',   'Preparando sesión',  'Ya casi terminamos'],
 }
 
 const SendingLoader = ({ mediaType }) => {
@@ -309,6 +324,9 @@ const SendingLoader = ({ mediaType }) => {
           {char === ' ' ? ' ' : char}
         </span>
       ))}
+      {(mediaType === 'image' || mediaType === 'pdf') && (
+        <LoaderSubtext>Estamos procesando tu comprobante. Esto puede tardar unos segundos.</LoaderSubtext>
+      )}
     </div>
   )
 }
@@ -319,9 +337,190 @@ const ChatAuthLoader = () => (
   </AuthLoadingScreen>
 )
 
+/* ── deposit credited celebration ── */
+
+const fmtARS = (n) =>
+  Number.isFinite(Number(n))
+    ? Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    : null
+
+const RECEIPT_ALERT_CONFIG = {
+  paid: {
+    accentRgb: '0, 210, 110',
+    icon: <CheckCircleOutlinedIcon />,
+    title: '¡Saldo acreditado!',
+    sub: (amountStr) => amountStr
+      ? <>Tu depósito de <strong>${amountStr} ARS</strong> fue procesado.<br />¡Ya podés jugar!</>
+      : <>Tu depósito fue procesado con éxito.<br />¡Ya podés jugar!</>,
+    btn: '¡Entendido!',
+    dismissMs: 7000,
+  },
+  duplicate: {
+    accentRgb: '245, 158, 11',
+    icon: <WarningAmberIcon />,
+    title: 'Comprobante duplicado',
+    sub: () => <>Este comprobante ya fue procesado anteriormente.<br />Contactá a soporte si creés que es un error.</>,
+    btn: 'Entendido',
+    dismissMs: 12000,
+  },
+  amount_low: {
+    accentRgb: '245, 158, 11',
+    icon: <WarningAmberIcon />,
+    title: 'Monto insuficiente',
+    sub: () => <>El monto del comprobante es menor al mínimo requerido.<br />Revisá y volvé a intentarlo.</>,
+    btn: 'Entendido',
+    dismissMs: 12000,
+  },
+  insufficient_info: {
+    accentRgb: '245, 158, 11',
+    icon: <WarningAmberIcon />,
+    title: 'Comprobante incompleto',
+    sub: () => <>No pudimos leer todos los datos del comprobante.<br />Subí una imagen más clara e intentá de nuevo.</>,
+    btn: 'Entendido',
+    dismissMs: 12000,
+  },
+  invalid: {
+    accentRgb: '239, 68, 68',
+    icon: <WarningAmberIcon />,
+    title: 'No pudimos verificar',
+    sub: () => <>El comprobante no es válido o no corresponde a un pago.<br />Contactá a soporte si necesitás ayuda.</>,
+    btn: 'Entendido',
+    dismissMs: 12000,
+  },
+}
+
+const ReceiptResultAlert = ({ status, amount, onClose }) => {
+  const cfg = RECEIPT_ALERT_CONFIG[status] || RECEIPT_ALERT_CONFIG.invalid
+  const amountStr = amount != null ? fmtARS(amount) : null
+
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, cfg.dismissMs)
+    return () => window.clearTimeout(timer)
+  }, [onClose, cfg.dismissMs])
+
+  return (
+    <DepositAlertOverlay onClick={onClose}>
+      <DepositAlertCard $accentRgb={cfg.accentRgb} onClick={e => e.stopPropagation()}>
+        <DepositAlertRing>
+          <DepositAlertIconCircle>
+            {cfg.icon}
+          </DepositAlertIconCircle>
+        </DepositAlertRing>
+        <DepositAlertTitle>{cfg.title}</DepositAlertTitle>
+        {status === 'paid' && amountStr && (
+          <DepositAlertAmount>${amountStr} ARS</DepositAlertAmount>
+        )}
+        <DepositAlertSub>{cfg.sub(amountStr)}</DepositAlertSub>
+        <DepositAlertBtn onClick={onClose}>{cfg.btn}</DepositAlertBtn>
+      </DepositAlertCard>
+    </DepositAlertOverlay>
+  )
+}
+
+/* ── receipt detail modal ── */
+
+const RECEIPT_STATUS_INFO = {
+  paid:              { label: 'Acreditado',     color: '#00d26e', bg: 'rgba(0,210,110,0.12)'  },
+  duplicate:         { label: 'Duplicado',       color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  amount_low:        { label: 'Monto bajo',      color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  insufficient_info: { label: 'Info incompleta', color: '#f59e0b', bg: 'rgba(245,158,11,0.12)' },
+  invalid:           { label: 'No válido',        color: '#ef4444', bg: 'rgba(239,68,68,0.12)'  },
+}
+
+const ReceiptDetailModal = ({ msg, result, onClose, onViewFull }) => {
+  const statusInfo = RECEIPT_STATUS_INFO[result?.status] || { label: 'En proceso', color: 'rgba(255,255,255,0.45)', bg: 'rgba(255,255,255,0.06)' }
+  const isPdf = msg.type === 'pdf'
+
+  const amountStr = result?.amount != null ? fmtARS(result.amount) : null
+  const dateStr = result?.date
+    ? result.date.split('-').reverse().join('/')
+    : null
+  const timeStr = result?.time ? result.time.slice(0, 5) : null
+
+  return (
+    <ReceiptDetailOverlay onClick={onClose}>
+      <ReceiptDetailCard onClick={e => e.stopPropagation()}>
+        <ReceiptDetailHeader>
+          <ReceiptDetailTitle>Tu comprobante</ReceiptDetailTitle>
+          <ReceiptDetailClose onClick={onClose}><CloseIcon /></ReceiptDetailClose>
+        </ReceiptDetailHeader>
+
+        <ReceiptDetailBody>
+          {isPdf ? (
+            <ReceiptDetailPdfPreview onClick={onViewFull}>
+              <DescriptionIcon />
+              <span>{msg.fileName || 'Comprobante.pdf'}</span>
+            </ReceiptDetailPdfPreview>
+          ) : (
+            <ReceiptDetailPreview onClick={onViewFull}>
+              <img src={msg.mediaUrl} alt="comprobante" />
+            </ReceiptDetailPreview>
+          )}
+
+          <ReceiptDetailStatusBadge $color={statusInfo.color} $bg={statusInfo.bg}>
+            {result?.status === 'paid' ? <CheckCircleOutlinedIcon /> : null}
+            {statusInfo.label}
+          </ReceiptDetailStatusBadge>
+
+          {(amountStr || dateStr || result?.transactionId) && (
+            <ReceiptDetailRows>
+              {amountStr && (
+                <ReceiptDetailRow>
+                  <ReceiptDetailLabel>Monto</ReceiptDetailLabel>
+                  <ReceiptDetailValue>${amountStr} ARS</ReceiptDetailValue>
+                </ReceiptDetailRow>
+              )}
+              {dateStr && (
+                <ReceiptDetailRow>
+                  <ReceiptDetailLabel>Fecha</ReceiptDetailLabel>
+                  <ReceiptDetailValue>{dateStr}{timeStr ? ` ${timeStr}` : ''}</ReceiptDetailValue>
+                </ReceiptDetailRow>
+              )}
+              {result?.transactionId && (
+                <ReceiptDetailRow>
+                  <ReceiptDetailLabel>ID operación</ReceiptDetailLabel>
+                  <ReceiptDetailValue>{result.transactionId}</ReceiptDetailValue>
+                </ReceiptDetailRow>
+              )}
+            </ReceiptDetailRows>
+          )}
+
+          <ReceiptDetailViewBtn onClick={onViewFull}>
+            <VisibilityIcon /> Ver {isPdf ? 'documento' : 'imagen'} completa
+          </ReceiptDetailViewBtn>
+        </ReceiptDetailBody>
+      </ReceiptDetailCard>
+    </ReceiptDetailOverlay>
+  )
+}
+
+/* ── receipt processing indicator ── */
+
+const RECEIPT_PROC_TEXTS = [
+  'Verificando tu comprobante',
+  'Analizando el pago',
+  'Un momento más...',
+]
+
+const ReceiptProcessingIndicator = () => {
+  const [idx, setIdx] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setIdx(i => (i + 1) % RECEIPT_PROC_TEXTS.length), 2400)
+    return () => clearInterval(t)
+  }, [])
+  return (
+    <TypingBubble>
+      <TypingDot $delay={0} />
+      <TypingDot $delay={140} />
+      <TypingDot $delay={280} />
+      <TypingText>{RECEIPT_PROC_TEXTS[idx]}</TypingText>
+    </TypingBubble>
+  )
+}
+
 /* ── media preview modal (before sending) ── */
 
-const MediaPreviewModal = ({ data, onClose, onSend }) => (
+const MediaPreviewModal = ({ data, onClose, onSend, sending }) => (
   <PreviewOverlay>
     <PreviewTitle>
       {data.type === 'image' ? 'Vista previa' : 'Documento adjunto'}
@@ -337,8 +536,10 @@ const MediaPreviewModal = ({ data, onClose, onSend }) => (
     )}
 
     <PreviewActions>
-      <PreviewBtn type="button" onClick={onClose}>Cancelar</PreviewBtn>
-      <PreviewBtn type="button" $primary onClick={onSend}>Enviar</PreviewBtn>
+      <PreviewBtn type="button" onClick={onClose} disabled={sending}>Cancelar</PreviewBtn>
+      <PreviewBtn type="button" $primary onClick={onSend} disabled={sending}>
+        {sending ? 'Procesando...' : 'Enviar'}
+      </PreviewBtn>
     </PreviewActions>
   </PreviewOverlay>
 )
@@ -447,6 +648,7 @@ const mapDbMessage = (msg) => ({
   duration: msg.messageType === 'audio' ? Number(msg.content) || 0 : undefined,
   fileName: msg.fileName,
   received: msg.senderType !== 'client',
+  isDepositSuccess: msg.depositEvent === 'deposit_completed',
   createdAt: parseDateValue(msg.createdAtUtc || msg.createdAt),
   time: msg.time,
   avatarUrl: resolveApiAsset(msg.senderAvatarUrl),
@@ -723,6 +925,49 @@ const createBotButtonMessages = (screen, reason = 'screen', hiddenFormIds = []) 
   }]
 }
 
+const createBackButtonMessages = (screen, reason = 'screen') => {
+  if (!screen) return []
+  const backButtons = (screen.items || [])
+    .filter(item => item.type === 'button' && item.isBack && item.label)
+    .map(button => ({
+      id: button.id,
+      label: button.label,
+      isBack: true,
+      buttonType: button.buttonType || 'navigate',
+      actionScreenId: button.actionScreenId,
+    }))
+  if (!backButtons.length) return []
+  return [{
+    id: `bot-back-buttons-${reason}-${screen.id}-${Date.now()}`,
+    type: 'bot-buttons',
+    buttons: backButtons,
+    received: true,
+    time: messageTime(),
+    avatar: BOT_AVATAR,
+  }]
+}
+
+const createReceiptUploadButtons = (request) => {
+  if (!request) return []
+  const buttons = [{
+    id: `receipt-upload-btn-${request.buttonId}`,
+    label: '📎 Subir comprobante',
+    buttonType: 'receipt_upload',
+    receiptRequest: request,
+  }]
+  if (Array.isArray(request.backButtons)) {
+    buttons.push(...request.backButtons)
+  }
+  return [{
+    id: `bot-receipt-upload-${request.buttonId}-${Date.now()}`,
+    type: 'bot-buttons',
+    buttons,
+    received: true,
+    time: messageTime(),
+    avatar: BOT_AVATAR,
+  }]
+}
+
 const createButtonResponseMessages = (button, time = messageTime()) =>
   (button?.responseMessages || [])
     .map((text, index) => ({
@@ -775,6 +1020,127 @@ const parseFormSubmission = (text = '') => {
         : { label: line.slice(0, idx).trim() || 'Dato', value: line.slice(idx + 1).trim() }
     }).filter(r => r.value),
   }
+}
+
+const parseBankDetails = (text = '') => {
+  const plain = htmlToPlainText(String(text || '')).replace(/\u00a0/g, ' ')
+  const lines = plain.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+  const compact = lines.join(' ').trim()
+
+  const nextValue = (index) => {
+    for (let i = index + 1; i < lines.length; i += 1) {
+      const candidate = lines[i].trim()
+      if (candidate) return candidate
+    }
+    return ''
+  }
+
+  const looksLikeAlias = (value) => {
+    const s = String(value || '').trim()
+    if (!s || /\s/.test(s)) return false
+    if (/^\d+$/.test(s.replace(/[\s\-]/g, ''))) return false
+    // Argentine aliases always contain a dot (e.g. "nombre.apellido" or "nombre.banco.bna")
+    return /^[a-z0-9][a-z0-9_-]*\.[a-z0-9][a-z0-9._-]*$/i.test(s)
+  }
+  const looksLikeCbu = (value) => /^\d{20,26}$/.test(String(value || '').replace(/[\s\-]/g, ''))
+
+  let alias = ''
+  let cbu = ''
+
+  if (lines.length === 1) {
+    const only = lines[0].trim()
+    if (looksLikeCbu(only)) {
+      cbu = only.replace(/[\s\-]/g, '')
+    } else if (looksLikeAlias(only)) {
+      alias = only
+    }
+  }
+
+  for (let i = 0; i < lines.length; i += 1) {
+    const current = lines[i]
+    const lower = current.toLowerCase()
+    if (!alias && /^alias\s*[:\-]/i.test(current)) {
+      const inline = current.split(/[:\-]/).slice(1).join('-').trim()
+      const candidate = inline || nextValue(i)
+      if (looksLikeCbu(candidate)) cbu = candidate.replace(/[\s\-]/g, '')
+      else if (looksLikeAlias(candidate)) alias = candidate
+    }
+    if (!cbu && /^(cbu|cbu\/cvu|cbu cvu)\s*[:\-]/i.test(current)) {
+      const inline = current.split(/[:\-]/).slice(1).join('-').trim()
+      const candidate = inline || nextValue(i)
+      if (looksLikeCbu(candidate)) cbu = candidate.replace(/[\s\-]/g, '')
+      else if (looksLikeAlias(candidate)) alias = candidate
+    }
+    if (!alias && lower.includes('alias') && !/^alias\s*[:\-]/i.test(current)) {
+      const candidate = nextValue(i)
+      if (looksLikeAlias(candidate)) alias = candidate
+    }
+    if (!cbu && lower.includes('cbu') && !/^(cbu|cbu\/cvu|cbu cvu)\s*[:\-]/i.test(current)) {
+      const candidate = nextValue(i)
+      if (looksLikeCbu(candidate)) cbu = candidate.replace(/[\s\-]/g, '')
+    }
+  }
+
+  if (!alias && !cbu && compact) {
+    if (looksLikeCbu(compact)) cbu = compact.replace(/[\s\-]/g, '')
+    else if (looksLikeAlias(compact)) alias = compact
+  }
+
+  if (!alias && !cbu) return null
+  return { alias, cbu, kind: cbu ? 'cbu' : 'alias' }
+}
+
+const CopyableBankDetails = ({ text, received }) => {
+  const bank = parseBankDetails(text)
+  const [copied, setCopied] = useState('')
+  const timerRef = useRef(null)
+
+  useEffect(() => () => window.clearTimeout(timerRef.current), [])
+
+  if (!bank) return null
+
+  const copyValue = async (key, value) => {
+    if (!value) return
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(key)
+      window.clearTimeout(timerRef.current)
+      timerRef.current = window.setTimeout(() => setCopied(''), 1500)
+    } catch {
+      setCopied('')
+    }
+  }
+
+  return (
+    <BankDetailsCard $received={received}>
+      <BankDetailsHead>
+        <BankDetailsTitle>Datos para transferir</BankDetailsTitle>
+        <BankDetailsSubtitle>Copiá alias o CBU en un toque</BankDetailsSubtitle>
+      </BankDetailsHead>
+      {bank.alias && (
+        <BankDetailRow>
+          <div>
+        <BankDetailLabel>Alias</BankDetailLabel>
+            <BankDetailValue>{bank.alias}</BankDetailValue>
+          </div>
+          <BankCopyBtn type="button" onClick={() => copyValue('alias', bank.alias)}>
+            {copied === 'alias' ? 'Copiado' : <><ContentCopyOutlinedIcon />Copiar</>}
+          </BankCopyBtn>
+        </BankDetailRow>
+      )}
+      {bank.cbu && (
+        <BankDetailRow>
+          <div>
+        <BankDetailLabel>CBU</BankDetailLabel>
+            <BankDetailValue $mono>{bank.cbu}</BankDetailValue>
+          </div>
+          <BankCopyBtn type="button" onClick={() => copyValue('cbu', bank.cbu)}>
+            {copied === 'cbu' ? 'Copiado' : <><ContentCopyOutlinedIcon />Copiar</>}
+          </BankCopyBtn>
+        </BankDetailRow>
+      )}
+    </BankDetailsCard>
+  )
 }
 
 const BotFormMessage = ({ form, disabled, onSubmit, initialError = '', initialErrorCode = '' }) => {
@@ -1079,13 +1445,18 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [attachOpen, setAttachOpen]   = useState(false)
   const [showScroll, setShowScroll]   = useState(false)
-  const [previewData, setPreviewData] = useState(null)
-  const [viewerData, setViewerData]   = useState(null)
+  const [previewData, setPreviewData]   = useState(null)
+  const [mediaSending, setMediaSending] = useState(false)
+  const [viewerData, setViewerData]     = useState(null)
+  const [depositAlert, setDepositAlert]           = useState(null)
+  const [receiptDetailData, setReceiptDetailData] = useState(null)
+  const [receiptProcessing, setReceiptProcessing] = useState(false)
   const [adminTyping, setAdminTyping] = useState(false)
   const [replyingTo, setReplyingTo] = useState(null)
   const [messageMenu, setMessageMenu] = useState(null)
   const [swipeReply, setSwipeReply] = useState(null)
   const [receiptRequest, setReceiptRequest] = useState(null)
+  const lastReceiptRequestRef = useRef(null)
 
   const messagesRef  = useRef(null)
   const bottomRef    = useRef(null)
@@ -1103,6 +1474,8 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const readTimerRef = useRef(null)
   const typingTimerRef = useRef(null)
   const adminTypingTimerRef = useRef(null)
+  const receiptProcessingTimerRef = useRef(null)
+  const receiptResultsRef = useRef(new Map())
   const typingActiveRef = useRef(false)
   const shouldScrollBottomRef = useRef(false)
   const messageMenuRef = useRef(null)
@@ -1423,8 +1796,8 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const restoreReceiptButtons = useCallback((request) => {
     if (!request) return
     setMessages(prev => {
-      if (prev.some(message => message.type === 'bot-buttons')) return prev
-      return [...prev, {
+      const next = prev.filter(message => message.type !== 'bot-buttons')
+      return [...next, {
         id: `bot-receipt-restore-${request.buttonId || 'file'}-${Date.now()}`,
         type: 'bot-buttons',
         buttons: [
@@ -1461,6 +1834,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const handleReceiptUploadClick = useCallback((request) => {
     const req = request || receiptRequest
     if (!req) return
+    lastReceiptRequestRef.current = req
     setReceiptRequest(req)
     setMessages(prev => prev.filter(message => message.type !== 'bot-buttons'))
     watchReceiptFileDialog(req)
@@ -1480,11 +1854,24 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       setReceiptRequest(null)
     }
 
+    if (button.isBack) {
+      setReceiptRequest(null)
+    }
+
     const currentScreen = botFlow?.screens?.find(screen => screen.id === currentBotScreenId)
     const isMessagesOnly = button.buttonType === 'messages_only' || button.buttonType === 'receipt_request'
     const willShowReceipt = Boolean(button.showReceiptAfter) || button.buttonType === 'receipt_request'
     const target = isMessagesOnly ? currentScreen : (botFlow?.screens?.find(screen => screen.id === button.actionScreenId) || currentScreen)
     const targetBackButtons = (target?.items || []).filter(item => item.type === 'button' && item.isBack && item.label)
+    const currentBackButtons = (currentScreen?.items || []).filter(item => item.type === 'button' && item.isBack && item.label)
+    const backButtonRow = isMessagesOnly && currentBackButtons.length > 0 ? {
+      id: `bot-back-${button.id}-${Date.now()}`,
+      type: 'bot-buttons',
+      buttons: currentBackButtons,
+      received: true,
+      time: messageTime(),
+      avatar: BOT_AVATAR,
+    } : null
     const time = messageTime()
     const optionMessageId = makeClientMessageId('client-bot-option')
     const responseMessages = createButtonResponseMessages(button, time)
@@ -1498,13 +1885,12 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     } : null
     const botMessages = (() => {
       if (responseMessages.length > 0) {
-        return willShowReceipt
-          ? [...responseMessages, receiptPromptMsg]
-          : [...responseMessages, ...createBotButtonMessages(target, button.id)]
+        if (willShowReceipt) return [...responseMessages, receiptPromptMsg]
+        if (isMessagesOnly) return backButtonRow ? [...responseMessages, backButtonRow] : responseMessages
+        return [...responseMessages, ...createBotButtonMessages(target, button.id)]
       }
-      if (willShowReceipt) {
-        return [receiptPromptMsg]
-      }
+      if (willShowReceipt) return [receiptPromptMsg]
+      if (isMessagesOnly) return backButtonRow ? [backButtonRow] : []
       return createBotMessages(target, button.id)
     })()
     const botTextMessages = botMessages.filter(message => message.type === 'text')
@@ -1551,6 +1937,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
             screenId: target.id,
             backButtons: targetBackButtons,
           }
+          lastReceiptRequestRef.current = nextReceiptRequest
           setReceiptRequest(nextReceiptRequest)
           shouldScrollBottomRef.current = true
           setMessages(prev => [
@@ -1607,6 +1994,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     if (!file) {
       restoreReceiptButtons(pending?.request || receiptRequest)
       setReceiptRequest(null)
+      lastReceiptRequestRef.current = pending?.request || receiptRequest || lastReceiptRequestRef.current
       return
     }
     setMessages(prev => prev.filter(m =>
@@ -1619,15 +2007,33 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   }
 
   const sendMedia = async () => {
-    if (!previewData || !chatId) return
+    if (!previewData || !chatId || mediaSending) return
     const { type, url, name, file, receiptRequest: mediaReceiptRequest } = previewData
+    const currentReplyingTo = replyingTo
+
+    setMediaSending(true)
+    let dataUrl
+    try {
+      dataUrl = await fileToDataUrl(file)
+    } catch {
+      setMediaSending(false)
+      return
+    }
+    setMediaSending(false)
     setPreviewData(null)
     if (mediaReceiptRequest) setReceiptRequest(null)
 
     const sendingId = makeClientMessageId(`client-${type}`)
     const time = messageTime()
     const loaderStartedAt = Date.now()
-    const replyToMessageId = replyingTo?.dbId || null
+    const replyToMessageId = currentReplyingTo?.dbId || null
+    const replyPayload = currentReplyingTo ? {
+      id: currentReplyingTo.dbId,
+      senderType: currentReplyingTo.received ? 'admin' : 'client',
+      messageType: currentReplyingTo.type,
+      content: currentReplyingTo.text || '',
+      fileName: currentReplyingTo.fileName || '',
+    } : null
 
     shouldScrollBottomRef.current = true
     setMessages(prev => [...prev, {
@@ -1635,53 +2041,38 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       clientMessageId: sendingId,
       type: 'sending',
       mediaType: type,
+      isReceipt: !!mediaReceiptRequest,
       fileName: name,
+      statusText: mediaReceiptRequest
+        ? `Procesando comprobante ${mediaReceiptRequest.processing === 'auto' ? 'con el banco activo' : 'manual'}`
+        : 'Procesando archivo',
       received: false,
       time,
-      replyTo: replyingTo ? {
-        id: replyingTo.dbId,
-        senderType: replyingTo.received ? 'admin' : 'client',
-        messageType: replyingTo.type,
-        content: replyingTo.text || '',
-        fileName: replyingTo.fileName || '',
-      } : null,
+      replyTo: replyPayload,
     }])
     setReplyingTo(null)
     schedulePendingState(sendingId)
-    try {
-      const dataUrl = await fileToDataUrl(file)
-      if (cancelledMediaRef.current.has(sendingId)) {
-        cancelledMediaRef.current.delete(sendingId)
-        return
-      }
-      sendSocketPayload({
-        chatId,
-        clientMessageId: sendingId,
-        messageType: type,
-        content: mediaReceiptRequest
-          ? `Comprobante (${mediaReceiptRequest.processing === 'auto' ? 'procesamiento automatico por banco activo' : 'procesamiento manual'})`
-          : '',
-        dataUrl,
-        fileName: name,
-        time,
-        loaderStartedAt,
-        replyToMessageId,
-        replyTo: replyingTo ? {
-          id: replyingTo.dbId,
-          senderType: replyingTo.received ? 'admin' : 'client',
-          messageType: replyingTo.type,
-          content: replyingTo.text || '',
-          fileName: replyingTo.fileName || '',
-        } : null,
-      })
-    } catch {
-      clearPendingTimer(sendingId)
-      setMessages(prev => prev.map(msg =>
-        msg.id === sendingId
-          ? { ...msg, type: 'pending-media', mediaUrl: url, fileName: name }
-          : msg
-      ))
+
+    if (mediaReceiptRequest) {
+      window.clearTimeout(receiptProcessingTimerRef.current)
+      setReceiptProcessing(true)
+      receiptProcessingTimerRef.current = window.setTimeout(() => setReceiptProcessing(false), 90_000)
     }
+
+    sendSocketPayload({
+      chatId,
+      clientMessageId: sendingId,
+      messageType: type,
+      content: mediaReceiptRequest
+        ? `Comprobante (${mediaReceiptRequest.processing === 'auto' ? 'procesamiento automatico por banco activo' : 'procesamiento manual'})`
+        : '',
+      dataUrl,
+      fileName: name,
+      time,
+      loaderStartedAt,
+      replyToMessageId,
+      replyTo: replyPayload,
+    })
   }
 
   useEffect(() => {
@@ -1697,18 +2088,35 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         const root = flow?.screens?.find(screen => screen.isRoot) || flow?.screens?.[0]
         const currentScreen = flow?.screens?.find(screen => screen.id === botData.state?.currentScreenId) || root
         const dbMessages = (messageData.messages || []).map(mapDbMessage)
+        const lastButton = currentScreen?.items?.find(item => item.type === 'button' && item.id === botData.state?.lastButtonId)
         const submittedFormIds = currentScreen?.items?.some(item => item.type === 'form' && item.id === botData.state?.lastButtonId)
           ? [botData.state.lastButtonId]
           : []
-        const botMessages = dbMessages.length > 0
-          ? createBotButtonMessages(currentScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
-          : createBotMessages(currentScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
+        const receiptRequest = lastButton && (lastButton.buttonType === 'receipt_request' || lastButton.showReceiptAfter)
+          ? {
+              buttonId: lastButton.id,
+              label: lastButton.label,
+              processing: lastButton.receiptProcessing || 'manual',
+              screenId: currentScreen?.id || root?.id || null,
+              backButtons: (currentScreen?.items || []).filter(item => item.type === 'button' && item.isBack && item.label),
+            }
+          : null
+        const hasProgressed = Boolean(botData.state?.lastButtonId)
+        const initialScreen = hasProgressed ? currentScreen : root
+        const screenHasBackButtons = (initialScreen?.items || []).some(item => item.type === 'button' && item.isBack && item.label)
+        const botMessages = receiptRequest
+          ? createReceiptUploadButtons(receiptRequest)
+          : (hasProgressed && screenHasBackButtons)
+            ? createBackButtonMessages(initialScreen, botData.state?.lastButtonId || 'state')
+            : createBotMessages(initialScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
         const queuedMessages = readOutbox(chatId)
         if (!alive) return
         outboxRef.current = queuedMessages
         setBotFlow(flow || null)
-        setCurrentBotScreenId(currentScreen?.id || null)
-        shouldScrollBottomRef.current = true
+        setCurrentBotScreenId(initialScreen?.id || null)
+        if (receiptRequest) setReceiptRequest(receiptRequest)
+        if (receiptRequest) lastReceiptRequestRef.current = receiptRequest
+        shouldScrollBottomRef.current = 'instant'
         setMessagePage(messageData.pagination || { previousDate: null, hasPrevious: false })
         setMessages([...dbMessages, ...queuedMessages.map(mapQueuedMessage), ...botMessages])
         markOutboundDelivered()
@@ -1716,7 +2124,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       } catch {
         if (!alive) return
         setMessagePage({ previousDate: null, hasPrevious: false })
-        shouldScrollBottomRef.current = true
+        shouldScrollBottomRef.current = 'instant'
         setMessages([{
           id: 'bot-fallback',
           type: 'text',
@@ -1772,6 +2180,8 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         setAdminTyping(false)
         markOutboundDelivered()
         markOutboundReadSoon()
+        window.clearTimeout(receiptProcessingTimerRef.current)
+        setReceiptProcessing(false)
       }
     }
     const onTyping = (event) => {
@@ -1786,13 +2196,33 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     const onBalanceUpdated = () => {
       fetchWithdrawableBalance()
     }
+    const onReceiptResult = (data) => {
+      if (Number(data.chatId) !== Number(chatId)) return
+      window.clearTimeout(receiptProcessingTimerRef.current)
+      setReceiptProcessing(false)
+      if (data.messageId) {
+        receiptResultsRef.current.set(Number(data.messageId), data)
+      }
+      if (data.status === 'paid') {
+        fetchWithdrawableBalance()
+        setReceiptRequest(null)
+        lastReceiptRequestRef.current = null
+      } else {
+        restoreReceiptButtons(lastReceiptRequestRef.current || receiptRequest)
+      }
+      if (data.status) {
+        setDepositAlert({ status: data.status, amount: data.amount ?? null })
+      }
+    }
     socket.on('message:new', onNewMessage)
     socket.on('typing', onTyping)
     socket.on('balance:updated', onBalanceUpdated)
+    socket.on('receipt:result', onReceiptResult)
     return () => {
       socket.off('message:new', onNewMessage)
       socket.off('typing', onTyping)
       socket.off('balance:updated', onBalanceUpdated)
+      socket.off('receipt:result', onReceiptResult)
       socket.emit('chat:leave', { chatId })
     }
   }, [chatId, fetchWithdrawableBalance, markOutboundDelivered, markOutboundReadSoon])
@@ -1808,10 +2238,11 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       if (!root) return
       setCurrentBotScreenId(root.id)
       setReceiptRequest(null)
+      lastReceiptRequestRef.current = null
       shouldScrollBottomRef.current = true
       setMessages(prev => [
         ...prev.filter(m => m.type !== 'bot-buttons'),
-        ...createBotMessages(root, null),
+        ...createBotMessages(root, 'root-reset'),
       ])
     }
     socket.on('bot:reset', onBotReset)
@@ -1896,8 +2327,9 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
 
   useEffect(() => {
     if (!shouldScrollBottomRef.current) return
+    const instant = shouldScrollBottomRef.current === 'instant'
     shouldScrollBottomRef.current = false
-    scrollToBottom()
+    scrollToBottom(!instant)
   }, [messages])
   useEffect(() => () => {
     window.clearTimeout(readTimerRef.current)
@@ -1988,8 +2420,32 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       {previewData && (
         <MediaPreviewModal
           data={previewData}
-          onClose={() => { setPreviewData(null); if (previewData?.receiptRequest) setReceiptRequest(null) }}
+          onClose={() => { if (!mediaSending) { setPreviewData(null); if (previewData?.receiptRequest) setReceiptRequest(null) } }}
           onSend={sendMedia}
+          sending={mediaSending}
+        />
+      )}
+
+      {/* receipt result alert overlay */}
+      {depositAlert && (
+        <ReceiptResultAlert
+          status={depositAlert.status}
+          amount={depositAlert.amount}
+          onClose={() => setDepositAlert(null)}
+        />
+      )}
+
+      {/* receipt detail modal */}
+      {receiptDetailData && (
+        <ReceiptDetailModal
+          msg={receiptDetailData.msg}
+          result={receiptDetailData.result}
+          onClose={() => setReceiptDetailData(null)}
+          onViewFull={() => {
+            const { msg } = receiptDetailData
+            setReceiptDetailData(null)
+            setViewerData({ type: msg.type, url: msg.mediaUrl, name: msg.fileName })
+          }}
         />
       )}
 
@@ -2088,7 +2544,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
               <MessageContent $received={msg.received} $wide={msg.type === 'bot-buttons'}>
                 {msg.type === 'sending' ? (
                   <SendingBubbleWrap>
-                    <SendingLoader mediaType={msg.mediaType} />
+                    <SendingLoader mediaType={msg.isReceipt ? 'receipt' : msg.mediaType} />
                   </SendingBubbleWrap>
                 ) : msg.type === 'pending-media' ? (
                   <PendingMediaWrap>
@@ -2137,7 +2593,14 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                     <MediaMsgImg
                       src={msg.mediaUrl}
                       alt={msg.fileName}
-                      onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
+                      onClick={() => {
+                        const receiptResult = msg.dbId && receiptResultsRef.current.get(msg.dbId)
+                        if (receiptResult) {
+                          setReceiptDetailData({ msg, result: receiptResult })
+                        } else {
+                          setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })
+                        }
+                      }}
                     />
                   </>
                 ) : msg.type === 'pdf' ? (
@@ -2145,7 +2608,14 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                     {renderReplyQuote(msg.replyTo, msg.received)}
                     {msg.text && <MessageBubble $received={msg.received}>{msg.text}</MessageBubble>}
                     <MediaMsgPdf
-                      onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}
+                      onClick={() => {
+                        const receiptResult = msg.dbId && receiptResultsRef.current.get(msg.dbId)
+                        if (receiptResult) {
+                          setReceiptDetailData({ msg, result: receiptResult })
+                        } else {
+                          setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })
+                        }
+                      }}
                     >
                       <DescriptionIcon />
                       <span>{msg.fileName}</span>
@@ -2158,7 +2628,19 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                   </>
                 ) : (
                   (() => {
+                    if (msg.isDepositSuccess) {
+                      return (
+                        <DepositSuccessBubble>
+                          <DepositSuccessIcon><CheckIcon /></DepositSuccessIcon>
+                          <DepositSuccessBody>
+                            <DepositSuccessTitle>Depósito acreditado</DepositSuccessTitle>
+                            <DepositSuccessText>{msg.text}</DepositSuccessText>
+                          </DepositSuccessBody>
+                        </DepositSuccessBubble>
+                      )
+                    }
                     const formCard = parseFormSubmission(msg.text)
+                    const bankCard = msg.received ? parseBankDetails(msg.text) : null
                     if (formCard) {
                       return (
                         <FormSentCard>
@@ -2174,13 +2656,20 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                       )
                     }
                     return (
-                      <MessageBubble $received={msg.received}>
-                        {renderReplyQuote(msg.replyTo, msg.received)}
-                        {msg.received && hasRichText(msg.text)
-                          ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
-                          : msg.text
-                        }
-                      </MessageBubble>
+                      bankCard ? (
+                        <div>
+                          {renderReplyQuote(msg.replyTo, msg.received)}
+                          <CopyableBankDetails text={msg.text} received={msg.received} />
+                        </div>
+                      ) : (
+                        <MessageBubble $received={msg.received}>
+                          {renderReplyQuote(msg.replyTo, msg.received)}
+                          {msg.received && hasRichText(msg.text)
+                            ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
+                            : msg.text
+                          }
+                        </MessageBubble>
+                      )
                     )
                   })()
                 )}
@@ -2196,6 +2685,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
               <TypingText>Soporte escribiendo</TypingText>
             </TypingBubble>
           )}
+          {receiptProcessing && !adminTyping && <ReceiptProcessingIndicator />}
           <div ref={bottomRef} />
         </ChatMessages>
 

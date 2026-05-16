@@ -487,8 +487,9 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
   useEffect(() => { scrollToBottom(false) }, [])
   useEffect(() => {
     if (!shouldScrollBottomRef.current) return
+    const instant = shouldScrollBottomRef.current === 'instant'
     shouldScrollBottomRef.current = false
-    scrollToBottom()
+    scrollToBottom(!instant)
   }, [messages])
 
   useEffect(() => {
@@ -607,7 +608,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
       try {
         const data = await api.get(`/api/chats/${chatId}/messages?mode=day`)
         if (!alive) return
-        shouldScrollBottomRef.current = true
+        shouldScrollBottomRef.current = 'instant'
         setMessages((data.messages || []).map(mapDbMessage))
         setMessagePage(data.pagination || { previousDate: null, hasPrevious: false })
         await api.put(`/api/chats/${chatId}/read`, {})
