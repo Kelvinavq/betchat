@@ -63,6 +63,7 @@ export function usePushNotification(clientId) {
   // Silent auto-register only if permission already granted
   useEffect(() => {
     if (!clientId || done.current) return
+    if (!('Notification' in window)) return
     if (Notification.permission !== 'granted') return
     done.current = true
     const t = setTimeout(() => registerPush(clientId), 3000)

@@ -52,6 +52,14 @@ const LoginPage = () => {
       return response;
     }
 
+    if (webauthnIntent === 'register-options') {
+      return api.post('/api/auth/webauthn/register-options', {});
+    }
+
+    if (webauthnIntent === 'register-verify') {
+      return api.post('/api/auth/webauthn/register-verify', { credential });
+    }
+
     const response = await api.post('/api/auth/login', { username, password });
     login(response.user);
     setStatus({ message: 'Bienvenido de nuevo', type: 'success' });

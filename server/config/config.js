@@ -129,6 +129,11 @@ export const config = {
     redirectUri: process.env.GOOGLE_REDIRECT_URI,
   },
 
+  // WebAuthn / biometria
+  webAuthnRpId: process.env.WEBAUTHN_RP_ID,
+  webAuthnRpName: process.env.WEBAUTHN_RP_NAME,
+  webAuthnOrigin: process.env.WEBAUTHN_ORIGIN,
+
   // Redis cache (opcional)
   redis: {
     enabled: process.env.REDIS_ENABLED === 'true' || Boolean(process.env.REDIS_URL),

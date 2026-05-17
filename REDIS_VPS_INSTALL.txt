@@ -1,0 +1,222 @@
+Redis en VPS Linux para BetChat
+===============================
+
+Esta guia esta pensada para un VPS Ubuntu/Debian en produccion.
+Redis debe quedar escuchando solo en localhost para que no sea accesible
+desde internet.
+
+
+Opcion recomendada: instalar Redis con apt
+------------------------------------------
+1. Conectarse al VPS por SSH:
+   ssh usuario@IP_DEL_VPS
+
+2. Actualizar paquetes:
+   sudo apt update
+   sudo apt upgrade -y
+
+3. Instalar Redis:
+   sudo apt install redis-server -y
+
+4. Activar Redis para que inicie con el VPS:
+   sudo systemctl enable redis-server
+   sudo systemctl start redis-server
+
+5. Verificar que Redis este activo:
+   sudo systemctl status redis-server
+
+6. Verificar que Redis responda:
+   redis-cli ping
+
+   Debe responder:
+   PONG
+
+7. Confirmar que Redis escucha solo localmente:
+   sudo ss -ltnp | grep 6379
+
+   Lo esperado es ver 127.0.0.1:6379 o ::1:6379.
+   Si aparece 0.0.0.0:6379, revisar la seccion de seguridad.
+
+
+Configurar BetChat
+------------------
+En el archivo server/.env del VPS agregar o ajustar:
+
+  REDIS_ENABLED=true
+  REDIS_URL=redis://localhost:6379
+  REDIS_MESSAGE_TTL_SECONDS=300
+  REDIS_CHAT_LIST_TTL_SECONDS=30
+  REDIS_LOG_CACHE=false
+
+Notas:
+- En produccion conviene dejar REDIS_LOG_CACHE=false para no llenar los logs.
+- Si queres depurar cache temporalmente, podes usar REDIS_LOG_CACHE=true.
+- Despues de cambiar server/.env, reiniciar el backend.
+
+
+Instalar dependencias del backend
+---------------------------------
+Si el VPS instala el proyecto desde cero:
+
+  cd /ruta/al/proyecto/server
+  npm install
+
+El paquete redis ya esta declarado en server/package.json.
+
+Si por algun motivo no estuviera instalado:
+
+  cd /ruta/al/proyecto/server
+  npm install redis
+
+
+Reiniciar el backend
+--------------------
+Si usas PM2:
+
+  pm2 restart betchat
+
+o, si el proceso tiene otro nombre:
+
+  pm2 list
+  pm2 restart NOMBRE_DEL_PROCESO
+
+Si usas systemd para Node:
+
+  sudo systemctl restart betchat
+
+Si lo ejecutas manualmente durante una prueba:
+
+  cd /ruta/al/proyecto/server
+  npm start
+
+
+Seguridad basica
+----------------
+Redis no debe estar abierto a internet.
+
+1. Abrir la configuracion:
+   sudo nano /etc/redis/redis.conf
+
+2. Buscar estas opciones y dejarlas asi:
+   bind 127.0.0.1 ::1
+   protected-mode yes
+
+3. Reiniciar Redis:
+   sudo systemctl restart redis-server
+
+4. Volver a verificar:
+   sudo ss -ltnp | grep 6379
+
+5. Si usas firewall, no abras el puerto 6379.
+   Para UFW, solo revisa el estado:
+   sudo ufw status
+
+
+Comandos utiles
+---------------
+Ver estado:
+  sudo systemctl status redis-server
+
+Iniciar Redis:
+  sudo systemctl start redis-server
+
+Detener Redis:
+  sudo systemctl stop redis-server
+
+Reiniciar Redis:
+  sudo systemctl restart redis-server
+
+Ver logs:
+  sudo journalctl -u redis-server -f
+
+Entrar a redis-cli:
+  redis-cli
+
+Probar conexion:
+  redis-cli ping
+
+Ver uso de memoria:
+  redis-cli info memory
+
+Limpiar la cache actual:
+  redis-cli flushdb
+
+
+Opcion alternativa: Redis con Docker
+------------------------------------
+Usar esta opcion si tu VPS ya usa Docker para desplegar servicios.
+
+1. Crear el contenedor:
+   docker run --name betchat-redis \
+     -p 127.0.0.1:6379:6379 \
+     --restart unless-stopped \
+     -d redis:7-alpine
+
+2. Verificar que responde:
+   docker exec -it betchat-redis redis-cli ping
+
+   Debe responder:
+   PONG
+
+3. Usar el mismo server/.env:
+   REDIS_ENABLED=true
+   REDIS_URL=redis://localhost:6379
+   REDIS_MESSAGE_TTL_SECONDS=300
+   REDIS_CHAT_LIST_TTL_SECONDS=30
+   REDIS_LOG_CACHE=false
+
+Comandos Docker utiles:
+
+  docker start betchat-redis
+  docker stop betchat-redis
+  docker logs betchat-redis
+  docker exec -it betchat-redis redis-cli
+
+
+Verificacion desde BetChat
+--------------------------
+1. Reiniciar el backend.
+2. Entrar al sistema y abrir algunos chats.
+3. Si REDIS_LOG_CACHE=true, en los logs del backend deberian aparecer eventos:
+   [redis:messages] MISS
+   [redis:messages] SET
+   [redis:messages] HIT
+   [redis:chat-list] MISS
+   [redis:chat-list] SET
+   [redis:chat-list] HIT
+
+Si Redis esta apagado o no disponible, BetChat sigue funcionando con MySQL,
+pero sin cache.
+
+
+Troubleshooting
+---------------
+Error: ECONNREFUSED 127.0.0.1:6379
+  Redis no esta iniciado o no escucha en localhost.
+  Ejecutar:
+    sudo systemctl status redis-server
+    redis-cli ping
+
+Error: Redis cache unavailable
+  Revisar REDIS_URL en server/.env y reiniciar el backend.
+
+No aparecen logs de cache
+  Confirmar:
+    REDIS_ENABLED=true
+    REDIS_LOG_CACHE=true
+  Luego reiniciar el backend.
+
+El VPS se reinicio y Redis no levanto
+  Ejecutar:
+    sudo systemctl enable redis-server
+    sudo systemctl start redis-server
+
+
+Notas del proyecto
+------------------
+- Redis es opcional. Si no esta instalado o apagado, BetChat sigue usando MySQL.
+- El cache de mensajes se invalida cuando entra un mensaje nuevo o cuando cambian estados de lectura/entrega.
+- El cache de la lista de chats usa REDIS_CHAT_LIST_TTL_SECONDS.
+- Para mejor rendimiento en MySQL, aplicar el indice:
+  ALTER TABLE `messages`
+    ADD INDEX `idx_msg_chat_created_at` (`chat_id`, `created_at`, `id`);

@@ -121,7 +121,11 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
   const biometricLabel = deviceType === 'ios' ? 'FaceID' : 'Huella';
   const canUseWebAuthn = typeof window !== 'undefined' && Boolean(window.PublicKeyCredential);
 
-  const base64UrlToBuffer = (value) => Uint8Array.from(atob(value.replace(/-/g, '+').replace(/_/g, '/')), (c) => c.charCodeAt(0));
+  const base64UrlToBuffer = (value) => {
+    const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
+    return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  };
   const bufferToBase64Url = (value) => btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
   const handleSubmit = async (event) => {

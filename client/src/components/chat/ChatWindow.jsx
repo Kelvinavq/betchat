@@ -1476,7 +1476,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const adminTypingTimerRef = useRef(null)
   const receiptProcessingTimerRef = useRef(null)
   const receiptResultsRef = useRef(new Map())
-  const hasClientCuit = Boolean(String(clientSession?.cuil || clientSession?.cuit || '').trim())
+  const hasClientCuit = Boolean(String(client?.cuil || client?.cuit || '').trim())
   const isHgCashReceipt = receiptRequest?.processing === 'auto'
   const receiptActionLabel = hasClientCuit && isHgCashReceipt ? '📣 Reportar pago' : '📎 Subir comprobante'
   const typingActiveRef = useRef(false)
