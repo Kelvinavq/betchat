@@ -14,7 +14,6 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import VisibilityOffOutlinedIcon from '@mui/icons-material/VisibilityOffOutlined'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import CasinoOutlinedIcon from '@mui/icons-material/CasinoOutlined'
-import CloudOutlinedIcon from '@mui/icons-material/CloudOutlined'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined'
 import SmsOutlinedIcon from '@mui/icons-material/SmsOutlined'
@@ -815,12 +814,11 @@ const SettingsPage = ({ onMenuOpen }) => {
   /* ── apis form ── */
   const [apis, setApis] = useState({
     casino:     { token: '', url: '' },
-    aws:        { accessKey: '', secretKey: '' },
     openrouter: { apiKey: '', model: 'openai/gpt-4o-mini' },
   })
-  const [apiSaved, setApiSaved]       = useState({ casino: false, aws: false, openrouter: false })
+  const [apiSaved, setApiSaved]       = useState({ casino: false, openrouter: false })
   const [showSecret, setShowSecret]   = useState({
-    casinoToken: false, awsSecret: false, openrouterKey: false,
+    casinoToken: false, openrouterKey: false,
   })
 
   /* ── firebase push credentials ── */
@@ -862,7 +860,6 @@ const SettingsPage = ({ onMenuOpen }) => {
   }
 
   const isCasinoOk     = !!(apis.casino.token && apis.casino.url)
-  const isAwsOk        = !!(apis.aws.accessKey && apis.aws.secretKey)
   const isOpenrouterOk = !!apis.openrouter.apiKey
 
   /* ── banco de chat ── */
@@ -1766,70 +1763,6 @@ const SettingsPage = ({ onMenuOpen }) => {
                   </SaveFooter>
                   <ApiNote>
                     Permite la sincronización de clientes, saldos y transacciones con la plataforma de juegos.
-                  </ApiNote>
-                </CardBody>
-              </Card>
-
-              {/* ── AWS ── */}
-              <Card $delay="80ms">
-                <CardHead>
-                  <CardIcon
-                    $bg="rgba(249,115,22,0.12)"
-                    $br="rgba(249,115,22,0.24)"
-                    $cl="#fb923c"
-                  >
-                    <CloudOutlinedIcon />
-                  </CardIcon>
-                  <CardHeadText>
-                    <CardTitle>Amazon Web Services</CardTitle>
-                    <CardSub>Almacenamiento y servicios cloud de AWS</CardSub>
-                  </CardHeadText>
-                  <ApiStatusBadge $ok={isAwsOk}>
-                    {isAwsOk ? 'Configurado' : 'Sin configurar'}
-                  </ApiStatusBadge>
-                </CardHead>
-                <CardBody>
-                  <FormGrid>
-                    <Field>
-                      <FieldLabel>Access Key ID</FieldLabel>
-                      <InputWrap>
-                        <FieldInput
-                          type="text"
-                          placeholder="AKIAIOSFODNN7EXAMPLE"
-                          value={apis.aws.accessKey}
-                          onChange={e => setApi('aws', 'accessKey', e.target.value)}
-                          autoComplete="off"
-                          spellCheck={false}
-                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
-                        />
-                      </InputWrap>
-                    </Field>
-                    <Field>
-                      <FieldLabel>Secret Access Key</FieldLabel>
-                      <InputWrap>
-                        <FieldInput
-                          type={showSecret.awsSecret ? 'text' : 'password'}
-                          placeholder="wJalrXUtnFEMI/K7MDENG/bPxRfiCY..."
-                          $hasRight
-                          value={apis.aws.secretKey}
-                          onChange={e => setApi('aws', 'secretKey', e.target.value)}
-                          autoComplete="off"
-                          spellCheck={false}
-                          style={{ fontFamily: "'Courier New', monospace", fontSize: 12.5 }}
-                        />
-                        <InputSuffix type="button" onClick={() => toggleSecret('awsSecret')} tabIndex={-1}>
-                          {showSecret.awsSecret ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
-                        </InputSuffix>
-                      </InputWrap>
-                    </Field>
-                  </FormGrid>
-                  <SaveFooter>
-                    <SaveBtn type="button" $saved={apiSaved.aws} onClick={() => saveApi('aws')}>
-                      {apiSaved.aws ? <><CheckIcon />Guardado</> : 'Guardar'}
-                    </SaveBtn>
-                  </SaveFooter>
-                  <ApiNote>
-                    Utilizado para almacenamiento de archivos (S3) y envío de notificaciones (SNS/SES).
                   </ApiNote>
                 </CardBody>
               </Card>

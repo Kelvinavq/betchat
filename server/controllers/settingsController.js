@@ -255,23 +255,19 @@ function buildAmountResponse(amountEntry) {
 }
 
 async function getApis() {
-  const [casinoResult, awsResult, openrouterResult] = await Promise.all([
+  const [casinoResult, openrouterResult] = await Promise.all([
     query('SELECT api_url, api_key, api_secret FROM config_casino WHERE id = 1 LIMIT 1'),
-    query('SELECT access_key_id, secret_access_key, region, s3_bucket FROM config_aws WHERE id = 1 LIMIT 1'),
     query('SELECT api_key, model FROM config_openrouter WHERE id = 1 LIMIT 1'),
   ])
 
   if (casinoResult.error) throw casinoResult.error
-  if (awsResult.error) throw awsResult.error
   if (openrouterResult.error) throw openrouterResult.error
 
   const casino = casinoResult.rows?.[0] || {}
-  const aws = awsResult.rows?.[0] || {}
   const openrouter = openrouterResult.rows?.[0] || {}
 
   return {
     casino: { token: casino.api_key || '', url: casino.api_url || '', secret: casino.api_secret || '' },
-    aws: { accessKey: aws.access_key_id || '', secretKey: aws.secret_access_key || '', region: aws.region || 'us-east-1', bucket: aws.s3_bucket || '' },
     openrouter: { apiKey: openrouter.api_key || '', model: normalizeReceiptModel(openrouter.model) },
   }
 }
@@ -795,14 +791,6 @@ export async function updateApiConfig(req, res, next) {
          VALUES (1, ?, ?, ?)
          ON DUPLICATE KEY UPDATE api_url = VALUES(api_url), api_key = VALUES(api_key), api_secret = VALUES(api_secret)`,
         [normalizeText(req.body.url), normalizeText(req.body.token), normalizeText(req.body.secret)]
-      )
-      if (error) return next(error)
-    } else if (provider === 'aws') {
-      const { error } = await query(
-        `INSERT INTO config_aws (id, access_key_id, secret_access_key, region, s3_bucket)
-         VALUES (1, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE access_key_id = VALUES(access_key_id), secret_access_key = VALUES(secret_access_key), region = VALUES(region), s3_bucket = VALUES(s3_bucket)`,
-        [normalizeText(req.body.accessKey), normalizeText(req.body.secretKey), normalizeText(req.body.region || 'us-east-1'), normalizeText(req.body.bucket)]
       )
       if (error) return next(error)
     } else if (provider === 'openrouter') {

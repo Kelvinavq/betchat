@@ -174,6 +174,14 @@ export function applyClientTheme(themeId, customThemes = []) {
   setVar('--bc-client-accent-rgb', hexToRgb(theme.accent))
   setVar('--bc-client-button-gradient', `linear-gradient(135deg, ${theme.accent} 0%, ${theme.sentBubble} 100%)`)
   document.documentElement.dataset.clientTheme = theme.id
+
+  let metaTheme = document.querySelector('meta[name="theme-color"]')
+  if (!metaTheme) {
+    metaTheme = document.createElement('meta')
+    metaTheme.name = 'theme-color'
+    document.head.appendChild(metaTheme)
+  }
+  metaTheme.content = theme.headerBg
 }
 
 export function applyAdminTheme(themeId, customThemes = []) {
