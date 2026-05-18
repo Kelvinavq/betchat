@@ -10,6 +10,7 @@ const DEFAULT_SYSTEM_CONFIG = {
   timezone: 'America/Bogota',
   supportType: 'phone',
   supportValue: '',
+  supportText: '',
   clientRegistrationEnabled: true,
   clientLogoutEnabled: true,
   bubbleConfig: DEFAULT_BUBBLE_CONFIG,
@@ -35,6 +36,7 @@ const normalizeSystemConfig = (config = {}) => ({
   timezone: String(config.timezone || DEFAULT_SYSTEM_CONFIG.timezone),
   supportType: config.supportType === 'link' || config.support_type === 'link' ? 'link' : 'phone',
   supportValue: String(config.supportValue || config.support_value || ''),
+  supportText:  String(config.supportText  || config.support_text  || ''),
   clientRegistrationEnabled: configFlag(config.clientRegistrationEnabled ?? config.client_registration_enabled, true),
   clientLogoutEnabled: configFlag(config.clientLogoutEnabled ?? config.client_logout_enabled, true),
   bubbleConfig: config.bubbleConfig

@@ -163,7 +163,7 @@ async function removeBrandingFile(url) {
 
 export async function getSystemConfig() {
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled, bubble_config FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bubble_config FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -176,6 +176,7 @@ export async function getSystemConfig() {
     timezone: row.timezone || 'America/Bogota',
     supportType: row.support_type || 'phone',
     supportValue: row.support_value || '',
+    supportText: row.support_text || '',
     clientRegistrationEnabled: row.client_registration_enabled !== 0,
     clientLogoutEnabled: row.client_logout_enabled !== 0,
     bubbleConfig: normalizeBubbleConfig(parseJson(row.bubble_config)),
@@ -524,6 +525,7 @@ export async function updateSystemConfig(req, res, next) {
     const timezone = isValidTimezone(req.body.timezone) ? req.body.timezone : (current.timezone || 'America/Bogota')
     const supportType = ['link', 'phone'].includes(req.body.supportType) ? req.body.supportType : (current.supportType || 'phone')
     const supportValue = normalizeText(req.body.supportValue ?? req.body.support_value ?? current.supportValue ?? '').slice(0, 500)
+    const supportText  = normalizeText(req.body.supportText  ?? req.body.support_text  ?? current.supportText  ?? '').slice(0, 200)
     const iframeUrl = normalizeText(req.body.iframeUrl ?? req.body.iframe_url ?? current.iframeUrl ?? '').slice(0, 2048)
 
     const bubbleConfig = normalizeBubbleConfig(
@@ -531,10 +533,10 @@ export async function updateSystemConfig(req, res, next) {
     )
 
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled, bubble_config)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bubble_config = VALUES(bubble_config)`,
-      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, clientRegistrationEnabled, clientLogoutEnabled, JSON.stringify(bubbleConfig)]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bubble_config)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bubble_config = VALUES(bubble_config)`,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, JSON.stringify(bubbleConfig)]
     )
     if (error) return next(error)
 

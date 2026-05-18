@@ -257,6 +257,33 @@ export const ForgotLink = styled.a`
   &[href="#"] { display: none; }
 `
 
+export const SupportRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  margin-top: -4px;
+`
+
+export const SupportContactLink = styled.a`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  background: transparent;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  color: #25d366;
+  text-decoration: none;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: opacity 0.2s;
+  &:hover { opacity: 0.75; }
+  svg { font-size: 14px; }
+`
+
 export const HelpOverlay = styled.div`
   position: fixed;
   inset: 0;

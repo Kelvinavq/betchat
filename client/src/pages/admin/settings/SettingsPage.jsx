@@ -795,6 +795,7 @@ const SettingsPage = ({ onMenuOpen }) => {
     timezone: 'America/Bogota',
     supportType: 'phone',
     supportValue: '',
+    supportText: '',
     clientRegistrationEnabled: true,
     clientLogoutEnabled: true,
     clearLogo: false,
@@ -926,6 +927,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         timezone: system.timezone || 'America/Bogota',
         supportType: system.supportType || 'phone',
         supportValue: system.supportValue || '',
+        supportText: system.supportText || '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
         clientLogoutEnabled: system.clientLogoutEnabled !== false,
         clearLogo: false,
@@ -1071,6 +1073,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         timezone: system.timezone || 'America/Bogota',
         supportType: system.supportType || 'phone',
         supportValue: system.supportValue || '',
+        supportText: system.supportText || '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
         clientLogoutEnabled: system.clientLogoutEnabled !== false,
         clearLogo: false,
@@ -1429,9 +1432,21 @@ const SettingsPage = ({ onMenuOpen }) => {
                         <InputWrap>
                           <FieldInput
                             type={systemForm.supportType === 'link' ? 'url' : 'tel'}
-                            placeholder={systemForm.supportType === 'phone' ? '+57 300 123 4567' : 'https://wa.me/57300...'}
+                            placeholder={systemForm.supportType === 'phone' ? '+54 9 11 1234 5678' : 'https://wa.me/549...'}
                             value={systemForm.supportValue}
                             onChange={e => setSystemForm(f => ({ ...f, supportValue: e.target.value }))}
+                          />
+                        </InputWrap>
+                      </Field>
+                      <Field>
+                        <FieldLabel>Texto del enlace de ayuda</FieldLabel>
+                        <InputWrap>
+                          <FieldInput
+                            type="text"
+                            placeholder="Necesito ayuda para ingresar"
+                            value={systemForm.supportText}
+                            onChange={e => setSystemForm(f => ({ ...f, supportText: e.target.value }))}
+                            maxLength={200}
                           />
                         </InputWrap>
                       </Field>

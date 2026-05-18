@@ -34,7 +34,7 @@ import {
   FormSection, FormTitle, FormHint, FormGroup, InputLabel,
   ErrorBanner,
   StyledInput, PhoneInputRow, CountrySelect, PasswordWrapper, PasswordInput, PasswordToggle,
-  ForgotLink, ActionBtn, OrDivider, SwitchText,
+  ForgotLink, SupportRow, SupportContactLink, ActionBtn, OrDivider, SwitchText,
   HelpOverlay, HelpCard, HelpHead, HelpTitle, HelpSub, HelpClose,
   HelpOptionGrid, HelpOption, HelpTextarea, HelpActions, HelpBtn,
   ChatViewContainer,
@@ -108,7 +108,14 @@ const normalizePhone = (countryCode, value) => {
   return digits ? `${country.dial}${digits}` : ''
 }
 
-const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled }) => {
+function buildSupportUrl(type, value) {
+  if (!value) return null
+  if (type === 'link') return value
+  const cleaned = value.replace(/[\s\-\(\)]/g, '').replace(/^\+/, '')
+  return `https://wa.me/${cleaned}`
+}
+
+const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled, supportType, supportValue, supportText }) => {
   const [showPwd, setShowPwd] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
@@ -117,6 +124,10 @@ const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled }
     event.preventDefault()
     onLogin({ username, password })
   }
+
+  const helpLabel  = supportText || 'Necesito ayuda para ingresar'
+  const supportUrl = buildSupportUrl(supportType, supportValue)
+  const isWhatsApp = supportType === 'phone' && supportUrl
 
   return (
     <form onSubmit={submitLogin}>
@@ -151,7 +162,18 @@ const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled }
       </FormGroup>
 
       <ForgotLink href="#">¿Olvidaste tu contraseña?</ForgotLink>
-      <ForgotLink as="button" type="button" onClick={onHelp}>Necesito ayuda para ingresar</ForgotLink>
+      <SupportRow>
+        <ForgotLink as="button" type="button" onClick={onHelp}>{helpLabel}</ForgotLink>
+        {supportUrl && (
+          <SupportContactLink
+            href={supportUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            {isWhatsApp ? '💬 WhatsApp' : '🔗 Soporte'}
+          </SupportContactLink>
+        )}
+      </SupportRow>
       <ActionBtn type="submit" disabled={loading}>
         {loading ? 'Ingresando...' : 'Ingresar'}
       </ActionBtn>
@@ -3003,6 +3025,9 @@ const ChatWindow = ({ onClose }) => {
             onHelp={() => setHelpOpen(true)}
             loading={loading}
             registrationEnabled={systemConfig.clientRegistrationEnabled}
+            supportType={systemConfig.supportType}
+            supportValue={systemConfig.supportValue}
+            supportText={systemConfig.supportText}
           />
         )}
         {!isAuthLoading && activeView === 'register' && systemConfig.clientRegistrationEnabled && (
