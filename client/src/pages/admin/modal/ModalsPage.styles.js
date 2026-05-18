@@ -44,6 +44,7 @@ export const PageWrap = styled.div`
 export const PageScroll = styled.div`
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 22px 24px 40px;
 
   &::-webkit-scrollbar {
@@ -215,7 +216,7 @@ export const MainGrid = styled.div`
   margin-bottom: 24px;
   animation: ${fadeUp} .26s ease both;
 
-  @media (max-width: 900px) {
+  @media (max-width: 860px) {
     grid-template-columns: 1fr;
   }
 `
@@ -229,6 +230,9 @@ export const SendPanel = styled.div`
   display: flex;
   flex-direction: column;
   gap: 14px;
+  min-width: 0;
+  overflow: hidden;
+  @media (max-width: 480px) { padding: 14px; gap: 11px; }
 `
 
 export const PanelTitle = styled.h2`
@@ -263,6 +267,9 @@ export const PreviewHistoryPanel = styled.div`
   flex-direction: column;
   gap: 16px;
   min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  @media (max-width: 480px) { padding: 14px; gap: 12px; }
 `
 
 
@@ -442,6 +449,7 @@ export const ToggleThumb = styled.span`
 export const ScheduleFields = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
   animation: ${fadeUp} .18s ease both;
+  @media (max-width: 480px) { grid-template-columns: 1fr; }
 `
 
 /* ── send button ── */
@@ -492,7 +500,7 @@ export const NewTplBtn = styled.button`
 /* ── template grid ── */
 export const TemplateGrid = styled.div`
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: 12px;
 `
 
@@ -729,7 +737,11 @@ export const DlgSelect = styled.select`
 
 /* ── design picker ── */
 export const DesignPickerWrap = styled.div`
-  display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(55px, 1fr)); gap: 8px;
+  @media (max-width: 520px) {
+    grid-template-columns: 1fr 1fr;
+    & > *:last-child { grid-column: span 2; }
+  }
 `
 export const DesignOption = styled.button`
   padding: 10px 6px; border-radius: 10px; cursor: pointer; transition: all .18s;
@@ -751,7 +763,9 @@ export const DesignOptionLabel = styled.span`
   white-space: nowrap;
 `
 export const DesignOptionDesc = styled.span`
-  font-size: 9.5px; color: rgba(255,255,255,.25); white-space: nowrap;
+  font-size: 9.5px; color: rgba(255,255,255,.25);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
+  @media (max-width: 520px) { display: none; }
 `
 
 /* ── Spinner / Empty ── */

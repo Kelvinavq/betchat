@@ -425,7 +425,7 @@ export const InfoBannerText = styled.p`
 /* ── montos grid ── */
 export const MontosGrid = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
-  @media (max-width: 580px) { grid-template-columns: 1fr; }
+  @media (max-width: 680px) { grid-template-columns: 1fr; }
 `
 
 export const MontoCard = styled.div`
@@ -443,6 +443,7 @@ export const MontoCard = styled.div`
 export const MontoHead = styled.div`
   display: flex; align-items: center; gap: 13px;
   padding: 18px 20px 16px;
+  @media (max-width: 420px) { padding: 14px 14px 12px; gap: 10px; }
 `
 
 export const MontoIconWrap = styled.div`
@@ -469,6 +470,7 @@ export const MontoDivider = styled.div`
 export const MontoBody = styled.div`
   padding: 18px 20px 20px;
   display: flex; flex-direction: column; gap: 12px;
+  @media (max-width: 420px) { padding: 14px 14px 16px; }
 `
 
 export const MontoInputRow = styled.div`
@@ -481,12 +483,14 @@ export const CurrencyPrefix = styled.span`
 `
 
 export const MontoInput = styled.input`
-  flex: 1; height: 54px; padding: 0 14px;
+  flex: 1; min-width: 0; height: 54px; padding: 0 14px;
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 13px; color: #fff;
   font-size: 24px; font-weight: 600; font-family: inherit; outline: none;
   transition: border-color 0.2s, background 0.2s;
+  @media (max-width: 420px) { height: 44px; font-size: 18px; padding: 0 10px; }
   &::placeholder { color: rgba(255,255,255,0.12); font-weight: 400; font-size: 20px; }
+  @media (max-width: 420px) { &::placeholder { font-size: 15px; } }
   &::-webkit-outer-spin-button,
   &::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   &[type=number] { -moz-appearance: textfield; }
@@ -503,6 +507,7 @@ export const CurrencySelect = styled.select`
   font-size: 13px; font-weight: 600; font-family: inherit;
   outline: none; cursor: pointer; appearance: none; -webkit-appearance: none;
   min-width: 82px;
+  @media (max-width: 420px) { height: 44px; min-width: 70px; padding: 0 22px 0 10px; font-size: 12px; }
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 10px center;
   transition: border-color 0.2s;

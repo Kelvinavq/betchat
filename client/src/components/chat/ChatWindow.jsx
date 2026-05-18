@@ -346,9 +346,6 @@ const SendingLoader = ({ mediaType }) => {
           {char === ' ' ? ' ' : char}
         </span>
       ))}
-      {(mediaType === 'image' || mediaType === 'pdf') && (
-        <LoaderSubtext>Estamos procesando tu comprobante. Esto puede tardar unos segundos.</LoaderSubtext>
-      )}
     </div>
   )
 }
@@ -2106,7 +2103,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     const loadInitial = async () => {
       try {
         const [botData, messageData] = await Promise.all([
-          api.get('/api/client/bot/flow'),
+          client?.temporary ? Promise.resolve({ flow: null, state: null }) : api.get('/api/client/bot/flow'),
           chatId ? api.get(`/api/client/chats/${chatId}/messages?mode=day`) : Promise.resolve({ messages: [] }),
         ])
         const flow = botData.flow
@@ -2143,7 +2140,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         if (receiptRequest) lastReceiptRequestRef.current = receiptRequest
         shouldScrollBottomRef.current = 'instant'
         setMessagePage(messageData.pagination || { previousDate: null, hasPrevious: false })
-        setMessages([...dbMessages, ...queuedMessages.map(mapQueuedMessage), ...botMessages])
+        setMessages([...dbMessages, ...queuedMessages.map(mapQueuedMessage), ...(client?.temporary ? [] : botMessages)])
         markOutboundDelivered()
         markOutboundReadSoon()
       } catch {
@@ -2253,7 +2250,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   }, [chatId, fetchWithdrawableBalance, markOutboundDelivered, markOutboundReadSoon])
 
   useEffect(() => {
-    if (!chatId) return
+    if (!chatId || client?.temporary) return
     const socket = getSocket('client')
     const onBotReset = ({ chatId: resetChatId, screenId }) => {
       if (Number(resetChatId) !== Number(chatId)) return
@@ -2588,7 +2585,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                       </PendingMediaBtn>
                     </PendingMediaActions>
                   </PendingMediaWrap>
-                ) : msg.type === 'bot-buttons' ? (
+                ) : msg.type === 'bot-buttons' && !client?.temporary ? (
                   <BotButtonsWrap>
                     {msg.buttons.map(button => (
                       <BotOptionBtn
@@ -2603,7 +2600,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                       </BotOptionBtn>
                     ))}
                   </BotButtonsWrap>
-                ) : msg.type === 'bot-form' ? (
+                ) : msg.type === 'bot-form' && !client?.temporary ? (
                   <BotFormMessage
                     form={{ ...msg.form, __messageId: msg.id }}
                     disabled={botActionPending}
@@ -2618,6 +2615,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
                     <MediaMsgImg
                       src={msg.mediaUrl}
                       alt={msg.fileName}
+                      loading="lazy"
                       onClick={() => {
                         const receiptResult = msg.dbId && receiptResultsRef.current.get(msg.dbId)
                         if (receiptResult) {

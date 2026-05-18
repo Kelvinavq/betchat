@@ -88,7 +88,8 @@ export const StickyTopBar = styled.div`
   margin: 0 -28px;
   display: flex;
   align-items: center;
-  gap: 12px;
+  flex-wrap: wrap;
+  gap: 8px 12px;
   border-bottom: 1px solid rgba(255,255,255,0.06);
   @media (max-width: 600px) { padding: 10px 14px 0; margin: 0 -14px; }
 `
@@ -131,13 +132,17 @@ export const TabCount = styled.span`
   color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.35)'};
 `
 
-export const TabSpacer = styled.div`flex: 1;`
+export const TabSpacer = styled.div`
+  flex: 1;
+  @media (max-width: 480px) { display: none; }
+`
 
 export const ModeLabel = styled.span`
   font-size: 12px;
   color: rgba(255,255,255,0.38);
   font-weight: 600;
   white-space: nowrap;
+  @media (max-width: 480px) { display: none; }
 `
 
 export const ModeBadge = styled.button`
@@ -153,6 +158,7 @@ export const ModeBadge = styled.button`
   cursor: pointer;
   transition: opacity 0.15s, transform 0.12s;
   margin-bottom: 2px;
+  @media (max-width: 480px) { margin-left: auto; }
 
   ${({ $mode }) => $mode === 'auto' ? css`
     background: linear-gradient(135deg, rgba(34,197,94,0.20) 0%, rgba(16,185,129,0.14) 100%);
@@ -268,6 +274,7 @@ export const ConfigHint = styled.span`
   font-size: 11px;
   color: rgba(255,255,255,0.22);
   white-space: nowrap;
+  @media (max-width: 600px) { display: none; }
 `
 
 /* ── filter bar ── */
@@ -330,13 +337,16 @@ export const SearchRow = styled.div`
   display: flex;
   align-items: center;
   gap: 12px;
+  flex-wrap: wrap;
   animation: ${fadeUp} 0.21s ease both;
 `
 
 export const SearchBox = styled.div`
   position: relative;
   flex: 1;
+  min-width: 160px;
   max-width: 440px;
+  @media (max-width: 600px) { max-width: 100%; width: 100%; }
 `
 
 export const SrchIcon = styled.div`

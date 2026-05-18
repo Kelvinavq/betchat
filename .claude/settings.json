@@ -9,7 +9,11 @@
       "Bash(grep -E \"\\\\.\\(js|ts\\)$\")",
       "Bash(node -e ' *)",
       "Bash(grep \"\\\\.js$\")",
-      "Bash(node -e \"const pkg = require\\('./client/node_modules/@mui/icons-material/package.json'\\); const exports = pkg.exports; const keys = Object.keys\\(exports || {}\\); console.log\\('Total exports:', keys.length\\); console.log\\('Has ./HelpOutline:', './HelpOutline' in exports\\); console.log\\('Has ./HelpOutlined:', './HelpOutlined' in exports\\); console.log\\('Has ./SmartToyOutlined:', './SmartToyOutlined' in exports\\);\")"
+      "Bash(node -e \"const pkg = require\\('./client/node_modules/@mui/icons-material/package.json'\\); const exports = pkg.exports; const keys = Object.keys\\(exports || {}\\); console.log\\('Total exports:', keys.length\\); console.log\\('Has ./HelpOutline:', './HelpOutline' in exports\\); console.log\\('Has ./HelpOutlined:', './HelpOutlined' in exports\\); console.log\\('Has ./SmartToyOutlined:', './SmartToyOutlined' in exports\\);\")",
+      "Bash(Get-ChildItem -Path \"c:\\\\laragon\\\\www\\\\betchat\\\\client\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Get-ChildItem -Path \"c:\\\\laragon\\\\www\\\\betchat\\\\client\\\\src\\\\pages\\\\admin\" -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)"
     ]
   }
 }

@@ -133,24 +133,29 @@ export const StatsStrip = styled.div`
   @media (max-width: 600px) { flex-wrap: wrap; }
 `
 export const StatCard = styled.div`
-  flex: 1; min-width: 0;
+  flex: 1; min-width: 0; overflow: hidden;
   display: flex; align-items: center; gap: 12px;
   padding: 14px 16px; border-radius: 14px;
   background: rgba(255,255,255,0.025);
   border: 1px solid rgba(255,255,255,0.06);
+  @media (max-width: 480px) { gap: 8px; padding: 11px 12px; }
 `
 export const StatIconWrap = styled.div`
   width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
   background: ${({ $bg }) => $bg}; border: 1px solid ${({ $br }) => $br};
   svg { font-size: 18px; color: ${({ $cl }) => $cl}; }
+  @media (max-width: 480px) { width: 28px; height: 28px; border-radius: 7px; svg { font-size: 14px; } }
 `
-export const StatInfo = styled.div``
+export const StatInfo = styled.div`min-width: 0;`
 export const StatValue = styled.p`
   font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.03em; line-height: 1;
+  @media (max-width: 480px) { font-size: 16px; }
 `
 export const StatLabel = styled.p`
   font-size: 11px; color: rgba(255,255,255,0.28); margin-top: 3px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  @media (max-width: 480px) { font-size: 10px; }
 `
 
 /* ── filters bar ── */

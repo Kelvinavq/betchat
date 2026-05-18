@@ -1349,6 +1349,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                     {msg.text && <MsgBubble $sent={msg.sent}>{msg.text}</MsgBubble>}
                     <MediaMsgImg
                       src={msg.mediaUrl} alt={msg.fileName}
+                      loading="lazy"
                       onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
                     />
                   </>
