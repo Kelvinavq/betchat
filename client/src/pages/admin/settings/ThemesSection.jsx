@@ -1,6 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 import SmartphoneOutlinedIcon from '@mui/icons-material/SmartphoneOutlined'
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined'
+import ChatBubbleOutlineOutlinedIcon from '@mui/icons-material/ChatBubbleOutlineOutlined'
 import CheckIcon from '@mui/icons-material/Check'
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import AddIcon from '@mui/icons-material/Add'
@@ -9,6 +10,8 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import { api } from '../../../utils/api'
 import { applyThemeConfig } from '../../../styles/appThemes'
+import { useSystemConfig } from '../../../context/SystemConfigContext'
+import { BUBBLE_ICONS, ICON_MAP, DEFAULT_BUBBLE_CONFIG } from '../../../utils/bubbleIcons'
 import {
   ThemesWrap, SubTabBar, SubTab, SectionBanner,
   ThemeGrid, ThemeCard, ThemeCardPreview, CheckOverlay, ThemeCardInfo, ThemeNameRow,
@@ -27,7 +30,107 @@ import {
   ColorGroupWrap, ColorGroupLabel, ColorFieldGrid, ColorFieldRow,
   ColorDot, ColorFieldLabel, ColorHexValue,
   ThemeNameField, ModalPreviewRow, ModalPreviewBox, ModalPreviewLabel,
+  BubbleStyleGrid, BubbleStylePreview,
+  BubbleConfigSection, BubbleConfigTitle, BubbleConfigRow, BubbleConfigLabel,
+  BubbleTextInput, IconPickerGrid, IconPickerBtn,
 } from './ThemesSection.styles'
+
+/* ─────────────────────────────
+   Bubble style definitions
+───────────────────────────── */
+const BUBBLE_STYLES = [
+  { id: 'default', name: 'Circular',  desc: 'Botón redondo clásico. Muestra el texto al pasar el cursor.' },
+  { id: 'open',    name: 'Abierta',   desc: 'Píldora siempre visible con ícono y texto.' },
+  { id: 'wide',    name: 'Amplia',    desc: 'Tarjeta ancha con ícono destacado y texto.' },
+  { id: 'minimal', name: 'Minimal',   desc: 'Solo ícono. Diseño limpio y discreto.' },
+]
+
+const BUBBLE_TEXT_PLACEHOLDERS = {
+  default: 'Soporte (por defecto: nombre del app)',
+  open:    'Chatear',
+  wide:    '¿Necesitas ayuda?',
+}
+
+/* Mini preview of each bubble style */
+const MiniBubblePreview = ({ styleId, styleConfig }) => {
+  const icon = (styleConfig && styleConfig.icon) || 'ChatOutlined'
+  const label = (styleConfig && styleConfig.text) || BUBBLE_TEXT_PLACEHOLDERS[styleId] || ''
+  const IconComp = ICON_MAP[icon] || ICON_MAP.ChatOutlined
+
+  const wrap = {
+    width: '100%', height: '100%', position: 'relative',
+    display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end',
+    padding: 14, boxSizing: 'border-box',
+  }
+
+  if (styleId === 'open') return (
+    <div style={wrap}>
+      <div style={{
+        height: 38, borderRadius: 19, padding: '0 14px 0 10px',
+        background: 'linear-gradient(135deg,#0b3361,#1250f0)',
+        display: 'flex', alignItems: 'center', gap: 7,
+        boxShadow: '0 4px 14px rgba(40,140,255,0.35)',
+      }}>
+        <IconComp style={{ color: '#fff', fontSize: '1rem' }} />
+        <span style={{ color: '#fff', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>
+          {label || 'Chatear'}
+        </span>
+      </div>
+    </div>
+  )
+
+  if (styleId === 'wide') return (
+    <div style={wrap}>
+      <div style={{
+        height: 44, width: 158, borderRadius: 14,
+        background: 'linear-gradient(135deg,#0b3361,#1250f0)',
+        display: 'flex', alignItems: 'center', gap: 9, padding: '0 12px',
+        boxShadow: '0 4px 14px rgba(40,140,255,0.35)', boxSizing: 'border-box',
+      }}>
+        <div style={{
+          width: 26, height: 26, borderRadius: '50%',
+          background: 'rgba(255,255,255,0.15)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+        }}>
+          <IconComp style={{ color: '#fff', fontSize: '0.85rem' }} />
+        </div>
+        <span style={{
+          color: '#fff', fontSize: 10.5, fontWeight: 600,
+          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+        }}>
+          {label || '¿Necesitas ayuda?'}
+        </span>
+      </div>
+    </div>
+  )
+
+  if (styleId === 'minimal') return (
+    <div style={wrap}>
+      <div style={{
+        width: 40, height: 40, borderRadius: 12,
+        background: 'rgba(40,140,255,0.14)',
+        border: '1.5px solid rgba(40,140,255,0.42)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+      }}>
+        <IconComp style={{ color: '#60a5fa', fontSize: '1.15rem' }} />
+      </div>
+    </div>
+  )
+
+  /* default */
+  return (
+    <div style={wrap}>
+      <div style={{
+        width: 44, height: 44, borderRadius: '50%',
+        background: 'linear-gradient(135deg,#0b3361,#1250f0)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        boxShadow: '0 4px 14px rgba(40,140,255,0.35)',
+      }}>
+        <IconComp style={{ color: '#fff', fontSize: '1.15rem' }} />
+      </div>
+    </div>
+  )
+}
 
 /* ─────────────────────────────
    Preset theme definitions
@@ -374,6 +477,7 @@ const loadCustom = (key) => {
    Main component
 ───────────────────────────── */
 const ThemesSection = ({ themeConfig, onThemeChange }) => {
+  const { systemConfig, setSystemConfig } = useSystemConfig()
   const [subTab, setSubTab] = useState('cliente')
 
   /* active / pending selection */
@@ -382,6 +486,17 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
   const [activeClient,  setActiveClient]  = useState(themeConfig?.clientTheme || 'betchat-dark')
   const [activeAdmin,   setActiveAdmin]   = useState(themeConfig?.adminTheme || 'dark-blue')
   const [saved, setSaved] = useState(false)
+
+  /* bubble style */
+  const initBubble = useCallback(() => ({
+    ...DEFAULT_BUBBLE_CONFIG,
+    ...(systemConfig?.bubbleConfig || {}),
+  }), [systemConfig?.bubbleConfig])
+
+  const [pendingBubble, setPendingBubble] = useState(initBubble)
+  const [activeBubble,  setActiveBubble]  = useState(initBubble)
+  const [bubbleSaved,   setBubbleSaved]   = useState(false)
+  const bubbleInitRef = useRef(false)
 
   /* custom themes */
   const [customClientThemes, setCustomClientThemes] = useState(() => loadCustom('custom_client_themes'))
@@ -397,19 +512,34 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
   const [adminForm,  setAdminForm]  = useState({ ...DEFAULT_ADMIN_FORM })
   const migratedThemeIdsRef = useRef(new Set())
 
+  /* ── init bubble from context once it loads ── */
+  useEffect(() => {
+    if (!bubbleInitRef.current && systemConfig?.bubbleConfig) {
+      bubbleInitRef.current = true
+      const cfg = { ...DEFAULT_BUBBLE_CONFIG, ...systemConfig.bubbleConfig }
+      setPendingBubble(cfg)
+      setActiveBubble(cfg)
+    }
+  }, [systemConfig?.bubbleConfig])
+
   /* ── computed ── */
   const allClientThemes = [...CLIENT_THEMES, ...customClientThemes]
   const allAdminThemes  = [...ADMIN_THEMES,  ...customAdminThemes]
 
   const isClient = subTab === 'cliente'
+  const isBubble = subTab === 'burbuja'
   const form     = isClient ? clientForm : adminForm
   const setField = isClient
     ? (k, v) => setClientForm(f => ({ ...f, [k]: v }))
     : (k, v) => setAdminForm(f  => ({ ...f, [k]: v }))
 
-  const hasChanges = isClient
-    ? pendingClient !== activeClient
-    : pendingAdmin !== activeAdmin
+  const hasChanges = isBubble
+    ? JSON.stringify(pendingBubble) !== JSON.stringify(activeBubble)
+    : isClient
+      ? pendingClient !== activeClient
+      : pendingAdmin !== activeAdmin
+
+  const isSaved = isBubble ? bubbleSaved : saved
 
   /* ── update state when themeConfig changes ── */
   useEffect(() => {
@@ -462,6 +592,19 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
 
     migrateLegacyActiveThemes().catch(() => {})
   }, [activeAdmin, activeClient, customAdminThemes, customClientThemes, onThemeChange])
+
+  /* ── apply bubble style ── */
+  const handleApplyBubble = async () => {
+    try {
+      const data = await api.put('/api/settings/system', { bubbleConfig: pendingBubble })
+      setActiveBubble({ ...pendingBubble })
+      if (data.systemConfig) setSystemConfig(data.systemConfig)
+      setBubbleSaved(true)
+      setTimeout(() => setBubbleSaved(false), 2200)
+    } catch (err) {
+      window.alert(err.message || 'No se pudo guardar el estilo de burbuja.')
+    }
+  }
 
   /* ── apply theme ── */
   const handleApply = async () => {
@@ -588,7 +731,11 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
           <SmartphoneOutlinedIcon />
           Cliente
         </SubTab>
-        <SubTab $active={!isClient} onClick={() => setSubTab('admin')}>
+        <SubTab $active={isBubble} onClick={() => setSubTab('burbuja')}>
+          <ChatBubbleOutlineOutlinedIcon />
+          Burbuja
+        </SubTab>
+        <SubTab $active={!isClient && !isBubble} onClick={() => setSubTab('admin')}>
           <DashboardOutlinedIcon />
           Admin
         </SubTab>
@@ -662,8 +809,92 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
         </>
       )}
 
+      {/* ── bubble styles ── */}
+      {isBubble && (
+        <>
+          <SectionBanner>
+            <InfoOutlinedIcon />
+            Elige el estilo del botón flotante que verán tus clientes. Puedes personalizar el texto y el ícono de cada estilo.
+          </SectionBanner>
+
+          <BubbleStyleGrid>
+            {BUBBLE_STYLES.map((bs, i) => {
+              const isPending = pendingBubble.style === bs.id
+              return (
+                <ThemeCard
+                  key={bs.id}
+                  $active={isPending}
+                  $i={i}
+                  onClick={() => setPendingBubble(prev => ({ ...prev, style: bs.id }))}
+                >
+                  <BubbleStylePreview>
+                    <MiniBubblePreview styleId={bs.id} styleConfig={pendingBubble[bs.id]} />
+                    {isPending && <CheckOverlay><CheckIcon /></CheckOverlay>}
+                  </BubbleStylePreview>
+                  <ThemeCardInfo>
+                    <ThemeNameRow>
+                      <ThemeName>{bs.name}</ThemeName>
+                      {activeBubble.style === bs.id && <ActiveBadge>Activo</ActiveBadge>}
+                    </ThemeNameRow>
+                    <ThemeDesc>{bs.desc}</ThemeDesc>
+                  </ThemeCardInfo>
+                </ThemeCard>
+              )
+            })}
+          </BubbleStyleGrid>
+
+          {/* Configuración del estilo seleccionado */}
+          <BubbleConfigSection>
+            <BubbleConfigTitle>
+              Configurar: {BUBBLE_STYLES.find(s => s.id === pendingBubble.style)?.name}
+            </BubbleConfigTitle>
+
+            {pendingBubble.style !== 'minimal' && (
+              <BubbleConfigRow>
+                <BubbleConfigLabel>Texto del botón</BubbleConfigLabel>
+                <BubbleTextInput
+                  type="text"
+                  value={pendingBubble[pendingBubble.style]?.text ?? ''}
+                  onChange={e => setPendingBubble(prev => ({
+                    ...prev,
+                    [prev.style]: { ...prev[prev.style], text: e.target.value },
+                  }))}
+                  placeholder={BUBBLE_TEXT_PLACEHOLDERS[pendingBubble.style] || 'Texto...'}
+                  maxLength={60}
+                />
+              </BubbleConfigRow>
+            )}
+
+            <BubbleConfigRow>
+              <BubbleConfigLabel>Ícono</BubbleConfigLabel>
+              <IconPickerGrid>
+                {BUBBLE_ICONS.map(({ id, label }) => {
+                  const IconComp = ICON_MAP[id]
+                  const isActive = (pendingBubble[pendingBubble.style]?.icon ?? 'ChatOutlined') === id
+                  return (
+                    <IconPickerBtn
+                      key={id}
+                      type="button"
+                      $active={isActive}
+                      title={label}
+                      onClick={() => setPendingBubble(prev => ({
+                        ...prev,
+                        [prev.style]: { ...prev[prev.style], icon: id },
+                      }))}
+                    >
+                      <IconComp />
+                      <span>{label}</span>
+                    </IconPickerBtn>
+                  )
+                })}
+              </IconPickerGrid>
+            </BubbleConfigRow>
+          </BubbleConfigSection>
+        </>
+      )}
+
       {/* ── admin themes ── */}
-      {!isClient && (
+      {!isClient && !isBubble && (
         <>
           <SectionBanner>
             <InfoOutlinedIcon />
@@ -735,20 +966,22 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
       {/* save footer */}
       <SaveBar>
         <SaveHint>
-          {saved
-            ? 'Tema aplicado correctamente.'
+          {isSaved
+            ? (isBubble ? 'Estilo de burbuja aplicado.' : 'Tema aplicado correctamente.')
             : hasChanges
               ? 'Tienes cambios sin guardar — presiona Aplicar para confirmar.'
-              : 'Los temas se sincronizarán con la base de datos cuando estén disponibles.'}
+              : 'Los cambios se sincronizarán con la base de datos cuando estén disponibles.'}
         </SaveHint>
         <ApplyBtn
           type="button"
-          $saved={saved}
-          onClick={handleApply}
+          $saved={isSaved}
+          onClick={isBubble ? handleApplyBubble : handleApply}
           disabled={!hasChanges}
-          style={!hasChanges && !saved ? { opacity: 0.38, pointerEvents: 'none' } : {}}
+          style={!hasChanges && !isSaved ? { opacity: 0.38, pointerEvents: 'none' } : {}}
         >
-          {saved ? <><CheckIcon />Aplicado</> : 'Aplicar tema'}
+          {isSaved
+            ? <><CheckIcon />Aplicado</>
+            : isBubble ? 'Aplicar estilo' : 'Aplicar tema'}
         </ApplyBtn>
       </SaveBar>
 

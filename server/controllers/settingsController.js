@@ -32,6 +32,31 @@ function normalizeText(value) {
   return String(value ?? '').trim()
 }
 
+const VALID_BUBBLE_STYLES = ['default', 'open', 'wide', 'minimal']
+const VALID_BUBBLE_ICONS = [
+  'ChatOutlined', 'ChatBubbleOutlineOutlined', 'SupportAgent', 'Forum',
+  'MessageOutlined', 'HelpOutline', 'QuestionAnswerOutlined', 'PhoneOutlined',
+  'HeadsetMicOutlined', 'LiveHelp', 'ContactSupportOutlined', 'SmartToyOutlined',
+]
+
+function normStyleEntry(e, defText) {
+  const entry = e && typeof e === 'object' ? e : {}
+  return {
+    text: entry.text != null ? String(entry.text).slice(0, 60) : defText,
+    icon: VALID_BUBBLE_ICONS.includes(entry.icon) ? entry.icon : 'ChatOutlined',
+  }
+}
+
+function normalizeBubbleConfig(raw = {}) {
+  return {
+    style:   VALID_BUBBLE_STYLES.includes(raw.style) ? raw.style : 'default',
+    default: normStyleEntry(raw.default, ''),
+    open:    normStyleEntry(raw.open, 'Chatear'),
+    wide:    normStyleEntry(raw.wide, '¿Necesitas ayuda?'),
+    minimal: normStyleEntry(raw.minimal, ''),
+  }
+}
+
 const RECEIPT_MODELS = new Set([
   'google/gemini-3.1-flash-lite',
   'google/gemini-2.0-flash-001',
@@ -138,7 +163,7 @@ async function removeBrandingFile(url) {
 
 export async function getSystemConfig() {
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled, bubble_config FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -153,6 +178,7 @@ export async function getSystemConfig() {
     supportValue: row.support_value || '',
     clientRegistrationEnabled: row.client_registration_enabled !== 0,
     clientLogoutEnabled: row.client_logout_enabled !== 0,
+    bubbleConfig: normalizeBubbleConfig(parseJson(row.bubble_config)),
   }
 }
 
@@ -500,11 +526,15 @@ export async function updateSystemConfig(req, res, next) {
     const supportValue = normalizeText(req.body.supportValue ?? req.body.support_value ?? current.supportValue ?? '').slice(0, 500)
     const iframeUrl = normalizeText(req.body.iframeUrl ?? req.body.iframe_url ?? current.iframeUrl ?? '').slice(0, 2048)
 
+    const bubbleConfig = normalizeBubbleConfig(
+      req.body.bubbleConfig ?? req.body.bubble_config ?? current.bubbleConfig ?? {}
+    )
+
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled)`,
-      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, clientRegistrationEnabled, clientLogoutEnabled]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, client_registration_enabled, client_logout_enabled, bubble_config)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bubble_config = VALUES(bubble_config)`,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, clientRegistrationEnabled, clientLogoutEnabled, JSON.stringify(bubbleConfig)]
     )
     if (error) return next(error)
 

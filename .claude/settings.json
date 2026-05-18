@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Recurse -Depth 2)",
+      "Bash(Select-Object -First 50)",
+      "Bash(ls -la c:\\\\\\\\laragon\\\\\\\\www\\\\\\\\betchat)",
+      "Bash(grep -E \"\\\\.\\(js|css|jsx\\)$\")",
+      "Bash(xargs grep -l \"ThemeRuntime\")",
+      "Bash(grep -E \"\\\\.\\(js|ts\\)$\")",
+      "Bash(node -e ' *)",
+      "Bash(grep \"\\\\.js$\")",
+      "Bash(node -e \"const pkg = require\\('./client/node_modules/@mui/icons-material/package.json'\\); const exports = pkg.exports; const keys = Object.keys\\(exports || {}\\); console.log\\('Total exports:', keys.length\\); console.log\\('Has ./HelpOutline:', './HelpOutline' in exports\\); console.log\\('Has ./HelpOutlined:', './HelpOutlined' in exports\\); console.log\\('Has ./SmartToyOutlined:', './SmartToyOutlined' in exports\\);\")"
+    ]
+  }
+}

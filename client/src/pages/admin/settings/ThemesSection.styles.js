@@ -764,3 +764,125 @@ export const CustomBadge = styled.span`
   color: #fbbf24;
   border: 1px solid rgba(251,191,36,0.26);
 `
+
+/* ─────────────────────────────
+   Bubble style selector
+───────────────────────────── */
+export const BubbleStyleGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  animation: ${fadeUp} 0.22s ease;
+
+  @media (max-width: 900px) { grid-template-columns: repeat(2, 1fr); }
+  @media (max-width: 480px) { grid-template-columns: 1fr; }
+`
+
+export const BubbleStylePreview = styled.div`
+  height: 130px;
+  position: relative;
+  overflow: hidden;
+  background: #07070e;
+  border-radius: 10px 10px 0 0;
+`
+
+/* ─────────────────────────────
+   Bubble config section (icon + text)
+───────────────────────────── */
+export const BubbleConfigSection = styled.div`
+  margin-top: 22px;
+  padding: 18px 18px 14px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  animation: ${fadeUp} 0.18s ease;
+`
+
+export const BubbleConfigTitle = styled.h4`
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.70);
+`
+
+export const BubbleConfigRow = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+export const BubbleConfigLabel = styled.span`
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: rgba(255,255,255,0.28);
+  padding-left: 2px;
+`
+
+export const BubbleTextInput = styled.input`
+  width: 100%;
+  max-width: 340px;
+  box-sizing: border-box;
+  height: 40px;
+  padding: 0 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 11px;
+  color: rgba(255,255,255,0.88);
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s, background 0.15s;
+
+  &::placeholder { color: rgba(255,255,255,0.22); }
+  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.04); }
+`
+
+/* ─────────────────────────────
+   Icon picker
+───────────────────────────── */
+export const IconPickerGrid = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+export const IconPickerBtn = styled.button`
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 64px;
+  height: 64px;
+  border-radius: 12px;
+  border: 1.5px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.55)' : 'rgba(255,255,255,0.08)'};
+  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.12)' : 'rgba(255,255,255,0.03)'};
+  color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.45)'};
+  cursor: pointer;
+  transition: all 0.15s;
+  font-family: inherit;
+  flex-shrink: 0;
+
+  svg { font-size: 1.3rem; }
+
+  span {
+    font-size: 9px;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 56px;
+    text-align: center;
+  }
+
+  &:hover:not([disabled]) {
+    border-color: ${({ $active }) => $active ? 'rgba(30,133,255,0.70)' : 'rgba(255,255,255,0.20)'};
+    color: ${({ $active }) => $active ? '#93c5fd' : 'rgba(255,255,255,0.75)'};
+    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'rgba(255,255,255,0.06)'};
+  }
+`

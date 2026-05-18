@@ -1,6 +1,5 @@
 import { useContext, useState, useEffect, useRef, useCallback } from 'react'
 import styled, { css, keyframes } from 'styled-components'
-import ChatOutlinedIcon from '@mui/icons-material/ChatOutlined'
 import CloseIcon from '@mui/icons-material/Close'
 import SupportAgentIcon from '@mui/icons-material/SupportAgent'
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
@@ -10,6 +9,7 @@ import ChatWindow from './ChatWindow'
 import { ChatContext } from '../../context/ChatContext'
 import { useSystemConfig } from '../../context/SystemConfigContext'
 import { getSocket } from '../../utils/socket'
+import { ICON_MAP, DEFAULT_BUBBLE_CONFIG } from '../../utils/bubbleIcons'
 import '../../css/chat.css'
 
 const NOTIF_DURATION = 6000
@@ -138,6 +138,101 @@ const BubbleText = styled.span`
     max-width: 90px;
     opacity: 1;
   }
+`
+
+/* ── Style: open (pill siempre visible) ── */
+const BubbleOpen = styled.button`
+  position: relative;
+  height: 56px;
+  border-radius: 28px;
+  padding: 0 20px 0 14px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  overflow: visible;
+  cursor: pointer;
+  white-space: nowrap;
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0b3361 0%, #1250f0 100%));
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.28);
+  animation: ${({ $hasUnread }) => $hasUnread ? css`${glowUnread} 2.4s ease-in-out infinite` : css`${glow} 3s ease-in-out infinite`};
+  transition: background 0.3s, transform 0.15s;
+  &:hover { background: var(--bc-client-button-gradient, linear-gradient(135deg, #184a8a 0%, #1a62f8 100%)); }
+  &:active { transform: scale(0.97); }
+`
+
+const OpenLabel = styled.span`
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.88rem;
+  letter-spacing: 0.02em;
+`
+
+/* ── Style: wide (tarjeta ancha) ── */
+const BubbleWide = styled.button`
+  position: relative;
+  width: 210px;
+  height: 58px;
+  border-radius: 18px;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  overflow: visible;
+  cursor: pointer;
+  background: var(--bc-client-button-gradient, linear-gradient(135deg, #0b3361 0%, #1250f0 100%));
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.28);
+  animation: ${({ $hasUnread }) => $hasUnread ? css`${glowUnread} 2.4s ease-in-out infinite` : css`${glow} 3s ease-in-out infinite`};
+  transition: background 0.3s, transform 0.15s;
+  &:hover {
+    background: var(--bc-client-button-gradient, linear-gradient(135deg, #184a8a 0%, #1a62f8 100%));
+    transform: translateY(-1px);
+  }
+  &:active { transform: scale(0.97); }
+`
+
+const WideIconCircle = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  flex-shrink: 0;
+  svg { color: #ffffff; font-size: 1.2rem; }
+`
+
+const WideLabel = styled.span`
+  color: #ffffff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+/* ── Style: minimal (ícono limpio cuadrado) ── */
+const BubbleMinimal = styled.button`
+  position: relative;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  cursor: pointer;
+  background: rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.12);
+  border: 1.5px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.38);
+  transition: background 0.2s, transform 0.15s, border-color 0.2s;
+  &:hover {
+    background: rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.22);
+    border-color: rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.60);
+  }
+  &:active { transform: scale(0.96); }
+  svg { color: rgba(var(--bc-client-accent-rgb, 40, 140, 255), 1); font-size: 1.4rem; }
 `
 
 const UnreadBadge = styled.span`
@@ -294,6 +389,11 @@ const ChatBubble = () => {
   const { isOpen, setIsOpen } = useContext(ChatContext)
   const { systemConfig } = useSystemConfig()
   const appName = systemConfig?.appName || 'Soporte'
+  const bubbleConfig = systemConfig?.bubbleConfig || DEFAULT_BUBBLE_CONFIG
+  const activeStyle = bubbleConfig.style || 'default'
+  const styleConf   = bubbleConfig[activeStyle] || {}
+  const ActiveIcon  = ICON_MAP[styleConf.icon] || ICON_MAP.ChatOutlined
+  const bubbleLabel = styleConf.text || appName
   const [notif, setNotif]     = useState(null)
   const [notifKey, setNotifKey] = useState(0)
   const [unread, setUnread]   = useState(0)
@@ -377,22 +477,49 @@ const ChatBubble = () => {
 
       <BubbleWrap>
         <BubbleInner>
-          {!isOpen && hasUnread && <SpinRing />}
-          {!isOpen && hasUnread && <PingRing />}
+          {/* Spin + ping rings solo en estilo default */}
+          {!isOpen && hasUnread && activeStyle === 'default' && <SpinRing />}
+          {!isOpen && hasUnread && activeStyle === 'default' && <PingRing />}
           {!isOpen && hasUnread && (
             <UnreadBadge>{unread > 99 ? '99+' : unread}</UnreadBadge>
           )}
-          <Bubble
-            $isOpen={isOpen}
-            $hasUnread={!isOpen && hasUnread}
-            onClick={() => setIsOpen(prev => !prev)}
-            aria-label={isOpen ? 'Cerrar chat' : 'Abrir chat'}
-          >
-            <BubbleIcon key={isOpen ? 'close' : 'chat'}>
-              {isOpen ? <CloseIcon /> : <ChatOutlinedIcon />}
-            </BubbleIcon>
-            {!isOpen && <BubbleText>{appName}</BubbleText>}
-          </Bubble>
+
+          {/* Cuando el chat está abierto siempre mostramos el botón redondo de cierre */}
+          {isOpen ? (
+            <Bubble
+              $isOpen
+              $hasUnread={false}
+              onClick={() => setIsOpen(false)}
+              aria-label="Cerrar chat"
+            >
+              <BubbleIcon key="close"><CloseIcon /></BubbleIcon>
+            </Bubble>
+          ) : activeStyle === 'open' ? (
+            <BubbleOpen $hasUnread={hasUnread} onClick={openChat} aria-label="Abrir chat">
+              <BubbleIcon key="icon"><ActiveIcon /></BubbleIcon>
+              <OpenLabel>{bubbleLabel}</OpenLabel>
+            </BubbleOpen>
+          ) : activeStyle === 'wide' ? (
+            <BubbleWide $hasUnread={hasUnread} onClick={openChat} aria-label="Abrir chat">
+              <WideIconCircle><ActiveIcon /></WideIconCircle>
+              <WideLabel>{bubbleLabel}</WideLabel>
+            </BubbleWide>
+          ) : activeStyle === 'minimal' ? (
+            <BubbleMinimal $hasUnread={hasUnread} onClick={openChat} aria-label="Abrir chat">
+              <ActiveIcon />
+            </BubbleMinimal>
+          ) : (
+            /* default */
+            <Bubble
+              $isOpen={false}
+              $hasUnread={hasUnread}
+              onClick={openChat}
+              aria-label="Abrir chat"
+            >
+              <BubbleIcon key="chat"><ActiveIcon /></BubbleIcon>
+              <BubbleText>{bubbleLabel}</BubbleText>
+            </Bubble>
+          )}
         </BubbleInner>
       </BubbleWrap>
     </>

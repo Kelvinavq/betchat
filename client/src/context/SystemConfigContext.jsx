@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api, resolveApiAsset } from '../utils/api'
+import { DEFAULT_BUBBLE_CONFIG } from '../utils/bubbleIcons'
 
 const DEFAULT_SYSTEM_CONFIG = {
   appName: 'BetChat',
@@ -11,6 +12,7 @@ const DEFAULT_SYSTEM_CONFIG = {
   supportValue: '',
   clientRegistrationEnabled: true,
   clientLogoutEnabled: true,
+  bubbleConfig: DEFAULT_BUBBLE_CONFIG,
 }
 
 const SystemConfigContext = createContext({
@@ -35,6 +37,9 @@ const normalizeSystemConfig = (config = {}) => ({
   supportValue: String(config.supportValue || config.support_value || ''),
   clientRegistrationEnabled: configFlag(config.clientRegistrationEnabled ?? config.client_registration_enabled, true),
   clientLogoutEnabled: configFlag(config.clientLogoutEnabled ?? config.client_logout_enabled, true),
+  bubbleConfig: config.bubbleConfig
+    ? { ...DEFAULT_BUBBLE_CONFIG, ...config.bubbleConfig }
+    : DEFAULT_BUBBLE_CONFIG,
 })
 
 export const SystemConfigProvider = ({ children }) => {
