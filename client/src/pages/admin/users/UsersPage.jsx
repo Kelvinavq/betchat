@@ -476,7 +476,7 @@ const UsersPage = ({ onMenuOpen }) => {
   const displayInitial = (u) => (u.full_name || u.username || '?')[0].toUpperCase()
 
   return (
-    <PageWrap>
+    <PageWrap data-tour="users-page">
       <PageScroll>
 
         {/* ── header ── */}
@@ -492,14 +492,14 @@ const UsersPage = ({ onMenuOpen }) => {
               <PageSub>{pagination.total} usuario{pagination.total !== 1 ? 's' : ''} en el sistema</PageSub>
             </TitleBlock>
           </HeaderLeft>
-          <AddBtn type="button" onClick={openAdd}>
+          <AddBtn type="button" data-tour="users-add-btn" onClick={openAdd}>
             <AddIcon />
             Nuevo usuario
           </AddBtn>
         </PageHeader>
 
         {/* ── filters ── */}
-        <FiltersBar>
+        <FiltersBar data-tour="users-filters">
           <SearchBox>
             <SrchIcon><SearchIcon /></SrchIcon>
             <SearchInput
@@ -523,7 +523,7 @@ const UsersPage = ({ onMenuOpen }) => {
         </FiltersBar>
 
         {/* ── table ── */}
-        <TableCard>
+        <TableCard data-tour="users-table">
           <TableScroll>
             <Table>
               <Thead>

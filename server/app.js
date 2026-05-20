@@ -32,6 +32,7 @@ import mercadoPagoRoutes from './routes/mercadoPagoRoutes.js'
 import pushRoutes from './routes/pushRoutes.js'
 import clientPopupRoutes from './routes/clientPopupRoutes.js'
 import clientEventsRoutes from './routes/clientEventsRoutes.js'
+import supportProxyRoutes from './routes/supportProxyRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { startEventScheduler, stopEventScheduler } from './utils/eventScheduler.js'
@@ -43,6 +44,7 @@ import { query } from './config/database.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const app = express();
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 const io = new SocketIOServer(httpServer, {
   maxHttpBufferSize: 16 * 1024 * 1024,
@@ -108,6 +110,7 @@ app.use('/api/mercadopago', mercadoPagoRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/client/popups', clientPopupRoutes);
 app.use('/api/client/events', clientEventsRoutes);
+app.use('/api/support', supportProxyRoutes);
 app.use('/event-receipts', express.static(path.join(process.cwd(), 'public', 'event-receipts')));
 
 // Middleware para logging de requests

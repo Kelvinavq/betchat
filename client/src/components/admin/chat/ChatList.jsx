@@ -327,7 +327,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   }
 
   return (
-    <Wrap $width={$width} $fullWidth={$fullWidth}>
+    <Wrap $width={$width} $fullWidth={$fullWidth} data-tour="chat-list">
       {dialogNode}
       <ListHeader>
         {onMenuOpen && (
@@ -385,7 +385,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
         </HeaderActions>
       </ListHeader>
 
-      <SearchWrap>
+      <SearchWrap data-tour="chat-search">
         <SearchIconWrap><SearchIcon /></SearchIconWrap>
         <SearchInput
           placeholder="Buscar usuario..."
@@ -395,6 +395,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
       </SearchWrap>
 
       <FilterToggleRow
+        data-tour="chat-filters"
         type="button"
         $open={filtersOpen}
         onClick={() => setFiltersOpen(p => !p)}
@@ -469,7 +470,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
         </ProcessFilters>
       )}
 
-      <ListScroll>
+      <ListScroll data-tour="chat-list-scroll">
         {visibleChats.length === 0 ? (
           <EmptyState>{loading ? 'Cargando chats...' : 'Sin resultados'}</EmptyState>
         ) : (

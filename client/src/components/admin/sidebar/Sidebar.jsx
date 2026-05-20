@@ -165,7 +165,7 @@ const Sidebar = ({ expanded, onToggle, onNavigate, activeSection, activeSubsecti
   }, [userAvatarUrl])
 
   return (
-    <SidebarWrap $expanded={expanded}>
+    <SidebarWrap $expanded={expanded} data-tour="sidebar">
 
       {/* ── header ── */}
       <SidebarTop>

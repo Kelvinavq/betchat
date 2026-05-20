@@ -631,7 +631,7 @@ export default function WithdrawalsPage({ onMenuOpen }) {
 
   /* ────────────── render ────────────── */
   return (
-    <PageWrap>
+    <PageWrap data-tour="withdrawals-page">
       {/* ── header ── */}
       <PageHeader>
         <HeaderLeft>
@@ -649,7 +649,7 @@ export default function WithdrawalsPage({ onMenuOpen }) {
 
       <Body>
         {/* ── sticky top bar: tabs + mode toggle ── */}
-        <StickyTopBar>
+        <StickyTopBar data-tour="withdrawals-tabs">
           <TabGroup>
             <TabBtn
               $active={activeTab === 'withdrawals'}
@@ -757,7 +757,7 @@ export default function WithdrawalsPage({ onMenuOpen }) {
             </ConfigStrip>
 
             {/* ── filter bar ── */}
-            <FilterBar>
+            <FilterBar data-tour="withdrawals-filters">
               <FilterLabel>De:</FilterLabel>
               <DateInput
                 type="date"
@@ -805,7 +805,7 @@ export default function WithdrawalsPage({ onMenuOpen }) {
             </SearchRow>
 
             {/* ── table ── */}
-            <TableCard>
+            <TableCard data-tour="withdrawals-content">
               <TableScroll>
                 <Table>
                   <Thead>

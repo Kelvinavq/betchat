@@ -1324,7 +1324,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
   }
 
   return (
-    <PageWrap>
+    <PageWrap data-tour="bot-page">
 
       {/* ── header ── */}
       <PageHeader>
@@ -1355,7 +1355,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
       </PageHeader>
 
       {/* ── main layout ── */}
-      <BuilderLayout>
+      <BuilderLayout data-tour="bot-content">
 
         {/* ── flow panel (left / mobile full) ── */}
         <FlowPanel $hidden={isMobile && mobilePanel === 'editor'}>

@@ -552,7 +552,7 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
      RENDER
   ═══════════════════════════════════════════════════════ */
   return (
-    <PageWrap>
+    <PageWrap data-tour="events-page">
 
       {/* ── header ── */}
       <PageHeader>
@@ -568,7 +568,7 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
       </PageHeader>
 
       {/* ── main tab bar ── */}
-      <TabBar role="tablist">
+      <TabBar role="tablist" data-tour="events-tabs">
         {GAME_TABS.map(tab => (
           <TabBtn
             key={tab.id}
@@ -612,7 +612,7 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
 
       {/* ── scrollable content ── */}
       <ScrollArea>
-        <ContentWrap>
+        <ContentWrap data-tour="events-content">
 
           {/* alert banner */}
           {alert && (

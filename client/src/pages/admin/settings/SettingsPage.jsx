@@ -24,6 +24,7 @@ import HighlightOffOutlinedIcon from '@mui/icons-material/HighlightOffOutlined'
 import BrandingWatermarkOutlinedIcon from '@mui/icons-material/BrandingWatermarkOutlined'
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
+import { useParams, useNavigate } from 'react-router-dom'
 import useAuth from '../../../hooks/useAuth'
 import { useSystemConfig } from '../../../context/SystemConfigContext'
 import { useToast } from '../../../context/ToastContext'
@@ -763,10 +764,13 @@ const SettingsPage = ({ onMenuOpen }) => {
   const { user, setUser } = useAuth()
   const { setSystemConfig: setGlobalSystemConfig } = useSystemConfig()
   const toast = useToast()
+  const { tab: tabParam } = useParams()
+  const navigate = useNavigate()
   const avatarInputRef  = useRef(null)
   const logoInputRef    = useRef(null)
   const faviconInputRef = useRef(null)
-  const [activeTab, setActiveTab] = useState('perfil')
+  const activeTab = TABS.find(t => t.id === tabParam && !t.soon) ? tabParam : 'perfil'
+  const setActiveTab = (id) => navigate(`/admin/ajustes/${id}`)
 
   /* ── profile form ── */
   const [profileForm, setProfileForm] = useState({
@@ -1100,7 +1104,7 @@ const SettingsPage = ({ onMenuOpen }) => {
   const initials = (profileForm.full_name || profileForm.username || user?.username || '?')[0].toUpperCase()
 
   return (
-    <PageWrap>
+    <PageWrap data-tour="settings-page">
 
       <PageHeader>
         {onMenuOpen && (
@@ -1117,7 +1121,7 @@ const SettingsPage = ({ onMenuOpen }) => {
       <Body>
 
         {/* ── left navigation ── */}
-        <SettingsNav>
+        <SettingsNav data-tour="settings-nav">
           <NavGroupLabel>General</NavGroupLabel>
           {TABS.map(tab => {
             const isActive = activeTab === tab.id && !tab.soon
@@ -1143,7 +1147,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         </SettingsNav>
 
         {/* ── content panel (key triggers fade-in on tab change) ── */}
-        <Content key={activeTab}>
+        <Content key={activeTab} data-tour="settings-content">
 
           {/* ════════════════ PERFIL ════════════════ */}
           {activeTab === 'perfil' && (

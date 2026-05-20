@@ -325,7 +325,7 @@ export default function MetricsPage({ onMenuOpen }) {
   const userInitials = (u) => (u.fullName || u.username || '?').split(' ').slice(0, 2).map(w => w[0]).join('').toUpperCase()
 
   return (
-    <PageWrap>
+    <PageWrap data-tour="metrics-page">
       <PageHeader>
         {onMenuOpen && (
           <MenuBtn onClick={onMenuOpen}>
@@ -340,7 +340,7 @@ export default function MetricsPage({ onMenuOpen }) {
 
       <Body>
         {/* ── Filter bar ── */}
-        <FilterBar>
+        <FilterBar data-tour="metrics-filters">
           <PresetGroup>
             {PRESETS.map(p => (
               <PresetBtn key={p.id} $active={preset === p.id} onClick={() => applyPreset(p)}>
@@ -367,7 +367,7 @@ export default function MetricsPage({ onMenuOpen }) {
             onBlur={applyCustom}
           />
 
-          <ExportGroup>
+          <ExportGroup data-tour="metrics-export">
             <ExportBtn $variant="excel" disabled={!data || exporting === 'excel'} onClick={exportExcel}>
               {exporting === 'excel' ? <Spinner /> : <FileDownloadOutlinedIcon />}
               Excel
@@ -401,7 +401,7 @@ export default function MetricsPage({ onMenuOpen }) {
         {!loading && !error && data && (
           <>
             {/* KPI Cards */}
-            <KpiGrid>
+            <KpiGrid data-tour="metrics-kpis">
               {KPI_CARDS.map((card) => (
                 <KpiCard key={card.label} $color={card.color}>
                   <KpiIconWrap $color={card.color}>{card.icon}</KpiIconWrap>
@@ -415,7 +415,7 @@ export default function MetricsPage({ onMenuOpen }) {
             </KpiGrid>
 
             {/* Row 1: Time series + Status pie */}
-            <ChartGrid $cols={2}>
+            <ChartGrid $cols={2} data-tour="metrics-charts">
               <ChartCard $h={280}>
                 <ChartHead>
                   <div>

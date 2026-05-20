@@ -1,13 +1,15 @@
 import { io } from 'socket.io-client'
 
 const BASE_URL = import.meta.env.VITE_SOCKET_URL || import.meta.env.VITE_API_URL || 'http://localhost:3000'
+const SUPPORT_BASE_URL = import.meta.env.VITE_SUPPORT_SOCKET_URL || 'http://localhost:4000'
 
 const sockets = new Map()
 
 export function getSocket(mode = 'auto') {
   const socketMode = mode || 'auto'
+  const baseUrl = socketMode === 'support' ? SUPPORT_BASE_URL : BASE_URL
   if (!sockets.has(socketMode)) {
-    const socket = io(BASE_URL, {
+    const socket = io(baseUrl, {
       withCredentials: true,
       transports: ['websocket', 'polling'],
       autoConnect: true,
@@ -16,11 +18,13 @@ export function getSocket(mode = 'auto') {
       reconnectionDelay: 400,
       reconnectionDelayMax: 3500,
       timeout: 8000,
-      auth: { mode: socketMode },
+      auth: socketMode === 'support'
+        ? { serviceKey: import.meta.env.VITE_SUPPORT_INTERNAL_KEY || '' }
+        : { mode: socketMode },
     })
 
     socket.on('connect', () => {
-      console.debug(`[socket] connected (${socketMode}) -> ${BASE_URL}`)
+      console.debug(`[socket] connected (${socketMode}) -> ${baseUrl}`)
     })
     socket.on('disconnect', (reason) => {
       console.debug(`[socket] disconnected (${socketMode}) reason=${reason}`)

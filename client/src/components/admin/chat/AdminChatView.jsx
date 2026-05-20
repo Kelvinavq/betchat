@@ -1157,7 +1157,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
 
   if (!chat) {
     return (
-      <Wrap>
+      <Wrap data-tour="chat-view">
         <EmptyState>
           <ChatBubbleOutlineIcon />
           <p>Selecciona una conversación</p>
@@ -1167,7 +1167,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
   }
 
   return (
-    <Wrap onDragEnter={handleChatDragEnter}>
+    <Wrap onDragEnter={handleChatDragEnter} data-tour="chat-view">
       {dropOpen && (
         <DropUpload onSend={sendMedia} onClose={() => setDropOpen(false)} />
       )}
@@ -1206,7 +1206,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
       )}
 
       {/* header */}
-      <Header>
+      <Header data-tour="chat-header">
         <BackBtn onClick={onBack} aria-label="Volver">
           <ArrowBackIosNewIcon />
         </BackBtn>
@@ -1311,7 +1311,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
       )}
 
       {/* messages */}
-      <MessagesArea>
+      <MessagesArea data-tour="chat-messages">
         <MessagesList ref={listRef} onScroll={handleScroll}>
           {messagePage?.hasPrevious && (
             <LoadEarlierBtn type="button" onClick={loadEarlierMessages} disabled={loadingEarlier}>
@@ -1425,7 +1425,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
       </MessagesArea>
 
       {/* bottom area */}
-      <BottomArea>
+      <BottomArea data-tour="chat-footer">
         {!isRecording && emojiOpen && (
           <EmojiPanel>
             <EmojiCategoryBar>

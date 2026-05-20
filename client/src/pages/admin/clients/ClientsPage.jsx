@@ -658,7 +658,7 @@ const ClientsPage = ({ onMenuOpen }) => {
   const pageNums = getPaginationItems({ currentPage: safePage, totalPages })
 
   return (
-    <PageWrap>
+    <PageWrap data-tour="clients-page">
       <PageScroll>
 
         {/* ── header ── */}
@@ -672,7 +672,7 @@ const ClientsPage = ({ onMenuOpen }) => {
               <PageSub>{totalClients} cliente{totalClients !== 1 && 's'} registrado{totalClients !== 1 && 's'}</PageSub>
             </TitleBlock>
           </HeaderLeft>
-          <HeaderActions>
+          <HeaderActions data-tour="clients-header-actions">
             <OutlineBtn onClick={exportCSV}>
               <FileDownloadIcon />
               Exportar CSV
@@ -681,7 +681,7 @@ const ClientsPage = ({ onMenuOpen }) => {
               <FileUploadIcon />
               Importar CSV
             </OutlineBtn>
-            <AddBtn onClick={() => setModal({ mode: 'add', client: null })}>
+            <AddBtn data-tour="clients-add-btn" onClick={() => setModal({ mode: 'add', client: null })}>
               <AddIcon />
               Nuevo cliente
             </AddBtn>
@@ -689,7 +689,7 @@ const ClientsPage = ({ onMenuOpen }) => {
         </PageHeader>
 
         {/* ── stats cards ── */}
-        <StatsGrid>
+        <StatsGrid data-tour="clients-stats">
           <StatCard $color="#3b82f6">
             <StatIconWrap $color="#3b82f6"><GroupOutlinedIcon /></StatIconWrap>
             <StatInfo>
@@ -714,7 +714,7 @@ const ClientsPage = ({ onMenuOpen }) => {
         </StatsGrid>
 
         {/* ── filters ── */}
-        <FiltersBar>
+        <FiltersBar data-tour="clients-filters">
           <SearchBox>
             <SrchIcon><SearchIcon /></SrchIcon>
             <SearchInput
@@ -732,7 +732,7 @@ const ClientsPage = ({ onMenuOpen }) => {
         </FiltersBar>
 
         {/* ── table ── */}
-        <TableCard>
+        <TableCard data-tour="clients-table">
           <TableScroll>
             <Table>
               <Thead>

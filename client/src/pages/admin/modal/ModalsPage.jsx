@@ -522,7 +522,7 @@ export default function ModalsPage({ onMenuOpen }) {
   const isLiveValid = live.title.trim().length > 0
 
   return (
-    <PageWrap>
+    <PageWrap data-tour="modals-page">
       <PageScroll>
         {/* ── header ── */}
         <PageHeader>
@@ -574,7 +574,7 @@ export default function ModalsPage({ onMenuOpen }) {
         </StatsStrip>
 
         {/* ── main grid: send form + preview/history ── */}
-        <MainGrid>
+        <MainGrid data-tour="modals-content">
           {/* LEFT: send form */}
           <SendPanel>
             <div>

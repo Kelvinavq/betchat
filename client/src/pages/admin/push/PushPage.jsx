@@ -1241,7 +1241,7 @@ export default function PushPage({ onMenuClick }) {
   }, [settings])
 
   return (
-    <Wrap>
+    <Wrap data-tour="push-page">
       <TopBar>
         {onMenuClick && (
           <MenuBtn type="button" onClick={onMenuClick}>
@@ -1288,7 +1288,7 @@ export default function PushPage({ onMenuClick }) {
         </StatCard>
       </StatsRow>
 
-      <TabsWrap>
+      <TabsWrap data-tour="push-content">
         {TABS.map(t => (
           <TabBtn key={t.id} $active={tab === t.id} onClick={() => setTab(t.id)}>
             {t.label}

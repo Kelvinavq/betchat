@@ -320,7 +320,7 @@ const CommandsPage = ({ onMenuOpen }) => {
   }
 
   return (
-    <PageWrap>
+    <PageWrap data-tour="commands-page">
       <PageScroll>
         <PageHeader>
           <HeaderLeft>
@@ -334,12 +334,12 @@ const CommandsPage = ({ onMenuOpen }) => {
               <PageSub>{pagination.total} comandos en total</PageSub>
             </TitleBlock>
           </HeaderLeft>
-          <AddBtn type="button" onClick={() => setModal('new')}>
+          <AddBtn type="button" data-tour="commands-add-btn" onClick={() => setModal('new')}>
             <AddIcon /> Nuevo comando
           </AddBtn>
         </PageHeader>
 
-        <FiltersBar>
+        <FiltersBar data-tour="commands-filters">
           <SearchBox>
             <SrchIcon><SearchIcon /></SrchIcon>
             <SearchInput
@@ -372,7 +372,7 @@ const CommandsPage = ({ onMenuOpen }) => {
           </EmptyWrap>
         ) : (
           <>
-            <CommandsGrid>
+            <CommandsGrid data-tour="commands-grid">
               {commands.map(command => {
                 const accent = accentOf(command.id)
                 return (

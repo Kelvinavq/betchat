@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 import Sidebar from '../../components/admin/sidebar/Sidebar'
+import AdminTour from '../../components/common/AdminTour'
 import ChatList from '../../components/admin/chat/ChatList'
 import AdminChatView from '../../components/admin/chat/AdminChatView'
 import ClientPanel from '../../components/admin/client-panel/ClientPanel'
@@ -295,6 +296,8 @@ const DashboardPage = () => {
             />
           </MobileView>
         )}
+
+        <AdminTour currentSection={section} />
       </Layout>
     )
   }
@@ -357,6 +360,8 @@ const DashboardPage = () => {
           )}
         </>
       )}
+
+      <AdminTour currentSection={section} />
     </Layout>
   )
 }

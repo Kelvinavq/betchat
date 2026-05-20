@@ -457,10 +457,10 @@ export const MessageBubble = styled.div`
   animation: ${bubbleIn} 0.22s ease-out;
 
   ${({ $isStaff }) => $isStaff ? css`
-    align-self: flex-start;
-  ` : css`
     align-self: flex-end;
     align-items: flex-end;
+  ` : css`
+    align-self: flex-start;
   `}
 `
 
@@ -468,7 +468,7 @@ export const MsgHeader = styled.div`
   display: flex;
   align-items: center;
   gap: 6px;
-  ${({ $isStaff }) => !$isStaff && css`flex-direction: row-reverse;`}
+  ${({ $isStaff }) => $isStaff && css`flex-direction: row-reverse;`}
 `
 
 export const MsgSenderAvatar = styled.div`
@@ -504,20 +504,20 @@ export const MsgTime = styled.span`
 
 export const MsgBody = styled.div`
   padding: 9px 13px;
-  border-radius: ${({ $isStaff }) => $isStaff ? '3px 13px 13px 13px' : '13px 3px 13px 13px'};
+  border-radius: ${({ $isStaff }) => $isStaff ? '13px 3px 13px 13px' : '3px 13px 13px 13px'};
   font-size: 13px;
   line-height: 1.55;
   white-space: pre-wrap;
   word-break: break-word;
 
   ${({ $isStaff }) => $isStaff ? css`
-    background: rgba(255,255,255,0.06);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: rgba(255,255,255,0.80);
-  ` : css`
     background: rgba(30,133,255,0.15);
     border: 1px solid rgba(30,133,255,0.25);
     color: rgba(255,255,255,0.90);
+  ` : css`
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: rgba(255,255,255,0.80);
   `}
 `
 
@@ -988,4 +988,253 @@ export const LightboxClose = styled.button`
   transition: all 0.15s;
   svg { font-size: 18px; }
   &:hover { background: rgba(255,255,255,0.18); color: #fff; }
+`
+
+/* ──────────────────────────────────
+   CLIENT PICKER
+────────────────────────────────── */
+export const CPickerWrap = styled.div`
+  position: relative;
+`
+
+export const CPickerTrigger = styled.button`
+  width: 100%;
+  height: 40px;
+  padding: 0 36px 0 ${({ $filled }) => $filled ? '9px' : '13px'};
+  background: ${({ $open }) => $open ? 'rgba(30,133,255,0.05)' : 'rgba(255,255,255,0.04)'};
+  border: 1px solid ${({ $open }) => $open ? 'rgba(30,133,255,0.45)' : 'rgba(255,255,255,0.08)'};
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  text-align: left;
+  transition: border-color 0.18s, background 0.18s;
+  box-sizing: border-box;
+  position: relative;
+  overflow: hidden;
+
+  &:hover {
+    border-color: ${({ $open }) => $open ? 'rgba(30,133,255,0.45)' : 'rgba(255,255,255,0.16)'};
+    background: ${({ $open }) => $open ? 'rgba(30,133,255,0.05)' : 'rgba(255,255,255,0.06)'};
+  }
+`
+
+export const CPickerArrow = styled.span`
+  position: absolute;
+  right: 13px;
+  top: 50%;
+  transform: translateY(-50%) ${({ $open }) => $open ? 'rotate(180deg)' : 'rotate(0deg)'};
+  transition: transform 0.18s;
+  display: flex;
+  align-items: center;
+  color: rgba(255,255,255,0.25);
+  svg { font-size: 16px; }
+`
+
+export const CPickerPlaceholder = styled.span`
+  color: rgba(255,255,255,0.22);
+  font-size: 13.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const CPickerSelectedLabel = styled.span`
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  flex: 1;
+`
+
+export const CPickerSelectedName = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.90);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+`
+
+export const CPickerSelectedSub = styled.span`
+  font-size: 10.5px;
+  color: rgba(255,255,255,0.32);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.2;
+`
+
+export const CPickerDropdown = styled.div`
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  background: #0c0d1d;
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 12px;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.04);
+  z-index: 600;
+  overflow: hidden;
+  animation: ${scaleIn} 0.16s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: top center;
+`
+
+export const CPickerSearchWrap = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.02);
+  flex-shrink: 0;
+
+  svg { font-size: 16px; color: rgba(255,255,255,0.25); flex-shrink: 0; }
+`
+
+export const CPickerSearchInput = styled.input`
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  &::placeholder { color: rgba(255,255,255,0.22); }
+`
+
+export const CPickerList = styled.div`
+  max-height: 228px;
+  overflow-y: auto;
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 3px; }
+`
+
+export const CPickerItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  cursor: pointer;
+  transition: background 0.12s;
+  border-left: 2px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.55)' : 'transparent'};
+  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.10)' : 'transparent'};
+
+  &:hover {
+    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.14)' : 'rgba(255,255,255,0.04)'};
+  }
+`
+
+export const CPickerAvatar = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+`
+
+export const CPickerItemInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+`
+
+export const CPickerItemName = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.85);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const CPickerItemSub = styled.span`
+  font-size: 11px;
+  color: rgba(255,255,255,0.30);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const CPickerClearItem = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  transition: background 0.12s;
+  border-left: 2px solid transparent;
+
+  &:hover { background: rgba(255,255,255,0.03); }
+`
+
+export const CPickerClearDot = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px dashed rgba(255,255,255,0.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: rgba(255,255,255,0.20);
+  svg { font-size: 14px; }
+`
+
+export const CPickerLoadMore = styled.button`
+  width: 100%;
+  padding: 9px 12px;
+  background: transparent;
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  color: rgba(30,133,255,0.60);
+  font-size: 12px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.13s, color 0.13s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  svg { font-size: 14px; }
+
+  &:hover { background: rgba(30,133,255,0.06); color: rgba(30,133,255,0.85); }
+`
+
+export const CPickerEmpty = styled.div`
+  padding: 20px 12px;
+  text-align: center;
+  font-size: 12.5px;
+  color: rgba(255,255,255,0.20);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  svg { font-size: 22px; opacity: 0.3; }
+`
+
+export const CPickerSpinner = styled.div`
+  padding: 16px 12px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255,255,255,0.22);
 `

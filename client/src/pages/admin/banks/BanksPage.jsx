@@ -443,7 +443,7 @@ const BanksPage = ({ onMenuOpen }) => {
   const pageItems = getPaginationItems({ currentPage: safePage, totalPages })
 
   return (
-    <PageWrap>
+    <PageWrap data-tour="banks-page">
       <PageScroll>
         <PageHeader>
           <HeaderLeft>
@@ -458,7 +458,7 @@ const BanksPage = ({ onMenuOpen }) => {
           </AddBtn>
         </PageHeader>
 
-        <BankTabsBar>
+        <BankTabsBar data-tour="banks-tabs">
           {BANKS.map(b => {
             const isActive = activeBank === b.id
             return (
@@ -477,7 +477,7 @@ const BanksPage = ({ onMenuOpen }) => {
           })}
         </BankTabsBar>
 
-        <FiltersBar>
+        <FiltersBar data-tour="banks-content">
           <SearchBox>
             <SrchIcon><SearchIcon /></SrchIcon>
             <SearchInput
