@@ -20,6 +20,7 @@ import MetricsPage       from './metrics/MetricsPage'
 import WithdrawalsPage   from './withdrawals/WithdrawalsPage'
 import useAuth from '../../hooks/useAuth'
 import { SECTION_MODULES, canViewSection } from '../../utils/adminPermissions'
+import BroadcastNotifBubble from '../../components/admin/BroadcastNotifBubble'
 
 const MIN_W     = 240
 const MAX_W     = 560
@@ -298,6 +299,7 @@ const DashboardPage = () => {
         )}
 
         <AdminTour currentSection={section} />
+        <BroadcastNotifBubble />
       </Layout>
     )
   }
@@ -362,6 +364,7 @@ const DashboardPage = () => {
       )}
 
       <AdminTour currentSection={section} />
+      <BroadcastNotifBubble />
     </Layout>
   )
 }

@@ -4,6 +4,7 @@ import { ToastProvider } from './context/ToastContext'
 import { ChatProvider } from './context/ChatContext'
 import { SystemConfigProvider } from './context/SystemConfigContext'
 import { TourProvider } from './context/TourContext'
+import { BroadcastNotifProvider } from './context/BroadcastNotifContext'
 import ClientPage from './pages/client/ClientPage'
 import LoginPage from './pages/admin/LoginPage'
 import DashboardPage from './pages/admin/DashboardPage'
@@ -20,6 +21,7 @@ const App = () => {
           <ChatProvider>
             <TourProvider>
               <ThemeRuntime>
+                <BroadcastNotifProvider>
                 <Routes>
                   <Route path="/" element={<ClientPage />} />
                   <Route path="/admin/login" element={<LoginPage />} />
@@ -49,6 +51,7 @@ const App = () => {
                   />
                   <Route path="*" element={<NotFoundPage />} />
                 </Routes>
+                </BroadcastNotifProvider>
               </ThemeRuntime>
             </TourProvider>
           </ChatProvider>

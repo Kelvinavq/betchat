@@ -33,6 +33,7 @@ import pushRoutes from './routes/pushRoutes.js'
 import clientPopupRoutes from './routes/clientPopupRoutes.js'
 import clientEventsRoutes from './routes/clientEventsRoutes.js'
 import supportProxyRoutes from './routes/supportProxyRoutes.js'
+import broadcastRoutes from './routes/broadcastRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { startEventScheduler, stopEventScheduler } from './utils/eventScheduler.js'
@@ -111,6 +112,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/client/popups', clientPopupRoutes);
 app.use('/api/client/events', clientEventsRoutes);
 app.use('/api/support', supportProxyRoutes);
+app.use('/api/internal/broadcast', broadcastRoutes);
 app.use('/event-receipts', express.static(path.join(process.cwd(), 'public', 'event-receipts')));
 
 // Middleware para logging de requests

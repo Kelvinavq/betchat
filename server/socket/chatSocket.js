@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken'
 import { config } from '../config/config.js'
 import { query } from '../config/database.js'
 import { assignChatIfUnassigned, emitChatRefresh, persistMessage, processReceiptAsync, setClientOnlineStatus } from '../controllers/chatController.js'
+import { getActiveBroadcasts } from '../broadcast/broadcastManager.js'
 
 const recentMessages = new Map()
 const RECENT_TTL_MS = 60_000
@@ -74,6 +75,10 @@ export function setupChatSockets(io) {
 
     if (payload?.role === 'admin' || payload?.role === 'cashier') {
       socket.join('admins')
+      const activeBroadcasts = getActiveBroadcasts()
+      if (activeBroadcasts.length) {
+        socket.emit('broadcast:active', activeBroadcasts)
+      }
     }
     if (payload?.type === 'client' && payload?.sub) {
       socket.join('clients')
