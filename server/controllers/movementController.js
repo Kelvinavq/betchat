@@ -350,10 +350,21 @@ export async function resolveManualMovement(req, res, next) {
         return res.status(404).json({ error: 'Movimiento no encontrado', code: 'MOVEMENT_NOT_FOUND' })
       }
 
-      await resetClientBot(chatId)
-
       const paidMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_completed', { clientId, amount: newAmount })
-      if (paidMsg) await persistMessage({ chatId, senderType: 'system', content: paidMsg })
+      if (paidMsg) {
+        await persistMessage({
+          chatId,
+          senderType: 'system',
+          content: paidMsg,
+          extra: {
+            depositEvent: 'deposit_completed',
+            depositAmount: newAmount,
+          },
+        })
+      }
+
+      await new Promise(resolve => setTimeout(resolve, 250))
+      await resetClientBot(chatId)
     } else {
       const { rows: updateRows, error } = await query(
         `UPDATE manual_payment_movements

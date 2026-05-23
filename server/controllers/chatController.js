@@ -195,6 +195,31 @@ function previewFor(payload) {
     .trim()
 }
 
+function normalizeMessageText(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+async function decorateDepositMessages(messages) {
+  const hasSystemMessages = (messages || []).some(message => message?.senderType === 'system' && message?.messageType === 'text')
+  if (!hasSystemMessages) return messages
+
+  const depositText = await getAutoMessage('deposit_completed')
+  if (!depositText) return messages
+
+  const targetText = normalizeMessageText(depositText)
+  if (!targetText) return messages
+
+  return (messages || []).map(message => {
+    if (message?.senderType === 'system' && message?.messageType === 'text' && normalizeMessageText(message.content) === targetText) {
+      return { ...message, depositEvent: 'deposit_completed' }
+    }
+    return message
+  })
+}
+
 function publicUrl(filePath) {
   return filePath.replace(PUBLIC_DIR, '').replace(/\\/g, '/')
 }
@@ -566,7 +591,7 @@ export async function getMessages(req, res, next) {
 
       const previousDate = previousRows?.[0]?.created_at_utc ? dayOfDbUtc(previousRows[0].created_at_utc) : null
       const payload = {
-        messages: (rows || []).map(sanitizeMessage),
+        messages: await decorateDepositMessages((rows || []).map(sanitizeMessage)),
         pagination: {
           mode: 'day',
           date,
@@ -587,7 +612,7 @@ export async function getMessages(req, res, next) {
       [chatId]
     )
     if (error) return next(error)
-    res.json({ messages: (rows || []).map(sanitizeMessage) })
+    res.json({ messages: await decorateDepositMessages((rows || []).map(sanitizeMessage)) })
   } catch (error) {
     next(error)
   }
@@ -1034,7 +1059,8 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
         })
       }
       if (result?.status === 'paid') {
-        io.to(`chat:${chatId}`).emit('bot:reset', { chatId: Number(chatId), screenId: null })
+        await new Promise(resolve => setTimeout(resolve, 250))
+        await resetClientBot(chatId)
       }
       return result
     }
