@@ -139,6 +139,7 @@ const initForm = (bank, account = null) => {
       alias: account?.alias ?? '',
       cbu: account?.cbu ?? '',
       webhook_enabled: Boolean(account?.webhook_enabled || account?.webhook_secret),
+      webhook_mode: account?.webhook_mode ?? 'hmac',
       webhook_secret: account?.webhook_secret ?? '',
       api_token: '',
       estatus: account?.estatus ?? 'activa',
@@ -192,8 +193,8 @@ const validateForm = (bank, form, editing) => {
   if ((bank === 'hgcash' || bank === 'telepagos') && !editing && !String(form.password ?? '').trim()) {
     return 'La contrasena es obligatoria para crear esta cuenta.'
   }
-  if (bank === 'hgcash' && form.webhook_enabled && !String(form.webhook_secret ?? '').trim()) {
-    return 'Agrega el webhook secret o desactiva el uso de webhook.'
+  if (bank === 'hgcash' && form.webhook_enabled && form.webhook_mode === 'hmac' && !String(form.webhook_secret ?? '').trim()) {
+    return 'Agrega el webhook secret o cambia el modo de webhook.'
   }
   return null
 }
@@ -1024,6 +1025,7 @@ const BanksPage = ({ onMenuOpen }) => {
                         ...prev,
                         webhook_enabled: !prev.webhook_enabled,
                         webhook_secret: prev.webhook_enabled ? '' : prev.webhook_secret,
+                        webhook_mode: prev.webhook_mode || 'hmac',
                       }))}
                     >
                       <ToggleThumb $on={form.webhook_enabled} />
@@ -1033,7 +1035,21 @@ const BanksPage = ({ onMenuOpen }) => {
                   {form.webhook_enabled && (
                     <FormGrid style={{ marginTop: 12 }}>
                       <Field $full>
-                        <FieldLabel>Webhook Secret</FieldLabel>
+                        <FieldLabel>Modo de webhook</FieldLabel>
+                        <InputWrap>
+                          <FieldInput
+                            as="select"
+                            value={form.webhook_mode ?? 'hmac'}
+                            onChange={e => setField('webhook_mode', e.target.value)}
+                            style={{ paddingRight: 40 }}
+                          >
+                            <option value="hmac">HMAC</option>
+                            <option value="flowhg">FlowHG</option>
+                          </FieldInput>
+                        </InputWrap>
+                      </Field>
+                      <Field $full>
+                        <FieldLabel>{form.webhook_mode === 'flowhg' ? 'Webhook Secret opcional' : 'Webhook Secret'}</FieldLabel>
                         <InputWrap>
                           <FieldInput
                             type={showPw.wh ? 'text' : 'password'}

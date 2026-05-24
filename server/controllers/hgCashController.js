@@ -4,9 +4,10 @@ import os from 'os'
 import path from 'path'
 import axios from 'axios'
 import FormData from 'form-data'
-import { query } from '../config/database.js'
-import { persistMessage } from './chatController.js'
+import { query, transaction } from '../config/database.js'
+import { persistMessage, resetClientBot } from './chatController.js'
 import { getAutoMessage } from './autoMessagesController.js'
+import { getIo } from '../socket/socketServer.js'
 
 const SUPABASE_AUTH_URL = 'https://oafouerwrpwzlthrsaba.supabase.co/auth/v1/token?grant_type=password'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZm91ZXJ3cnB3emx0aHJzYWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MTQwNzMsImV4cCI6MjA2MjM5MDA3M30.RKET8maIzQvYm2yGDtrEIbfT8rw7EKjgzUf886LU_wE'
@@ -576,7 +577,7 @@ async function getClientByCuit(cuit) {
   const clean = String(cuit || '').replace(/\D/g, '')
   if (!clean) return null
   const { rows, error } = await query(
-    'SELECT id, username, full_name, cuil, cuit FROM clients WHERE REPLACE(REPLACE(REPLACE(COALESCE(cuil, cuit, \'\'), \'.\', \'\'), \'-\', \'\'), \' \', \'\') = ? LIMIT 1',
+    'SELECT id, username, full_name, cuil FROM clients WHERE REPLACE(REPLACE(REPLACE(COALESCE(cuil, \'\'), \'.\', \'\'), \'-\', \'\'), \' \', \'\') = ? LIMIT 1',
     [clean],
   )
   if (error) throw error
@@ -760,5 +761,609 @@ export async function requestPaymentHG(req, res, next) {
     return res.json({ ok: true, source: 'bank', found: true, movement: match, client, bankAccount })
   } catch (err) {
     next(err)
+  }
+}
+
+// ============================================================
+//  CashGateway webhook receiver
+// ============================================================
+
+const CASHGATEWAY_ALLOWED_STATUSES = new Set(['pending', 'paid', 'rejected'])
+const CASHGATEWAY_REPLAY_WINDOW_MS = 5 * 60 * 1000
+
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
+
+function normalizeWebhookText(value) {
+  return String(value ?? '').trim()
+}
+
+function normalizeProviderStatus(value) {
+  const status = normalizeWebhookText(value).toLowerCase()
+  return CASHGATEWAY_ALLOWED_STATUSES.has(status) ? status : null
+}
+
+function parseJsonMaybe(value) {
+  if (!value) return null
+  if (typeof value === 'object') return value
+  try {
+    return JSON.parse(value)
+  } catch {
+    return null
+  }
+}
+
+function rawToString(rawBuffer) {
+  if (Buffer.isBuffer(rawBuffer)) return rawBuffer.toString('utf8')
+  if (typeof rawBuffer === 'string') return rawBuffer
+  if (rawBuffer == null) return ''
+  return String(rawBuffer)
+}
+
+function normalizeHeaderValue(headers, name) {
+  return normalizeWebhookText(headers?.[name] ?? headers?.[name.toLowerCase()] ?? '')
+}
+
+function normalizeGatewayTimestamp(timestamp) {
+  if (!timestamp) return null
+  const numeric = Number(timestamp)
+  if (Number.isFinite(numeric)) {
+    return numeric < 1e12 ? numeric * 1000 : numeric
+  }
+  const parsed = Date.parse(String(timestamp))
+  return Number.isNaN(parsed) ? null : parsed
+}
+
+function verifyGatewayHmac({ rawBody, timestamp, signature, secret }) {
+  if (!signature || !secret || !timestamp) return false
+  const signedPayload = `${timestamp}.${rawToString(rawBody)}`
+  const expected = crypto.createHmac('sha256', secret).update(signedPayload).digest('hex')
+  const received = signature.replace(/^sha256=/i, '').trim().toLowerCase()
+  if (!received || received.length !== expected.length) return false
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received))
+}
+
+async function getHgBankAccountByGatewayToken(token) {
+  const cleanToken = normalizeWebhookText(token)
+  if (!cleanToken) return null
+
+  const { rows, error } = await query(
+    `SELECT ba.*, bp.slug AS provider_slug
+     FROM bank_accounts ba
+     INNER JOIN bank_providers bp ON bp.id = ba.provider_id
+     WHERE bp.slug = 'hgcash'
+       AND ba.is_active = 1
+       AND JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.webhook_enabled')) IN ('true', '1')
+       AND JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.webhook_mode')) = 'flowhg'
+       AND JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.webhook_secret')) = ?
+     LIMIT 1`,
+    [cleanToken]
+  )
+  if (error) throw error
+  return rows?.[0] || null
+}
+
+async function resolveHGCashBankAccountId(gatewayAccountId) {
+  const clean = normalizeWebhookText(gatewayAccountId)
+  if (clean) {
+    const { rows, error } = await query(
+      `SELECT ba.id, ba.account_data
+       FROM bank_accounts ba
+       INNER JOIN bank_providers bp ON bp.id = ba.provider_id
+       WHERE bp.slug = 'hgcash' AND ba.is_active = 1`,
+      []
+    )
+    if (error) throw error
+
+    for (const row of rows || []) {
+      const data = parseData(row.account_data)
+      const candidates = [
+        data.gateway_account_id,
+        data.cashgateway_account_id,
+        data.flowhg_account_id,
+        data.account_id,
+      ].map(normalizeWebhookText).filter(Boolean)
+      if (candidates.includes(clean)) return Number(row.id)
+    }
+  }
+
+  const { rows: configRows, error: configError } = await query(
+    `SELECT cpc.bank_account_id, bp.slug AS provider_slug
+     FROM chat_processing_config cpc
+     LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
+     LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
+     WHERE cpc.id = 1
+     LIMIT 1`,
+    []
+  )
+  if (configError) throw configError
+  const activeConfigId = Number(configRows?.[0]?.bank_account_id || 0)
+  if (activeConfigId && configRows?.[0]?.provider_slug === 'hgcash') return activeConfigId
+
+  const { rows: fallbackRows, error: fallbackError } = await query(
+    `SELECT ba.id
+     FROM bank_accounts ba
+     INNER JOIN bank_providers bp ON bp.id = ba.provider_id
+     WHERE bp.slug = 'hgcash' AND ba.is_active = 1
+     ORDER BY ba.updated_at DESC, ba.id DESC
+     LIMIT 1`,
+    []
+  )
+  if (fallbackError) throw fallbackError
+  return Number(fallbackRows?.[0]?.id || 0) || null
+}
+
+async function findClientByTaxId(taxId) {
+  const clean = normalizeWebhookText(taxId).replace(/\D/g, '')
+  if (!clean) return null
+  const { rows, error } = await query(
+    `SELECT id, username, full_name, cuil
+     FROM clients
+     WHERE REPLACE(REPLACE(REPLACE(COALESCE(cuil, ''), '.', ''), '-', ''), ' ', '') = ?
+     LIMIT 1`,
+    [clean]
+  )
+  if (error) throw error
+  return rows?.[0] || null
+}
+
+async function findLatestChatByClientId(clientId) {
+  if (!clientId) return null
+  const { rows, error } = await query(
+    `SELECT id, client_id
+     FROM chats
+     WHERE client_id = ? AND is_archived = 0
+     ORDER BY id DESC
+     LIMIT 1`,
+    [clientId]
+  )
+  if (error) throw error
+  return rows?.[0] || null
+}
+
+async function findGatewayMovement(connection, keys) {
+  const lookups = [
+    ['gateway_event_id', keys.gatewayEventId],
+    ['provider_event_id', keys.providerEventId],
+    ['hg_id', keys.hgId],
+    ['coelsa_id', keys.coelsaCode],
+  ]
+  for (const [column, value] of lookups) {
+    const clean = normalizeWebhookText(value)
+    if (!clean) continue
+    const [rows] = await connection.execute(
+      `SELECT * FROM hgcash_movements WHERE ${column} = ? ORDER BY id DESC LIMIT 1`,
+      [clean]
+    )
+    if (rows?.[0]) return rows[0]
+  }
+  return null
+}
+
+function movementPayloadFromGateway({ body, headers, providerStatus, bankStatus, clientId, chatId, bankAccountId }) {
+  const payload = parseJsonMaybe(body?.payload) || {}
+  const amount = Number(payload.amount ?? 0)
+  const receiptDate = payload.date ? new Date(payload.date) : null
+  const parsedDate = receiptDate && !Number.isNaN(receiptDate.getTime()) ? receiptDate : null
+
+  return {
+    client_id: clientId || null,
+    chat_id: chatId || null,
+    message_id: null,
+    bank_account_id: bankAccountId || null,
+    hg_id: normalizeWebhookText(payload.id) || null,
+    hg_movement_id: normalizeHeaderValue(headers, 'x-hg-movement-id') || null,
+    gateway_movement_id: normalizeHeaderValue(headers, 'x-gateway-movement-id') || null,
+    hg_account_id: normalizeHeaderValue(headers, 'x-hg-account-id') || null,
+    provider_event_id: normalizeWebhookText(body?.provider_event_id) || normalizeHeaderValue(headers, 'x-provider-event-id') || null,
+    gateway_event_id: normalizeHeaderValue(headers, 'x-gateway-event-id') || null,
+    destination_domain: normalizeWebhookText(body?.destination_domain) || normalizeHeaderValue(headers, 'x-destination-domain') || null,
+    provider_status: providerStatus,
+    cuit: normalizeWebhookText(payload.fromCUIT || payload.fromCuit || ''),
+    receipt_date: parsedDate ? parsedDate.toISOString().slice(0, 10) : null,
+    receipt_time: parsedDate ? parsedDate.toISOString().slice(11, 19) : null,
+    amount: Number.isFinite(amount) ? amount : 0,
+    currency: normalizeWebhookText(payload.currency) || null,
+    direction: normalizeWebhookText(payload.direction) || null,
+    type: normalizeWebhookText(payload.type) || null,
+    timezone: normalizeWebhookText(payload.timezone) || null,
+    from_name: normalizeWebhookText(payload.fromName) || null,
+    to_name: normalizeWebhookText(payload.toName) || null,
+    from_cbu: normalizeWebhookText(payload.fromCBU) || null,
+    to_cbu: normalizeWebhookText(payload.toCBU) || null,
+    from_cuit: normalizeWebhookText(payload.fromCUIT) || null,
+    to_cuit: normalizeWebhookText(payload.toCUIT) || null,
+    account_id: normalizeWebhookText(payload.accountId) || null,
+    cbu_cvu: normalizeWebhookText(payload.fromCBU || payload.fromCBU) || null,
+    bank_status: normalizeWebhookText(payload.status) || null,
+    coelsa_id: normalizeWebhookText(payload.coelsaCode) || null,
+    status: providerStatus,
+    sync_status: 'synced',
+    raw_payload: JSON.stringify(payload),
+    raw_body: JSON.stringify(body),
+    received_from_gateway_at: new Date(),
+    updated_from_gateway_at: new Date(),
+  }
+}
+
+async function upsertGatewayMovement({ body, headers, providerStatus, bankStatus, clientId, chatId, bankAccountId }) {
+  return transaction(async (connection) => {
+    const payload = parseJsonMaybe(body?.payload) || {}
+    const identifiers = {
+      gatewayEventId: normalizeHeaderValue(headers, 'x-gateway-event-id'),
+      providerEventId: normalizeWebhookText(body?.provider_event_id) || normalizeHeaderValue(headers, 'x-provider-event-id'),
+      hgId: normalizeWebhookText(payload.id),
+      coelsaCode: normalizeWebhookText(payload.coelsaCode),
+    }
+
+    const existing = await findGatewayMovement(connection, identifiers)
+    const now = new Date()
+    const movement = movementPayloadFromGateway({ body, headers, providerStatus, bankStatus, clientId, chatId, bankAccountId })
+    movement.updated_from_gateway_at = now
+    const isReplay = Boolean(existing && (
+      normalizeWebhookText(existing.gateway_event_id) === identifiers.gatewayEventId
+      && normalizeWebhookText(existing.provider_event_id) === identifiers.providerEventId
+      && normalizeWebhookText(JSON.stringify(parseJsonMaybe(existing.raw_body) || {})) === normalizeWebhookText(JSON.stringify(body))
+    ))
+
+    if (existing) {
+      await connection.execute(
+        `UPDATE hgcash_movements
+         SET client_id = COALESCE(?, client_id),
+             chat_id = COALESCE(?, chat_id),
+             message_id = COALESCE(?, message_id),
+             bank_account_id = COALESCE(?, bank_account_id),
+             hg_id = COALESCE(?, hg_id),
+             hg_movement_id = COALESCE(?, hg_movement_id),
+             gateway_movement_id = COALESCE(?, gateway_movement_id),
+             hg_account_id = COALESCE(?, hg_account_id),
+             provider_event_id = COALESCE(?, provider_event_id),
+             gateway_event_id = COALESCE(?, gateway_event_id),
+             destination_domain = COALESCE(?, destination_domain),
+             provider_status = ?,
+             cuit = COALESCE(?, cuit),
+             receipt_date = COALESCE(?, receipt_date),
+             receipt_time = COALESCE(?, receipt_time),
+             amount = COALESCE(?, amount),
+             currency = COALESCE(?, currency),
+             direction = COALESCE(?, direction),
+             type = COALESCE(?, type),
+             timezone = COALESCE(?, timezone),
+             from_name = COALESCE(?, from_name),
+             to_name = COALESCE(?, to_name),
+             from_cbu = COALESCE(?, from_cbu),
+             to_cbu = COALESCE(?, to_cbu),
+             from_cuit = COALESCE(?, from_cuit),
+             to_cuit = COALESCE(?, to_cuit),
+             account_id = COALESCE(?, account_id),
+             cbu_cvu = COALESCE(?, cbu_cvu),
+             bank_status = ?,
+             coelsa_id = COALESCE(?, coelsa_id),
+             status = ?,
+             sync_status = ?,
+             raw_payload = ?,
+             raw_body = ?,
+             updated_from_gateway_at = ?,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [
+          movement.client_id,
+          movement.chat_id,
+          movement.message_id,
+          movement.bank_account_id,
+          movement.hg_id,
+          movement.hg_movement_id,
+          movement.gateway_movement_id,
+          movement.hg_account_id,
+          movement.provider_event_id,
+          movement.gateway_event_id,
+          movement.destination_domain,
+          movement.provider_status,
+          movement.cuit,
+          movement.receipt_date,
+          movement.receipt_time,
+          movement.amount,
+          movement.currency,
+          movement.direction,
+          movement.type,
+          movement.timezone,
+          movement.from_name,
+          movement.to_name,
+          movement.from_cbu,
+          movement.to_cbu,
+          movement.from_cuit,
+          movement.to_cuit,
+          movement.account_id,
+          movement.cbu_cvu,
+          movement.bank_status,
+          movement.coelsa_id,
+          movement.status,
+          movement.sync_status,
+          movement.raw_payload,
+          movement.raw_body,
+          movement.updated_from_gateway_at,
+          existing.id,
+        ]
+      )
+      const [rows] = await connection.execute('SELECT * FROM hgcash_movements WHERE id = ? LIMIT 1', [existing.id])
+      return {
+        movement: rows?.[0] || { ...existing, id: existing.id },
+        inserted: false,
+        insertId: existing.id,
+        duplicate: isReplay,
+        previousStatus: normalizeWebhookText(existing.provider_status || existing.status),
+      }
+    }
+
+    const [insertResult] = await connection.execute(
+      `INSERT INTO hgcash_movements (
+        client_id, chat_id, message_id, bank_account_id,
+        hg_id, hg_movement_id, gateway_movement_id, hg_account_id,
+        provider_event_id, gateway_event_id, destination_domain, provider_status,
+        cuit, receipt_date, receipt_time, amount, currency, direction, type, timezone,
+        from_name, to_name, from_cbu, to_cbu, from_cuit, to_cuit, account_id, cbu_cvu,
+        bank_status, coelsa_id, status, sync_status, raw_payload, raw_body,
+        received_from_gateway_at, updated_from_gateway_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        movement.client_id,
+        movement.chat_id,
+        movement.message_id,
+        movement.bank_account_id,
+        movement.hg_id,
+        movement.hg_movement_id,
+        movement.gateway_movement_id,
+        movement.hg_account_id,
+        movement.provider_event_id,
+        movement.gateway_event_id,
+        movement.destination_domain,
+        movement.provider_status,
+        movement.cuit,
+        movement.receipt_date,
+        movement.receipt_time,
+        movement.amount,
+        movement.currency,
+        movement.direction,
+        movement.type,
+        movement.timezone,
+        movement.from_name,
+        movement.to_name,
+        movement.from_cbu,
+        movement.to_cbu,
+        movement.from_cuit,
+        movement.to_cuit,
+        movement.account_id,
+        movement.cbu_cvu,
+        movement.bank_status,
+        movement.coelsa_id,
+        movement.status,
+        movement.sync_status,
+        movement.raw_payload,
+        movement.raw_body,
+        movement.received_from_gateway_at,
+        movement.updated_from_gateway_at,
+      ]
+    )
+    const [rows] = await connection.execute('SELECT * FROM hgcash_movements WHERE id = ? LIMIT 1', [insertResult.insertId])
+    return {
+      movement: rows?.[0] || { ...movement, id: insertResult.insertId },
+      inserted: true,
+      insertId: insertResult.insertId,
+      duplicate: false,
+      previousStatus: null,
+    }
+  })
+}
+
+async function processGatewaySideEffects({ movement, providerStatus, clientId, chatId, amount }) {
+  const io = getIo()
+  const finalClientId = clientId || movement?.client_id || null
+  const finalChatId = chatId || movement?.chat_id || null
+  const depositAmount = amount != null ? Number(amount) : Number(movement?.amount || 0)
+
+  if (providerStatus === 'pending') {
+    const pendingMsg = await getAutoMessage('receipt_received', { clientId: finalClientId, amount: depositAmount })
+    if (pendingMsg && finalChatId) {
+      const result = await persistMessage({
+        chatId: finalChatId,
+        senderType: 'system',
+        content: pendingMsg,
+      })
+      await query(
+        `UPDATE hgcash_movements
+         SET message_id = COALESCE(message_id, ?), updated_from_gateway_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [result.message.id, movement.id]
+      )
+    }
+    return
+  }
+
+  if (providerStatus === 'rejected') {
+    const rejectedMsg = await getAutoMessage('receipt_reupload', { clientId: finalClientId, amount: depositAmount })
+    if (rejectedMsg && finalChatId) {
+      const result = await persistMessage({
+        chatId: finalChatId,
+        senderType: 'system',
+        content: rejectedMsg,
+      })
+      await query(
+        `UPDATE hgcash_movements
+         SET message_id = COALESCE(message_id, ?), updated_from_gateway_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [result.message.id, movement.id]
+      )
+    }
+    if (finalChatId) {
+      io?.to(`chat:${finalChatId}`).emit('receipt:result', {
+        chatId: Number(finalChatId),
+        messageId: movement.message_id ? Number(movement.message_id) : null,
+        status: 'invalid',
+        amount: depositAmount,
+        resultReason: 'cashgateway_rejected',
+      })
+    }
+    return
+  }
+
+  if (providerStatus === 'paid') {
+    const paidMsg = await getAutoMessage('deposit_completed', { clientId: finalClientId, amount: depositAmount })
+    if (paidMsg && finalChatId) {
+      const result = await persistMessage({
+        chatId: finalChatId,
+        senderType: 'system',
+        content: paidMsg,
+        extra: {
+          depositEvent: 'deposit_completed',
+          depositAmount,
+        },
+      })
+      await query(
+        `UPDATE hgcash_movements
+         SET message_id = COALESCE(message_id, ?), updated_from_gateway_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [result.message.id, movement.id]
+      )
+      io?.to(`chat:${finalChatId}`).emit('receipt:result', {
+        chatId: Number(finalChatId),
+        messageId: Number(result.message.id),
+        status: 'paid',
+        amount: depositAmount,
+        resultReason: 'cashgateway_paid',
+      })
+      await sleep(250)
+      await resetClientBot(finalChatId)
+    }
+  }
+}
+
+export async function cashGatewayWebhook(req, res, next) {
+  try {
+    const rawBody = Buffer.isBuffer(req.body)
+      ? req.body
+      : Buffer.isBuffer(req.rawBody)
+        ? req.rawBody
+        : Buffer.from('')
+
+    console.info('[CashGateway] webhook recibido')
+
+    const receivedToken = normalizeHeaderValue(req.headers, 'x-gateway-token')
+    const expectedToken = normalizeWebhookText(process.env.CASHGATEWAY_TOKEN)
+    let resolvedBankAccountIdFromToken = null
+
+    if (expectedToken && receivedToken === expectedToken) {
+      console.info('[CashGateway] token_valid_env')
+    } else {
+      const tokenAccount = await getHgBankAccountByGatewayToken(receivedToken)
+      if (tokenAccount) {
+        console.info('[CashGateway] token_valid_db')
+        resolvedBankAccountIdFromToken = Number(tokenAccount.id) || null
+      } else {
+        console.warn('[CashGateway] token_invalid')
+        return res.status(401).json({ error: 'Token de gateway invalido' })
+      }
+    }
+
+    const body = parseJsonMaybe(rawBody.toString('utf8'))
+    if (!body || typeof body !== 'object') {
+      return res.status(400).json({ error: 'JSON invalido' })
+    }
+
+    const gatewayEventId = normalizeHeaderValue(req.headers, 'x-gateway-event-id') || null
+    const providerEventId = normalizeWebhookText(body.provider_event_id) || normalizeHeaderValue(req.headers, 'x-provider-event-id') || null
+    const providerStatus = normalizeProviderStatus(body.provider_status)
+    const destinationDomain = normalizeWebhookText(body.destination_domain) || normalizeHeaderValue(req.headers, 'x-destination-domain') || null
+    const payload = parseJsonMaybe(body.payload) || {}
+    const bankStatus = normalizeWebhookText(payload.status) || null
+
+    console.info(`[CashGateway] provider_status recibido=${body.provider_status}`)
+    console.info(`[CashGateway] bank_status recibido=${payload.status || ''}`)
+
+    if (!providerStatus) {
+      return res.status(400).json({ error: 'provider_status invalido' })
+    }
+
+    const signature = normalizeHeaderValue(req.headers, 'x-gateway-signature')
+    if (signature) {
+      const secret = normalizeWebhookText(process.env.CASHGATEWAY_SIGNING_SECRET)
+      const timestamp = normalizeHeaderValue(req.headers, 'x-gateway-timestamp')
+      const timestampMs = normalizeGatewayTimestamp(timestamp)
+      if (!secret || !timestampMs || Math.abs(Date.now() - timestampMs) > CASHGATEWAY_REPLAY_WINDOW_MS) {
+        console.warn('[CashGateway] replay detectado')
+        return res.status(401).json({ error: 'Firma o timestamp invalido' })
+      }
+      const signatureOk = verifyGatewayHmac({
+        rawBody,
+        timestamp,
+        signature,
+        secret,
+      })
+      if (!signatureOk) {
+        console.warn('[CashGateway] firma inválida')
+        return res.status(401).json({ error: 'Firma invalida' })
+      }
+    }
+
+    const bankAccountId = resolvedBankAccountIdFromToken || await resolveHGCashBankAccountId(payload.accountId || null)
+    const client = await findClientByTaxId(payload.fromCUIT || payload.fromCuit || payload.cuit || '')
+    const chat = client ? await findLatestChatByClientId(client.id) : null
+
+    const saved = await upsertGatewayMovement({
+      body,
+      headers: req.headers,
+      providerStatus,
+      bankStatus,
+      clientId: client?.id || null,
+      chatId: chat?.id || null,
+      bankAccountId,
+    })
+
+    console.info(
+      saved.inserted
+        ? `[CashGateway] movimiento insertado id=${saved.insertId || saved.movement?.id || 'n/a'}`
+        : `[CashGateway] movimiento actualizado id=${saved.insertId || saved.movement?.id || 'n/a'}`
+    )
+    if (saved.duplicate) console.info('[CashGateway] duplicado detectado')
+
+    if (providerStatus === 'paid' && saved.previousStatus !== 'paid') {
+      void processGatewaySideEffects({
+        movement: saved.movement,
+        providerStatus,
+        clientId: client?.id || null,
+        chatId: chat?.id || null,
+        amount: Number(payload.amount || 0),
+      }).catch(error => {
+        console.error('[CashGateway] error interno', error)
+      })
+    } else if (providerStatus === 'rejected' && saved.previousStatus !== 'rejected') {
+      void processGatewaySideEffects({
+        movement: saved.movement,
+        providerStatus,
+        clientId: client?.id || null,
+        chatId: chat?.id || null,
+        amount: Number(payload.amount || 0),
+      }).catch(error => {
+        console.error('[CashGateway] error interno', error)
+      })
+    } else if (providerStatus === 'pending' && saved.previousStatus !== 'pending') {
+      void processGatewaySideEffects({
+        movement: saved.movement,
+        providerStatus,
+        clientId: client?.id || null,
+        chatId: chat?.id || null,
+        amount: Number(payload.amount || 0),
+      }).catch(error => {
+        console.error('[CashGateway] error interno', error)
+      })
+    }
+
+    return res.status(200).json({
+      received: true,
+      gateway_event_id: gatewayEventId,
+      processed: true,
+      ...(saved.duplicate ? { duplicate: true } : {}),
+    })
+  } catch (error) {
+    console.error('[CashGateway] error interno', error)
+    next(error)
   }
 }

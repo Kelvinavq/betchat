@@ -3,7 +3,7 @@ import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
 import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js'
-import { hgWebhook, hgSyncTransactions, processImage, processPdf, requestPaymentHG } from '../controllers/hgCashController.js'
+import { hgSyncTransactions, processImage, processPdf, requestPaymentHG } from '../controllers/hgCashController.js'
 
 const HG_RECEIPTS_DIR = path.join(process.cwd(), 'public', 'hgcash-receipts')
 fs.mkdirSync(HG_RECEIPTS_DIR, { recursive: true })
@@ -27,9 +27,6 @@ const upload = multer({
 })
 
 const router = Router()
-
-// Webhook receives raw body; HMAC-SHA256 is the only auth
-router.post('/webhook', hgWebhook)
 
 // Admin-triggered poll sync
 router.post('/:id/sync', authenticateToken, requireRole('admin'), hgSyncTransactions)

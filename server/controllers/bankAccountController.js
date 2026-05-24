@@ -41,6 +41,7 @@ function sanitizeAccount(row) {
     cookie: data.cookie || '',
     cookie_expires_at: data.cookie_expires_at || null,
     webhook_enabled: Boolean(data.webhook_enabled),
+    webhook_mode: data.webhook_mode || 'hmac',
     webhook_secret: data.webhook_secret || '',
     expires_at: data.expires_at || null,
     currency: row.currency || 'ARS',
@@ -77,6 +78,9 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
   const errors = []
   const password = normalizeText(body.password)
   const webhookEnabled = normalizeBoolean(body.webhook_enabled)
+  const webhookMode = normalizeText(body.webhook_mode).toLowerCase()
+    || (editing ? normalizeText(previousData.webhook_mode).toLowerCase() : '')
+    || 'hmac'
   const payload = {
     nombre_titular: normalizeText(body.nombre_titular),
     email: normalizeText(body.email),
@@ -87,6 +91,7 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
     cookie: normalizeText(body.cookie),
     cookie_expires_at: normalizeText(body.cookie_expires_at) || null,
     webhook_enabled: webhookEnabled,
+    webhook_mode: ['hmac', 'flowhg'].includes(webhookMode) ? webhookMode : 'hmac',
     webhook_secret: webhookEnabled ? normalizeText(body.webhook_secret) : '',
     expires_at: normalizeText(body.expires_at) || null,
   }
@@ -109,7 +114,9 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
   if (provider === 'hgcash') {
     requireFields(payload, ['nombre_titular', 'email', 'cuit', 'alias', 'cbu'], errors)
     if (!editing && !password) errors.push('El campo password es requerido')
-    if (webhookEnabled && !payload.webhook_secret) errors.push('El webhook secret es requerido cuando el webhook esta activo')
+    if (webhookEnabled && payload.webhook_mode === 'hmac' && !payload.webhook_secret) {
+      errors.push('El webhook secret es requerido cuando el modo webhook es HMAC')
+    }
   }
 
   if (provider === 'telepagos') {

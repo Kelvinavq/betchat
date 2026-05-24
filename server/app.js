@@ -27,6 +27,8 @@ import autoMessagesRoutes from './routes/autoMessagesRoutes.js'
 import maintenanceRoutes from './routes/maintenanceRoutes.js'
 import metricsRoutes from './routes/metricsRoutes.js'
 import withdrawalRoutes from './routes/withdrawalRoutes.js'
+import cashGatewayRoutes from './routes/cashGatewayRoutes.js'
+import providerWebhookRoutes from './routes/providerWebhookRoutes.js'
 import hgCashRoutes from './routes/hgCashRoutes.js'
 import mercadoPagoRoutes from './routes/mercadoPagoRoutes.js'
 import pushRoutes from './routes/pushRoutes.js'
@@ -72,6 +74,11 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400, // 24 horas
 }));
+
+// Webhooks raw-body before JSON parser
+app.use('/api/cashgateway', cashGatewayRoutes);
+app.use('/api/hgcash', cashGatewayRoutes);
+app.use('/api/webhooks', providerWebhookRoutes);
 
 // Body parser — capture raw body for HMAC webhook verification
 app.use(express.json({

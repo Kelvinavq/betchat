@@ -337,6 +337,37 @@ ALTER TABLE `hgcash_movements`
   MODIFY COLUMN `chat_id`    INT UNSIGNED DEFAULT NULL,
   MODIFY COLUMN `message_id` BIGINT UNSIGNED DEFAULT NULL;
 
+ALTER TABLE `hgcash_movements`
+  ADD COLUMN `hg_id` VARCHAR(255) NULL AFTER `bank_account_id`,
+  ADD COLUMN `hg_movement_id` VARCHAR(255) NULL AFTER `hg_id`,
+  ADD COLUMN `gateway_movement_id` VARCHAR(255) NULL AFTER `hg_movement_id`,
+  ADD COLUMN `hg_account_id` VARCHAR(255) NULL AFTER `gateway_movement_id`,
+  ADD COLUMN `provider_event_id` VARCHAR(255) NULL AFTER `hg_account_id`,
+  ADD COLUMN `gateway_event_id` VARCHAR(255) NULL AFTER `provider_event_id`,
+  ADD COLUMN `destination_domain` VARCHAR(255) NULL AFTER `gateway_event_id`,
+  ADD COLUMN `provider_status` VARCHAR(50) NULL AFTER `destination_domain`,
+  ADD COLUMN `currency` VARCHAR(10) NULL AFTER `amount`,
+  ADD COLUMN `direction` VARCHAR(50) NULL AFTER `currency`,
+  ADD COLUMN `type` VARCHAR(50) NULL AFTER `direction`,
+  ADD COLUMN `timezone` VARCHAR(100) NULL AFTER `type`,
+  ADD COLUMN `from_name` VARCHAR(255) NULL AFTER `timezone`,
+  ADD COLUMN `to_name` VARCHAR(255) NULL AFTER `from_name`,
+  ADD COLUMN `from_cbu` VARCHAR(50) NULL AFTER `to_name`,
+  ADD COLUMN `to_cbu` VARCHAR(50) NULL AFTER `from_cbu`,
+  ADD COLUMN `from_cuit` VARCHAR(30) NULL AFTER `to_cbu`,
+  ADD COLUMN `to_cuit` VARCHAR(30) NULL AFTER `from_cuit`,
+  ADD COLUMN `account_id` VARCHAR(150) NULL AFTER `to_cuit`,
+  ADD COLUMN `raw_payload` JSON NULL AFTER `sync_status`,
+  ADD COLUMN `raw_body` JSON NULL AFTER `raw_payload`,
+  ADD COLUMN `received_from_gateway_at` DATETIME NULL AFTER `raw_body`,
+  ADD COLUMN `updated_from_gateway_at` DATETIME NULL AFTER `received_from_gateway_at`;
+
+CREATE INDEX `idx_hgcash_movements_provider_status` ON `hgcash_movements` (`provider_status`);
+CREATE INDEX `idx_hgcash_movements_bank_status` ON `hgcash_movements` (`bank_status`);
+CREATE INDEX `idx_hgcash_movements_provider_event_id` ON `hgcash_movements` (`provider_event_id`);
+CREATE INDEX `idx_hgcash_movements_gateway_event_id` ON `hgcash_movements` (`gateway_event_id`);
+CREATE INDEX `idx_hgcash_movements_account_id` ON `hgcash_movements` (`account_id`);
+
 ALTER TABLE `mercadopago_movements`
   MODIFY COLUMN `client_id`  INT UNSIGNED DEFAULT NULL,
   MODIFY COLUMN `chat_id`    INT UNSIGNED DEFAULT NULL,
