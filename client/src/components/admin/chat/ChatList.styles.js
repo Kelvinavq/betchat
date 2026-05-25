@@ -1,4 +1,4 @@
-import styled from 'styled-components'
+import styled, { keyframes } from 'styled-components'
 import { gradients, colors } from '../../../styles/theme'
 
 export const Wrap = styled.div`
@@ -467,4 +467,154 @@ export const EmptyState = styled.div`
   justify-content: center;
   font-size: 13px;
   color: rgba(255, 255, 255, 0.22);
+`
+
+/* ── bank processing indicator ── */
+export const TitleGroup = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+`
+
+const bankPulse = keyframes`
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%       { opacity: 1;   transform: scale(1.25); }
+`
+
+export const BankBadge = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 8px 3px 6px;
+  border-radius: 999px;
+  background: ${({ $color }) => `${$color}16`};
+  border: 1px solid ${({ $color }) => `${$color}38`};
+  color: ${({ $color }) => $color};
+  font-size: 10.5px;
+  font-weight: 700;
+  font-family: inherit;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.18s, border-color 0.18s, transform 0.14s, box-shadow 0.18s;
+
+  &:hover {
+    background: ${({ $color }) => `${$color}28`};
+    border-color: ${({ $color }) => `${$color}66`};
+    transform: scale(1.05);
+    box-shadow: 0 0 10px ${({ $color }) => `${$color}30`};
+  }
+  &:active { transform: scale(0.97); }
+`
+
+export const BankDot = styled.span`
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 6px currentColor;
+  flex-shrink: 0;
+  animation: ${bankPulse} 2s ease-in-out infinite;
+`
+
+export const BankPopupWrap = styled.div`
+  position: fixed;
+  left: ${({ $x }) => `${$x}px`};
+  top: ${({ $y }) => `${$y}px`};
+  min-width: 240px;
+  max-width: 300px;
+  background: rgba(10, 10, 22, 0.98);
+  border: 1px solid rgba(40, 140, 255, 0.15);
+  border-radius: 13px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255,255,255,0.04);
+  overflow: hidden;
+  z-index: 200;
+  backdrop-filter: blur(12px);
+`
+
+export const BankPopupHeader = styled.div`
+  padding: 10px 14px 9px;
+  color: rgba(255, 255, 255, 0.28);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+`
+
+export const BankOptionBtn = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border: none;
+  background: ${({ $active, $color }) => $active ? `${$color}18` : 'transparent'};
+  color: ${({ $active, $color }) => $active ? $color : 'rgba(255,255,255,0.70)'};
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: ${({ $active }) => $active ? '600' : '500'};
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &:hover:not(:disabled) {
+    background: ${({ $color }) => `${$color}14`};
+    color: ${({ $color }) => $color};
+  }
+  &:disabled { opacity: 0.38; cursor: default; }
+`
+
+export const BankOptionInitials = styled.span`
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: ${({ $color }) => `${$color}1e`};
+  border: 1px solid ${({ $color }) => `${$color}40`};
+  color: ${({ $color }) => $color};
+  font-size: 9.5px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+`
+
+export const BankOptionInfo = styled.div`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+`
+
+export const BankOptionName = styled.span`
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const BankOptionAccount = styled.span`
+  font-size: 10.5px;
+  opacity: 0.52;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+export const BankOptionCheck = styled.span`
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid currentColor;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
 `

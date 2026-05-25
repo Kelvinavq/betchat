@@ -7,6 +7,7 @@ import FormData from 'form-data'
 import { query } from '../config/database.js'
 import { persistMessage } from './chatController.js'
 import { getAutoMessage } from './autoMessagesController.js'
+import { insertReceiptLog, finalizeReceiptLog } from './receiptLogController.js'
 
 const MP_API_BASE = 'https://api.mercadopago.com'
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
@@ -303,6 +304,14 @@ async function creditPanelBalance({ clientId, amountArs }) {
   }
 
   const mocked = isMockPanelBalance()
+  if (mocked) {
+    return {
+      ok: true,
+      mocked: true,
+      data: { successMessage: 'Balance es cambiado con exito (MOCK)' },
+    }
+  }
+
   const { apiUrl, apiKey } = await getCasinoConfig()
   const { currency } = await getActiveAmountConfig('deposit')
   const externalId = await getClientExternalId(clientId)
@@ -316,15 +325,6 @@ async function creditPanelBalance({ clientId, amountArs }) {
   const panelUrl = `${apiUrl}index.php?act=admin&area=balance&response=js&type=frame&id=${encodeURIComponent(
     externalId,
   )}`
-
-  if (mocked) {
-    return {
-      ok: true,
-      mocked: true,
-      url: panelUrl,
-      data: { successMessage: 'Balance es cambiado con éxito (MOCK)' },
-    }
-  }
 
   const resp = await axios.post(panelUrl, formData, {
     headers: formData.getHeaders(),
@@ -549,26 +549,59 @@ function normalizeExtractedData(data) {
 }
 
 async function processReceiptBase(req, res, mimeType) {
-  const shouldDeleteFile = true
+  const chatId = Number(req.body?.chatId)
+  const clientId = Number(req.body?.clientId)
+  const messageId = Number(req.body?.messageId) || null
+
+  let logId = null
+  const logSteps = []
+  const logAccum = { aiModel: null, aiRawResponse: null, aiExtractedJson: null, movementId: null }
+  const ts = () => new Date().toISOString()
+
+  const flushLog = async (resultStatus, resultReason, resultDetail) => {
+    if (!logId) return
+    try {
+      await finalizeReceiptLog(logId, {
+        ...logAccum,
+        processingSteps: logSteps,
+        resultStatus,
+        resultReason,
+        resultDetail,
+      })
+    } catch (e) {
+      console.error('[MP][Log] Error guardando log:', e.message)
+    }
+  }
+
   try {
     if (!req.file) {
       return res.status(400).json({ ok: false, message: 'No se proporcionó archivo' })
     }
-
-    const chatId = Number(req.body?.chatId)
-    const clientId = Number(req.body?.clientId)
     if (!chatId || !clientId) {
       return res.status(400).json({ ok: false, message: 'chatId y clientId son requeridos' })
     }
 
+    try {
+      logId = await insertReceiptLog({ provider: 'mercadopago', messageId, chatId, clientId })
+    } catch (e) {
+      console.error('[MP][Log] Error creando log:', e.message)
+    }
+
     const createdAt = nowSql()
     const filename = req.file.filename
-    const extractedRaw = await extractWithOpenRouter({
-      filePath: req.file.path,
-      mimeType,
-    })
+
+    logSteps.push({ step: 'ai_extraction_start', ts: ts(), detail: {} })
+    const extractedRaw = await extractWithOpenRouter({ filePath: req.file.path, mimeType })
     const extractedData = normalizeExtractedData(extractedRaw)
     const aiModel = extractedRaw?.model || null
+    logAccum.aiModel = aiModel
+    logAccum.aiRawResponse = extractedRaw?.rawResponse || null
+    logAccum.aiExtractedJson = extractedData
+    logSteps.push({
+      step: 'ai_extraction_complete',
+      ts: ts(),
+      detail: { model: aiModel, extracted: extractedData },
+    })
 
     const { currency: activeCurrency, minAmount } = await getActiveAmountConfig('deposit')
     const amount = extractedData.amount ? Number(extractedData.amount) : null
@@ -582,10 +615,15 @@ async function processReceiptBase(req, res, mimeType) {
     if (!extractedData.transaction_id || !amount) {
       outcome = 'insufficient_info'
       resultReason = !extractedData.transaction_id ? 'missing_transaction_id' : 'missing_amount'
+      logSteps.push({ step: 'validation_failed', ts: ts(), detail: { reason: resultReason, amount, transactionId: extractedData.transaction_id } })
     } else if (amountTooLow) {
       outcome = 'amount_low'
       resultReason = `amount_below_minimum_${minAmount}_${activeCurrency}`
+      logSteps.push({ step: 'amount_too_low', ts: ts(), detail: { amount, minAmount, currency: activeCurrency } })
     } else {
+      logSteps.push({ step: 'validation_ok', ts: ts(), detail: { amount, transactionId: extractedData.transaction_id, idType: extractedData.id_type } })
+      logSteps.push({ step: 'mp_api_lookup_start', ts: ts(), detail: { transactionId: extractedData.transaction_id, amount, date: extractedData.date } })
+
       const mpCheck = await findMpPaymentByTxId({
         transactionId: extractedData.transaction_id,
         amount,
@@ -595,10 +633,17 @@ async function processReceiptBase(req, res, mimeType) {
       if (!mpCheck?.found) {
         outcome = 'invalid'
         resultReason = 'mp_payment_not_found'
+        logSteps.push({ step: 'mp_api_lookup_not_found', ts: ts(), detail: { mode: mpCheck?.mode, status: mpCheck?.status } })
       } else {
         const payment = mpCheck.payment
         const paymentId = String(payment?.id || '').trim()
         const txId = normalizeMpTxId(getMpTransactionId(payment) || extractedData.transaction_id)
+        logSteps.push({
+          step: 'mp_api_lookup_found',
+          ts: ts(),
+          detail: { mode: mpCheck.mode, paymentId, txId, mpStatus: payment?.status, mpAmount: payment?.transaction_amount },
+        })
+
         const { rows: duplicateRows } = await query(
           `SELECT id
            FROM mercadopago_movements
@@ -612,6 +657,8 @@ async function processReceiptBase(req, res, mimeType) {
           isDuplicate = true
           outcome = 'duplicate'
           resultReason = 'duplicate_payment_id_or_transaction'
+          logSteps.push({ step: 'duplicate_found', ts: ts(), detail: { duplicateId: duplicateRows[0].id } })
+          await flushLog(outcome, resultReason, { isDuplicate: true, duplicateId: duplicateRows[0].id })
           await sendMpAutoMessage(chatId, 'receipt_duplicate', { clientId, amount })
           return res.status(200).json({
             ok: true,
@@ -629,19 +676,31 @@ async function processReceiptBase(req, res, mimeType) {
           })
         }
 
+        logSteps.push({ step: 'duplicate_check_ok', ts: ts(), detail: {} })
+
         const panelAmount = Number(payment?.transaction_amount || amount)
-        panelResult = await creditPanelBalance({
-          clientId,
-          amountArs: panelAmount,
-        })
+        logSteps.push({ step: 'panel_credit_start', ts: ts(), detail: { amountArs: panelAmount } })
+
+        panelResult = await creditPanelBalance({ clientId, amountArs: panelAmount })
         outcome = panelResult?.ok ? 'paid' : 'invalid'
         resultReason = panelResult?.ok
           ? 'panel_balance_credit_success'
           : `panel_balance_credit_failed_${panelResult?.error || panelResult?.status || 'unknown'}`
+
+        logSteps.push({
+          step: panelResult?.ok ? 'panel_credit_ok' : 'panel_credit_failed',
+          ts: ts(),
+          detail: {
+            ok: panelResult?.ok,
+            mocked: panelResult?.mocked || false,
+            httpStatus: panelResult?.status || null,
+            message: panelResult?.data?.successMessage || panelResult?.data?.message || null,
+          },
+        })
+
         if (!panelResult?.ok) {
           console.warn('[MP][PANEL] credit failed', {
             clientId,
-            externalId,
             chatId,
             paymentId,
             txId,
@@ -660,7 +719,9 @@ async function processReceiptBase(req, res, mimeType) {
           [paymentId],
         )
 
+        let movementDbId = null
         if (existing?.length) {
+          movementDbId = existing[0].id
           await query(
             `UPDATE mercadopago_movements
              SET client_id = ?, chat_id = ?, message_id = ?, bank_account_id = NULL,
@@ -671,57 +732,38 @@ async function processReceiptBase(req, res, mimeType) {
                  sync_status = 'synced', result_status = ?, result_reason = ?, ai_model = ?, updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
             [
-              clientId,
-              chatId,
-              null,
+              clientId, chatId, null,
               payment?.payer?.identification?.number || null,
-              loadDate,
-              loadTime,
-              panelAmount,
-              txId,
+              loadDate, loadTime, panelAmount, txId,
               /^\d+$/.test(txId || '') ? 'numeric' : 'alphanumeric',
               panelResult?.ok ? 'paid' : 'error',
-              String(payment?.id || ''),
-              txId,
-              loadDate,
-              loadTime,
-              panelAmount,
-              outcome,
-              resultReason,
-              aiModel,
+              String(payment?.id || ''), txId, loadDate, loadTime, panelAmount,
+              outcome, resultReason, aiModel,
               existing[0].id,
             ],
           )
         } else {
-          await query(
+          const { rows: insertRows } = await query(
             `INSERT INTO mercadopago_movements
               (client_id, chat_id, message_id, bank_account_id, cuit, receipt_date, receipt_time, amount,
-              transaction_id, transaction_id_type, status, mercadopago_id, game_platform_load_id,
+               transaction_id, transaction_id_type, status, mercadopago_id, game_platform_load_id,
                game_load_date, game_load_time, game_load_amount, sync_status, result_status, result_reason, ai_model)
              VALUES (?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?)`,
             [
-              clientId,
-              chatId,
-              null,
+              clientId, chatId, null,
               payment?.payer?.identification?.number || null,
-              loadDate,
-              loadTime,
-              panelAmount,
-              txId,
+              loadDate, loadTime, panelAmount, txId,
               /^\d+$/.test(txId || '') ? 'numeric' : 'alphanumeric',
               panelResult?.ok ? 'paid' : 'error',
-              String(payment?.id || ''),
-              txId,
-              loadDate,
-              loadTime,
-              panelAmount,
-              outcome,
-              resultReason,
-              aiModel,
+              String(payment?.id || ''), txId, loadDate, loadTime, panelAmount,
+              outcome, resultReason, aiModel,
             ],
           )
+          movementDbId = insertRows?.insertId || null
         }
 
+        logAccum.movementId = movementDbId
+        logSteps.push({ step: 'movement_saved', ts: ts(), detail: { movementId: movementDbId, status: panelResult?.ok ? 'paid' : 'error' } })
         outcome = panelResult?.ok ? 'paid' : 'invalid'
       }
     }
@@ -736,22 +778,30 @@ async function processReceiptBase(req, res, mimeType) {
 
     await sendMpAutoMessage(chatId, event, { clientId, amount })
 
-          return res.status(200).json({
-            ok: true,
-            status: outcome,
-            extractedData,
-            panel: panelResult,
-            isDuplicate,
-            resultReason,
-            aiModel,
-            createdAt,
-            image_name: filename,
-            syncStatus: outcome === 'paid' ? 'synced' : 'not_synced',
-            currency: activeCurrency,
-            minAmount,
-          })
+    await flushLog(outcome, resultReason, {
+      isDuplicate,
+      panel: panelResult ? { ok: panelResult.ok, mocked: panelResult.mocked, httpStatus: panelResult.status } : null,
+      syncStatus: outcome === 'paid' ? 'synced' : 'not_synced',
+    })
+
+    return res.status(200).json({
+      ok: true,
+      status: outcome,
+      extractedData,
+      panel: panelResult,
+      isDuplicate,
+      resultReason,
+      aiModel,
+      createdAt,
+      image_name: filename,
+      syncStatus: outcome === 'paid' ? 'synced' : 'not_synced',
+      currency: activeCurrency,
+      minAmount,
+    })
   } catch (error) {
     console.error('[MP] process receipt error:', error)
+    logSteps.push({ step: 'error', ts: ts(), detail: { message: error?.message } })
+    await flushLog('error', error?.message || 'internal_error', { error: error?.message })
     await sendMpAutoMessage(Number(req.body?.chatId || 0), 'deposit_failed', {
       clientId: Number(req.body?.clientId || 0),
     })
@@ -759,12 +809,6 @@ async function processReceiptBase(req, res, mimeType) {
       ok: false,
       message: error?.message || 'Error procesando comprobante',
     })
-  } finally {
-    if (shouldDeleteFile) {
-      try {
-        // keep temp files managed by the upload pipeline
-      } catch {}
-    }
   }
 }
 

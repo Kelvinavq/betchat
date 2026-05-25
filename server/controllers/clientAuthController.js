@@ -61,11 +61,16 @@ const clientCookieOptions = {
 }
 
 function sanitizeClient(client, chatId = null) {
+  const taxId = client.cuil || client.cuit_cuil || client.cuil_cuit || client.cuit || null
   return {
     id: client.id,
     username: client.username,
     fullName: client.full_name || client.username,
     phone: client.phone || null,
+    cuil: taxId,
+    cuit: taxId,
+    cuit_cuil: taxId,
+    cuil_cuit: taxId,
     externalId: client.external_id || null,
     active: Boolean(client.is_active),
     online: Boolean(client.is_online),
@@ -73,6 +78,35 @@ function sanitizeClient(client, chatId = null) {
     tempSessionActive: client.temp_session_active !== 0,
     chatId,
   }
+}
+
+let clientTaxColumnsCache = null
+
+async function getClientTaxColumns() {
+  if (clientTaxColumnsCache) return clientTaxColumnsCache
+  const { rows, error } = await query(
+    `SELECT COLUMN_NAME
+     FROM INFORMATION_SCHEMA.COLUMNS
+     WHERE TABLE_SCHEMA = DATABASE()
+       AND TABLE_NAME = 'clients'
+       AND COLUMN_NAME IN ('cuil', 'cuit', 'cuit_cuil', 'cuil_cuit')`,
+  )
+  if (error) throw error
+  clientTaxColumnsCache = (rows || []).map(row => row.COLUMN_NAME)
+  return clientTaxColumnsCache
+}
+
+async function enrichClientTaxId(client) {
+  if (!client?.id) return client
+  const columns = await getClientTaxColumns()
+  if (!columns.length) return client
+  const selectExpr = columns.map(column => `NULLIF(${column}, '')`).join(', ')
+  const { rows, error } = await query(
+    `SELECT COALESCE(${selectExpr}) AS tax_id FROM clients WHERE id = ? LIMIT 1`,
+    [client.id],
+  )
+  if (error) throw error
+  return { ...client, cuil: rows?.[0]?.tax_id || client.cuil || null }
 }
 
 function signClientToken(clientId, username) {
@@ -298,6 +332,7 @@ async function ensureClientAndChat({ username, password, externalId, phone = nul
         full_name: username,
         phone: phone || null,
         password: password,
+        cuil: null,
         external_id: externalId || null,
         is_active: 1,
         is_online: 1,
@@ -354,10 +389,11 @@ async function startClientSession(res, client, chatId, req = null) {
   if (req && !client.is_temporary) {
     logClientSession(client.id, req).catch(() => {})
   }
+  const enrichedClient = await enrichClientTaxId({ ...client, is_online: 1 })
 
   return {
     expiresIn: config.jwtExpiresIn,
-    client: sanitizeClient({ ...client, is_online: 1 }, chatId),
+    client: sanitizeClient(enrichedClient, chatId),
   }
 }
 
@@ -670,7 +706,7 @@ export async function meClient(req, res, next) {
     )
     if (chatError) return next(chatError)
 
-    res.json({ client: sanitizeClient(client, chatRows?.[0]?.id || null) })
+    res.json({ client: sanitizeClient(await enrichClientTaxId(client), chatRows?.[0]?.id || null) })
   } catch (error) {
     const status = error.name === 'TokenExpiredError' ? 401 : error.status || 500
     if (status === 401) {

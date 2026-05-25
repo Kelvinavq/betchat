@@ -65,6 +65,13 @@ const MESSAGE_DEFS = [
     bg: 'rgba(245,158,11,0.13)',
   },
   {
+    event: 'hgcash_payment_not_found',
+    label: 'Pago HGCash no encontrado',
+    desc: 'Se envía cuando el cliente reporta pago con CUIL pero no hay un movimiento pendiente',
+    icon: '🔎',
+    bg: 'rgba(56,189,248,0.13)',
+  },
+  {
     event: 'withdrawal_approved',
     label: 'Retiro aprobado',
     desc: 'Se envía cuando el operador aprueba un retiro y se reinicia el bot del cliente',

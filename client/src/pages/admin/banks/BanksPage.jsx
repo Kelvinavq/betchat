@@ -138,9 +138,10 @@ const initForm = (bank, account = null) => {
       cuit: account?.cuit ?? '',
       alias: account?.alias ?? '',
       cbu: account?.cbu ?? '',
-      webhook_enabled: Boolean(account?.webhook_enabled || account?.webhook_secret),
+      webhook_enabled: Boolean(account?.webhook_enabled || account?.webhook_secret || account?.gateway_signing_secret),
       webhook_mode: account?.webhook_mode ?? 'hmac',
       webhook_secret: account?.webhook_secret ?? '',
+      gateway_signing_secret: account?.gateway_signing_secret ?? '',
       api_token: '',
       estatus: account?.estatus ?? 'activa',
     }
@@ -195,6 +196,12 @@ const validateForm = (bank, form, editing) => {
   }
   if (bank === 'hgcash' && form.webhook_enabled && form.webhook_mode === 'hmac' && !String(form.webhook_secret ?? '').trim()) {
     return 'Agrega el webhook secret o cambia el modo de webhook.'
+  }
+  if (bank === 'hgcash' && form.webhook_enabled && form.webhook_mode === 'flowhg' && !String(form.webhook_secret ?? '').trim()) {
+    return 'Agrega el destination token de FlowHG.'
+  }
+  if (bank === 'hgcash' && form.webhook_enabled && form.webhook_mode === 'flowhg' && !String(form.gateway_signing_secret ?? '').trim()) {
+    return 'Agrega el gateway signing secret de FlowHG.'
   }
   return null
 }
@@ -636,7 +643,9 @@ const BanksPage = ({ onMenuOpen }) => {
 
       {movAcc && (() => {
         const cfg   = BANKS.find(b => b.id === (movAcc.provider || activeBank))
-        const hasCbu = ['hgcash','mercadopago','telepagos'].includes(movAcc.provider || activeBank)
+        const provider = movAcc.provider || activeBank
+        const isHgCash = provider === 'hgcash'
+        const hasCbu = ['hgcash','mercadopago','telepagos'].includes(provider)
         const { movements, pagination: mp } = movData
         const movTotalPages = Math.max(1, mp.totalPages || 1)
 
@@ -765,7 +774,7 @@ const BanksPage = ({ onMenuOpen }) => {
                 <MovSearchBox>
                   <MovSrchIcon><SearchIcon /></MovSrchIcon>
                   <MovSearchInput
-                    placeholder="Usuario / referencia…"
+                    placeholder={isHgCash ? 'Usuario / coelsa...' : 'Usuario / referencia...'}
                     value={movSearch}
                     onChange={e => {
                       setMovSearch(e.target.value)
@@ -783,22 +792,33 @@ const BanksPage = ({ onMenuOpen }) => {
               {/* table */}
               <MovTableWrap>
                 <MovTableScroll>
-                  <Table style={{ minWidth: 700 }}>
+                  <Table style={{ minWidth: isHgCash ? 860 : 700 }}>
                     <Thead>
                       <tr>
                         <Th style={{ width: 60 }}>#</Th>
                         <Th>FECHA</Th>
                         <Th $right>MONTO</Th>
-                        <Th>ESTADO</Th>
-                        <Th>REFERENCIA</Th>
+                        {isHgCash ? (
+                          <>
+                            <Th>ESTADO CASH</Th>
+                            <Th>ESTATUS</Th>
+                            <Th>COELSA</Th>
+                            <Th>ORIGEN</Th>
+                          </>
+                        ) : (
+                          <>
+                            <Th>ESTADO</Th>
+                            <Th>REFERENCIA</Th>
+                          </>
+                        )}
                         <Th>USUARIO</Th>
                       </tr>
                     </Thead>
                     <Tbody>
                       {movLoading ? (
-                        <tr><td colSpan={6}><MovSpinner /></td></tr>
+                        <tr><td colSpan={isHgCash ? 8 : 6}><MovSpinner /></td></tr>
                       ) : movements.length === 0 ? (
-                        <tr><td colSpan={6}><MovEmpty>Sin movimientos en el período seleccionado</MovEmpty></td></tr>
+                        <tr><td colSpan={isHgCash ? 8 : 6}><MovEmpty>Sin movimientos en el período seleccionado</MovEmpty></td></tr>
                       ) : movements.map(m => (
                         <Tr key={m.id}>
                           <Td><MonoText style={{ fontSize: 11 }}>{m.id}</MonoText></Td>
@@ -808,15 +828,38 @@ const BanksPage = ({ onMenuOpen }) => {
                               {fmtAmount(m.amount)}
                             </span>
                           </Td>
-                          <Td><MovStatusBadge $s={m.status}>{STATUS_LABEL[m.status] ?? m.status}</MovStatusBadge></Td>
+                          {isHgCash ? (
+                            <>
+                              <Td>
+                                {m.bankStatus
+                                  ? <MonoText style={{ fontSize: 11 }}>{m.bankStatus}</MonoText>
+                                  : <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>-</span>}
+                              </Td>
+                              <Td><MovStatusBadge $s={m.status}>{STATUS_LABEL[m.status] ?? m.status}</MovStatusBadge></Td>
+                              <Td>
+                                {m.coelsaId
+                                  ? <CopyField value={m.coelsaId} mono small />
+                                  : <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>-</span>}
+                              </Td>
+                              <Td>
+                                <MovStatusBadge $s={m.source === 'gateway' ? 'paid' : ''}>
+                                  {m.sourceLabel || (m.source === 'gateway' ? 'Gateway' : 'Banco')}
+                                </MovStatusBadge>
+                              </Td>
+                            </>
+                          ) : (
+                            <>
+                              <Td><MovStatusBadge $s={m.status}>{STATUS_LABEL[m.status] ?? m.status}</MovStatusBadge></Td>
+                              <Td>
+                                {m.refId
+                                  ? <CopyField value={m.refId} mono small />
+                                  : <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>—</span>}
+                              </Td>
+                            </>
+                          )}
                           <Td>
-                            {m.refId
-                              ? <CopyField value={m.refId} mono small />
-                              : <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>—</span>}
-                          </Td>
-                          <Td>
-                            {m.clientUsername
-                              ? <span style={{ fontSize: 12.5, fontWeight: 600, color: '#60a5fa' }}>{m.clientUsername}</span>
+                            {m.clientName || m.clientUsername
+                              ? <span style={{ fontSize: 12.5, fontWeight: 600, color: '#60a5fa' }}>{m.clientName || m.clientUsername}</span>
                               : <span style={{ color: 'rgba(255,255,255,0.22)', fontSize: 11 }}>—</span>}
                           </Td>
                         </Tr>
@@ -1025,6 +1068,7 @@ const BanksPage = ({ onMenuOpen }) => {
                         ...prev,
                         webhook_enabled: !prev.webhook_enabled,
                         webhook_secret: prev.webhook_enabled ? '' : prev.webhook_secret,
+                        gateway_signing_secret: prev.webhook_enabled ? '' : prev.gateway_signing_secret,
                         webhook_mode: prev.webhook_mode || 'hmac',
                       }))}
                     >
@@ -1049,7 +1093,7 @@ const BanksPage = ({ onMenuOpen }) => {
                         </InputWrap>
                       </Field>
                       <Field $full>
-                        <FieldLabel>{form.webhook_mode === 'flowhg' ? 'Webhook Secret opcional' : 'Webhook Secret'}</FieldLabel>
+                        <FieldLabel>{form.webhook_mode === 'flowhg' ? 'Destination token' : 'Webhook Secret'}</FieldLabel>
                         <InputWrap>
                           <FieldInput
                             type={showPw.wh ? 'text' : 'password'}
@@ -1064,6 +1108,24 @@ const BanksPage = ({ onMenuOpen }) => {
                           </InputSuffix>
                         </InputWrap>
                       </Field>
+                      {form.webhook_mode === 'flowhg' && (
+                        <Field $full>
+                          <FieldLabel>Gateway signing secret</FieldLabel>
+                          <InputWrap>
+                            <FieldInput
+                              type={showPw.gateway_signing_secret ? 'text' : 'password'}
+                              placeholder="secret generado en FlowHG"
+                              value={form.gateway_signing_secret ?? ''}
+                              onChange={e => setField('gateway_signing_secret', e.target.value)}
+                              autoComplete="off"
+                              style={{ paddingRight: 40, fontFamily: "'Courier New', monospace", fontSize: 12 }}
+                            />
+                            <InputSuffix type="button" onClick={() => togglePw('gateway_signing_secret')} tabIndex={-1}>
+                              {showPw.gateway_signing_secret ? <VisibilityOffOutlinedIcon /> : <VisibilityOutlinedIcon />}
+                            </InputSuffix>
+                          </InputWrap>
+                        </Field>
+                      )}
                     </FormGrid>
                   )}
                 </div>

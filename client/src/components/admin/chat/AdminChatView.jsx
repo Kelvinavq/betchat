@@ -31,11 +31,13 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange'
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined'
 import DropUpload from '../../common/DropUpload'
 import { useConfirm } from '../../common/ConfirmDialog'
 import MovementDrawer from './MovementDrawer'
 import WithdrawalDrawer from './WithdrawalDrawer'
 import TransactionHistoryDrawer from './TransactionHistoryDrawer'
+import ReceiptLogModal from './ReceiptLogModal'
 import { api, resolveApiAsset } from '../../../utils/api'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../../utils/richText'
@@ -49,7 +51,7 @@ import {
   FormSubmissionCard, FormSubmissionTitle, FormSubmissionRow, FormSubmissionLabel, FormSubmissionValue, FormSubmissionCopy,
   MessageActionMenu, MessageActionItem, ReplyQuote, ReplyAuthor, ReplyText,
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
-  ScrollDownBtn, MediaMsgImg, MediaMsgPdf,
+  ScrollDownBtn, MediaMsgImg, MediaMsgPdf, LogAiBtn,
   BottomArea,
   CommandSuggestions, CommandSuggestionBtn, CommandSuggestionMeta, CommandSuggestionName,
   CommandSuggestionPreview, CommandSuggestionTrigger, CommandPreview, CommandPreviewHead,
@@ -445,6 +447,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
   const [withdrawalDrawerOpen, setWithdrawalDrawerOpen] = useState(false)
   const [txHistoryOpen, setTxHistoryOpen] = useState(false)
   const [pendingCounts, setPendingCounts] = useState({ movements: 0, withdrawals: 0 })
+  const [receiptLogMsg, setReceiptLogMsg] = useState(null)
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -1185,6 +1188,13 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
         <WithdrawalDrawer chat={chat} onClose={() => { setWithdrawalDrawerOpen(false); fetchPendingCounts() }} />,
         document.body
       )}
+      {receiptLogMsg && (
+        <ReceiptLogModal
+          chatId={chat?.id}
+          messageId={receiptLogMsg}
+          onClose={() => setReceiptLogMsg(null)}
+        />
+      )}
       {txHistoryOpen && createPortal(
         <TransactionHistoryDrawer chat={chat} onClose={() => setTxHistoryOpen(false)} />,
         document.body
@@ -1352,6 +1362,11 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                       loading="lazy"
                       onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
                     />
+                    {!msg.sent && msg.dbId && (
+                      <LogAiBtn type="button" onClick={() => setReceiptLogMsg(msg.dbId)}>
+                        <SmartToyOutlinedIcon />Log IA
+                      </LogAiBtn>
+                    )}
                   </>
                 ) : msg.type === 'pdf' ? (
                   <>
@@ -1360,6 +1375,11 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                     <MediaMsgPdf onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}>
                       <DescriptionIcon /><span>{msg.fileName}</span>
                     </MediaMsgPdf>
+                    {!msg.sent && msg.dbId && (
+                      <LogAiBtn type="button" onClick={() => setReceiptLogMsg(msg.dbId)}>
+                        <SmartToyOutlinedIcon />Log IA
+                      </LogAiBtn>
+                    )}
                   </>
                 ) : msg.type === 'voice' ? (
                   <>

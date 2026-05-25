@@ -19,7 +19,7 @@ import { useConfirm } from '../../common/ConfirmDialog'
 import { api } from '../../../utils/api'
 import { getSocket } from '../../../utils/socket'
 import {
-  Wrap, ListHeader, ListTitle, HeaderActions, IconBtn,
+  Wrap, ListHeader, ListTitle, TitleGroup, HeaderActions, IconBtn,
   DropdownMenu, DropdownItem, DropdownSection, DropdownLabel, LabelFilterBtn, LabelFilterDot,
   QuickMenu, QuickMenuItem,
   SearchWrap, SearchIcon as SearchIconWrap, SearchInput,
@@ -28,6 +28,8 @@ import {
   AssignedPill, ChatRow, ChatUsername, ChatTime, ChatLastMsg,
   TagEl, UnreadBadge, TAG_CONFIG,
   LoadMoreBtn, EmptyState,
+  BankBadge, BankDot, BankPopupWrap, BankPopupHeader,
+  BankOptionBtn, BankOptionInitials, BankOptionInfo, BankOptionName, BankOptionAccount, BankOptionCheck,
 } from './ChatList.styles'
 
 const CHAT_PAGE_SIZE = 50
@@ -68,6 +70,13 @@ const PROCESS_PALETTE = [
 
 const normalizeLabel = (value) => String(value || '').replace(/^[^\p{L}\p{N}]+/u, '').trim()
 
+const BANK_CONFIG = {
+  hgcash:      { label: 'HG Cash',      initials: 'HG', color: '#818cf8' },
+  mercadopago: { label: 'Mercado Pago', initials: 'MP', color: '#38bdf8' },
+  telepagos:   { label: 'Telepagos',    initials: 'TP', color: '#fb923c' },
+  manual:      { label: 'Manual',       initials: 'MN', color: '#94a3b8' },
+}
+
 const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }) => {
   const { user } = useContext(AuthContext) || {}
   const { formatTime } = useDateFormat()
@@ -93,20 +102,29 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
     totalPages: 1,
     hasMore: false,
   })
+  const [chatBank, setChatBank] = useState(null)
+  const [bankAccounts, setBankAccounts] = useState({})
+  const [bankPopup, setBankPopup] = useState(null)
+  const [bankSaving, setBankSaving] = useState(false)
   const menuRef = useRef(null)
   const quickMenuRef = useRef(null)
+  const bankBadgeRef = useRef(null)
+  const bankPopupRef = useRef(null)
 
   useEffect(() => {
     const handler = (e) => {
       if (menuRef.current && !menuRef.current.contains(e.target)) setMenuOpen(false)
       if (quickMenuRef.current && !quickMenuRef.current.contains(e.target)) setQuickMenu(null)
+      const outsideBadge = !bankBadgeRef.current?.contains(e.target)
+      const outsidePopup = !bankPopupRef.current?.contains(e.target)
+      if (outsideBadge && outsidePopup) setBankPopup(null)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   useEffect(() => {
-    const handler = () => setQuickMenu(null)
+    const handler = () => { setQuickMenu(null); setBankPopup(null) }
     window.addEventListener('scroll', handler, true)
     window.addEventListener('resize', handler)
     return () => {
@@ -177,6 +195,27 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
       setLoadingMore(false)
     }
   }
+
+  useEffect(() => {
+    let alive = true
+    const loadChatBank = async () => {
+      try {
+        const data = await api.get('/api/settings/chat-bank')
+        if (!alive) return
+        setChatBank(data.chatBank)
+        setBankAccounts(data.bankAccounts || {})
+      } catch { /* silent */ }
+    }
+    loadChatBank()
+    return () => { alive = false }
+  }, [])
+
+  useEffect(() => {
+    const socket = getSocket('admin')
+    const onBankUpdated = ({ chatBank: updated }) => setChatBank(updated)
+    socket.on('settings:chat-bank-updated', onBankUpdated)
+    return () => socket.off('settings:chat-bank-updated', onBankUpdated)
+  }, [])
 
   useEffect(() => {
     let alive = true
@@ -262,6 +301,25 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
     setQuickMenu({ chat, x: Math.max(10, x), y: Math.max(10, y) })
   }
 
+  const handleBankBadgeClick = () => {
+    if (bankPopup) { setBankPopup(null); return }
+    const rect = bankBadgeRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setBankPopup({ x: rect.left, y: rect.bottom + 6 })
+  }
+
+  const handleBankSelect = async (accountId) => {
+    if (bankSaving) return
+    if (String(accountId) === String(chatBank?.accountId)) { setBankPopup(null); return }
+    setBankSaving(true)
+    try {
+      const data = await api.put('/api/settings/chat-bank', { accountId })
+      setChatBank(data.chatBank)
+      setBankPopup(null)
+    } catch { /* silent */ }
+    finally { setBankSaving(false) }
+  }
+
   const sortChats = (list) =>
     [...list].sort((a, b) => {
       if (a.isPinned !== b.isPinned) return a.isPinned ? -1 : 1
@@ -330,12 +388,25 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
     <Wrap $width={$width} $fullWidth={$fullWidth} data-tour="chat-list">
       {dialogNode}
       <ListHeader>
-        {onMenuOpen && (
-          <IconBtn onClick={onMenuOpen} aria-label="Abrir menu">
-            <MenuIcon />
-          </IconBtn>
-        )}
-        <ListTitle>{archived ? 'Archivados' : 'Chats'}</ListTitle>
+        <TitleGroup>
+          {onMenuOpen && (
+            <IconBtn onClick={onMenuOpen} aria-label="Abrir menu">
+              <MenuIcon />
+            </IconBtn>
+          )}
+          <ListTitle>{archived ? 'Archivados' : 'Chats'}</ListTitle>
+          {chatBank?.provider && BANK_CONFIG[chatBank.provider] && (
+            <BankBadge
+              ref={bankBadgeRef}
+              $color={BANK_CONFIG[chatBank.provider].color}
+              onClick={handleBankBadgeClick}
+              title="Método de procesamiento bancario — clic para cambiar"
+            >
+              <BankDot />
+              {BANK_CONFIG[chatBank.provider].initials}
+            </BankBadge>
+          )}
+        </TitleGroup>
         <HeaderActions ref={menuRef}>
           <IconBtn onClick={() => setMenuOpen(p => !p)} aria-label="Mas opciones">
             <MoreVertIcon />
@@ -529,6 +600,35 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
           </LoadMoreBtn>
         )}
       </ListScroll>
+
+      {bankPopup && (
+        <BankPopupWrap ref={bankPopupRef} $x={bankPopup.x} $y={bankPopup.y}>
+          <BankPopupHeader>Banco activo</BankPopupHeader>
+          {Object.entries(BANK_CONFIG).map(([key, cfg]) => {
+            const accounts = bankAccounts[key] || []
+            if (!accounts.length) return null
+            return accounts.map(acc => {
+              const isActive = String(acc.id) === String(chatBank?.accountId)
+              return (
+                <BankOptionBtn
+                  key={acc.id}
+                  $active={isActive}
+                  $color={cfg.color}
+                  onClick={() => handleBankSelect(acc.id)}
+                  disabled={bankSaving}
+                >
+                  <BankOptionInitials $color={cfg.color}>{cfg.initials}</BankOptionInitials>
+                  <BankOptionInfo>
+                    <BankOptionName>{cfg.label}</BankOptionName>
+                    <BankOptionAccount>{acc.label}</BankOptionAccount>
+                  </BankOptionInfo>
+                  {isActive && <BankOptionCheck $color={cfg.color}>✓</BankOptionCheck>}
+                </BankOptionBtn>
+              )
+            })
+          })}
+        </BankPopupWrap>
+      )}
 
       {quickMenu && (
         <QuickMenu ref={quickMenuRef} $x={quickMenu.x} $y={quickMenu.y}>

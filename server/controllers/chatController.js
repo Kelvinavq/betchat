@@ -12,6 +12,7 @@ import { io } from '../app.js'
 import { deleteCache, deleteCachePattern, getCacheJson, setCacheJson } from '../utils/redisCache.js'
 import { extractReceiptData } from '../services/receiptExtractor.js'
 import { getAutoMessage } from '../controllers/autoMessagesController.js'
+import { insertReceiptLog, finalizeReceiptLog } from '../controllers/receiptLogController.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -74,6 +75,22 @@ export async function resetClientBot(chatId) {
 
   if (clientId) {
     io.to(`client:${clientId}`).emit('bot:reset', { chatId: Number(chatId), screenId: rootId })
+  }
+}
+
+export async function resetClientBotSelf(req, res, next) {
+  try {
+    const client = await getClientFromRequest(req)
+    if (!client) return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
+    const chatId = Number(req.params.chatId)
+    const chat = await getChat(chatId)
+    if (!chat || Number(chat.client_id) !== Number(client.sub)) {
+      return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
+    }
+    await resetClientBot(chatId)
+    res.json({ success: true })
+  } catch (error) {
+    next(error)
   }
 }
 
@@ -372,7 +389,7 @@ function sanitizeChat(row) {
   }
 }
 
-async function getClientFromRequest(req) {
+export async function getClientFromRequest(req) {
   const token = getCookieValue(req, config.clientJwtCookieName)
   if (!token) return null
   const payload = jwt.verify(token, config.jwtSecret, {
@@ -943,6 +960,17 @@ export async function persistMessage({
 
 async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId }) {
   console.log(`[Receipt] Pipeline manual — chatId=${chatId} messageId=${messageId} bankAccountId=${bankAccountId}`)
+
+  let logId = null
+  const logSteps = []
+  const ts = () => new Date().toISOString()
+
+  try {
+    logId = await insertReceiptLog({ provider: 'manual', messageId, chatId, clientId })
+  } catch (e) {
+    console.error('[Receipt][Log] Error creando log manual:', e.message)
+  }
+
   const receivedMsg = await getAutoMessage('receipt_received', { clientId, bankAccountId })
   if (receivedMsg) {
     await persistMessage({ chatId, senderType: 'system', content: receivedMsg })
@@ -951,11 +979,19 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
   let extracted = null
   let aiModel = null
   let aiStatus = 'error'
+  logSteps.push({ step: 'ai_extraction_start', ts: ts(), detail: {} })
   try {
     extracted = await extractReceiptData(dataUrl)
     aiModel = extracted?.model || null
-    aiStatus = 'ok'  } catch (err) {
+    aiStatus = 'ok'
+    logSteps.push({
+      step: 'ai_extraction_complete',
+      ts: ts(),
+      detail: { model: aiModel, extracted: { amount: extracted?.amount, transaction_id: extracted?.transaction_id, id_type: extracted?.id_type } },
+    })
+  } catch (err) {
     console.error('[Receipt] Error extracción IA:', err.message)
+    logSteps.push({ step: 'ai_extraction_error', ts: ts(), detail: { error: err.message } })
   }
 
   let isDuplicate = false
@@ -968,27 +1004,28 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
     if (dupRows?.length) {
       isDuplicate = true
       duplicateOfId = dupRows[0].id
+      logSteps.push({ step: 'duplicate_found', ts: ts(), detail: { duplicateOfId } })
+    } else {
+      logSteps.push({ step: 'duplicate_check_ok', ts: ts(), detail: {} })
     }
   }
 
-  await query(
+  const { rows: insertRows } = await query(
     `INSERT INTO manual_payment_movements
      (client_id, chat_id, message_id, bank_account_id, status, amount, ai_extracted_text, ai_status, ai_model, transaction_id, is_duplicate, duplicate_of_id)
      VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?)`,
     [
-      clientId,
-      chatId,
-      messageId,
-      bankAccountId,
+      clientId, chatId, messageId, bankAccountId,
       extracted?.amount ?? 0,
       JSON.stringify(extracted),
-      aiStatus,
-      aiModel,
+      aiStatus, aiModel,
       extracted?.transaction_id ?? null,
       isDuplicate ? 1 : 0,
       duplicateOfId ?? null,
     ]
   )
+  const movementDbId = insertRows?.insertId || null
+  logSteps.push({ step: 'movement_created', ts: ts(), detail: { movementId: movementDbId, status: 'pending' } })
 
   let followUpEvent = null
   if (isDuplicate) {
@@ -1004,6 +1041,22 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
     if (followMsg) {
       await persistMessage({ chatId, senderType: 'system', content: followMsg })
     }
+  }
+
+  const resultStatus = isDuplicate ? 'duplicate' : aiStatus === 'error' ? 'error' : (!extracted?.amount || !extracted?.transaction_id) ? 'insufficient_info' : 'pending'
+  try {
+    await finalizeReceiptLog(logId, {
+      movementId: movementDbId,
+      aiModel,
+      aiRawResponse: extracted?.rawResponse || null,
+      aiExtractedJson: extracted ? { amount: extracted.amount, transaction_id: extracted.transaction_id, id_type: extracted.id_type } : null,
+      processingSteps: logSteps,
+      resultStatus,
+      resultReason: isDuplicate ? 'duplicate_transaction_id' : aiStatus === 'error' ? 'ai_extraction_failed' : (!extracted?.transaction_id ? 'missing_transaction_id' : !extracted?.amount ? 'missing_amount' : 'pending_admin_review'),
+      resultDetail: { isDuplicate, duplicateOfId, aiStatus, bankAccountId },
+    })
+  } catch (e) {
+    console.error('[Receipt][Log] Error finalizando log manual:', e.message)
   }
 }
 
@@ -1074,6 +1127,23 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
         dataUrl,
         fileName: '',
       })
+      const amount = result?.extractedData?.amount ? Number(result.extractedData.amount) : null
+      if (result?.status) {
+        io.to(`chat:${chatId}`).emit('receipt:result', {
+          chatId: Number(chatId),
+          messageId: result.autoMessageId ? Number(result.autoMessageId) : Number(messageId),
+          status: result.status,
+          amount,
+          date: result?.extractedData?.date || null,
+          time: result?.extractedData?.time || null,
+          transactionId: result?.extractedData?.transaction_id || null,
+          resultReason: result.resultReason || null,
+        })
+      }
+      if (result?.status === 'paid') {
+        await new Promise(resolve => setTimeout(resolve, 1500))
+        await resetClientBot(chatId)
+      }
       return result
     }
 

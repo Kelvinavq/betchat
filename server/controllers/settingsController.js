@@ -5,6 +5,7 @@ import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import { query, transaction } from '../config/database.js'
 import { hashPassword, verifyPassword } from '../utils/password.js'
+import { getIo } from '../socket/socketServer.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -836,7 +837,19 @@ export async function updateChatBank(req, res, next) {
     )
     if (error) return next(error)
 
-    res.json({ chatBank: await getChatBank() })
+    const updatedBank = await getChatBank()
+    res.json({ chatBank: updatedBank })
+    const io = getIo()
+    if (io) io.to('admins').emit('settings:chat-bank-updated', { chatBank: updatedBank })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function getChatBankRoute(req, res, next) {
+  try {
+    const [chatBank, bankData] = await Promise.all([getChatBank(), getBankProviders()])
+    res.json({ chatBank, bankAccounts: bankData.accounts })
   } catch (err) {
     next(err)
   }

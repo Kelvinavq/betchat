@@ -27,6 +27,10 @@ import {
   updateManualMovementStatus,
   resolveManualMovement,
 } from '../controllers/movementController.js'
+import {
+  getChatReceiptLogs,
+  getReceiptLogByMessage,
+} from '../controllers/receiptLogController.js'
 import { listWithdrawals } from '../controllers/withdrawalController.js'
 import { getChatProfile } from '../controllers/profileController.js'
 
@@ -50,6 +54,8 @@ router.get('/:chatId/withdrawals', listWithdrawals)
 router.get('/:chatId/pending-counts', getPendingCounts)
 router.put('/:chatId/movements/manual/:id/status', updateManualMovementStatus)
 router.put('/:chatId/movements/manual/:id/resolve', resolveManualMovement)
+router.get('/:chatId/receipt-logs', getChatReceiptLogs)
+router.get('/:chatId/messages/:messageId/receipt-log', getReceiptLogByMessage)
 router.post('/:chatId/bot/reset', resetClientBotAdmin)
 router.get('/:chatId/messages', getMessages)
 router.post('/:chatId/messages', sendAdminMessage)

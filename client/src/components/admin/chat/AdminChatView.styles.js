@@ -653,6 +653,29 @@ export const MediaMsgPdf = styled.div`
   &:hover { background: rgba(255, 255, 255, 0.11); }
 `
 
+export const LogAiBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid rgba(139, 92, 246, 0.35);
+  background: rgba(139, 92, 246, 0.1);
+  color: #a78bfa;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 0.02em;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  svg { font-size: 12px; }
+  &:hover {
+    background: rgba(139, 92, 246, 0.22);
+    border-color: rgba(139, 92, 246, 0.55);
+    color: #c4b5fd;
+  }
+`
+
 /* ── bottom: attach panel + footer ── */
 export const BottomArea = styled.div`
   position: relative;

@@ -43,6 +43,7 @@ function sanitizeAccount(row) {
     webhook_enabled: Boolean(data.webhook_enabled),
     webhook_mode: data.webhook_mode || 'hmac',
     webhook_secret: data.webhook_secret || '',
+    gateway_signing_secret: data.gateway_signing_secret || data.flowhg_signing_secret || data.signing_secret || '',
     expires_at: data.expires_at || null,
     currency: row.currency || 'ARS',
     estatus: row.is_active ? 'activa' : 'inactiva',
@@ -81,6 +82,9 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
   const webhookMode = normalizeText(body.webhook_mode).toLowerCase()
     || (editing ? normalizeText(previousData.webhook_mode).toLowerCase() : '')
     || 'hmac'
+  const normalizedWebhookMode = ['hmac', 'flowhg'].includes(webhookMode) ? webhookMode : 'hmac'
+  const gatewaySigningSecret = normalizeText(body.gateway_signing_secret)
+    || (editing && normalizedWebhookMode === 'flowhg' ? normalizeText(previousData.gateway_signing_secret || previousData.flowhg_signing_secret || previousData.signing_secret) : '')
   const payload = {
     nombre_titular: normalizeText(body.nombre_titular),
     email: normalizeText(body.email),
@@ -91,8 +95,9 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
     cookie: normalizeText(body.cookie),
     cookie_expires_at: normalizeText(body.cookie_expires_at) || null,
     webhook_enabled: webhookEnabled,
-    webhook_mode: ['hmac', 'flowhg'].includes(webhookMode) ? webhookMode : 'hmac',
+    webhook_mode: normalizedWebhookMode,
     webhook_secret: webhookEnabled ? normalizeText(body.webhook_secret) : '',
+    gateway_signing_secret: webhookEnabled && normalizedWebhookMode === 'flowhg' ? gatewaySigningSecret : '',
     expires_at: normalizeText(body.expires_at) || null,
   }
 
@@ -116,6 +121,12 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
     if (!editing && !password) errors.push('El campo password es requerido')
     if (webhookEnabled && payload.webhook_mode === 'hmac' && !payload.webhook_secret) {
       errors.push('El webhook secret es requerido cuando el modo webhook es HMAC')
+    }
+    if (webhookEnabled && payload.webhook_mode === 'flowhg' && !payload.webhook_secret) {
+      errors.push('El destination token de FlowHG es requerido')
+    }
+    if (webhookEnabled && payload.webhook_mode === 'flowhg' && !payload.gateway_signing_secret) {
+      errors.push('El gateway signing secret de FlowHG es requerido')
     }
   }
 
@@ -372,14 +383,31 @@ export async function getBankAccountMovements(req, res, next) {
 
     const where  = ['m.bank_account_id = ?']
     const values = [id]
+    const supportsMovementCuit = provider !== 'manual'
+    const clientMatchJoin = supportsMovementCuit
+      ? `LEFT JOIN clients matched_client
+         ON REPLACE(REPLACE(REPLACE(COALESCE(matched_client.cuil, ''), '.', ''), '-', ''), ' ', '') = REPLACE(REPLACE(REPLACE(COALESCE(m.cuit, ''), '.', ''), '-', ''), ' ', '')`
+      : ''
+    const resolvedClientIdSql = supportsMovementCuit ? 'COALESCE(c.id, matched_client.id)' : 'c.id'
+    const clientUsernameSql = supportsMovementCuit ? 'COALESCE(c.username, matched_client.username)' : 'c.username'
+    const clientNameSql = supportsMovementCuit ? 'COALESCE(c.full_name, matched_client.full_name, c.username, matched_client.username)' : 'COALESCE(c.full_name, c.username)'
 
     if (['pending', 'paid', 'rejected'].includes(status)) {
       where.push('m.status = ?'); values.push(status)
     }
     if (search) {
-      where.push(`(c.username LIKE ? OR COALESCE(m.${cfg.refField}, '') LIKE ?)`)
+      where.push(`(
+        c.username LIKE ?
+        OR c.full_name LIKE ?
+        ${supportsMovementCuit ? 'OR matched_client.username LIKE ? OR matched_client.full_name LIKE ?' : ''}
+        OR COALESCE(m.${cfg.refField}, '') LIKE ?
+        ${provider === 'hgcash' ? 'OR COALESCE(m.coelsa_id, \'\') LIKE ? OR COALESCE(m.bank_status, \'\') LIKE ? OR COALESCE(m.cuit, \'\') LIKE ?' : ''}
+      )`)
       const like = `%${search}%`
       values.push(like, like)
+      if (supportsMovementCuit) values.push(like, like)
+      values.push(like)
+      if (provider === 'hgcash') values.push(like, like, like)
     }
     if (dateFrom) { where.push('DATE(m.created_at) >= ?'); values.push(dateFrom) }
     if (dateTo)   { where.push('DATE(m.created_at) <= ?'); values.push(dateTo) }
@@ -388,7 +416,9 @@ export async function getBankAccountMovements(req, res, next) {
 
     const { rows: countRows, error: cntErr } = await query(
       `SELECT COUNT(*) AS total FROM ${cfg.table} m
-       LEFT JOIN clients c ON c.id = m.client_id ${whereSql}`,
+       LEFT JOIN clients c ON c.id = m.client_id
+       ${clientMatchJoin}
+       ${whereSql}`,
       values
     )
     if (cntErr) throw cntErr
@@ -400,9 +430,15 @@ export async function getBankAccountMovements(req, res, next) {
 
     const { rows, error } = await query(
       `SELECT m.id, m.amount, m.status, m.${cfg.refField} AS ref_id,
-              m.client_id, c.username AS client_username, m.created_at
+              m.client_id,
+              ${resolvedClientIdSql} AS resolved_client_id,
+              ${clientUsernameSql} AS client_username,
+              ${clientNameSql} AS client_name,
+              ${provider === 'hgcash' ? 'm.bank_status, m.coelsa_id, m.cuit, m.received_from_gateway_at, m.gateway_event_id, m.provider_event_id, m.provider_status,' : 'NULL AS bank_status, NULL AS coelsa_id, NULL AS cuit, NULL AS received_from_gateway_at, NULL AS gateway_event_id, NULL AS provider_event_id, NULL AS provider_status,'}
+              m.created_at
        FROM ${cfg.table} m
        LEFT JOIN clients c ON c.id = m.client_id
+       ${clientMatchJoin}
        ${whereSql}
        ORDER BY m.created_at DESC
        LIMIT ${limit} OFFSET ${offset}`,
@@ -418,8 +454,14 @@ export async function getBankAccountMovements(req, res, next) {
         amount:         Number(r.amount || 0),
         status:         r.status,
         refId:          r.ref_id || null,
-        clientId:       r.client_id ? Number(r.client_id) : null,
+        bankStatus:     r.bank_status || null,
+        coelsaId:       r.coelsa_id || r.ref_id || null,
+        source:         provider === 'hgcash' && (r.received_from_gateway_at || r.gateway_event_id || r.provider_event_id || r.provider_status) ? 'gateway' : 'bank',
+        sourceLabel:    provider === 'hgcash' && (r.received_from_gateway_at || r.gateway_event_id || r.provider_event_id || r.provider_status) ? 'Gateway' : 'Banco',
+        cuit:           r.cuit || null,
+        clientId:       r.resolved_client_id ? Number(r.resolved_client_id) : (r.client_id ? Number(r.client_id) : null),
         clientUsername: r.client_username || null,
+        clientName:     r.client_name || r.client_username || null,
         createdAt:      r.created_at || null,
       })),
       pagination: { page: safePage, limit, total, totalPages },

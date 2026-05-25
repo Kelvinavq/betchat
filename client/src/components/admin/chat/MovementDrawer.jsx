@@ -13,8 +13,10 @@ import RefreshOutlinedIcon from '@mui/icons-material/RefreshOutlined'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
+import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined'
 import { api } from '../../../utils/api'
 import { useToast } from '../../../context/ToastContext'
+import ReceiptLogModal from './ReceiptLogModal'
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
 
@@ -109,6 +111,7 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
   const [isCustom, setIsCustom] = useState(false)
   const [customMsg, setCustomMsg] = useState('')
   const [loadingMsgs, setLoadingMsgs] = useState(false)
+  const [showReceiptLog, setShowReceiptLog] = useState(false)
   const ai = movement.aiExtractedText || {}
   const receiptSrc = resolveUrl(movement.receiptUrl)
 
@@ -256,7 +259,19 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
           {!movement.coelsaId && !movement.transactionId && movement.aiStatus !== 'ok' && (
             <InfoEmpty>La IA no pudo extraer datos del comprobante.</InfoEmpty>
           )}
+          {movement.messageId && (
+            <LogAiBtn type="button" onClick={() => setShowReceiptLog(true)}>
+              <SmartToyOutlinedIcon />Ver log de procesamiento
+            </LogAiBtn>
+          )}
         </DetailSection>
+        {showReceiptLog && movement.messageId && (
+          <ReceiptLogModal
+            chatId={chatId}
+            messageId={movement.messageId}
+            onClose={() => setShowReceiptLog(false)}
+          />
+        )}
 
         {/* ── Datos bancarios ───────────────────────────── */}
         {(movement.cuit || movement.cbuCvu || movement.accountHolder || movement.description) && (
@@ -865,6 +880,17 @@ const InfoValue = styled.span`
 `
 const InfoEmpty = styled.div`
   color:rgba(255,255,255,.3);font-size:12px;text-align:center;padding:12px 0;
+`
+const LogAiBtn = styled.button`
+  display:inline-flex;align-items:center;gap:5px;
+  padding:3px 10px;border-radius:6px;
+  border:1px solid rgba(139,92,246,.35);
+  background:rgba(139,92,246,.1);
+  color:#a78bfa;font-size:10.5px;font-weight:600;
+  cursor:pointer;letter-spacing:.02em;margin-top:10px;
+  transition:background .15s,border-color .15s,color .15s;
+  svg{font-size:12px;}
+  &:hover{background:rgba(139,92,246,.22);border-color:rgba(139,92,246,.55);color:#c4b5fd;}
 `
 
 /* ─── Receipt Preview ───────────────────────────────────────────────── */

@@ -9,6 +9,7 @@ const EVENTS = [
   'deposit_failed',
   'receipt_reupload',
   'receipt_amount_low',
+  'hgcash_payment_not_found',
   'withdrawal_approved',
   'withdrawal_rejected',
 ]
@@ -22,6 +23,7 @@ const DEFAULTS = {
   deposit_failed:           'No pudimos procesar tu depósito. Contactá a soporte para más información.',
   receipt_reupload:         'Necesitamos que vuelvas a enviar el comprobante. Por favor subí una imagen más clara.',
   receipt_amount_low:       'El monto de tu comprobante es inferior al mínimo permitido. Realizá un depósito por el monto mínimo requerido.',
+  hgcash_payment_not_found:  'No encontramos ningún pago pendiente con tu CUIL. Por favor subí el comprobante para que podamos validarlo.',
   withdrawal_approved:      '¡Tu retiro fue aprobado y procesado con éxito! En breve recibirás el dinero.',
   withdrawal_rejected:      'Tu solicitud de retiro fue rechazada. Contactá a soporte para más información.',
 }

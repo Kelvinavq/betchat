@@ -3,15 +3,23 @@ import { shadows } from '../../styles/theme'
 
 const MOBILE = '@media (max-width: 768px)'
 
-/* ── window entry animations ── */
+/* ── window entry/exit animations ── */
 
 const slideUpDesktop = keyframes`
   from { opacity: 0; transform: translateY(20px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0)    scale(1);    }
 `
+const slideDownDesktop = keyframes`
+  from { opacity: 1; transform: translateY(0)    scale(1);    }
+  to   { opacity: 0; transform: translateY(20px) scale(0.96); }
+`
 const slideUpMobile = keyframes`
   from { transform: translateY(100%); }
   to   { transform: translateY(0);    }
+`
+const slideDownMobile = keyframes`
+  from { transform: translateY(0);    }
+  to   { transform: translateY(100%); }
 `
 
 export const Window = styled.div`
@@ -28,7 +36,7 @@ export const Window = styled.div`
   background: var(--bc-client-body-bg, #000000);
   border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.22);
   box-shadow: ${shadows.glassCard};
-  animation: ${slideUpDesktop} 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation: ${({ $closing }) => $closing ? css`${slideDownDesktop} 0.28s cubic-bezier(0.4, 0, 1, 1) both` : css`${slideUpDesktop} 0.35s cubic-bezier(0.16, 1, 0.3, 1) both`};
 
   ${MOBILE} {
     inset: 0;
@@ -36,7 +44,7 @@ export const Window = styled.div`
     height: 100%;
     border-radius: 0;
     z-index: 1001;
-    animation: ${slideUpMobile} 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    animation: ${({ $closing }) => $closing ? css`${slideDownMobile} 0.28s cubic-bezier(0.4, 0, 1, 1) both` : css`${slideUpMobile} 0.4s cubic-bezier(0.16, 1, 0.3, 1) both`};
   }
 `
 
@@ -486,10 +494,12 @@ export const ChatHeader = styled.div`
 `
 
 export const ChatHeaderSide = styled.div`
-  width: 32px;
+  width: 72px;
+  flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: ${({ $right }) => $right ? 'flex-end' : 'flex-start'};
+  gap: 6px;
 `
 
 export const ChatHeaderCenter = styled.div`

@@ -381,8 +381,25 @@ async function getWithdrawalMinimum() {
   }
 }
 
+async function getActiveBankProvider() {
+  const { rows, error } = await query(
+    `SELECT bp.slug AS provider
+     FROM chat_processing_config cpc
+     LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
+     LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
+     WHERE cpc.id = 1
+     LIMIT 1`,
+    []
+  )
+  if (error) throw error
+  return rows?.[0]?.provider || null
+}
+
 async function loadBotFlow() {
-  const withdrawalMinAmount = await getWithdrawalMinimum()
+  const [withdrawalMinAmount, activeProvider] = await Promise.all([
+    getWithdrawalMinimum(),
+    getActiveBankProvider(),
+  ])
   const { rows: screenRows, error: screenError } = await query(
     `SELECT id, name, is_root, sort_order
        FROM bot_screens
@@ -405,7 +422,7 @@ async function loadBotFlow() {
     if (screen) screen.items.push(sanitizeItem(item))
   }
 
-  return { flow: { screens }, withdrawalMinAmount }
+  return { flow: { screens }, withdrawalMinAmount, activeProvider }
 }
 
 export async function getBotFlow(req, res, next) {
@@ -622,6 +639,7 @@ export async function selectClientBotOption(req, res, next) {
         showReceiptAfter,
         responseMessages: parseJsonArray(button.response_messages),
       },
+      activeProvider: await getActiveBankProvider(),
       state: {
         chatId,
         currentScreenId: targetScreenId,

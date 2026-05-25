@@ -8,4 +8,9 @@ router.post('/provider/hgcash/:token', express.raw({ type: 'application/json', l
   return cashGatewayWebhook(req, res, next)
 })
 
+router.post('/provider/hgcash/:token/update', express.raw({ type: 'application/json', limit: '2mb' }), (req, res, next) => {
+  req.headers['x-gateway-token'] = req.params.token
+  return cashGatewayWebhook(req, res, next)
+})
+
 export default router

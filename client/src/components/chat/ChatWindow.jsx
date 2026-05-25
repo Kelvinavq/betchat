@@ -436,6 +436,30 @@ const ReceiptResultAlert = ({ status, amount, onClose }) => {
   )
 }
 
+/* ── bot go back alert ── */
+
+const BotGoBackAlert = ({ onClose }) => {
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 3000)
+    return () => window.clearTimeout(timer)
+  }, [onClose])
+
+  return (
+    <DepositAlertOverlay onClick={onClose}>
+      <DepositAlertCard $accentRgb="99, 102, 241" onClick={e => e.stopPropagation()}>
+        <DepositAlertRing>
+          <DepositAlertIconCircle>
+            <ArrowBackIosNewIcon />
+          </DepositAlertIconCircle>
+        </DepositAlertRing>
+        <DepositAlertTitle>Volviste atras</DepositAlertTitle>
+        <DepositAlertSub>Regresaste al paso anterior del bot.</DepositAlertSub>
+        <DepositAlertBtn onClick={onClose}>Entendido</DepositAlertBtn>
+      </DepositAlertCard>
+    </DepositAlertOverlay>
+  )
+}
+
 /* ── receipt detail modal ── */
 
 const RECEIPT_STATUS_INFO = {
@@ -966,11 +990,11 @@ const createBackButtonMessages = (screen, reason = 'screen') => {
   }]
 }
 
-const createReceiptUploadButtons = (request) => {
+const createReceiptUploadButtons = (request, actionLabel = '📎 Subir comprobante') => {
   if (!request) return []
   const buttons = [{
     id: `receipt-upload-btn-${request.buttonId}`,
-    label: '📎 Subir comprobante',
+    label: actionLabel,
     buttonType: 'receipt_upload',
     receiptRequest: request,
   }]
@@ -1460,6 +1484,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const [currentBotScreenId, setCurrentBotScreenId] = useState(null)
   const [botActionPending, setBotActionPending] = useState(false)
   const [connectionStatus, setConnectionStatus] = useState('online')
+  const [activeBankProvider, setActiveBankProvider] = useState(null)
   const [withdrawableBalance, setWithdrawableBalance] = useState(null)
   const [balanceLoading, setBalanceLoading] = useState(false)
   const [attachOpen, setAttachOpen]   = useState(false)
@@ -1468,6 +1493,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const [mediaSending, setMediaSending] = useState(false)
   const [viewerData, setViewerData]     = useState(null)
   const [depositAlert, setDepositAlert]           = useState(null)
+  const [botBackAlert, setBotBackAlert]           = useState(false)
   const [receiptDetailData, setReceiptDetailData] = useState(null)
   const [receiptProcessing, setReceiptProcessing] = useState(false)
   const [adminTyping, setAdminTyping] = useState(false)
@@ -1495,9 +1521,15 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const adminTypingTimerRef = useRef(null)
   const receiptProcessingTimerRef = useRef(null)
   const receiptResultsRef = useRef(new Map())
-  const hasClientCuit = Boolean(String(client?.cuil || client?.cuit || '').trim())
-  const isHgCashReceipt = receiptRequest?.processing === 'auto'
-  const receiptActionLabel = hasClientCuit && isHgCashReceipt ? '📣 Reportar pago' : '📎 Subir comprobante'
+  const clientCuit = String(client?.cuil || client?.cuit || client?.cuit_cuil || client?.cuil_cuit || '').trim()
+  const hasClientCuit = Boolean(clientCuit)
+  const canReportPayment = useCallback((request) => {
+    const provider = String(request?.activeProvider || activeBankProvider || '').toLowerCase()
+    return !request?.forceUpload && hasClientCuit && ['hgcash', 'cash'].includes(provider)
+  }, [activeBankProvider, hasClientCuit])
+  const getReceiptActionLabel = useCallback((request) => (
+    canReportPayment(request) ? '📣 Reportar pago' : '📎 Subir comprobante'
+  ), [canReportPayment])
   const typingActiveRef = useRef(false)
   const shouldScrollBottomRef = useRef(false)
   const messageMenuRef = useRef(null)
@@ -1825,7 +1857,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         buttons: [
           {
             id: `receipt-upload-restore-${request.buttonId || 'file'}`,
-            label: receiptActionLabel,
+            label: getReceiptActionLabel(request),
             buttonType: 'receipt_upload',
             receiptRequest: request,
           },
@@ -1836,7 +1868,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         avatar: BOT_AVATAR,
       }]
     })
-  }, [])
+  }, [getReceiptActionLabel])
 
   const watchReceiptFileDialog = useCallback((request) => {
     receiptFileDialogRef.current = { request, active: true }
@@ -1853,15 +1885,41 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     window.addEventListener('focus', handleFocus, { once: true })
   }, [restoreReceiptButtons])
 
+  const handleReportPayment = useCallback(async (request) => {
+    const req = request || receiptRequest
+    if (!req || !chatId || receiptProcessing) return
+    lastReceiptRequestRef.current = req
+    setReceiptRequest(req)
+    setMessages(prev => prev.filter(message => message.type !== 'bot-buttons'))
+    window.clearTimeout(receiptProcessingTimerRef.current)
+    setReceiptProcessing(true)
+    receiptProcessingTimerRef.current = window.setTimeout(() => setReceiptProcessing(false), 90_000)
+    try {
+      const result = await api.post(`/api/client/chats/${chatId}/hgcash/report-payment`, {})
+      if (result?.status && result.status !== 'paid') {
+        restoreReceiptButtons({ ...req, forceUpload: true })
+      }
+    } catch {
+      restoreReceiptButtons({ ...req, forceUpload: true })
+    } finally {
+      window.clearTimeout(receiptProcessingTimerRef.current)
+      setReceiptProcessing(false)
+    }
+  }, [chatId, receiptProcessing, receiptRequest, restoreReceiptButtons])
+
   const handleReceiptUploadClick = useCallback((request) => {
     const req = request || receiptRequest
     if (!req) return
+    if (canReportPayment(req)) {
+      handleReportPayment(req)
+      return
+    }
     lastReceiptRequestRef.current = req
     setReceiptRequest(req)
     setMessages(prev => prev.filter(message => message.type !== 'bot-buttons'))
     watchReceiptFileDialog(req)
     receiptInputRef.current?.click()
-  }, [receiptRequest, watchReceiptFileDialog])
+  }, [canReportPayment, handleReportPayment, receiptRequest, watchReceiptFileDialog])
 
   const handleBotButton = (button) => {
     if (button.buttonType === 'receipt_upload') {
@@ -1956,6 +2014,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
             buttonId: button.id,
             label: button.label,
             processing: data.button?.receiptProcessing || button.receiptProcessing || 'manual',
+            activeProvider: data.activeProvider || activeBankProvider || null,
             screenId: target.id,
             backButtons: targetBackButtons,
           }
@@ -1970,7 +2029,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
               buttons: [
                 {
                   id: `receipt-upload-btn-${button.id}`,
-                  label: receiptActionLabel,
+                  label: getReceiptActionLabel(nextReceiptRequest),
                   buttonType: 'receipt_upload',
                   receiptRequest: nextReceiptRequest,
                 },
@@ -2107,6 +2166,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
           chatId ? api.get(`/api/client/chats/${chatId}/messages?mode=day`) : Promise.resolve({ messages: [] }),
         ])
         const flow = botData.flow
+        setActiveBankProvider(botData.activeProvider || null)
         const root = flow?.screens?.find(screen => screen.isRoot) || flow?.screens?.[0]
         const currentScreen = flow?.screens?.find(screen => screen.id === botData.state?.currentScreenId) || root
         const dbMessages = (messageData.messages || []).map(mapDbMessage)
@@ -2119,6 +2179,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
               buttonId: lastButton.id,
               label: lastButton.label,
               processing: lastButton.receiptProcessing || 'manual',
+              activeProvider: botData.activeProvider || null,
               screenId: currentScreen?.id || root?.id || null,
               backButtons: (currentScreen?.items || []).filter(item => item.type === 'button' && item.isBack && item.label),
             }
@@ -2127,7 +2188,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         const initialScreen = hasProgressed ? currentScreen : root
         const screenHasBackButtons = (initialScreen?.items || []).some(item => item.type === 'button' && item.isBack && item.label)
         const botMessages = receiptRequest
-          ? createReceiptUploadButtons(receiptRequest)
+          ? createReceiptUploadButtons(receiptRequest, getReceiptActionLabel(receiptRequest))
           : (hasProgressed && screenHasBackButtons)
             ? createBackButtonMessages(initialScreen, botData.state?.lastButtonId || 'state')
             : createBotMessages(initialScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
@@ -2432,6 +2493,18 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     )
   }
 
+  const handleBotGoBack = () => {
+    const currentScreen = botFlow?.screens?.find(s => s.id === currentBotScreenId)
+    const backButtons = (currentScreen?.items || []).filter(item => item.type === 'button' && item.isBack && item.label)
+    if (backButtons.length > 0) {
+      handleBotButton(backButtons[0])
+      setBotBackAlert(true)
+    } else if (chatId) {
+      api.post(`/api/client/chats/${chatId}/bot/reset`).catch(() => {})
+      setBotBackAlert(true)
+    }
+  }
+
   const { normalMessages, botButtonMessages } = splitBotButtons(messages)
   const orderedMessages = [...normalMessages, ...botButtonMessages.slice(-1)]
 
@@ -2455,6 +2528,11 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
           amount={depositAlert.amount}
           onClose={() => setDepositAlert(null)}
         />
+      )}
+
+      {/* bot go back alert */}
+      {botBackAlert && (
+        <BotGoBackAlert onClose={() => setBotBackAlert(false)} />
       )}
 
       {/* receipt detail modal */}
@@ -2488,9 +2566,17 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       {/* header */}
       <ChatHeader>
         <ChatHeaderSide>
-          <ChatHeaderBtn onClick={onClose} aria-label="Cerrar">
-            <ArrowBackIosNewIcon />
-          </ChatHeaderBtn>
+          {systemConfig.clientLogoutEnabled && (
+            <ChatHeaderBtn
+              type="button"
+              onClick={onLogout}
+              disabled={loggingOut}
+              aria-label="Cerrar sesion"
+              title="Cerrar sesion"
+            >
+              <LogoutIcon />
+            </ChatHeaderBtn>
+          )}
         </ChatHeaderSide>
 
         <ChatHeaderCenter>
@@ -2521,17 +2607,18 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         </ChatHeaderCenter>
 
         <ChatHeaderSide $right>
-          {systemConfig.clientLogoutEnabled && (
-            <ChatHeaderBtn
-              type="button"
-              onClick={onLogout}
-              disabled={loggingOut}
-              aria-label="Cerrar sesion"
-              title="Cerrar sesion"
-            >
-              <LogoutIcon />
-            </ChatHeaderBtn>
-          )}
+          <ChatHeaderBtn
+            type="button"
+            onClick={handleBotGoBack}
+            disabled={!chatId}
+            aria-label="Volver atras"
+            title="Volver atras"
+          >
+            <RefreshIcon />
+          </ChatHeaderBtn>
+          <ChatHeaderBtn onClick={onClose} aria-label="Minimizar">
+            <KeyboardArrowDownIcon />
+          </ChatHeaderBtn>
         </ChatHeaderSide>
       </ChatHeader>
 
@@ -2821,6 +2908,12 @@ const ChatWindow = ({ onClose }) => {
   const [logoutNotice, setLogoutNotice] = useState(null)
   const [helpOpen, setHelpOpen] = useState(false)
   const [error, setError] = useState('')
+  const [isClosing, setIsClosing] = useState(false)
+
+  const handleClose = useCallback(() => {
+    setIsClosing(true)
+    setTimeout(onClose, 260)
+  }, [onClose])
   const isAuthLoading = loading || clientAuthLoading
   const activeView = clientSession ? 'chat' : view
   const isChat = activeView === 'chat' || isAuthLoading
@@ -2984,7 +3077,7 @@ const ChatWindow = ({ onClose }) => {
   }
 
   return (
-    <Window>
+    <Window $closing={isClosing}>
       {logoutNotice && (
         <LogoutNoticeOverlay>
           <LogoutNoticeCard role="status" aria-live="polite">
@@ -3003,7 +3096,7 @@ const ChatWindow = ({ onClose }) => {
       )}
       {!isChat && (
       <VisualSection>
-          <CloseBtn onClick={onClose} aria-label="Cerrar">
+          <CloseBtn onClick={handleClose} aria-label="Cerrar">
             <CloseIcon />
           </CloseBtn>
           <VisualLogo>
@@ -3037,7 +3130,7 @@ const ChatWindow = ({ onClose }) => {
         )}
         {!isAuthLoading && activeView === 'chat' && (
           <ChatView
-            onClose={onClose}
+            onClose={handleClose}
             client={clientSession}
             onLogout={handleLogout}
             loggingOut={loggingOut}

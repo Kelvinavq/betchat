@@ -5,6 +5,7 @@ import SupportAgentIcon from '@mui/icons-material/SupportAgent'
 import ImageOutlinedIcon from '@mui/icons-material/ImageOutlined'
 import DescriptionIcon from '@mui/icons-material/Description'
 import MicIcon from '@mui/icons-material/Mic'
+import KeyboardArrowLeftIcon from '@mui/icons-material/KeyboardArrowLeft'
 import ChatWindow from './ChatWindow'
 import { ChatContext } from '../../context/ChatContext'
 import { useSystemConfig } from '../../context/SystemConfigContext'
@@ -18,6 +19,18 @@ const NOTIF_DURATION = 6000
 const popIn = keyframes`
   from { opacity: 0; transform: scale(0.6) rotate(-20deg); }
   to   { opacity: 1; transform: scale(1)   rotate(0deg);   }
+`
+const slideOutRight = keyframes`
+  from { opacity: 1; transform: translateX(0) scale(1); }
+  to   { opacity: 0; transform: translateX(calc(100% + 30px)) scale(0.85); }
+`
+const slideInRight = keyframes`
+  from { opacity: 0; transform: translateX(calc(100% + 30px)) scale(0.85); }
+  to   { opacity: 1; transform: translateX(0) scale(1); }
+`
+const tabPulse = keyframes`
+  0%, 100% { box-shadow: -3px 0 12px rgba(0,0,0,0.28); }
+  50%       { box-shadow: -5px 0 20px rgba(0,0,0,0.42); }
 `
 const slideUp = keyframes`
   from { opacity: 0; transform: translateY(16px) scale(0.96); }
@@ -50,6 +63,48 @@ const BubbleWrap = styled.div`
   bottom: 1.5rem;
   right: 1.5rem;
   z-index: 1000;
+  ${({ $gameHiding }) => $gameHiding && css`
+    animation: ${slideOutRight} 0.42s cubic-bezier(0.4, 0, 0.6, 1) forwards;
+    pointer-events: none;
+  `}
+  ${({ $gameHidden }) => $gameHidden && css`
+    opacity: 0;
+    transform: translateX(calc(100% + 30px));
+    pointer-events: none;
+  `}
+  ${({ $gameShowing }) => $gameShowing && css`
+    animation: ${slideInRight} 0.42s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  `}
+`
+
+const GameHiddenTab = styled.button`
+  position: fixed;
+  right: 0;
+  bottom: 1.5rem;
+  z-index: 1000;
+  width: 28px;
+  height: 72px;
+  border-radius: 14px 0 0 14px;
+  border: 1.5px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.5);
+  border-right: none;
+  background: rgba(10, 12, 22, 0.88);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  animation: ${tabPulse} 2.6s ease-in-out infinite;
+  transition: width 0.2s ease, background 0.2s ease;
+  &:hover {
+    width: 38px;
+    background: rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.18);
+  }
+  svg {
+    color: rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.9);
+    font-size: 20px;
+  }
 `
 
 /* relative container so rings + badge are positioned around Bubble */
@@ -386,7 +441,7 @@ function getNotifIcon(messageType) {
 
 /* ── component ── */
 const ChatBubble = () => {
-  const { isOpen, setIsOpen } = useContext(ChatContext)
+  const { isOpen, setIsOpen, clientSession } = useContext(ChatContext)
   const { systemConfig } = useSystemConfig()
   const appName = systemConfig?.appName || 'Soporte'
   const bubbleConfig = systemConfig?.bubbleConfig || DEFAULT_BUBBLE_CONFIG
@@ -397,6 +452,7 @@ const ChatBubble = () => {
   const [notif, setNotif]     = useState(null)
   const [notifKey, setNotifKey] = useState(0)
   const [unread, setUnread]   = useState(0)
+  const [gameAnim, setGameAnim] = useState('') // '' | 'hiding' | 'hidden' | 'showing'
   const dismissTimer          = useRef(null)
   const isOpenRef             = useRef(isOpen)
 
@@ -445,6 +501,24 @@ const ChatBubble = () => {
     }
   }, [showNotif])
 
+  useEffect(() => {
+    const onGameEvent = (event) => {
+      const data = event?.data
+      if (!data || data.type !== 'game_event') return
+      const gameEvent = data.event
+      if (gameEvent === 'game_opened') {
+        setIsOpen(false)
+        setGameAnim('hiding')
+        setTimeout(() => setGameAnim('hidden'), 420)
+      } else if (gameEvent === 'game_closed') {
+        setGameAnim('showing')
+        setTimeout(() => setGameAnim(''), 420)
+      }
+    }
+    window.addEventListener('message', onGameEvent)
+    return () => window.removeEventListener('message', onGameEvent)
+  }, [setIsOpen])
+
   const openChat = () => {
     setIsOpen(true)
     dismiss()
@@ -452,9 +526,11 @@ const ChatBubble = () => {
 
   const hasUnread = unread > 0
 
+  const isHidden = gameAnim === 'hidden'
+
   return (
     <>
-      {isOpen && <ChatWindow onClose={() => setIsOpen(false)} />}
+      {isOpen && <ChatWindow onClose={() => setIsOpen(false)} client={clientSession} />}
 
       {!isOpen && notif && (
         <NotifToast key={notifKey} onClick={openChat}>
@@ -475,7 +551,21 @@ const ChatBubble = () => {
         </NotifToast>
       )}
 
-      <BubbleWrap>
+      {isHidden && (
+        <GameHiddenTab
+          onClick={() => { setGameAnim('showing'); setTimeout(() => setGameAnim(''), 420) }}
+          aria-label="Mostrar chat"
+          title="Mostrar chat"
+        >
+          <KeyboardArrowLeftIcon />
+        </GameHiddenTab>
+      )}
+
+      <BubbleWrap
+        $gameHiding={gameAnim === 'hiding'}
+        $gameHidden={gameAnim === 'hidden'}
+        $gameShowing={gameAnim === 'showing'}
+      >
         <BubbleInner>
           {/* Spin + ping rings solo en estilo default */}
           {!isOpen && hasUnread && activeStyle === 'default' && <SpinRing />}

@@ -704,3 +704,35 @@ CREATE TABLE IF NOT EXISTS `event_stats_daily` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uq_esd_date_type` (`date`, `event_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+
+INSERT INTO `receipt_auto_messages` (`event`, `message`, `is_active`) VALUES
+  ('hgcash_payment_not_found', 'No encontramos ningun pago pendiente con tu CUIL. Por favor subi el comprobante para que podamos validarlo.', 1)
+ON DUPLICATE KEY UPDATE `event` = `event`;
+
+-- ============================================================
+--  Logs detallados de procesamiento de comprobantes
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `receipt_logs` (
+  `id`                BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `message_id`        BIGINT UNSIGNED DEFAULT NULL,
+  `chat_id`           INT UNSIGNED    DEFAULT NULL,
+  `client_id`         INT UNSIGNED    DEFAULT NULL,
+  `provider`          ENUM('mercadopago','hgcash','manual') NOT NULL,
+  `movement_id`       BIGINT UNSIGNED DEFAULT NULL,
+  `ai_model`          VARCHAR(128)    DEFAULT NULL,
+  `ai_raw_response`   MEDIUMTEXT      DEFAULT NULL,
+  `ai_extracted_json` JSON            DEFAULT NULL,
+  `processing_steps`  JSON            DEFAULT NULL,
+  `result_status`     VARCHAR(64)     DEFAULT NULL,
+  `result_reason`     VARCHAR(255)    DEFAULT NULL,
+  `result_detail`     JSON            DEFAULT NULL,
+  `created_at`        DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_rl_message`  (`message_id`),
+  KEY `idx_rl_chat`     (`chat_id`),
+  KEY `idx_rl_client`   (`client_id`),
+  CONSTRAINT `fk_rl_message` FOREIGN KEY (`message_id`) REFERENCES `messages`  (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_rl_chat`    FOREIGN KEY (`chat_id`)    REFERENCES `chats`     (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_rl_client`  FOREIGN KEY (`client_id`)  REFERENCES `clients`   (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

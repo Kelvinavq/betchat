@@ -10,6 +10,7 @@ import {
   deleteAmount,
   updateApiConfig,
   updateChatBank,
+  getChatBankRoute,
   createCustomTheme,
   deleteCustomTheme,
   updateCustomTheme,
@@ -34,6 +35,7 @@ router.put('/profile', authenticateToken, requireRole('admin'), updateProfile)
 router.put('/system', authenticateToken, requireRole('admin'), updateSystemConfig)
 router.put('/password', authenticateToken, requireRole('admin'), updatePassword)
 router.put('/apis/:provider', authenticateToken, requireRole('admin'), updateApiConfig)
+router.get('/chat-bank', authenticateToken, requireRole('admin'), getChatBankRoute)
 router.put('/chat-bank', authenticateToken, requireRole('admin'), updateChatBank)
 router.post('/themes/custom', authenticateToken, requireRole('admin'), createCustomTheme)
 router.put('/themes/custom/:id', authenticateToken, requireRole('admin'), updateCustomTheme)

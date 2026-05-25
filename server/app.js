@@ -39,6 +39,7 @@ import broadcastRoutes from './routes/broadcastRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { startEventScheduler, stopEventScheduler } from './utils/eventScheduler.js'
+import { cashGatewayWebhook } from './controllers/hgCashController.js'
 import { setupChatSockets } from './socket/chatSocket.js';
 import { setIo } from './socket/socketServer.js';
 import { query } from './config/database.js';
@@ -76,6 +77,8 @@ app.use(cors({
 }));
 
 // Webhooks raw-body before JSON parser
+app.post('/webhooks/hgcash', express.raw({ type: 'application/json', limit: '2mb' }), cashGatewayWebhook);
+app.post('/webhooks/hgcash/update', express.raw({ type: 'application/json', limit: '2mb' }), cashGatewayWebhook);
 app.use('/api/cashgateway', cashGatewayRoutes);
 app.use('/api/hgcash', cashGatewayRoutes);
 app.use('/api/webhooks', providerWebhookRoutes);
