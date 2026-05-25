@@ -5,6 +5,7 @@ export const USER_PERMISSION_MODULES = [
   'chats_balance',
   'chats_movements',
   'chats_withdrawals',
+  'chat_bank',
   'modals',
   'push_notifications',
   'commands',

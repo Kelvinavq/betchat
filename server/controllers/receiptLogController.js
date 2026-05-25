@@ -10,6 +10,7 @@ export async function insertReceiptLog({ provider, messageId, chatId, clientId }
 }
 
 export async function finalizeReceiptLog(logId, {
+  messageId = null,
   movementId = null,
   aiModel = null,
   aiRawResponse = null,
@@ -22,11 +23,13 @@ export async function finalizeReceiptLog(logId, {
   if (!logId) return
   const { error } = await query(
     `UPDATE receipt_logs
-     SET movement_id = ?, ai_model = ?, ai_raw_response = ?,
+     SET message_id = COALESCE(?, message_id),
+         movement_id = ?, ai_model = ?, ai_raw_response = ?,
          ai_extracted_json = ?, processing_steps = ?,
          result_status = ?, result_reason = ?, result_detail = ?
      WHERE id = ?`,
     [
+      messageId || null,
       movementId || null,
       aiModel || null,
       aiRawResponse || null,
@@ -39,6 +42,38 @@ export async function finalizeReceiptLog(logId, {
     ],
   )
   if (error) console.error('[ReceiptLog] Error finalizando log:', error)
+}
+
+export async function updateReceiptLogForMovement(movementId, {
+  resultStatus = null,
+  resultReason = null,
+  resultDetail = null,
+  messageId = null,
+} = {}) {
+  const targetMovementId = Number(movementId) || null
+  if (!targetMovementId) return null
+
+  const { rows, error } = await query(
+    'SELECT * FROM receipt_logs WHERE movement_id = ? ORDER BY id DESC LIMIT 1',
+    [targetMovementId],
+  )
+  if (error) throw error
+  const current = rows?.[0]
+  if (!current) return null
+
+  await finalizeReceiptLog(current.id, {
+    messageId,
+    movementId: targetMovementId,
+    aiModel: current.ai_model || null,
+    aiRawResponse: current.ai_raw_response || null,
+    aiExtractedJson: parseJsonSafe(current.ai_extracted_json),
+    processingSteps: parseJsonSafe(current.processing_steps) || [],
+    resultStatus: resultStatus || current.result_status || null,
+    resultReason: resultReason || current.result_reason || null,
+    resultDetail: resultDetail !== undefined ? resultDetail : parseJsonSafe(current.result_detail),
+  })
+
+  return current.id
 }
 
 function parseJsonSafe(value) {

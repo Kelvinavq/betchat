@@ -316,6 +316,13 @@ function sanitizeMessage(row) {
     senderAvatarUrl,
     senderDisplayName: row.sender_display_name || '',
     replyTo,
+    receiptLogId: row.receipt_log_id ? Number(row.receipt_log_id) : null,
+    receiptLogProvider: row.receipt_log_provider || null,
+    receiptLogMovementId: row.receipt_log_movement_id ? Number(row.receipt_log_movement_id) : null,
+    receiptLogResultStatus: row.receipt_log_result_status || null,
+    receiptLogResultReason: row.receipt_log_result_reason || null,
+    receiptLogResultDetail: row.receipt_log_result_detail || null,
+    depositEvent: row.receipt_log_result_reason === 'report_payment_paid' ? 'deposit_completed_report' : null,
     createdAt: toUtcIso(row.created_at),
     createdAtUtc: toUtcIso(row.created_at_utc || row.created_at),
     time: timeOf(row.created_at_utc || row.created_at),
@@ -326,12 +333,24 @@ function messageSelectSql(whereClause) {
   return `SELECT m.*, DATE_FORMAT(m.created_at, '%Y-%m-%d %H:%i:%s') AS created_at_utc,
                  u.avatar_url AS sender_avatar_url,
                  COALESCE(u.full_name, u.username, '') AS sender_display_name,
+                 rl.id AS receipt_log_id,
+                 rl.provider AS receipt_log_provider,
+                 rl.movement_id AS receipt_log_movement_id,
+                 rl.result_status AS receipt_log_result_status,
+                 rl.result_reason AS receipt_log_result_reason,
+                 rl.result_detail AS receipt_log_result_detail,
                  r.sender_type AS reply_sender_type,
                  r.message_type AS reply_message_type,
                  r.content AS reply_content,
                  r.file_name AS reply_file_name
           FROM messages m
           LEFT JOIN users u ON u.id = m.sender_user_id
+          LEFT JOIN receipt_logs rl ON rl.id = (
+            SELECT id FROM receipt_logs
+            WHERE message_id = m.id
+            ORDER BY id DESC
+            LIMIT 1
+          )
           LEFT JOIN messages r ON r.id = m.reply_to_message_id
           ${whereClause}`
 }
@@ -1103,6 +1122,7 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
         io.to(`chat:${chatId}`).emit('receipt:result', {
           chatId: Number(chatId),
           messageId: Number(messageId),
+          receiptLogId: result.receiptLogId || null,
           status: result.status,
           amount,
           date: result?.extractedData?.date || null,

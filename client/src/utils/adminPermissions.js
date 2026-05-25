@@ -24,6 +24,15 @@ export const canViewModule = (user, module) => {
   return Boolean(user?.permissions?.[module]?.can_view)
 }
 
+export const canEditModule = (user, module) => {
+  if (!module) return true
+  if (user?.permissions?.[module]) {
+    return Boolean(user.permissions[module].can_edit)
+  }
+  if (user?.role === 'admin') return true
+  return Boolean(user?.permissions?.[module]?.can_edit)
+}
+
 export const canViewSection = (user, section) => {
   return canViewModule(user, SECTION_MODULES[section])
 }

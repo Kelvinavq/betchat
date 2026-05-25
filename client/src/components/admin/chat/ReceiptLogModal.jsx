@@ -31,13 +31,20 @@ const Overlay = styled.div`
 
 const Drawer = styled.div`
   width: min(580px, 100vw);
-  height: 100%;
+  height: auto;
+  max-height: calc(100vh - 24px);
+  margin: 12px 0;
   background: #0f0f1e;
   border-left: 1px solid rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
   animation: ${slideIn} 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.1) transparent;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 `
 
 const Head = styled.div`
@@ -48,6 +55,9 @@ const Head = styled.div`
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   flex-shrink: 0;
   background: #0d0d1b;
+  position: sticky;
+  top: 0;
+  z-index: 2;
 `
 
 const HeadIcon = styled.div`
@@ -102,15 +112,10 @@ const CloseBtn = styled.button`
 `
 
 const Body = styled.div`
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
   padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255,255,255,0.1) transparent;
 `
 
 /* ─── badges ─────────────────────────────────────────────── */
@@ -180,6 +185,12 @@ const SectionBody = styled.div`
   padding: 12px 14px;
 `
 
+const ScrollArea = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`
+
 /* ─── model pill ─────────────────────────────────────────── */
 const ModelPill = styled.div`
   display: inline-flex;
@@ -212,7 +223,7 @@ const CodeBlock = styled.pre`
   color: rgba(255, 255, 255, 0.78);
   overflow-x: auto;
   overflow-y: auto;
-  max-height: 200px;
+  max-height: none;
   white-space: pre-wrap;
   word-break: break-word;
   margin: 0;
@@ -379,6 +390,8 @@ const ResultCard = styled.div`
   padding: 14px;
 `
 
+const ResultScroll = styled.div``
+
 const ResultStatus = styled.div`
   font-size: 18px;
   font-weight: 700;
@@ -527,98 +540,100 @@ export default function ReceiptLogModal({ chatId, messageId, onClose }) {
                   <SectionTitle>Extracción por IA</SectionTitle>
                 </SectionHead>
                 <SectionBody>
-                  {log.aiModel && (
-                    <ModelPill>
-                      <SmartToyOutlinedIcon />
-                      {AI_MODEL_LABELS[log.aiModel] || log.aiModel}
-                    </ModelPill>
-                  )}
-                  {!log.aiModel && !log.aiRawResponse && (
-                    <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>Sin datos de extracción IA</div>
-                  )}
+                  <ScrollArea>
+                    {log.aiModel && (
+                      <ModelPill>
+                        <SmartToyOutlinedIcon />
+                        {AI_MODEL_LABELS[log.aiModel] || log.aiModel}
+                      </ModelPill>
+                    )}
+                    {!log.aiModel && !log.aiRawResponse && (
+                      <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.3)' }}>Sin datos de extracción IA</div>
+                    )}
 
-                  {log.aiRawResponse && (
-                    <>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                        <TerminalIcon style={{ fontSize: 13, verticalAlign: 'middle', marginRight: 4 }} />
-                        Respuesta cruda de la IA
-                      </div>
-                      <CodeWrap>
-                        <CodeBlock>{log.aiRawResponse}</CodeBlock>
-                        <CopyBtn type="button" title="Copiar" onClick={() => copyText(log.aiRawResponse)}>
-                          <ContentCopyIcon />
-                        </CopyBtn>
-                      </CodeWrap>
-                    </>
-                  )}
+                    {log.aiRawResponse && (
+                      <>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 5, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                          <TerminalIcon style={{ fontSize: 13, verticalAlign: 'middle', marginRight: 4 }} />
+                          Respuesta cruda de la IA
+                        </div>
+                        <CodeWrap>
+                          <CodeBlock>{log.aiRawResponse}</CodeBlock>
+                          <CopyBtn type="button" title="Copiar" onClick={() => copyText(log.aiRawResponse)}>
+                            <ContentCopyIcon />
+                          </CopyBtn>
+                        </CodeWrap>
+                      </>
+                    )}
 
-                  {log.aiExtractedJson && (
-                    <div style={{ marginTop: 12 }}>
-                      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
-                        <DataObjectIcon style={{ fontSize: 13, verticalAlign: 'middle', marginRight: 4 }} />
-                        Datos extraídos (normalizado)
+                    {log.aiExtractedJson && (
+                      <div style={{ marginTop: 12 }}>
+                        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.35)', marginBottom: 7, textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: 600 }}>
+                          <DataObjectIcon style={{ fontSize: 13, verticalAlign: 'middle', marginRight: 4 }} />
+                          Datos extraídos (normalizado)
+                        </div>
+                        <KvGrid>
+                          {extracted.amount != null && (
+                            <>
+                              <KvKey>Monto</KvKey>
+                              <KvVal $mono>${Number(extracted.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</KvVal>
+                            </>
+                          )}
+                          {extracted.transaction_id && (
+                            <>
+                              <KvKey>ID transacción</KvKey>
+                              <KvVal $mono>{extracted.transaction_id}</KvVal>
+                            </>
+                          )}
+                          {extracted.id_type && (
+                            <>
+                              <KvKey>Tipo ID</KvKey>
+                              <KvVal>{extracted.id_type}</KvVal>
+                            </>
+                          )}
+                          {extracted.date && (
+                            <>
+                              <KvKey>Fecha</KvKey>
+                              <KvVal $mono>{extracted.date}</KvVal>
+                            </>
+                          )}
+                          {extracted.time && (
+                            <>
+                              <KvKey>Hora</KvKey>
+                              <KvVal $mono>{extracted.time}</KvVal>
+                            </>
+                          )}
+                          {extracted.cuit && (
+                            <>
+                              <KvKey>CUIT</KvKey>
+                              <KvVal $mono>{extracted.cuit}</KvVal>
+                            </>
+                          )}
+                          {extracted.cbu_cvu && (
+                            <>
+                              <KvKey>CBU/CVU</KvKey>
+                              <KvVal $mono>{extracted.cbu_cvu}</KvVal>
+                            </>
+                          )}
+                          {extracted.confidence && (
+                            <>
+                              <KvKey>Confianza</KvKey>
+                              <KvVal>
+                                <ConfidenceDot $level={extracted.confidence} />
+                                {extracted.confidence}
+                              </KvVal>
+                            </>
+                          )}
+                          {extracted.notes && (
+                            <>
+                              <KvKey>Notas</KvKey>
+                              <KvVal style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.5)' }}>{extracted.notes}</KvVal>
+                            </>
+                          )}
+                        </KvGrid>
                       </div>
-                      <KvGrid>
-                        {extracted.amount != null && (
-                          <>
-                            <KvKey>Monto</KvKey>
-                            <KvVal $mono>${Number(extracted.amount).toLocaleString('es-AR', { minimumFractionDigits: 2 })}</KvVal>
-                          </>
-                        )}
-                        {extracted.transaction_id && (
-                          <>
-                            <KvKey>ID transacción</KvKey>
-                            <KvVal $mono>{extracted.transaction_id}</KvVal>
-                          </>
-                        )}
-                        {extracted.id_type && (
-                          <>
-                            <KvKey>Tipo ID</KvKey>
-                            <KvVal>{extracted.id_type}</KvVal>
-                          </>
-                        )}
-                        {extracted.date && (
-                          <>
-                            <KvKey>Fecha</KvKey>
-                            <KvVal $mono>{extracted.date}</KvVal>
-                          </>
-                        )}
-                        {extracted.time && (
-                          <>
-                            <KvKey>Hora</KvKey>
-                            <KvVal $mono>{extracted.time}</KvVal>
-                          </>
-                        )}
-                        {extracted.cuit && (
-                          <>
-                            <KvKey>CUIT</KvKey>
-                            <KvVal $mono>{extracted.cuit}</KvVal>
-                          </>
-                        )}
-                        {extracted.cbu_cvu && (
-                          <>
-                            <KvKey>CBU/CVU</KvKey>
-                            <KvVal $mono>{extracted.cbu_cvu}</KvVal>
-                          </>
-                        )}
-                        {extracted.confidence && (
-                          <>
-                            <KvKey>Confianza</KvKey>
-                            <KvVal>
-                              <ConfidenceDot $level={extracted.confidence} />
-                              {extracted.confidence}
-                            </KvVal>
-                          </>
-                        )}
-                        {extracted.notes && (
-                          <>
-                            <KvKey>Notas</KvKey>
-                            <KvVal style={{ fontStyle: 'italic', color: 'rgba(255,255,255,0.5)' }}>{extracted.notes}</KvVal>
-                          </>
-                        )}
-                      </KvGrid>
-                    </div>
-                  )}
+                    )}
+                  </ScrollArea>
                 </SectionBody>
               </Section>
 
@@ -630,7 +645,8 @@ export default function ReceiptLogModal({ chatId, messageId, onClose }) {
                     <SectionTitle>Pasos de procesamiento</SectionTitle>
                   </SectionHead>
                   <SectionBody>
-                    <Timeline>
+                    <ScrollArea>
+                      <Timeline>
                       {steps.map((step, i) => {
                         const meta = STEP_META[step.step] || { icon: '·', color: '#6b7280', label: step.step }
                         const hasDetail = step.detail && Object.keys(step.detail).length > 0
@@ -647,7 +663,8 @@ export default function ReceiptLogModal({ chatId, messageId, onClose }) {
                           </TlItem>
                         )
                       })}
-                    </Timeline>
+                      </Timeline>
+                    </ScrollArea>
                   </SectionBody>
                 </Section>
               )}
@@ -668,12 +685,14 @@ export default function ReceiptLogModal({ chatId, messageId, onClose }) {
                         <ResultReason>{log.resultReason}</ResultReason>
                       )}
                       {log.resultDetail && (
-                        <CodeWrap>
-                          <CodeBlock>{formatDetailObj(log.resultDetail)}</CodeBlock>
-                          <CopyBtn type="button" title="Copiar" onClick={() => copyText(formatDetailObj(log.resultDetail))}>
-                            <ContentCopyIcon />
-                          </CopyBtn>
-                        </CodeWrap>
+                        <ResultScroll>
+                          <CodeWrap>
+                            <CodeBlock>{formatDetailObj(log.resultDetail)}</CodeBlock>
+                            <CopyBtn type="button" title="Copiar" onClick={() => copyText(formatDetailObj(log.resultDetail))}>
+                              <ContentCopyIcon />
+                            </CopyBtn>
+                          </CodeWrap>
+                        </ResultScroll>
                       )}
                     </ResultCard>
                   </SectionBody>

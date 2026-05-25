@@ -129,3 +129,68 @@ export function requireRole(...roles) {
     next();
   };
 }
+
+export function requirePermission(moduleName, action = 'can_view') {
+  return async (req, res, next) => {
+    if (!req.user) {
+      return res.status(403).json({
+        error: 'No tienes permisos para acceder a esta ruta',
+        code: 'FORBIDDEN',
+      });
+    }
+
+    try {
+      const userId = Number(req.user.sub)
+      if (!userId || !moduleName) {
+        return res.status(403).json({
+          error: 'No tienes permisos para acceder a esta ruta',
+          code: 'FORBIDDEN',
+        });
+      }
+
+      const actionColumn = {
+        can_view: 'can_view',
+        can_create: 'can_create',
+        can_edit: 'can_edit',
+        can_delete: 'can_delete',
+      }[action]
+
+      if (!actionColumn) {
+        return res.status(403).json({
+          error: 'No tienes permisos para acceder a esta ruta',
+          code: 'FORBIDDEN',
+        })
+      }
+
+      const { rows, error } = await query(
+        `SELECT ${actionColumn} AS permitted
+         FROM user_permissions
+         WHERE user_id = ? AND module = ?
+         LIMIT 1`,
+        [userId, moduleName]
+      )
+      if (error) return next(error)
+
+      if (rows?.length) {
+        if (!rows[0]?.permitted) {
+          return res.status(403).json({
+            error: 'No tienes permisos para acceder a esta ruta',
+            code: 'FORBIDDEN',
+          })
+        }
+        return next()
+      }
+
+      if (req.user.role === 'admin') {
+        return next()
+      }
+
+      return res.status(403).json({
+        error: 'No tienes permisos para acceder a esta ruta',
+        code: 'FORBIDDEN',
+      })
+    } catch (error) {
+      next(error)
+    }
+  }
+}

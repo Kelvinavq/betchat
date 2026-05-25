@@ -1,5 +1,5 @@
 import { Router } from 'express'
-import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js'
+import { authenticateToken, requirePermission, requireRole } from '../middlewares/authMiddleware.js'
 import {
   getSettings,
   getPublicThemeConfig,
@@ -35,8 +35,8 @@ router.put('/profile', authenticateToken, requireRole('admin'), updateProfile)
 router.put('/system', authenticateToken, requireRole('admin'), updateSystemConfig)
 router.put('/password', authenticateToken, requireRole('admin'), updatePassword)
 router.put('/apis/:provider', authenticateToken, requireRole('admin'), updateApiConfig)
-router.get('/chat-bank', authenticateToken, requireRole('admin'), getChatBankRoute)
-router.put('/chat-bank', authenticateToken, requireRole('admin'), updateChatBank)
+router.get('/chat-bank', authenticateToken, requireRole('admin', 'cashier'), getChatBankRoute)
+router.put('/chat-bank', authenticateToken, requirePermission('chat_bank', 'can_edit'), updateChatBank)
 router.post('/themes/custom', authenticateToken, requireRole('admin'), createCustomTheme)
 router.put('/themes/custom/:id', authenticateToken, requireRole('admin'), updateCustomTheme)
 router.delete('/themes/custom/:id', authenticateToken, requireRole('admin'), deleteCustomTheme)

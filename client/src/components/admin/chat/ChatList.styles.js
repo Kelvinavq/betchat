@@ -507,6 +507,12 @@ export const BankBadge = styled.button`
     box-shadow: 0 0 10px ${({ $color }) => `${$color}30`};
   }
   &:active { transform: scale(0.97); }
+  &:disabled {
+    cursor: default;
+    opacity: 0.92;
+    transform: none;
+    box-shadow: none;
+  }
 `
 
 export const BankDot = styled.span`

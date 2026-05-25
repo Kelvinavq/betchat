@@ -667,6 +667,7 @@ async function processReceiptBase(req, res, mimeType) {
             isDuplicate,
             resultReason,
             duplicateId: duplicateRows[0].id,
+            receiptLogId: logId || null,
             createdAt,
             image_name: filename,
             syncStatus: 'not_synced',
@@ -791,6 +792,7 @@ async function processReceiptBase(req, res, mimeType) {
       panel: panelResult,
       isDuplicate,
       resultReason,
+      receiptLogId: logId || null,
       aiModel,
       createdAt,
       image_name: filename,
@@ -848,7 +850,11 @@ export async function processMercadoPagoClientReceipt({ chatId, clientId, messag
   }
 
   try {
-    return await processReceiptBase(fakeReq, fakeRes, parsed.mimeType)
+    const result = await processReceiptBase(fakeReq, fakeRes, parsed.mimeType)
+    return {
+      ...result,
+      receiptLogId: result?.receiptLogId || null,
+    }
   } finally {
     try {
       fs.rmSync(tmpDir, { recursive: true, force: true })

@@ -18,6 +18,7 @@ import { useDateFormat } from '../../../hooks/useDateFormat'
 import { useConfirm } from '../../common/ConfirmDialog'
 import { api } from '../../../utils/api'
 import { getSocket } from '../../../utils/socket'
+import { canEditModule } from '../../../utils/adminPermissions'
 import {
   Wrap, ListHeader, ListTitle, TitleGroup, HeaderActions, IconBtn,
   DropdownMenu, DropdownItem, DropdownSection, DropdownLabel, LabelFilterBtn, LabelFilterDot,
@@ -110,6 +111,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   const quickMenuRef = useRef(null)
   const bankBadgeRef = useRef(null)
   const bankPopupRef = useRef(null)
+  const canEditChatBank = canEditModule(user, 'chat_bank')
 
   useEffect(() => {
     const handler = (e) => {
@@ -302,6 +304,15 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   }
 
   const handleBankBadgeClick = () => {
+    if (!canEditChatBank) {
+      alertDialog({
+        variant: 'info',
+        title: 'Permiso requerido',
+        message: 'No tienes permiso para cambiar el modo de procesamiento bancario.',
+        confirmLabel: 'Entendido',
+      })
+      return
+    }
     if (bankPopup) { setBankPopup(null); return }
     const rect = bankBadgeRef.current?.getBoundingClientRect()
     if (!rect) return
@@ -615,7 +626,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
                   $active={isActive}
                   $color={cfg.color}
                   onClick={() => handleBankSelect(acc.id)}
-                  disabled={bankSaving}
+                  disabled={bankSaving || !canEditChatBank}
                 >
                   <BankOptionInitials $color={cfg.color}>{cfg.initials}</BankOptionInitials>
                   <BankOptionInfo>

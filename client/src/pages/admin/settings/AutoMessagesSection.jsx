@@ -44,6 +44,13 @@ const MESSAGE_DEFS = [
     bg: 'rgba(16,185,129,0.13)',
   },
   {
+    event: 'deposit_completed_report',
+    label: 'Depósito reportado',
+    desc: 'Se envía cuando el cliente reporta un pago HGCash y se acredita',
+    icon: '💳',
+    bg: 'rgba(34,197,94,0.13)',
+  },
+  {
     event: 'deposit_failed',
     label: 'Depósito rechazado',
     desc: 'Se envía cuando el operador rechaza el movimiento',

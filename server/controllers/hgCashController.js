@@ -334,8 +334,8 @@ async function getHgAutoMessage(event, context = {}) {
 async function sendHgAutoMessage(chatId, event, context = {}) {
   const msg = await getHgAutoMessage(event, context)
   if (msg) {
-    const extra = event === 'deposit_completed'
-      ? { depositEvent: 'deposit_completed', depositAmount: context.amount ?? null }
+    const extra = (event === 'deposit_completed' || event === 'deposit_completed_report')
+      ? { depositEvent: event, depositAmount: context.amount ?? null }
       : {}
     return await persistMessage({ chatId, senderType: 'system', content: msg, extra })
   }
@@ -857,7 +857,6 @@ async function findLatestPendingHgMovementByCuit(cuit, accountId = null) {
      FROM hgcash_movements
      WHERE REPLACE(REPLACE(REPLACE(COALESCE(cuit, ''), '.', ''), '-', ''), ' ', '') = ?
        AND status = 'pending'
-       AND (game_platform_load_id IS NULL OR game_platform_load_id = '')
        ${accountSql}
      ORDER BY created_at DESC, id DESC
      LIMIT 1`,
@@ -1271,27 +1270,88 @@ export async function reportHgCashPaymentByClientCuil(req, res, next) {
     if (!chat) return res.status(404).json({ error: 'Chat no encontrado', code: 'CHAT_NOT_FOUND' })
 
     const cuit = normalizeTaxId(chat.cuil)
+    const logSteps = []
+    const logAccum = { movementId: null }
+    const finalizeReportLog = async (logId, {
+      messageId = null,
+      resultStatus = null,
+      resultReason = null,
+      resultDetail = null,
+    } = {}) => {
+      if (!logId) return
+      await finalizeReceiptLog(logId, {
+        messageId,
+        movementId: logAccum.movementId,
+        processingSteps: logSteps,
+        resultStatus,
+        resultReason,
+        resultDetail,
+      })
+    }
+
+    let logId = null
+    try {
+      logId = await insertReceiptLog({ provider: 'hgcash', messageId: null, chatId, clientId: Number(clientSession.sub) })
+    } catch (error) {
+      console.error('[HGCash][ReportLog] Error creando log:', error.message)
+    }
+
+    logSteps.push({
+      step: 'report_payment_start',
+      ts: new Date().toISOString(),
+      detail: { chatId, clientId: Number(clientSession.sub), cuit },
+    })
     if (!cuit) {
+      logSteps.push({
+        step: 'report_payment_missing_cuil',
+        ts: new Date().toISOString(),
+        detail: { chatId, clientId: Number(clientSession.sub) },
+      })
       await persistMessage({
         chatId,
         senderType: 'system',
         content: 'Para reportar el pago automaticamente necesitamos tener tu CUIL registrado. Subi el comprobante para validarlo.',
       })
+      await finalizeReportLog(logId, {
+        resultStatus: 'missing_cuil',
+        resultReason: 'report_payment_missing_cuil',
+        resultDetail: { cuit: null, chatId, clientId: Number(clientSession.sub) },
+      })
       return res.json({ ok: true, status: 'missing_cuil', found: false })
     }
 
     const activeAccount = await getActiveHgBankAccount()
+    logSteps.push({
+      step: 'movement_lookup_start',
+      ts: new Date().toISOString(),
+      detail: { cuit, accountId: activeAccount?.id || null },
+    })
     const movement = await findLatestPendingHgMovementByCuit(cuit, activeAccount?.id || null)
       || await findLatestPendingHgMovementByCuit(cuit, null)
 
     if (!movement) {
+      logSteps.push({
+        step: 'movement_lookup_not_found',
+        ts: new Date().toISOString(),
+        detail: { cuit, accountId: activeAccount?.id || null },
+      })
       await sendHgAutoMessage(chatId, 'hgcash_payment_not_found', {
         clientId: Number(clientSession.sub),
         bankAccountId: activeAccount?.id || null,
       })
+      await finalizeReportLog(logId, {
+        resultStatus: 'not_found',
+        resultReason: 'report_payment_not_found',
+        resultDetail: { cuit, chatId, clientId: Number(clientSession.sub), bankAccountId: activeAccount?.id || null },
+      })
       return res.json({ ok: true, status: 'not_found', found: false })
     }
 
+    logSteps.push({
+      step: 'movement_lookup_found',
+      ts: new Date().toISOString(),
+      detail: { cuit, movementId: movement.id, coelsaId: movement.coelsa_id, amount: movement.amount },
+    })
     const result = await markHgMovementPaidFromReport({
       movement,
       clientId: Number(clientSession.sub),
@@ -1300,10 +1360,29 @@ export async function reportHgCashPaymentByClientCuil(req, res, next) {
     })
 
     if (!result.ok) {
+      logSteps.push({
+        step: 'panel_credit_failed',
+        ts: new Date().toISOString(),
+        detail: { movementId: movement.id, resultReason: result.resultReason, panel: result.panel || null },
+      })
       await sendHgAutoMessage(chatId, 'deposit_failed', {
         clientId: Number(clientSession.sub),
         bankAccountId: movement.bank_account_id || activeAccount?.id || null,
         amount: Number(movement.amount || 0),
+      })
+      await finalizeReportLog(logId, {
+        movementId: movement.id,
+        resultStatus: 'invalid',
+        resultReason: 'report_payment_panel_credit_failed',
+        resultDetail: {
+          cuit,
+          movementId: movement.id,
+          coelsaId: movement.coelsa_id || null,
+          amount: Number(movement.amount || 0),
+          bankAccountId: movement.bank_account_id || activeAccount?.id || null,
+          panel: result.panel || null,
+          panelReason: result.resultReason || null,
+        },
       })
       return res.status(200).json({
         ok: true,
@@ -1315,13 +1394,47 @@ export async function reportHgCashPaymentByClientCuil(req, res, next) {
       })
     }
 
-    const autoMessageResult = await sendHgAutoMessage(chatId, 'deposit_completed', {
+    const autoMessageResult = await sendHgAutoMessage(chatId, 'deposit_completed_report', {
       clientId: Number(clientSession.sub),
       bankAccountId: movement.bank_account_id || activeAccount?.id || null,
       amount: result.amount,
     })
     const autoMessageId = autoMessageResult?.message?.id || null
-    await updateClientCuilIfEmpty({ clientId: Number(clientSession.sub), cuit, activeAccount })
+    await query(
+      `UPDATE hgcash_movements
+       SET cuit = COALESCE(NULLIF(cuit, ''), ?),
+           cbu_cvu = COALESCE(NULLIF(cbu_cvu, ''), ?),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [movement.cuit || null, movement.cbu_cvu || null, movement.id],
+    )
+    await updateClientCuilIfEmpty({ clientId: Number(clientSession.sub), cuit: movement.cuit || cuit, activeAccount })
+
+    logAccum.movementId = movement.id
+    logSteps.push({
+      step: 'panel_credit_ok',
+      ts: new Date().toISOString(),
+      detail: {
+        movementId: movement.id,
+        coelsaId: movement.coelsa_id || null,
+        amount: result.amount,
+        bankAccountId: movement.bank_account_id || activeAccount?.id || null,
+      },
+    })
+    await finalizeReportLog(logId, {
+      messageId: autoMessageId,
+      movementId: movement.id,
+      resultStatus: 'paid',
+      resultReason: 'report_payment_paid',
+      resultDetail: {
+        cuit,
+        movementId: movement.id,
+        coelsaId: movement.coelsa_id || null,
+        amount: result.amount,
+        bankAccountId: movement.bank_account_id || activeAccount?.id || null,
+        panel: result.panel || null,
+      },
+    })
 
     getIo()?.to(`chat:${chatId}`).emit('receipt:result', {
       chatId: Number(chatId),

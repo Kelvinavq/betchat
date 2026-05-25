@@ -691,7 +691,9 @@ const mapDbMessage = (msg) => ({
   duration: msg.messageType === 'audio' ? Number(msg.content) || 0 : undefined,
   fileName: msg.fileName,
   received: msg.senderType !== 'client',
-  isDepositSuccess: msg.depositEvent === 'deposit_completed',
+  isDepositSuccess: ['deposit_completed', 'deposit_completed_report'].includes(msg.depositEvent),
+  depositEvent: msg.depositEvent || null,
+  receiptLogId: msg.receiptLogId || null,
   createdAt: parseDateValue(msg.createdAtUtc || msg.createdAt),
   time: msg.time,
   avatarUrl: resolveApiAsset(msg.senderAvatarUrl),
@@ -1473,6 +1475,21 @@ const mergeDbMessage = (incoming) => (prev) => {
   return [...prev, mapped]
 }
 
+const getClientTaxId = (client) =>
+  String(client?.cuil || client?.cuit || client?.cuit_cuil || client?.cuil_cuit || '').trim()
+
+const normalizeClientProfile = (client) => {
+  if (!client) return null
+  const taxId = getClientTaxId(client)
+  return {
+    ...client,
+    cuil: taxId,
+    cuit: taxId,
+    cuit_cuil: taxId,
+    cuil_cuit: taxId,
+  }
+}
+
 const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) => {
   const { formatTime } = useDateFormat()
   const { systemConfig } = useSystemConfig()
@@ -1521,20 +1538,25 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const adminTypingTimerRef = useRef(null)
   const receiptProcessingTimerRef = useRef(null)
   const receiptResultsRef = useRef(new Map())
-  const clientCuit = String(client?.cuil || client?.cuit || client?.cuit_cuil || client?.cuil_cuit || '').trim()
-  const hasClientCuit = Boolean(clientCuit)
-  const canReportPayment = useCallback((request) => {
+  const [resolvedClient, setResolvedClient] = useState(() => normalizeClientProfile(client))
+  const clientTaxId = getClientTaxId(resolvedClient)
+  const canReportPayment = useCallback((request, taxId = clientTaxId) => {
     const provider = String(request?.activeProvider || activeBankProvider || '').toLowerCase()
-    return !request?.forceUpload && hasClientCuit && ['hgcash', 'cash'].includes(provider)
-  }, [activeBankProvider, hasClientCuit])
-  const getReceiptActionLabel = useCallback((request) => (
+    return !request?.forceUpload && Boolean(taxId) && ['hgcash', 'cash'].includes(provider)
+  }, [activeBankProvider, clientTaxId])
+  // Legacy wrapper kept for compatibility with older call sites.
+  // eslint-disable-next-line no-unused-vars
+  const getReceiptActionLabel = useCallback((request, taxId = clientTaxId) => (
     canReportPayment(request) ? '📣 Reportar pago' : '📎 Subir comprobante'
-  ), [canReportPayment])
+  ), [canReportPayment, clientTaxId])
+  const getReceiptActionLabelFresh = useCallback((request, taxId = clientTaxId) => (
+    canReportPayment(request, taxId) ? '📣 Reportar pago' : '📎 Subir comprobante'
+  ), [canReportPayment, clientTaxId])
   const typingActiveRef = useRef(false)
   const shouldScrollBottomRef = useRef(false)
   const messageMenuRef = useRef(null)
   const pointerStartRef = useRef(null)
-  const username = client?.username || 'Cliente'
+  const username = resolvedClient?.username || client?.username || 'Cliente'
   const onlineLabel = connectionStatus === 'offline'
     ? 'Sin conexion'
     : connectionStatus === 'reconnecting' ? 'Reconectando' : connectionStatus === 'connected' ? 'Conectado' : 'En linea'
@@ -1542,7 +1564,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     ? 'Sin conexion. Guardamos tus mensajes para reenviarlos.'
     : connectionStatus === 'reconnecting' ? 'Reconectando...' : 'Conexion restablecida'
   const showConnectionBanner = connectionStatus === 'offline' || connectionStatus === 'reconnecting'
-  const chatId = client?.chatId
+  const chatId = resolvedClient?.chatId ?? client?.chatId
   const formatWithdrawable = (value) =>
     value == null
       ? '—'
@@ -1551,6 +1573,58 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   useEffect(() => {
     connectionStatusRef.current = connectionStatus
   }, [connectionStatus])
+
+  useEffect(() => {
+    setResolvedClient(normalizeClientProfile(client))
+  }, [client])
+
+  const refreshClientProfile = useCallback(async () => {
+    if (!client?.id || client?.temporary) return normalizeClientProfile(client)
+    try {
+      const session = await api.get('/api/client/auth/me')
+      const nextClient = normalizeClientProfile(session?.client || client)
+      if (nextClient) setResolvedClient(nextClient)
+      return nextClient
+    } catch {
+      return normalizeClientProfile(client)
+    }
+  }, [client])
+
+  useEffect(() => {
+    if (!chatId || client?.temporary) return undefined
+
+    let cancelled = false
+    const syncClientProfile = async () => {
+      const nextClient = await refreshClientProfile()
+      if (cancelled || !nextClient) return
+      const nextTaxId = getClientTaxId(nextClient)
+      setMessages(prev => {
+        let changed = false
+        const next = prev.map(message => {
+          if (message.type !== 'bot-buttons' || !Array.isArray(message.buttons)) return message
+          let rowChanged = false
+          const buttons = message.buttons.map(button => {
+            if (button.buttonType !== 'receipt_upload' || !button.receiptRequest) return button
+            const nextLabel = getReceiptActionLabelFresh(button.receiptRequest, nextTaxId)
+            if (button.label === nextLabel) return button
+            rowChanged = true
+            return { ...button, label: nextLabel }
+          })
+          if (!rowChanged) return message
+          changed = true
+          return { ...message, buttons }
+        })
+        return changed ? next : prev
+      })
+    }
+
+    syncClientProfile()
+    const intervalId = window.setInterval(syncClientProfile, 30000)
+    return () => {
+      cancelled = true
+      window.clearInterval(intervalId)
+    }
+  }, [chatId, client?.temporary, getReceiptActionLabelFresh, refreshClientProfile])
 
   const fetchWithdrawableBalance = useCallback(async () => {
     if (!chatId) return
@@ -1857,7 +1931,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         buttons: [
           {
             id: `receipt-upload-restore-${request.buttonId || 'file'}`,
-            label: getReceiptActionLabel(request),
+            label: getReceiptActionLabelFresh(request, clientTaxId),
             buttonType: 'receipt_upload',
             receiptRequest: request,
           },
@@ -1868,7 +1942,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         avatar: BOT_AVATAR,
       }]
     })
-  }, [getReceiptActionLabel])
+  }, [clientTaxId, getReceiptActionLabelFresh])
 
   const watchReceiptFileDialog = useCallback((request) => {
     receiptFileDialogRef.current = { request, active: true }
@@ -1907,23 +1981,24 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     }
   }, [chatId, receiptProcessing, receiptRequest, restoreReceiptButtons])
 
-  const handleReceiptUploadClick = useCallback((request) => {
+  const handleReceiptUploadClick = useCallback(async (request) => {
     const req = request || receiptRequest
     if (!req) return
-    if (canReportPayment(req)) {
+    const latestClient = await refreshClientProfile()
+    const latestTaxId = getClientTaxId(latestClient)
+    if (canReportPayment(req, latestTaxId)) {
       handleReportPayment(req)
       return
     }
     lastReceiptRequestRef.current = req
     setReceiptRequest(req)
-    setMessages(prev => prev.filter(message => message.type !== 'bot-buttons'))
     watchReceiptFileDialog(req)
     receiptInputRef.current?.click()
-  }, [canReportPayment, handleReportPayment, receiptRequest, watchReceiptFileDialog])
+  }, [canReportPayment, handleReportPayment, receiptRequest, refreshClientProfile, watchReceiptFileDialog])
 
-  const handleBotButton = (button) => {
+  const handleBotButton = async (button) => {
     if (button.buttonType === 'receipt_upload') {
-      handleReceiptUploadClick(button.receiptRequest)
+      await handleReceiptUploadClick(button.receiptRequest)
       return
     }
     if (botActionPendingRef.current) return
@@ -2001,6 +2076,9 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       return
     }
 
+    const latestClient = await refreshClientProfile()
+    const latestTaxId = getClientTaxId(latestClient)
+
     api.post(`/api/client/bot/chats/${chatId}/select`, {
       buttonId: button.id,
       clientMessageId: optionMessageId,
@@ -2029,7 +2107,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
               buttons: [
                 {
                   id: `receipt-upload-btn-${button.id}`,
-                  label: getReceiptActionLabel(nextReceiptRequest),
+                  label: getReceiptActionLabelFresh(nextReceiptRequest, latestTaxId),
                   buttonType: 'receipt_upload',
                   receiptRequest: nextReceiptRequest,
                 },
@@ -2086,6 +2164,16 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     setPreviewData({ type, url, name: file.name, file, receiptRequest })
     setAttachOpen(false)
   }
+
+  const handlePreviewClose = useCallback(() => {
+    if (mediaSending) return
+    const currentPreview = previewData
+    setPreviewData(null)
+    if (currentPreview?.receiptRequest) {
+      setReceiptRequest(currentPreview.receiptRequest)
+      restoreReceiptButtons(currentPreview.receiptRequest)
+    }
+  }, [mediaSending, previewData, restoreReceiptButtons])
 
   const sendMedia = async () => {
     if (!previewData || !chatId || mediaSending) return
@@ -2161,7 +2249,8 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
 
     const loadInitial = async () => {
       try {
-        const [botData, messageData] = await Promise.all([
+        const [latestClient, botData, messageData] = await Promise.all([
+          refreshClientProfile(),
           client?.temporary ? Promise.resolve({ flow: null, state: null }) : api.get('/api/client/bot/flow'),
           chatId ? api.get(`/api/client/chats/${chatId}/messages?mode=day`) : Promise.resolve({ messages: [] }),
         ])
@@ -2187,8 +2276,9 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         const hasProgressed = Boolean(botData.state?.lastButtonId)
         const initialScreen = hasProgressed ? currentScreen : root
         const screenHasBackButtons = (initialScreen?.items || []).some(item => item.type === 'button' && item.isBack && item.label)
+        const latestTaxId = getClientTaxId(latestClient)
         const botMessages = receiptRequest
-          ? createReceiptUploadButtons(receiptRequest, getReceiptActionLabel(receiptRequest))
+          ? createReceiptUploadButtons(receiptRequest, getReceiptActionLabelFresh(receiptRequest, latestTaxId))
           : (hasProgressed && screenHasBackButtons)
             ? createBackButtonMessages(initialScreen, botData.state?.lastButtonId || 'state')
             : createBotMessages(initialScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
@@ -2201,7 +2291,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         if (receiptRequest) lastReceiptRequestRef.current = receiptRequest
         shouldScrollBottomRef.current = 'instant'
         setMessagePage(messageData.pagination || { previousDate: null, hasPrevious: false })
-        setMessages([...dbMessages, ...queuedMessages.map(mapQueuedMessage), ...(client?.temporary ? [] : botMessages)])
+        setMessages([...dbMessages, ...queuedMessages.map(mapQueuedMessage), ...(latestClient?.temporary ? [] : botMessages)])
         markOutboundDelivered()
         markOutboundReadSoon()
       } catch {
@@ -2221,7 +2311,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
 
     loadInitial()
     return () => { alive = false }
-  }, [chatId, markOutboundDelivered, markOutboundReadSoon])
+  }, [chatId, getReceiptActionLabelFresh, markOutboundDelivered, markOutboundReadSoon, refreshClientProfile])
 
   const loadEarlierMessages = async () => {
     if (!chatId || loadingEarlier || !messagePage?.hasPrevious || !messagePage?.previousDate) return
@@ -2515,7 +2605,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       {previewData && (
         <MediaPreviewModal
           data={previewData}
-          onClose={() => { if (!mediaSending) { setPreviewData(null); if (previewData?.receiptRequest) setReceiptRequest(null) } }}
+          onClose={handlePreviewClose}
           onSend={sendMedia}
           sending={mediaSending}
         />

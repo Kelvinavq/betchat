@@ -1,6 +1,7 @@
 import { query } from '../config/database.js'
 import { persistMessage, resetClientBot } from './chatController.js'
 import { getAutoMessage } from './autoMessagesController.js'
+import { updateReceiptLogForMovement } from './receiptLogController.js'
 
 const PROVIDERS = ['manual', 'hgcash', 'telepagos', 'mercadopago']
 const MANUAL_STATUSES = ['pending', 'paid', 'rejected']
@@ -308,6 +309,15 @@ export async function updateManualMovementStatus(req, res, next) {
       return res.status(404).json({ error: 'Movimiento no encontrado', code: 'MOVEMENT_NOT_FOUND' })
     }
 
+    await updateReceiptLogForMovement(id, {
+      resultStatus: status,
+      resultReason: `manual_admin_set_${status}`,
+      resultDetail: {
+        action: status,
+        processedByUserId: req.user?.sub || null,
+      },
+    })
+
     const filters = { clientId: Number(chat.client_id), search: '', accountId: null }
     const part = buildProviderQuery('manual', filters)
     const { rows, error: selectError } = await query(`${part.sql} AND m.id = ? LIMIT 1`, [...part.values, id])
@@ -350,6 +360,16 @@ export async function resolveManualMovement(req, res, next) {
         return res.status(404).json({ error: 'Movimiento no encontrado', code: 'MOVEMENT_NOT_FOUND' })
       }
 
+      await updateReceiptLogForMovement(id, {
+        resultStatus: 'paid',
+        resultReason: 'manual_admin_paid',
+        resultDetail: {
+          action: 'paid',
+          amount: newAmount,
+          processedByUserId: req.user?.sub || null,
+        },
+      })
+
       const paidMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_completed', { clientId, amount: newAmount })
       if (paidMsg) {
         await persistMessage({
@@ -376,6 +396,16 @@ export async function resolveManualMovement(req, res, next) {
       if (!updateRows?.affectedRows) {
         return res.status(404).json({ error: 'Movimiento no encontrado', code: 'MOVEMENT_NOT_FOUND' })
       }
+
+      await updateReceiptLogForMovement(id, {
+        resultStatus: 'rejected',
+        resultReason: 'manual_admin_rejected',
+        resultDetail: {
+          action: 'rejected',
+          message: normalizeText(req.body?.message || '') || null,
+          processedByUserId: req.user?.sub || null,
+        },
+      })
 
       const rejectMsg = normalizeText(req.body?.message || '') || await getAutoMessage('deposit_failed', { clientId })
       if (rejectMsg) await persistMessage({ chatId, senderType: 'system', content: rejectMsg })

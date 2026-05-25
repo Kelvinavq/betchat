@@ -163,6 +163,9 @@ const mapDbMessage = (msg) => ({
   deliveryState: msg.readAt ? 'read' : msg.deliveredAt ? 'delivered' : 'sent',
   replyTo: msg.replyTo,
   senderDisplayName: msg.senderDisplayName || '',
+  receiptLogId: msg.receiptLogId || null,
+  depositEvent: msg.depositEvent || null,
+  receiptLogResultReason: msg.receiptLogResultReason || null,
 })
 
 const mapApiCommand = (command) => ({
@@ -1362,7 +1365,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                       loading="lazy"
                       onClick={() => setViewerData({ type: 'image', url: msg.mediaUrl, name: msg.fileName })}
                     />
-                    {!msg.sent && msg.dbId && (
+                    {!msg.sent && (msg.receiptLogId || msg.dbId) && (
                       <LogAiBtn type="button" onClick={() => setReceiptLogMsg(msg.dbId)}>
                         <SmartToyOutlinedIcon />Log IA
                       </LogAiBtn>
@@ -1375,7 +1378,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                     <MediaMsgPdf onClick={() => setViewerData({ type: 'pdf', url: msg.mediaUrl, name: msg.fileName })}>
                       <DescriptionIcon /><span>{msg.fileName}</span>
                     </MediaMsgPdf>
-                    {!msg.sent && msg.dbId && (
+                    {!msg.sent && (msg.receiptLogId || msg.dbId) && (
                       <LogAiBtn type="button" onClick={() => setReceiptLogMsg(msg.dbId)}>
                         <SmartToyOutlinedIcon />Log IA
                       </LogAiBtn>
@@ -1408,14 +1411,22 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                         </FormSubmissionCard>
                       )
                     }
+                    const shouldShowReceiptLog = Boolean(msg.receiptLogId) || msg.depositEvent === 'deposit_completed_report'
                     return (
-                      <MsgBubble $sent={msg.sent}>
-                        {renderReplyQuote(msg.replyTo, msg.sent)}
-                        {msg.sent && hasRichText(msg.text)
-                          ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
-                          : msg.text
-                        }
-                      </MsgBubble>
+                      <>
+                        <MsgBubble $sent={msg.sent}>
+                          {renderReplyQuote(msg.replyTo, msg.sent)}
+                          {msg.sent && hasRichText(msg.text)
+                            ? <span dangerouslySetInnerHTML={{ __html: sanitizeRichHtml(msg.text) }} />
+                            : msg.text
+                          }
+                        </MsgBubble>
+                        {shouldShowReceiptLog && (
+                          <LogAiBtn type="button" onClick={() => setReceiptLogMsg(msg.dbId)}>
+                            <SmartToyOutlinedIcon />Log reporte
+                          </LogAiBtn>
+                        )}
+                      </>
                     )
                   })()
                 )}

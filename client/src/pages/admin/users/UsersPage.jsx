@@ -82,6 +82,16 @@ const MODULE_CONFIG = [
     ],
   },
   {
+    id: 'chat_bank', label: 'Banco chat', note: 'Cambiar el modo bancario', isPage: false,
+    dot: '#38bdf8', bg: 'rgba(56,189,248,0.10)', cl: '#7dd3fc', br: 'rgba(56,189,248,0.22)',
+    actions: [
+      { id: 'can_view', label: 'Ver' },
+      null,
+      { id: 'can_edit', label: 'Cambiar' },
+      null,
+    ],
+  },
+  {
     id: 'clients', label: 'Clientes', note: '/admin/clientes', isPage: true,
     dot: '#22c55e', bg: 'rgba(34,197,94,0.12)', cl: '#4ade80', br: 'rgba(34,197,94,0.24)',
     actions: [
