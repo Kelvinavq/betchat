@@ -122,13 +122,16 @@ export async function getReceiptLogByMessage(req, res, next) {
 export async function getChatReceiptLogs(req, res, next) {
   try {
     const chatId = Number(req.params.chatId)
-    const limit = Math.min(50, Math.max(1, Number(req.query.limit || 20)))
-    const offset = Math.max(0, Number(req.query.offset || 0))
+    const limit = Math.min(50, Math.max(1, Math.floor(Number(req.query.limit || 20))))
+    const offset = Math.max(0, Math.floor(Number(req.query.offset || 0)))
 
     const [{ rows, error }, { rows: countRows }] = await Promise.all([
       query(
-        'SELECT * FROM receipt_logs WHERE chat_id = ? ORDER BY id DESC LIMIT ? OFFSET ?',
-        [chatId, limit, offset],
+        `SELECT * FROM receipt_logs
+         WHERE chat_id = ?
+         ORDER BY id DESC
+         LIMIT ${limit} OFFSET ${offset}`,
+        [chatId],
       ),
       query('SELECT COUNT(*) AS total FROM receipt_logs WHERE chat_id = ?', [chatId]),
     ])

@@ -13,6 +13,10 @@ const DEFAULT_SYSTEM_CONFIG = {
   supportText: '',
   clientRegistrationEnabled: true,
   clientLogoutEnabled: true,
+  botMode: 'manual',
+  botAiModel: '',
+  botAiTemperature: 0.1,
+  botAiMaxTokens: 250,
   bubbleConfig: DEFAULT_BUBBLE_CONFIG,
 }
 
@@ -39,6 +43,14 @@ const normalizeSystemConfig = (config = {}) => ({
   supportText:  String(config.supportText  || config.support_text  || ''),
   clientRegistrationEnabled: configFlag(config.clientRegistrationEnabled ?? config.client_registration_enabled, true),
   clientLogoutEnabled: configFlag(config.clientLogoutEnabled ?? config.client_logout_enabled, true),
+  botMode: String(config.botMode || config.bot_mode || DEFAULT_SYSTEM_CONFIG.botMode).toLowerCase() === 'hybrid_ai' ? 'hybrid_ai' : 'manual',
+  botAiModel: String(config.botAiModel || config.bot_ai_model || ''),
+  botAiTemperature: Number.isFinite(Number(config.botAiTemperature ?? config.bot_ai_temperature))
+    ? Math.max(0, Math.min(2, Number(config.botAiTemperature ?? config.bot_ai_temperature)))
+    : DEFAULT_SYSTEM_CONFIG.botAiTemperature,
+  botAiMaxTokens: Number.isFinite(Number(config.botAiMaxTokens ?? config.bot_ai_max_tokens))
+    ? Math.max(1, Math.min(2000, Math.floor(Number(config.botAiMaxTokens ?? config.bot_ai_max_tokens))))
+    : DEFAULT_SYSTEM_CONFIG.botAiMaxTokens,
   bubbleConfig: config.bubbleConfig
     ? { ...DEFAULT_BUBBLE_CONFIG, ...config.bubbleConfig }
     : DEFAULT_BUBBLE_CONFIG,

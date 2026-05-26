@@ -71,6 +71,30 @@ function normalizeReceiptModel(value) {
   return RECEIPT_MODELS.has(model) ? model : 'openai/gpt-4o-mini'
 }
 
+const BOT_MODES = new Set(['manual', 'hybrid_ai'])
+
+function normalizeBotMode(value) {
+  const mode = normalizeText(value).toLowerCase()
+  return BOT_MODES.has(mode) ? mode : 'manual'
+}
+
+function normalizeBotModel(value) {
+  const model = normalizeText(value)
+  return model.slice(0, 120)
+}
+
+function normalizeBotTemperature(value) {
+  const num = Number(value)
+  if (!Number.isFinite(num)) return 0.1
+  return Math.max(0, Math.min(2, Number(num.toFixed(2))))
+}
+
+function normalizeBotMaxTokens(value) {
+  const num = Number.parseInt(value, 10)
+  if (!Number.isFinite(num) || num <= 0) return 250
+  return Math.max(1, Math.min(2000, num))
+}
+
 const SUPPORTED_CURRENCIES = ['USD', 'ARS', 'MXN', 'COP', 'CLP', 'UYU']
 const SUPPORTED_OPERATIONS = ['deposit', 'withdrawal']
 
@@ -164,7 +188,7 @@ async function removeBrandingFile(url) {
 
 export async function getSystemConfig() {
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bubble_config FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -180,6 +204,10 @@ export async function getSystemConfig() {
     supportText: row.support_text || '',
     clientRegistrationEnabled: row.client_registration_enabled !== 0,
     clientLogoutEnabled: row.client_logout_enabled !== 0,
+    botMode: normalizeBotMode(row.bot_mode),
+    botAiModel: normalizeBotModel(row.bot_ai_model),
+    botAiTemperature: normalizeBotTemperature(row.bot_ai_temperature),
+    botAiMaxTokens: normalizeBotMaxTokens(row.bot_ai_max_tokens),
     bubbleConfig: normalizeBubbleConfig(parseJson(row.bubble_config)),
   }
 }
@@ -524,16 +552,20 @@ export async function updateSystemConfig(req, res, next) {
     const supportValue = normalizeText(req.body.supportValue ?? req.body.support_value ?? current.supportValue ?? '').slice(0, 500)
     const supportText  = normalizeText(req.body.supportText  ?? req.body.support_text  ?? current.supportText  ?? '').slice(0, 200)
     const iframeUrl = normalizeText(req.body.iframeUrl ?? req.body.iframe_url ?? current.iframeUrl ?? '').slice(0, 2048)
+    const botMode = normalizeBotMode(req.body.botMode ?? req.body.bot_mode ?? current.botMode ?? 'manual')
+    const botAiModel = normalizeBotModel(req.body.botAiModel ?? req.body.bot_ai_model ?? current.botAiModel ?? '')
+    const botAiTemperature = normalizeBotTemperature(req.body.botAiTemperature ?? req.body.bot_ai_temperature ?? current.botAiTemperature ?? 0.1)
+    const botAiMaxTokens = normalizeBotMaxTokens(req.body.botAiMaxTokens ?? req.body.bot_ai_max_tokens ?? current.botAiMaxTokens ?? 250)
 
     const bubbleConfig = normalizeBubbleConfig(
       req.body.bubbleConfig ?? req.body.bubble_config ?? current.bubbleConfig ?? {}
     )
 
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bubble_config)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bubble_config = VALUES(bubble_config)`,
-      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, JSON.stringify(bubbleConfig)]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bubble_config = VALUES(bubble_config)` ,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, JSON.stringify(bubbleConfig)]
     )
     if (error) return next(error)
 
@@ -803,11 +835,26 @@ export async function updateApiConfig(req, res, next) {
         [normalizeText(req.body.apiKey), model]
       )
       if (error) return next(error)
+
+      const current = await getSystemConfig()
+      const botMode = normalizeBotMode(req.body.botMode ?? req.body.bot_mode ?? current.botMode ?? 'manual')
+      const botAiModel = normalizeBotModel(req.body.botAiModel ?? req.body.bot_ai_model ?? current.botAiModel ?? '')
+      const botAiTemperature = normalizeBotTemperature(req.body.botAiTemperature ?? req.body.bot_ai_temperature ?? current.botAiTemperature ?? 0.1)
+      const botAiMaxTokens = normalizeBotMaxTokens(req.body.botAiMaxTokens ?? req.body.bot_ai_max_tokens ?? current.botAiMaxTokens ?? 250)
+
+      const { error: botError } = await query(
+        `INSERT INTO system_config (id, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens)
+         VALUES (1, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens)`,
+        [botMode, botAiModel || null, botAiTemperature, botAiMaxTokens]
+      )
+      if (botError) return next(botError)
     } else {
       return res.status(400).json({ error: 'Proveedor invalido', code: 'INVALID_PROVIDER' })
     }
 
-    res.json({ apis: await getApis() })
+    const [apis, systemConfig] = await Promise.all([getApis(), getSystemConfig()])
+    res.json({ apis, systemConfig })
   } catch (err) {
     next(err)
   }

@@ -1,7 +1,7 @@
 import jwt from 'jsonwebtoken'
 import { config } from '../config/config.js'
 import { query } from '../config/database.js'
-import { assignChatIfUnassigned, emitChatRefresh, persistMessage, processReceiptAsync, setClientOnlineStatus } from '../controllers/chatController.js'
+import { assignChatIfUnassigned, emitChatRefresh, persistMessage, processReceiptAsync, setClientOnlineStatus, triggerHybridAiBotRouting } from '../controllers/chatController.js'
 import { getActiveBroadcasts } from '../broadcast/broadcastManager.js'
 
 const recentMessages = new Map()
@@ -221,6 +221,16 @@ export function setupChatSockets(io) {
 
         if (clientMessageId) {
           recentMessages.set(dedupeKey, { createdAt: Date.now(), result })
+        }
+
+        if (senderType === 'client' && messageType === 'text') {
+          void triggerHybridAiBotRouting({
+            chatId,
+            clientId: payload.sub,
+            messageId: result.message.id,
+            clientMessageId,
+            content: String(payloadData.content || '').trim(),
+          })
         }
 
         // Procesamiento de comprobante cuando el cliente sube imagen o PDF

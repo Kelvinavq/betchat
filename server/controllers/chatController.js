@@ -977,6 +977,28 @@ export async function persistMessage({
   return { message, chat }
 }
 
+export async function triggerHybridAiBotRouting({
+  chatId,
+  clientId,
+  messageId,
+  clientMessageId,
+  content,
+}) {
+  try {
+    const { processHybridBotTextMessage } = await import('../services/aiBotRouter.js')
+    return await processHybridBotTextMessage({
+      chatId,
+      clientId,
+      messageId,
+      clientMessageId,
+      content,
+    })
+  } catch (error) {
+    console.error('[BotAI] No se pudo ejecutar el router híbrido:', error.message)
+    return { handled: false, error: error.message }
+  }
+}
+
 async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId }) {
   console.log(`[Receipt] Pipeline manual — chatId=${chatId} messageId=${messageId} bankAccountId=${bankAccountId}`)
 
@@ -1239,6 +1261,16 @@ export async function sendClientMessage(req, res, next) {
       })
     } else if (messageType === 'image' || messageType === 'pdf') {
       console.warn(`[Receipt] Imagen/PDF recibido pero sin dataUrl en body — messageType=${messageType} hasDataUrl=${_hasDataUrl}`)
+    }
+
+    if (messageType === 'text') {
+      void triggerHybridAiBotRouting({
+        chatId,
+        clientId: client.sub,
+        messageId: result.message.id,
+        clientMessageId: req.body?.clientMessageId || result.message.clientMessageId || '',
+        content: String(req.body?.content || '').trim(),
+      })
     }
 
     res.status(201).json(result)

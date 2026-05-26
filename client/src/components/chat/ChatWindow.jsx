@@ -1514,6 +1514,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   const [receiptDetailData, setReceiptDetailData] = useState(null)
   const [receiptProcessing, setReceiptProcessing] = useState(false)
   const [adminTyping, setAdminTyping] = useState(false)
+  const [botProcessing, setBotProcessing] = useState(null)
   const [replyingTo, setReplyingTo] = useState(null)
   const [messageMenu, setMessageMenu] = useState(null)
   const [swipeReply, setSwipeReply] = useState(null)
@@ -2423,6 +2424,56 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
   }, [chatId, botFlow])
 
   useEffect(() => {
+    if (!chatId || client?.temporary) return
+    const socket = getSocket('client')
+    const onBotAiTransition = (data = {}) => {
+      if (Number(data.chatId) !== Number(chatId)) return
+      setBotProcessing(null)
+      const nextScreenId = data.state?.currentScreenId || null
+      const nextReceiptRequest = data.receiptRequest || null
+      shouldScrollBottomRef.current = true
+      if (nextScreenId) setCurrentBotScreenId(nextScreenId)
+      if (nextReceiptRequest) {
+        setReceiptRequest(nextReceiptRequest)
+        lastReceiptRequestRef.current = nextReceiptRequest
+      } else if (['select_button', 'show_buttons'].includes(String(data.action || '')) || data.fallback) {
+        setReceiptRequest(null)
+      }
+
+      const aiMessages = Array.isArray(data.botMessages) ? data.botMessages.map(message => ({
+        ...message,
+        received: true,
+        time: message.time || messageTime(),
+        avatar: message.avatar || BOT_AVATAR,
+      })) : []
+
+      if (aiMessages.length > 0 || data.clearBotMessages) {
+        setMessages(prev => {
+          const keep = data.clearBotMessages
+            ? prev.filter(message => !(message.received && !message.dbId))
+            : prev.filter(message => message.type !== 'bot-buttons' && message.type !== 'bot-form')
+          return [...keep, ...aiMessages]
+        })
+      }
+    }
+    socket.on('bot:ai-transition', onBotAiTransition)
+    return () => socket.off('bot:ai-transition', onBotAiTransition)
+  }, [chatId, client?.temporary])
+
+  useEffect(() => {
+    if (!chatId || client?.temporary) return
+    const socket = getSocket('client')
+    const onBotProcessing = (data = {}) => {
+      if (Number(data.chatId) !== Number(chatId)) return
+      setBotProcessing(data.isProcessing ? {
+        text: data.text || 'IA procesando...',
+      } : null)
+    }
+    socket.on('bot:processing', onBotProcessing)
+    return () => socket.off('bot:processing', onBotProcessing)
+  }, [chatId, client?.temporary])
+
+  useEffect(() => {
     const socket = getSocket('client')
     const onForceLogout = () => onLogout?.()
     socket.on('session:force-logout', onForceLogout)
@@ -2877,7 +2928,14 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
               </MessageContent>
             </MessageRow>
           ))}
-          {adminTyping && (
+          {botProcessing ? (
+            <TypingBubble>
+              <TypingDot $delay={0} />
+              <TypingDot $delay={140} />
+              <TypingDot $delay={280} />
+              <TypingText>{botProcessing.text || 'IA procesando...'}</TypingText>
+            </TypingBubble>
+          ) : adminTyping && (
             <TypingBubble>
               <TypingDot $delay={0} />
               <TypingDot $delay={140} />
