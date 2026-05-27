@@ -1,5 +1,5 @@
 {
-  "watch": ["app.js", "config", "controllers", "middlewares", "routes", "utils", ".env"],
+  "watch": ["app.js", "config", "controllers", "middlewares", "routes", "services", "utils", ".env"],
   "ignore": ["node_modules", "logs", "coverage", "dist", "**/*.test.js"],
   "ext": "js,json,env",
   "exec": "node app.js",

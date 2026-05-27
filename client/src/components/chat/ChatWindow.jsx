@@ -1069,7 +1069,20 @@ const parseFormSubmission = (text = '') => {
 
 const parseBankDetails = (text = '') => {
   const plain = htmlToPlainText(String(text || '')).replace(/\u00a0/g, ' ')
-  const lines = plain.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+  let rawLines = plain.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+
+  // htmlToPlainText collapses \n \u2192 single space, so "Alias: x\nCBU/CVU: y" becomes one line.
+  // Re-split on known bank data keywords when that happens.
+  if (rawLines.length === 1 && /alias|cbu/i.test(rawLines[0])) {
+    const expanded = rawLines[0]
+      .replace(/\s+(Alias\s*:)/gi, '\n$1')
+      .replace(/\s+(CBU\/CVU\s*:)/gi, '\n$1')
+      .replace(/\s+(CBU\s*:)/gi, '\n$1')
+      .replace(/\s+(Titular\s*:)/gi, '\n$1')
+    const expandedLines = expanded.split('\n').map(l => l.trim()).filter(Boolean)
+    if (expandedLines.length > 1) rawLines = expandedLines
+  }
+  const lines = rawLines
   const compact = lines.join(' ').trim()
 
   const nextValue = (index) => {

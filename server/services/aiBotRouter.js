@@ -169,6 +169,34 @@ async function getOpenRouterConfig() {
   }
 }
 
+const SAFE_BANK_FIELDS_AI = new Set(['nombre_titular', 'alias', 'cbu', 'email', 'cuit', 'currency'])
+
+async function resolveReceiptPrompt(text) {
+  if (!text || !text.includes('{{bank.')) return text
+  const { rows, error } = await query(
+    `SELECT ba.account_data, ba.currency
+       FROM chat_processing_config cpc
+       INNER JOIN bank_accounts ba ON ba.id = cpc.bank_account_id AND ba.is_active = 1
+      WHERE cpc.id = 1
+      LIMIT 1`,
+    []
+  )
+  if (error || !rows?.length) return text
+  const raw = rows[0].account_data
+  const data = typeof raw === 'object' ? raw : (() => { try { return JSON.parse(raw) } catch { return {} } })()
+  const fields = {
+    nombre_titular: data.nombre_titular || '',
+    alias: data.alias || '',
+    cbu: data.cbu || '',
+    email: data.email || '',
+    cuit: data.cuit || '',
+    currency: rows[0].currency || 'ARS',
+  }
+  return text.replace(/\{\{bank\.(\w+)\}\}/g, (match, key) =>
+    SAFE_BANK_FIELDS_AI.has(key) ? (fields[key] || match) : match
+  )
+}
+
 async function loadBotFlow() {
   const { rows: screenRows, error: screenError } = await query(
     `SELECT id, name, is_root, sort_order
@@ -636,7 +664,7 @@ function inferQuickNavigationDecision({ clientMessage, flow, currentScreen }) {
   if (!text) return null
   const rootScreen = (flow?.screens || []).find(screen => screen.isRoot) || flow?.screens?.[0] || null
   const rootButtons = buildFlowButtons({ screens: [rootScreen].filter(Boolean) })
-  const findButton = (predicate) => rootButtons.find(button => predicate(normalizeSearchText(button.label), normalizeSearchText(button.sourceScreenName || '')))
+  const allButtons = buildFlowButtons(flow)
 
   const resetMatch = /(restablec|reinicia|reiniciar|volver al inicio|volver al comienzo|inicio|pantalla principal|menu principal|empezar de nuevo|empezar otra vez)/i.test(text)
   if (resetMatch && rootScreen) {
@@ -647,6 +675,25 @@ function inferQuickNavigationDecision({ clientMessage, flow, currentScreen }) {
       confidence: 1,
       reason: 'quick_reset',
       targetScreenId: rootScreen.id,
+    }
+  }
+
+  // Intención: subir comprobante / ya pagué / datos de pago / alias / cbu / cvu
+  // Ambos casos van por el handler alias_request en processHybridBotTextMessage,
+  // que muestra directamente los datos bancarios (card copiable) + botón de subir
+  // comprobante + botón volver — sin navegar a pantallas intermedias.
+  const receiptUploadMatch = /(comprobante|subi comprobante|subir comprobante|ya pague|ya transfer|ya deposite|adjuntar|foto del pago|imagen del pago|enviar pago|ya cargue|ya realice)/i.test(text)
+  const aliasMatch = /(alias|cbu|cvu|datos de pago|datos bancarios|como transfer|como depositar|a donde deposito|donde envio|quiero pagar|quiero depositar)/i.test(text)
+  if (receiptUploadMatch || aliasMatch) {
+    const reply = receiptUploadMatch && !aliasMatch
+      ? 'Aquí tienes los datos y el botón para subir tu comprobante.'
+      : 'Aquí tienes los datos para transferir y el botón para subir el comprobante.'
+    return {
+      reply,
+      action: 'show_buttons',
+      buttonIds: [],
+      confidence: 0.94,
+      reason: 'alias_request',
     }
   }
 
@@ -733,7 +780,7 @@ async function executeSelectedButton({
     .map((text, index) => ({ id: `${button.id}-response-${index}`, text }))
 
   const receiptPromptRaw = showReceiptAfter
-    ? normalizeText(button.receiptPrompt || 'Subi el comprobante para continuar.')
+    ? await resolveReceiptPrompt(normalizeText(button.receiptPrompt || 'Subi el comprobante para continuar.'))
     : ''
   const receiptPromptItem = receiptPromptRaw ? [{ id: `${button.id}-receipt-prompt`, text: receiptPromptRaw }] : []
 
@@ -753,10 +800,11 @@ async function executeSelectedButton({
   if (replyResult?.message) createdMessages.push(replyResult.message)
 
   for (const [index, item] of botTexts.entries()) {
+    const resolvedContent = await resolveReceiptPrompt(normalizeText(item.text || ''))
     const result = await persistMessage({
       chatId,
       senderType: 'system',
-      content: normalizeText(item.text || ''),
+      content: resolvedContent,
       messageType: 'text',
       clientMessageId: `ai-router-${messageId}-${button.id}-${index}`,
     })
@@ -936,6 +984,140 @@ export async function processHybridBotTextMessage({
     const decision = normalizeDecision(rawDecision, allButtons, availableButtons.map(button => String(button.id)))
     let action = fallback ? 'show_buttons' : decision.action
     const reply = normalizeText(decision.reply || buildFallbackReply(action)).slice(0, 160)
+
+    // ── Special case: alias_request ─────────────────────────────────────────
+    // Directly show bank data (alias/CBU) as a copyable card + receipt upload
+    // button + back button — bypassing "Usaré ALIAS"/"Usaré CBU" navigation.
+    if (decision.reason === 'alias_request' && !fallback) {
+      try {
+        const bankLine = await resolveReceiptPrompt(
+          'Alias: {{bank.alias}}\nCBU/CVU: {{bank.cbu}}\nTitular: {{bank.nombre_titular}}'
+        )
+        if (bankLine && !bankLine.includes('{{bank.')) {
+          // 1. Persist the AI reply ("Aquí tienes los datos…")
+          await persistReplyMessage({ chatId, reply, messageId, clientMessageId })
+          // 2. Persist the bank data block — frontend parseBankDetails() renders it
+          //    as CopyableBankDetails card with one-tap copy buttons.
+          await persistMessage({
+            chatId,
+            senderType: 'system',
+            content: bankLine,
+            messageType: 'text',
+            clientMessageId: `ai-bank-data-${messageId}`,
+          })
+
+          // 3. Find the source button for the receiptRequest object.
+          //    Prefer receipt_request type; fall back to any showReceiptAfter button.
+          const receiptSourceBtn =
+            allButtons.find(b => b.buttonType === 'receipt_request') ||
+            allButtons.find(b => b.showReceiptAfter)
+
+          // 4. Collect back buttons from the current screen's raw items.
+          //    These are included in the receipt upload button row.
+          const backItems = (currentScreen?.items || [])
+            .filter(item => item.type === 'button' && item.isBack && item.label)
+            .map(item => ({
+              id: item.id,
+              label: item.label,
+              isBack: true,
+              buttonType: item.buttonType || 'navigate',
+              actionScreenId: item.actionScreenId || null,
+            }))
+          // If the current screen has no back buttons, find one from any screen.
+          // Deduplicate by actionScreenId so only ONE "Volver al inicio" appears.
+          const dedupeBackButtons = (btns) => {
+            const seen = new Set()
+            return btns.filter(b => {
+              const key = b.actionScreenId || 'root'
+              if (seen.has(key)) return false
+              seen.add(key)
+              return true
+            })
+          }
+          const backButtons = backItems.length > 0
+            ? dedupeBackButtons(backItems)
+            : dedupeBackButtons(
+                allButtons
+                  .filter(b => b.isBack)
+                  .map(b => ({
+                    id: b.id,
+                    label: b.label,
+                    isBack: true,
+                    buttonType: b.buttonType || 'navigate',
+                    actionScreenId: b.actionScreenId || null,
+                  }))
+              )
+
+          let botMessages
+          let receiptRequestPayload = null
+
+          if (receiptSourceBtn) {
+            // Build the standard receipt-upload row:
+            // [📎 Subir comprobante] [🔙 Volver al inicio]
+            receiptRequestPayload = {
+              buttonId: receiptSourceBtn.id,
+              label: receiptSourceBtn.label,
+              processing: receiptSourceBtn.receiptProcessing || 'manual',
+              activeProvider: chat.active_provider || null,
+              screenId: currentScreen?.id || chat.bot_screen_id || null,
+              backButtons,
+              forceUpload: false,
+              actionLabel: '📎 Subir comprobante',
+            }
+            botMessages = buildReceiptButtons({
+              request: receiptRequestPayload,
+              actionLabel: '📎 Subir comprobante',
+              reason: `alias-${messageId}`,
+            })
+          } else {
+            // No receipt button in the flow — show back buttons only (or root screen).
+            const rootScreen = (flow?.screens || []).find(s => s.isRoot) || flow?.screens?.[0] || null
+            botMessages = backButtons.length > 0
+              ? buildBotButtonsFromDefinitions(
+                  backButtons.map(b => ({ ...b, sourceScreenId: currentScreen?.id })),
+                  { reason: `alias-back-${messageId}` }
+                )
+              : buildCurrentScreenButtons(rootScreen, null, `alias-root-${messageId}`)
+          }
+
+          // Persist bot state to DB so the receipt upload UI is restored on page reload.
+          // The initial load logic in ChatWindow.jsx restores receiptRequest when
+          // bot_last_button_id points to a button with showReceiptAfter = true.
+          let persistedScreenId = currentScreen?.id || chat.bot_screen_id || null
+          let persistedButtonId = chat.bot_last_button_id || null
+          if (receiptSourceBtn) {
+            // Move the bot to the screen that owns the receipt button so the
+            // initial load can locate the button inside currentScreen.items.
+            persistedScreenId = receiptSourceBtn.sourceScreenId || persistedScreenId
+            persistedButtonId = String(receiptSourceBtn.id)
+            await query(
+              `UPDATE chats SET bot_screen_id = ?, bot_last_button_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?`,
+              [persistedScreenId, persistedButtonId, chatId]
+            )
+          }
+
+          io.to(`chat:${chatId}`).emit('bot:ai-transition', {
+            chatId: Number(chatId),
+            action: 'none',
+            reply,
+            reason: decision.reason,
+            state: {
+              chatId: Number(chatId),
+              currentScreenId: persistedScreenId,
+              lastButtonId: persistedButtonId,
+            },
+            botMessages,
+            receiptRequest: receiptRequestPayload,
+            clearBotMessages: true,
+          })
+          await emitChatRefresh(chatId)
+          return { handled: true, action: 'alias_request' }
+        }
+      } catch (err) {
+        console.warn('[BotAI] alias_request direct bank fetch error:', err.message)
+      }
+      // Fall through to normal flow if bank data unavailable
+    }
 
     if (action === 'select_button') {
       const selected = buttonsById.get(decision.buttonId) || null

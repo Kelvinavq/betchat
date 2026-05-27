@@ -1257,79 +1257,8 @@ const SettingsPage = ({ onMenuOpen }) => {
                         />
                       </InputWrap>
                     </Field>
-                  </FormGrid>
-                  <div style={{
-                    marginTop: 18,
-                    padding: 16,
-                    borderRadius: 16,
-                    border: '1px solid rgba(255,255,255,0.06)',
-                    background: 'rgba(255,255,255,0.02)',
-                  }}>
-                    <ModelSectionLabel style={{ marginBottom: 10 }}>
-                      Modo del bot
-                    </ModelSectionLabel>
-                    <FormGrid $cols={2}>
-                      <Field>
-                        <FieldLabel>Modo de procesamiento</FieldLabel>
-                        <InputWrap>
-                          <FieldSelect
-                            value={systemForm.botMode}
-                            onChange={e => setSystemForm(f => ({ ...f, botMode: e.target.value }))}
-                          >
-                            <option value="manual">Manual</option>
-                            <option value="hybrid_ai">Híbrido IA</option>
-                          </FieldSelect>
-                        </InputWrap>
-                      </Field>
-                      <Field>
-                        <FieldLabel>Modelo IA del bot</FieldLabel>
-                        <InputWrap>
-                          <FieldSelect
-                            value={systemForm.botAiModel}
-                            onChange={e => setSystemForm(f => ({ ...f, botAiModel: e.target.value }))}
-                          >
-                            {BOT_AI_MODEL_OPTIONS.map(option => (
-                              <option key={option.id || 'default'} value={option.id}>
-                                {option.name}
-                              </option>
-                            ))}
-                          </FieldSelect>
-                        </InputWrap>
-                      </Field>
-                      <Field>
-                        <FieldLabel>Temperatura</FieldLabel>
-                        <InputWrap>
-                          <FieldInput
-                            type="number"
-                            min="0"
-                            max="2"
-                            step="0.05"
-                            value={systemForm.botAiTemperature}
-                            onChange={e => setSystemForm(f => ({ ...f, botAiTemperature: e.target.value }))}
-                            autoComplete="off"
-                            spellCheck={false}
-                          />
-                        </InputWrap>
-                      </Field>
-                      <Field>
-                        <FieldLabel>Máx. tokens</FieldLabel>
-                        <InputWrap>
-                          <FieldInput
-                            type="number"
-                            min="1"
-                            step="1"
-                            value={systemForm.botAiMaxTokens}
-                            onChange={e => setSystemForm(f => ({ ...f, botAiMaxTokens: e.target.value }))}
-                            autoComplete="off"
-                            spellCheck={false}
-                          />
-                        </InputWrap>
-                      </Field>
-                    </FormGrid>
-                    <ApiNote style={{ marginTop: 10 }}>
-                      Si dejás el modelo vacío, el bot usará el modelo guardado en OpenRouter. Solo en modo Híbrido IA interpretará mensajes libres.
-                    </ApiNote>
-                  </div>
+                  </FormGrid>
+
 
                   <SaveFooter>
                     <SaveBtn
@@ -2373,3 +2302,4 @@ const SettingsPage = ({ onMenuOpen }) => {
 }
 
 export default SettingsPage
+
