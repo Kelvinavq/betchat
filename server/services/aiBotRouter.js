@@ -804,7 +804,7 @@ async function executeSelectedButton({
         actionLabel: '📎 Subir comprobante',
         reason: `select-${button.id}`,
       })
-    : buildTargetScreenButtons(targetScreen, null, null, `select-${button.id}`)
+    : buildBotButtonsFromItems(targetScreen?.items || [], { reason: `select-${button.id}` })
 
   return {
     createdMessages,

@@ -2277,10 +2277,11 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         const hasProgressed = Boolean(botData.state?.lastButtonId)
         const initialScreen = hasProgressed ? currentScreen : root
         const screenHasBackButtons = (initialScreen?.items || []).some(item => item.type === 'button' && item.isBack && item.label)
+        const screenHasForms = (initialScreen?.items || []).some(item => item.type === 'form' && item.formConfig?.fields?.length && !submittedFormIds.includes(item.id))
         const latestTaxId = getClientTaxId(latestClient)
         const botMessages = receiptRequest
           ? createReceiptUploadButtons(receiptRequest, getReceiptActionLabelFresh(receiptRequest, latestTaxId))
-          : (hasProgressed && screenHasBackButtons)
+          : (hasProgressed && screenHasBackButtons && !screenHasForms)
             ? createBackButtonMessages(initialScreen, botData.state?.lastButtonId || 'state')
             : createBotMessages(initialScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
         const queuedMessages = readOutbox(chatId)
@@ -2440,12 +2441,26 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         setReceiptRequest(null)
       }
 
-      const aiMessages = Array.isArray(data.botMessages) ? data.botMessages.map(message => ({
+      let aiMessages = Array.isArray(data.botMessages) ? data.botMessages.map(message => ({
         ...message,
         received: true,
         time: message.time || messageTime(),
         avatar: message.avatar || BOT_AVATAR,
       })) : []
+
+      if (data.action === 'select_button' && data.buttonId && botFlow?.screens) {
+        const allItems = (botFlow.screens || []).flatMap(s => s.items || [])
+        const btn = allItems.find(item => item.type === 'button' && String(item.id) === String(data.buttonId))
+        if (btn) {
+          const stayOnScreen = btn.buttonType === 'messages_only' || btn.buttonType === 'receipt_request'
+          const targetScreenId = stayOnScreen ? nextScreenId : (btn.actionScreenId || null)
+          const targetScreen = targetScreenId ? (botFlow.screens.find(s => s.id === targetScreenId) || null) : null
+          if (targetScreen) {
+            const localMessages = createBotButtonMessages(targetScreen, data.buttonId)
+            if (localMessages.length > 0) aiMessages = localMessages
+          }
+        }
+      }
 
       if (aiMessages.length > 0 || data.clearBotMessages) {
         setMessages(prev => {
@@ -2458,7 +2473,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
     }
     socket.on('bot:ai-transition', onBotAiTransition)
     return () => socket.off('bot:ai-transition', onBotAiTransition)
-  }, [chatId, client?.temporary])
+  }, [chatId, client?.temporary, botFlow])
 
   useEffect(() => {
     if (!chatId || client?.temporary) return
