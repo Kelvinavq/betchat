@@ -16,6 +16,7 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import CasinoOutlinedIcon from '@mui/icons-material/CasinoOutlined'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined'
+import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined'
 import SmsOutlinedIcon from '@mui/icons-material/SmsOutlined'
 import HeadsetMicOutlinedIcon from '@mui/icons-material/HeadsetMicOutlined'
 import PaletteOutlinedIcon from '@mui/icons-material/PaletteOutlined'
@@ -33,6 +34,8 @@ import TicketsSection from './TicketsSection'
 import ThemesSection from './ThemesSection'
 import AutoMessagesSection from './AutoMessagesSection'
 import AdvancedSection from './AdvancedSection'
+import SoundsSection from './SoundsSection'
+import ReferralSection from './ReferralSection'
 import {
   PageWrap, PageHeader, MenuBtn, TitleBlock, PageTitle, PageSub,
   Body, SettingsNav, NavGroupLabel, NavBtn, ActiveBar, NavIcon, NavTextWrap, NavLabel, NavSub, SoonPill,
@@ -99,11 +102,16 @@ const TABS = [
     sub: 'Respuestas automáticas',
   },
   {
-    id: 'notif',
-    label: 'Notificaciones',
-    icon: <NotificationsNoneOutlinedIcon />,
-    sub: 'Próximamente',
-    soon: true,
+    id: 'referidos',
+    label: 'Referidos',
+    icon: <GroupAddOutlinedIcon />,
+    sub: 'Programa de referidos',
+  },
+  {
+    id: 'sonidos',
+    label: 'Sonidos',
+    icon: <NotificationsActiveOutlinedIcon />,
+    sub: 'Tonos de notificación',
   },
   {
     id: 'avanzado',
@@ -1257,7 +1265,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                         />
                       </InputWrap>
                     </Field>
-                  </FormGrid>
+                  </FormGrid>
 
 
                   <SaveFooter>
@@ -2275,6 +2283,20 @@ const SettingsPage = ({ onMenuOpen }) => {
           {activeTab === 'avanzado' && (
             <Section>
               <AdvancedSection />
+            </Section>
+          )}
+
+          {/* ════════════════ REFERIDOS ════════════════ */}
+          {activeTab === 'referidos' && (
+            <Section>
+              <ReferralSection />
+            </Section>
+          )}
+
+          {/* ════════════════ SONIDOS ════════════════ */}
+          {activeTab === 'sonidos' && (
+            <Section>
+              <SoundsSection userRole={user?.role} />
             </Section>
           )}
 

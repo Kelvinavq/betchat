@@ -13,12 +13,15 @@ import PushPinOutlinedIcon from '@mui/icons-material/PushPinOutlined'
 import PushPinIcon from '@mui/icons-material/PushPin'
 import DeleteSweepOutlinedIcon from '@mui/icons-material/DeleteSweepOutlined'
 import DeleteOutlineIcon from '@mui/icons-material/DeleteOutlined'
+import VolumeUpOutlinedIcon  from '@mui/icons-material/VolumeUpOutlined'
+import VolumeOffOutlinedIcon from '@mui/icons-material/VolumeOffOutlined'
 import { AuthContext } from '../../../context/AuthContext'
 import { useDateFormat } from '../../../hooks/useDateFormat'
 import { useConfirm } from '../../common/ConfirmDialog'
 import { api } from '../../../utils/api'
 import { getSocket } from '../../../utils/socket'
 import { canEditModule } from '../../../utils/adminPermissions'
+import { useNotificationSound } from '../../../hooks/useNotificationSound'
 import {
   Wrap, ListHeader, ListTitle, TitleGroup, HeaderActions, IconBtn,
   DropdownMenu, DropdownItem, DropdownSection, DropdownLabel, LabelFilterBtn, LabelFilterDot,
@@ -82,6 +85,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   const { user } = useContext(AuthContext) || {}
   const { formatTime } = useDateFormat()
   const { confirm, alert: alertDialog, dialogNode } = useConfirm()
+  const { soundEnabled, currentSound, toggleEnabled: toggleSound, playNotification } = useNotificationSound()
   const [search, setSearch] = useState('')
   const [menuOpen, setMenuOpen] = useState(false)
   const [archived, setArchived] = useState(false)
@@ -111,7 +115,12 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   const quickMenuRef = useRef(null)
   const bankBadgeRef = useRef(null)
   const bankPopupRef = useRef(null)
+  const chatsRef = useRef([])
   const canEditChatBank = canEditModule(user, 'chat_bank')
+
+  useEffect(() => {
+    chatsRef.current = chats
+  }, [chats])
 
   useEffect(() => {
     const handler = (e) => {
@@ -266,6 +275,17 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
   useEffect(() => {
     const socket = getSocket('admin')
     const onChatUpdated = (chat) => {
+      const previous = chatsRef.current.find(item => Number(item.id) === Number(chat.id))
+      const unreadBefore = Number(previous?.unread || 0)
+      const unreadAfter = Number(chat?.unread || 0)
+      const shouldPlaySound =
+        unreadAfter > unreadBefore &&
+        Number(selectedChat?.id) !== Number(chat.id)
+
+      if (shouldPlaySound) {
+        void playNotification()
+      }
+
       setChats(prev => {
         const belongs = Boolean(chat.isArchived) === archived
           && (activeLabel === 'all' || (chat.clientTags || []).some(label => Number(label.id) === Number(activeLabel)))
@@ -284,7 +304,7 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
       socket.off('chat:updated', onChatUpdated)
       socket.off('chat:deleted', onChatDeleted)
     }
-  }, [archived, activeLabel, selectedChat, onSelectChat])
+  }, [activeLabel, archived, onSelectChat, playNotification, selectedChat])
 
   const unreadCount = chats.filter(chat => chat.unread > 0).length
 
@@ -419,6 +439,16 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
           )}
         </TitleGroup>
         <HeaderActions ref={menuRef}>
+          <IconBtn
+            onClick={toggleSound}
+            aria-label={soundEnabled ? 'Silenciar notificaciones' : 'Activar sonido de notificaciones'}
+            title={soundEnabled
+              ? `Sonido activado${currentSound ? `: ${currentSound.name}` : ''}`
+              : 'Sonido desactivado'}
+            style={{ color: soundEnabled ? 'rgba(129,140,248,0.9)' : 'rgba(255,255,255,0.25)' }}
+          >
+            {soundEnabled ? <VolumeUpOutlinedIcon /> : <VolumeOffOutlinedIcon />}
+          </IconBtn>
           <IconBtn onClick={() => setMenuOpen(p => !p)} aria-label="Mas opciones">
             <MoreVertIcon />
           </IconBtn>

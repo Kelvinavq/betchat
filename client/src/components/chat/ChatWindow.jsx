@@ -23,6 +23,7 @@ import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
 import WavingHandOutlinedIcon from '@mui/icons-material/WavingHandOutlined'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import CheckIcon from '@mui/icons-material/Check'
+import CardGiftcardOutlinedIcon from '@mui/icons-material/CardGiftcardOutlined'
 import { ChatContext } from '../../context/ChatContext'
 import { useSystemConfig } from '../../context/SystemConfigContext'
 import { api, resolveApiAsset } from '../../utils/api'
@@ -115,14 +116,17 @@ function buildSupportUrl(type, value) {
   return `https://wa.me/${cleaned}`
 }
 
-const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled, supportType, supportValue, supportText }) => {
+const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled, supportType, supportValue, supportText, initialReferralCode }) => {
   const [showPwd, setShowPwd] = useState(false)
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [refCode,  setRefCode]  = useState(initialReferralCode || '')
+  const [showRef,  setShowRef]  = useState(Boolean(initialReferralCode))
+  const referralLocked = Boolean(initialReferralCode)
 
   const submitLogin = (event) => {
     event.preventDefault()
-    onLogin({ username, password })
+    onLogin({ username, password, referralCode: refCode.trim() })
   }
 
   const helpLabel  = supportText || 'Necesito ayuda para ingresar'
@@ -174,6 +178,35 @@ const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled, 
           </SupportContactLink>
         )}
       </SupportRow>
+
+      {/* Referral code (collapsible) */}
+      {!showRef ? (
+        <ForgotLink as="button" type="button" style={{ marginBottom: 4 }} onClick={() => setShowRef(true)}>
+          🎁 ¿Tenés código de referido?
+        </ForgotLink>
+      ) : (
+        <FormGroup style={{ marginBottom: 4 }}>
+          <InputLabel>
+            Código de referido (opcional)
+            {referralLocked && (
+              <span style={{ marginLeft: 8, color: 'var(--text-muted,#94a3b8)', fontWeight: 500 }}>
+                (cargado desde tu enlace)
+              </span>
+            )}
+          </InputLabel>
+          <StyledInput
+            type="text"
+            placeholder="Ej: ABCD-XY12"
+            value={refCode}
+            onChange={e => setRefCode(e.target.value.toUpperCase())}
+            autoComplete="off"
+            maxLength={20}
+            readOnly={referralLocked}
+            aria-readonly={referralLocked}
+          />
+        </FormGroup>
+      )}
+
       <ActionBtn type="submit" disabled={loading}>
         {loading ? 'Ingresando...' : 'Ingresar'}
       </ActionBtn>
@@ -188,17 +221,19 @@ const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled, 
 
 /* ── register view ── */
 
-const RegisterView = ({ onRegister, onLogin, loading }) => {
-  const [showPwd, setShowPwd] = useState(false)
-  const [username, setUsername] = useState('')
+const RegisterView = ({ onRegister, onLogin, loading, initialReferralCode }) => {
+  const [showPwd, setShowPwd]           = useState(false)
+  const [username, setUsername]         = useState('')
   const [phoneCountry, setPhoneCountry] = useState('ARS')
-  const [phone, setPhone] = useState('')
-  const [password, setPassword] = useState('')
+  const [phone, setPhone]               = useState('')
+  const [password, setPassword]         = useState('')
+  const [refCode, setRefCode]           = useState(initialReferralCode || '')
+  const referralLocked = Boolean(initialReferralCode)
   const selectedPhoneCountry = getPhoneCountry(phoneCountry)
 
   const submitRegister = (event) => {
     event.preventDefault()
-    onRegister({ username, phoneCountry, phone, password })
+    onRegister({ username, phoneCountry, phone, password, referralCode: refCode.trim() })
   }
 
   return (
@@ -254,6 +289,27 @@ const RegisterView = ({ onRegister, onLogin, loading }) => {
             {showPwd ? <VisibilityOffIcon /> : <VisibilityIcon />}
           </PasswordToggle>
         </PasswordWrapper>
+      </FormGroup>
+
+      <FormGroup>
+        <InputLabel>
+          Código de referido <span style={{ color: 'var(--text-muted,#94a3b8)', fontWeight: 400 }}>(opcional)</span>
+          {referralLocked && (
+            <span style={{ marginLeft: 8, color: 'var(--text-muted,#94a3b8)', fontWeight: 500 }}>
+              (cargado desde tu enlace)
+            </span>
+          )}
+        </InputLabel>
+        <StyledInput
+          type="text"
+          placeholder="Ej: ABCD-XY12"
+          value={refCode}
+          onChange={e => setRefCode(e.target.value.toUpperCase())}
+          autoComplete="off"
+          maxLength={20}
+          readOnly={referralLocked}
+          aria-readonly={referralLocked}
+        />
       </FormGroup>
 
       <ActionBtn type="submit" disabled={loading}>
@@ -455,6 +511,36 @@ const BotGoBackAlert = ({ onClose }) => {
         <DepositAlertTitle>Volviste atras</DepositAlertTitle>
         <DepositAlertSub>Regresaste al paso anterior del bot.</DepositAlertSub>
         <DepositAlertBtn onClick={onClose}>Entendido</DepositAlertBtn>
+      </DepositAlertCard>
+    </DepositAlertOverlay>
+  )
+}
+
+/* ── referral reward alert ── */
+
+const ReferralRewardAlert = ({ fichas, referredUsername, onClose }) => {
+  useEffect(() => {
+    const timer = window.setTimeout(onClose, 14000)
+    return () => window.clearTimeout(timer)
+  }, [onClose])
+
+  return (
+    <DepositAlertOverlay onClick={onClose}>
+      <DepositAlertCard $accentRgb="245,158,11" onClick={e => e.stopPropagation()}>
+        <DepositAlertRing>
+          <DepositAlertIconCircle>
+            <CardGiftcardOutlinedIcon />
+          </DepositAlertIconCircle>
+        </DepositAlertRing>
+        <DepositAlertTitle>¡Ganaste {fichas} ficha{fichas !== 1 ? 's' : ''}! 🎁</DepositAlertTitle>
+        <DepositAlertAmount style={{ fontSize: '2rem' }}>{fichas}</DepositAlertAmount>
+        <DepositAlertSub>
+          {referredUsername
+            ? <><strong>{referredUsername}</strong> realizó su primer depósito con tu código de referido.</>
+            : <>Tu referido realizó su primer depósito y ganaste fichas.</>}
+          <br />Un agente te las acreditará a la brevedad.
+        </DepositAlertSub>
+        <DepositAlertBtn onClick={onClose}>¡Genial!</DepositAlertBtn>
       </DepositAlertCard>
     </DepositAlertOverlay>
   )
@@ -692,7 +778,10 @@ const mapDbMessage = (msg) => ({
   fileName: msg.fileName,
   received: msg.senderType !== 'client',
   isDepositSuccess: ['deposit_completed', 'deposit_completed_report'].includes(msg.depositEvent),
-  depositEvent: msg.depositEvent || null,
+  depositEvent:    msg.depositEvent || null,
+  referralEvent:   msg.referralEvent || null,
+  referralFichas:  msg.referralFichas || null,
+  referredUsername: msg.referredUsername || null,
   receiptLogId: msg.receiptLogId || null,
   createdAt: parseDateValue(msg.createdAtUtc || msg.createdAt),
   time: msg.time,
@@ -1503,7 +1592,7 @@ const normalizeClientProfile = (client) => {
   }
 }
 
-const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) => {
+const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, referralAlert, setReferralAlert }) => {
   const { formatTime } = useDateFormat()
   const { systemConfig } = useSystemConfig()
   const [input, setInput]             = useState('')
@@ -2371,6 +2460,13 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
         window.clearTimeout(receiptProcessingTimerRef.current)
         setReceiptProcessing(false)
       }
+      // Referral reward notification
+      if (message.referralEvent === 'referral_reward') {
+        setReferralAlert({
+          fichas:          message.referralFichas || 0,
+          referredUsername: message.referredUsername || '',
+        })
+      }
     }
     const onTyping = (event) => {
       if (Number(event.chatId) !== Number(chatId) || event.senderType === 'client') return
@@ -2702,6 +2798,15 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned }) =
       {/* bot go back alert */}
       {botBackAlert && (
         <BotGoBackAlert onClose={() => setBotBackAlert(false)} />
+      )}
+
+      {/* referral reward alert */}
+      {referralAlert && (
+        <ReferralRewardAlert
+          fichas={referralAlert.fichas}
+          referredUsername={referralAlert.referredUsername}
+          onClose={() => setReferralAlert(null)}
+        />
       )}
 
       {/* receipt detail modal */}
@@ -3085,6 +3190,14 @@ const ChatWindow = ({ onClose }) => {
   const [helpOpen, setHelpOpen] = useState(false)
   const [error, setError] = useState('')
   const [isClosing, setIsClosing] = useState(false)
+  const [referralAlert, setReferralAlert]   = useState(null) // { fichas, referredUsername }
+
+  // Detect ?ref=CODE in the URL and pre-fill the referral field
+  const [urlReferralCode] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('ref')?.trim().toUpperCase() || ''
+    } catch { return '' }
+  })
 
   const handleClose = useCallback(() => {
     setIsClosing(true)
@@ -3114,7 +3227,7 @@ const ChatWindow = ({ onClose }) => {
     return () => socket.off('temp-session:closed', closeTemporarySession)
   }, [setClientSession])
 
-  const handleLogin = async ({ username, password }) => {
+  const handleLogin = async ({ username, password, referralCode }) => {
     if (!username?.trim() || !password) {
       setError('Completa usuario y contrasena.')
       return
@@ -3129,6 +3242,7 @@ const ChatWindow = ({ onClose }) => {
       const session = await api.post('/api/client/auth/login', {
         username: username.trim(),
         password,
+        ...(referralCode ? { referralCode } : {}),
       })
       setClientSession(session.client)
       localStorage.setItem('clientUsername', session.client.username)
@@ -3163,7 +3277,7 @@ const ChatWindow = ({ onClose }) => {
     return ''
   }
 
-  const handleRegister = async ({ username, phoneCountry, phone, password }) => {
+  const handleRegister = async ({ username, phoneCountry, phone, password, referralCode }) => {
     if (!systemConfig.clientRegistrationEnabled) {
       setView('login')
       setError('El registro de clientes esta deshabilitado.')
@@ -3187,6 +3301,7 @@ const ChatWindow = ({ onClose }) => {
         phoneCountry,
         phone: normalizePhone(phoneCountry, phone),
         password,
+        ...(referralCode ? { referralCode } : {}),
       })
       setClientSession(session.client)
       localStorage.setItem('clientUsername', session.client.username)
@@ -3292,6 +3407,7 @@ const ChatWindow = ({ onClose }) => {
             onHelp={() => setHelpOpen(true)}
             loading={loading}
             registrationEnabled={systemConfig.clientRegistrationEnabled}
+            initialReferralCode={urlReferralCode}
             supportType={systemConfig.supportType}
             supportValue={systemConfig.supportValue}
             supportText={systemConfig.supportText}
@@ -3302,19 +3418,22 @@ const ChatWindow = ({ onClose }) => {
             onRegister={handleRegister}
             onLogin={() => setView('login')}
             loading={loading}
+            initialReferralCode={urlReferralCode}
           />
         )}
         {!isAuthLoading && activeView === 'chat' && (
-          <ChatView
-            onClose={handleClose}
-            client={clientSession}
-            onLogout={handleLogout}
-            loggingOut={loggingOut}
-            onChatReassigned={(newChatId) => {
-              setClientSession(prev => prev ? { ...prev, chatId: newChatId } : prev)
-              try { localStorage.setItem('chatId', String(newChatId)) } catch {}
-            }}
-          />
+        <ChatView
+          onClose={handleClose}
+          client={clientSession}
+          onLogout={handleLogout}
+          loggingOut={loggingOut}
+          referralAlert={referralAlert}
+          setReferralAlert={setReferralAlert}
+          onChatReassigned={(newChatId) => {
+            setClientSession(prev => prev ? { ...prev, chatId: newChatId } : prev)
+            try { localStorage.setItem('chatId', String(newChatId)) } catch {}
+          }}
+        />
         )}
       </FormSection>
       <HelpDialog

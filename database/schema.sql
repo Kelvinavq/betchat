@@ -573,6 +573,7 @@ CREATE TABLE IF NOT EXISTS `user_sessions` (
   `user_id`           INT UNSIGNED     NOT NULL,
   `session_token`     VARCHAR(255)     NOT NULL,
   `ip_address`        VARCHAR(45)      DEFAULT NULL COMMENT 'IPv4 or IPv6',
+  `geo_json`          JSON             DEFAULT NULL COMMENT 'ip.guide snapshot',
   `browser`           VARCHAR(120)     DEFAULT NULL,
   `browser_version`   VARCHAR(40)      DEFAULT NULL,
   `os`                VARCHAR(80)      DEFAULT NULL,

@@ -188,7 +188,7 @@ async function removeBrandingFile(url) {
 
 export async function getSystemConfig() {
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -209,6 +209,8 @@ export async function getSystemConfig() {
     botAiTemperature: normalizeBotTemperature(row.bot_ai_temperature),
     botAiMaxTokens: normalizeBotMaxTokens(row.bot_ai_max_tokens),
     bubbleConfig: normalizeBubbleConfig(parseJson(row.bubble_config)),
+    referralEnabled: row.referral_enabled !== 0,
+    referralFichas:  Number(row.referral_fichas) || 0,
   }
 }
 
@@ -561,11 +563,15 @@ export async function updateSystemConfig(req, res, next) {
       req.body.bubbleConfig ?? req.body.bubble_config ?? current.bubbleConfig ?? {}
     )
 
+    const referralEnabledRaw = req.body.referralEnabled ?? req.body.referral_enabled ?? current.referralEnabled
+    const referralEnabled = (referralEnabledRaw === false || referralEnabledRaw === 0 || referralEnabledRaw === '0') ? 0 : 1
+    const referralFichas  = Math.max(0, Math.min(99999, parseInt(req.body.referralFichas ?? req.body.referral_fichas ?? current.referralFichas ?? 0, 10) || 0))
+
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bubble_config = VALUES(bubble_config)` ,
-      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, JSON.stringify(bubbleConfig)]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bubble_config = VALUES(bubble_config), referral_enabled = VALUES(referral_enabled), referral_fichas = VALUES(referral_fichas)`,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, JSON.stringify(bubbleConfig), referralEnabled, referralFichas]
     )
     if (error) return next(error)
 

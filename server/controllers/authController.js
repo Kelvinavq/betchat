@@ -7,6 +7,8 @@ import { config } from '../config/config.js';
 import { verifyPassword } from '../utils/password.js';
 import { getCookieValue } from '../middlewares/authMiddleware.js';
 import { rowsToPermissions } from '../utils/userPermissions.js';
+import { extractPublicIpFromHeaders, lookupIpGuide, serializeGeoSnapshot } from '../services/ipGuideService.js';
+import { hasColumn } from '../services/schemaSupport.js';
 
 const ALLOWED_ROLES = ['admin', 'cashier'];
 const DUMMY_PASSWORD_HASH = '$2a$12$KIXxJp7LNqCAQsfyi.W8VOe3vlqZ29wxs2jR7NpuTR5sMBUy3eL8W';
@@ -211,20 +213,40 @@ async function issueLoginResponse(req, res, user) {
 
   await query('UPDATE users SET last_login_at = CURRENT_TIMESTAMP WHERE id = ?', [user.id]);
   const expiresAt = new Date(Date.now() + (config.jwtExpiresInSeconds || 86400) * 1000);
+  const forwardedIp = extractPublicIpFromHeaders(req.headers, req.ip || req.connection?.remoteAddress || null)
+  const geo = await lookupIpGuide(forwardedIp || req.ip || null)
+  const hasGeoColumn = await hasColumn('user_sessions', 'geo_json')
 
-  await query(
-    `INSERT INTO user_sessions
-      (user_id, session_token, ip_address, browser, device_type, is_active, last_activity_at, expires_at)
-     VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?)`,
-    [
-      user.id,
-      sessionToken,
-      req.ip || null,
-      String(req.headers['user-agent'] || '').slice(0, 120) || null,
-      /mobile/i.test(req.headers['user-agent'] || '') ? 'mobile' : 'desktop',
-      expiresAt,
-    ]
-  );
+  if (hasGeoColumn) {
+    await query(
+      `INSERT INTO user_sessions
+        (user_id, session_token, ip_address, browser, device_type, is_active, last_activity_at, expires_at, geo_json)
+       VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?)`,
+      [
+        user.id,
+        sessionToken,
+        forwardedIp || req.ip || null,
+        String(req.headers['user-agent'] || '').slice(0, 120) || null,
+        /mobile/i.test(req.headers['user-agent'] || '') ? 'mobile' : 'desktop',
+        expiresAt,
+        serializeGeoSnapshot(geo),
+      ]
+    );
+  } else {
+    await query(
+      `INSERT INTO user_sessions
+        (user_id, session_token, ip_address, browser, device_type, is_active, last_activity_at, expires_at)
+       VALUES (?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?)`,
+      [
+        user.id,
+        sessionToken,
+        forwardedIp || req.ip || null,
+        String(req.headers['user-agent'] || '').slice(0, 120) || null,
+        /mobile/i.test(req.headers['user-agent'] || '') ? 'mobile' : 'desktop',
+        expiresAt,
+      ]
+    );
+  }
 
   const { rows: permissionRows, error: permissionsError } = await query(
     'SELECT module, can_view, can_create, can_edit, can_delete FROM user_permissions WHERE user_id = ?',

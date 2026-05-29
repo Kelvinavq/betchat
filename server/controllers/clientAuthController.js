@@ -307,10 +307,22 @@ async function findLocalClient(username) {
   return rows?.[0] || null
 }
 
-async function ensureClientAndChat({ username, password, externalId, phone = null }) {
+async function resolveReferredBy(code, selfUsername) {
+  if (!code) return null
+  const clean = String(code).trim().toUpperCase()
+  if (!clean) return null
+  // Find the owner of this referral code (must not be the same person registering)
+  const { rows } = await query(
+    `SELECT referral_code FROM clients WHERE referral_code = ? AND LOWER(username) != LOWER(?) LIMIT 1`,
+    [clean, selfUsername || '']
+  )
+  return rows?.[0]?.referral_code || null
+}
+
+async function ensureClientAndChat({ username, password, externalId, phone = null, referredBy = null }) {
   return transaction(async (connection) => {
     const [clientRows] = await connection.execute(
-      `SELECT id, username, full_name, phone, password, external_id, is_active, is_online
+      `SELECT id, username, full_name, phone, password, external_id, is_active, is_online, referred_by
        FROM clients
        WHERE LOWER(username) = LOWER(?)
        LIMIT 1`,
@@ -321,9 +333,9 @@ async function ensureClientAndChat({ username, password, externalId, phone = nul
 
     if (!client) {
       const [clientResult] = await connection.execute(
-        `INSERT INTO clients (username, full_name, phone, password, external_id, is_active, is_online, registered_at)
-         VALUES (?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP)`,
-        [username, username, phone || null, password, externalId || null]
+        `INSERT INTO clients (username, full_name, phone, password, external_id, is_active, is_online, registered_at, referred_by)
+         VALUES (?, ?, ?, ?, ?, 1, 1, CURRENT_TIMESTAMP, ?)`,
+        [username, username, phone || null, password, externalId || null, referredBy || null]
       )
 
       client = {
@@ -336,18 +348,28 @@ async function ensureClientAndChat({ username, password, externalId, phone = nul
         external_id: externalId || null,
         is_active: 1,
         is_online: 1,
+        referred_by: referredBy || null,
       }
     } else {
+      // Only set referred_by if it hasn't been set yet (one-time, immutable)
+      const setReferredBy = !client.referred_by && referredBy ? referredBy : undefined
       await connection.execute(
         `UPDATE clients
-         SET phone = COALESCE(?, phone), external_id = COALESCE(external_id, ?), is_online = 1, last_seen_at = CURRENT_TIMESTAMP
+         SET phone = COALESCE(?, phone),
+             external_id = COALESCE(external_id, ?),
+             is_online = 1,
+             last_seen_at = CURRENT_TIMESTAMP
+             ${setReferredBy ? ', referred_by = ?' : ''}
          WHERE id = ?`,
-        [phone || null, externalId || null, client.id]
+        setReferredBy
+          ? [phone || null, externalId || null, setReferredBy, client.id]
+          : [phone || null, externalId || null, client.id]
       )
       client = {
         ...client,
         phone: phone || client.phone || null,
         external_id: client.external_id || externalId || null,
+        referred_by: client.referred_by || referredBy || null,
         is_online: 1,
       }
     }
@@ -538,10 +560,14 @@ export async function loginClient(req, res, next) {
     }
 
     const localClient = await findLocalClient(username)
+    const rawCode = String(req.body?.referralCode || req.body?.referral_code || '').trim()
+    const referredBy = rawCode ? await resolveReferredBy(rawCode, username) : null
+
     const { client, chatId } = await ensureClientAndChat({
       username: localClient?.username || username,
       password,
       externalId: external.externalId,
+      referredBy,
     })
 
     if (!client.is_active) {
@@ -617,17 +643,35 @@ export async function registerClient(req, res, next) {
       if (error.status !== 404) throw error
     }
 
+    const rawCode = String(req.body?.referralCode || req.body?.referral_code || '').trim()
+    const referredBy = rawCode ? await resolveReferredBy(rawCode, username) : null
+
     const created = await createExternalUser(apiUrl, apiKey, username, password)
     const { client, chatId } = await ensureClientAndChat({
       username,
       password,
       phone,
       externalId: created.externalId,
+      referredBy,
     })
 
     res.status(201).json(await startClientSession(res, client, chatId, req))
   } catch (error) {
     next(error)
+  }
+}
+
+export async function validateReferralCode(req, res) {
+  const code = String(req.params?.code || '').trim().toUpperCase()
+  if (!code) return res.status(400).json({ valid: false, error: 'Código vacío' })
+  const { rows } = await query(
+    `SELECT username FROM clients WHERE referral_code = ? LIMIT 1`,
+    [code]
+  )
+  if (rows?.length) {
+    res.json({ valid: true, code })
+  } else {
+    res.status(404).json({ valid: false, error: 'Código de referido inválido' })
   }
 }
 

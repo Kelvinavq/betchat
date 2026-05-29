@@ -626,6 +626,7 @@ export const SessionPill = styled.span`
   background: rgba(255,255,255,0.045);
   border: 1px solid rgba(255,255,255,0.065);
   overflow-wrap: anywhere;
+  line-height: 1.35;
 `
 export const SessionStatus = styled.span`
   height: 24px;

@@ -10,6 +10,7 @@ import { getClientFromRequest, persistMessage, resetClientBot } from './chatCont
 import { getAutoMessage } from './autoMessagesController.js'
 import { getIo } from '../socket/socketServer.js'
 import { insertReceiptLog, finalizeReceiptLog } from './receiptLogController.js'
+import { processReferralRewardForMovement } from './referralController.js'
 
 const SUPABASE_AUTH_URL = 'https://oafouerwrpwzlthrsaba.supabase.co/auth/v1/token?grant_type=password'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZm91ZXJ3cnB3emx0aHJzYWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MTQwNzMsImV4cCI6MjA2MjM5MDA3M30.RKET8maIzQvYm2yGDtrEIbfT8rw7EKjgzUf886LU_wE'
@@ -908,6 +909,14 @@ async function markHgMovementPaidFromReport({ movement, clientId, chatId, messag
       movement.id,
     ],
   )
+
+  await processReferralRewardForMovement({
+    sourceTable: 'hgcash_movements',
+    sourceMovementId: movement.id,
+    clientId,
+    chatId,
+    amount: panelAmount,
+  }).catch(() => {})
 
   return { ok: true, panel: panelResult, resultReason, amount: panelAmount }
 }
@@ -2010,6 +2019,13 @@ async function processGatewaySideEffects({ movement, providerStatus, clientId, c
       })
       scheduleClientBotReset(finalChatId)
     }
+    await processReferralRewardForMovement({
+      sourceTable: 'hgcash_movements',
+      sourceMovementId: movement.id,
+      clientId: finalClientId,
+      chatId: finalChatId,
+      amount: depositAmount,
+    }).catch(() => {})
   }
 }
 

@@ -6,6 +6,7 @@ import {
   createHelpSession,
   logoutClient,
   meClient,
+  validateReferralCode,
 } from '../controllers/clientAuthController.js'
 import { authLimiter } from '../middlewares/rateLimiter.js'
 
@@ -17,5 +18,6 @@ router.post('/register', authLimiter, registerClient)
 router.post('/help-session', authLimiter, createHelpSession)
 router.post('/logout', logoutClient)
 router.get('/me', meClient)
+router.get('/referral/:code', validateReferralCode)  // public — no auth needed
 
 export default router

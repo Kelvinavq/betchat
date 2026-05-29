@@ -2,6 +2,8 @@ import { query } from '../config/database.js'
 import { persistMessage, resetClientBot } from './chatController.js'
 import { getAutoMessage } from './autoMessagesController.js'
 import { updateReceiptLogForMovement } from './receiptLogController.js'
+import { processReferralRewardForMovement } from './referralController.js'
+
 
 const PROVIDERS = ['manual', 'hgcash', 'telepagos', 'mercadopago']
 const MANUAL_STATUSES = ['pending', 'paid', 'rejected']
@@ -382,6 +384,9 @@ export async function resolveManualMovement(req, res, next) {
           },
         })
       }
+
+      // Fire referral reward check asynchronously – don't block the response
+      processReferralRewardForMovement({ sourceTable: 'manual_payment_movements', sourceMovementId: id, clientId, chatId, amount: newAmount }).catch(() => {})
 
       await new Promise(resolve => setTimeout(resolve, 250))
       await resetClientBot(chatId)

@@ -2,6 +2,7 @@ import { Router } from 'express'
 import {
   getClients,
   getClientStats,
+  getClientReferralDetails,
   createClient,
   updateClient,
   deleteClient,
@@ -18,6 +19,7 @@ router.use(requireRole('admin'))
 
 router.get('/stats', getClientStats)
 router.get('/', getClients)
+router.get('/:id/referral', getClientReferralDetails)
 router.post('/', createClient)
 router.put('/:id', updateClient)
 router.delete('/:id', deleteClient)

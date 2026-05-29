@@ -1,6 +1,8 @@
 import { query, transaction } from '../config/database.js'
 import { hashPassword } from '../utils/password.js'
 import { fetchPermissions, normalizePermissions, replacePermissions, rowsToPermissions } from '../utils/userPermissions.js'
+import { parseGeoSnapshot } from '../services/ipGuideService.js'
+import { hasColumn } from '../services/schemaSupport.js'
 
 const ALLOWED_ROLES = ['admin', 'cashier']
 
@@ -311,23 +313,41 @@ export async function getUserSessions(req, res, next) {
     if (!numericId || isNaN(numericId)) {
       return res.status(400).json({ error: 'ID de usuario inválido', code: 'INVALID_ID' })
     }
+    const hasGeoColumn = await hasColumn('user_sessions', 'geo_json')
 
     const { rows, error } = await query(
-      `SELECT
-        id,
-        ip_address,
-        browser,
-        browser_version,
-        os,
-        device_type,
-        is_active,
-        last_activity_at,
-        expires_at,
-        created_at
-       FROM user_sessions
-       WHERE user_id = ?
-       ORDER BY is_active DESC, last_activity_at DESC, created_at DESC
-       LIMIT 30`,
+      hasGeoColumn
+        ? `SELECT
+            id,
+            ip_address,
+            browser,
+            browser_version,
+            os,
+            device_type,
+            is_active,
+            last_activity_at,
+            expires_at,
+            geo_json,
+            created_at
+           FROM user_sessions
+           WHERE user_id = ?
+           ORDER BY is_active DESC, last_activity_at DESC, created_at DESC
+           LIMIT 30`
+        : `SELECT
+            id,
+            ip_address,
+            browser,
+            browser_version,
+            os,
+            device_type,
+            is_active,
+            last_activity_at,
+            expires_at,
+            created_at
+           FROM user_sessions
+           WHERE user_id = ?
+           ORDER BY is_active DESC, last_activity_at DESC, created_at DESC
+           LIMIT 30`,
       [numericId]
     )
     if (error) return next(error)
@@ -343,6 +363,7 @@ export async function getUserSessions(req, res, next) {
         is_active: Boolean(session.is_active),
         last_activity_at: session.last_activity_at,
         expires_at: session.expires_at,
+        geo: hasGeoColumn ? parseGeoSnapshot(session.geo_json) : null,
         created_at: session.created_at,
       })),
     })

@@ -15,13 +15,13 @@ import RemoveIcon from '@mui/icons-material/Remove'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
-import ContentCopyIcon from '@mui/icons-material/ContentCopy'
-import CheckIcon from '@mui/icons-material/Check'
 import DesktopWindowsOutlinedIcon from '@mui/icons-material/DesktopWindowsOutlined'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import TabletAndroidIcon from '@mui/icons-material/TabletAndroid'
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
 import { api, resolveApiAsset } from '../../../utils/api'
+import ReferralDetailsSection from '../referrals/ReferralDetailsSection'
+import SessionGeoCard from '../sessions/SessionGeoCard'
 import { useToast } from '../../../context/ToastContext'
 import {
   Wrap, PanelHeader, CloseBtn, PanelAvatar, PanelOnlineDot, PanelUsername, PanelStatus,
@@ -36,8 +36,7 @@ import {
   BalanceMetricsRow, BalanceMetric, BalanceMetricLabel, BalanceMetricValue,
   AmountSection, AmountSectionLabel, QuickChips, QuickChip, AmountInputRow, AmountSign, AmountInput,
   BalanceActions, BalanceCreditBtn, BalanceDebitBtn, BalanceMsg, TabSpinner,
-  ProfileWrap, ReferralCard, ReferralCardHead, ReferralCardLabel, ReferralBadge,
-  ReferralCodeRow, ReferralCode, CopyBtn, ReferralHint,
+  ProfileWrap,
   SessionsCard, SessionsHead, SessionsLabel, SessionCountBadge,
   SessionList, SessionItem, SessionDeviceIcon, SessionBody,
   SessionPrimary, SessionSecondary, SessionMeta, SessionChip, SessionTime, SessionEmptyState,
@@ -236,8 +235,6 @@ const ProfileTab = ({ chatId }) => {
   const { timezone }                    = useDateFormat()
   const [data, setData]                 = useState(null)
   const [loading, setLoading]           = useState(false)
-  const [copied, setCopied]             = useState(false)
-  const copyTimer                       = useRef(null)
 
   useEffect(() => {
     let active = true
@@ -250,43 +247,19 @@ const ProfileTab = ({ chatId }) => {
     return () => { active = false }
   }, [chatId])
 
-  const handleCopy = () => {
-    if (!data?.referralCode) return
-    navigator.clipboard.writeText(data.referralCode).then(() => {
-      setCopied(true)
-      clearTimeout(copyTimer.current)
-      copyTimer.current = setTimeout(() => setCopied(false), 2000)
-    }).catch(() => {})
-  }
-
+  const referralData = data?.referralDetails || null
   const sessions = data?.sessions || []
+  const latestSession = sessions[0] || null
 
   return (
     <ProfileWrap>
-      <ReferralCard>
-        <ReferralCardHead>
-          <ReferralCardLabel>Código de referido</ReferralCardLabel>
-          <ReferralBadge>Compartir</ReferralBadge>
-        </ReferralCardHead>
-        <ReferralCodeRow>
-          {loading && !data
-            ? <ReferralCode $skeleton />
-            : <ReferralCode>{data?.referralCode || '—'}</ReferralCode>
-          }
-          <CopyBtn
-            type="button"
-            $copied={copied}
-            onClick={handleCopy}
-            aria-label="Copiar código"
-            disabled={!data?.referralCode}
-          >
-            {copied ? <CheckIcon /> : <ContentCopyIcon />}
-          </CopyBtn>
-        </ReferralCodeRow>
-        <ReferralHint>
-          Compartí este código con nuevos usuarios. Se asigna automáticamente al primer ingreso.
-        </ReferralHint>
-      </ReferralCard>
+      <ReferralDetailsSection data={referralData} loading={loading} compact />
+
+      <SessionGeoCard
+        session={latestSession}
+        compact
+        title="Última ubicación detectada"
+      />
 
       <SessionsCard>
         <SessionsHead>
@@ -788,3 +761,4 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
 }
 
 export default ClientPanel
+

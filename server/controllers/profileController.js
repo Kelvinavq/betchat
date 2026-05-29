@@ -1,5 +1,8 @@
 import { randomBytes } from 'crypto'
 import { query } from '../config/database.js'
+import { getReferralDetails } from './referralController.js'
+import { extractPublicIpFromHeaders, lookupIpGuide, parseGeoSnapshot, serializeGeoSnapshot } from '../services/ipGuideService.js'
+import { hasColumn } from '../services/schemaSupport.js'
 
 const LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
 const ALNUM   = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -60,32 +63,7 @@ function parseUA(ua = '') {
 }
 
 function getClientIp(req) {
-  const fwd = req.headers['x-forwarded-for']
-  if (fwd) return fwd.split(',')[0].trim()
-  return req.ip || req.connection?.remoteAddress || null
-}
-
-function isPrivateIp(ip) {
-  if (!ip) return true
-  const clean = ip.replace(/^::ffff:/, '')
-  if (clean === '127.0.0.1' || clean === '::1') return true
-  if (/^10\./.test(clean)) return true
-  if (/^192\.168\./.test(clean)) return true
-  if (/^172\.(1[6-9]|2[0-9]|3[01])\./.test(clean)) return true
-  return false
-}
-
-async function geoLookup(ip) {
-  if (!ip || isPrivateIp(ip)) return { country: null, city: null }
-  try {
-    const clean = ip.replace(/^::ffff:/, '')
-    const res = await fetch(`http://ip-api.com/json/${clean}?fields=status,country,city`, {
-      signal: AbortSignal.timeout(3000),
-    })
-    const data = await res.json()
-    if (data.status === 'success') return { country: data.country || null, city: data.city || null }
-  } catch { /* skip silently */ }
-  return { country: null, city: null }
+  return extractPublicIpFromHeaders(req.headers, req.ip || req.connection?.remoteAddress || null)
 }
 
 export async function logClientSession(clientId, req) {
@@ -94,13 +72,24 @@ export async function logClientSession(clientId, req) {
     const ua = String(req.headers['user-agent'] || '').slice(0, 512)
     const fingerprint = req.body?.fingerprint ? String(req.body.fingerprint).slice(0, 255) : null
     const { os, browser, deviceType } = parseUA(ua)
-    const { country, city } = await geoLookup(ip)
+    const geo = await lookupIpGuide(ip)
+    const country = geo?.location?.country || null
+    const city = geo?.location?.city || null
+    const hasGeoColumn = await hasColumn('client_sessions', 'geo_json')
 
-    await query(
-      `INSERT INTO client_sessions (client_id, ip_address, user_agent, device_type, browser, os, country, city, fingerprint)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [clientId, ip, ua, deviceType, browser, os, country, city, fingerprint]
-    )
+    if (hasGeoColumn) {
+      await query(
+        `INSERT INTO client_sessions (client_id, ip_address, user_agent, device_type, browser, os, country, city, fingerprint, geo_json)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [clientId, ip, ua, deviceType, browser, os, country, city, fingerprint, serializeGeoSnapshot(geo)]
+      )
+    } else {
+      await query(
+        `INSERT INTO client_sessions (client_id, ip_address, user_agent, device_type, browser, os, country, city, fingerprint)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [clientId, ip, ua, deviceType, browser, os, country, city, fingerprint]
+      )
+    }
   } catch (err) {
     console.error('[profileController] Error al registrar sesión:', err.message)
   }
@@ -120,18 +109,27 @@ export async function getChatProfile(req, res, next) {
 
     const clientId = chatRows[0].client_id
     const referralCode = await ensureReferralCode(clientId)
+    const referralDetails = await getReferralDetails(clientId).catch(() => null)
+    const hasGeoColumn = await hasColumn('client_sessions', 'geo_json')
 
     const { rows: sessionRows } = await query(
-      `SELECT id, ip_address, device_type, browser, os, country, city, fingerprint, created_at
-       FROM client_sessions
-       WHERE client_id = ?
-       ORDER BY created_at DESC
-       LIMIT 50`,
+      hasGeoColumn
+        ? `SELECT id, ip_address, device_type, browser, os, country, city, fingerprint, geo_json, created_at
+           FROM client_sessions
+           WHERE client_id = ?
+           ORDER BY created_at DESC
+           LIMIT 50`
+        : `SELECT id, ip_address, device_type, browser, os, country, city, fingerprint, created_at
+           FROM client_sessions
+           WHERE client_id = ?
+           ORDER BY created_at DESC
+           LIMIT 50`,
       [clientId]
     )
 
     res.json({
       referralCode,
+      referralDetails,
       sessions: (sessionRows || []).map(s => ({
         id: s.id,
         ip: s.ip_address || null,
@@ -141,6 +139,7 @@ export async function getChatProfile(req, res, next) {
         country: s.country || null,
         city: s.city || null,
         fingerprint: s.fingerprint || null,
+        geo: hasGeoColumn ? parseGeoSnapshot(s.geo_json) : null,
         createdAt: s.created_at,
       })),
     })

@@ -8,6 +8,7 @@ import { query } from '../config/database.js'
 import { persistMessage } from './chatController.js'
 import { getAutoMessage } from './autoMessagesController.js'
 import { insertReceiptLog, finalizeReceiptLog } from './receiptLogController.js'
+import { processReferralRewardForMovement } from './referralController.js'
 
 const MP_API_BASE = 'https://api.mercadopago.com'
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
@@ -766,6 +767,16 @@ async function processReceiptBase(req, res, mimeType) {
         logAccum.movementId = movementDbId
         logSteps.push({ step: 'movement_saved', ts: ts(), detail: { movementId: movementDbId, status: panelResult?.ok ? 'paid' : 'error' } })
         outcome = panelResult?.ok ? 'paid' : 'invalid'
+
+        if (panelResult?.ok && movementDbId) {
+          await processReferralRewardForMovement({
+            sourceTable: 'mercadopago_movements',
+            sourceMovementId: movementDbId,
+            clientId,
+            chatId,
+            amount: panelAmount,
+          }).catch(() => {})
+        }
       }
     }
 

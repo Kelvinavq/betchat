@@ -1,4 +1,5 @@
 import { query } from '../config/database.js'
+import { getReferralDetails } from './referralController.js'
 
 const hasWhitespace = (value) => /\s/.test(value)
 const hasUppercase = (value) => /[A-Z]/.test(value)
@@ -248,6 +249,22 @@ export async function getClientStats(req, res, next) {
       active: Number(r.active) || 0,
       inactive: Number(r.inactive) || 0,
     })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function getClientReferralDetails(req, res, next) {
+  try {
+    const id = Number(req.params.id)
+    if (!id) return res.status(400).json({ error: 'ID de cliente invalido.' })
+
+    const details = await getReferralDetails(id)
+    if (!details) {
+      return res.status(404).json({ error: 'Cliente no encontrado.' })
+    }
+
+    res.json(details)
   } catch (error) {
     next(error)
   }

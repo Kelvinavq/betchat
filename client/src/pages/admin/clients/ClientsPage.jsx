@@ -3,6 +3,7 @@ import { useDateFormat } from '../../../hooks/useDateFormat'
 import SearchIcon from '@mui/icons-material/Search'
 import AddIcon from '@mui/icons-material/Add'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
+import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import LogoutIcon from '@mui/icons-material/Logout'
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined'
@@ -24,6 +25,7 @@ import RemoveIcon from '@mui/icons-material/Remove'
 import { api } from '../../../utils/api'
 import { useConfirm } from '../../../context/ToastContext'
 import { getPaginationItems } from '../../../utils/pagination'
+import ReferralDetailsSection from '../../../components/admin/referrals/ReferralDetailsSection'
 import {
   PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub,
   HeaderActions, AddBtn, OutlineBtn,
@@ -86,6 +88,8 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
   )
   const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
   const avatarChar = form.username.trim() ? form.username.trim()[0].toUpperCase() : '?'
+  const isViewMode = mode === 'view'
+  const isAddMode = mode === 'add'
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -101,9 +105,6 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
       notify('Copiado al portapapeles', 'success')
     })
   }
-
-  const isViewMode = mode === 'view'
-  const isAddMode = mode === 'add'
 
   return (
     <Overlay onClick={onClose}>
@@ -237,6 +238,7 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
                   <ToggleThumb $on={form.active} />
                 </Toggle>
               </StatusRow>
+
             </div>
           ) : (
             // Modo editar (si se implementa en el futuro)
@@ -340,6 +342,63 @@ const PwdModal = ({ client, onClose, onSave }) => {
 }
 
 /* ── balance modal ── */
+const ReferralModal = ({ client, onClose }) => {
+  const [referralData, setReferralData] = useState(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!client?.id) {
+      setReferralData(null)
+      return
+    }
+
+    let active = true
+    setLoading(true)
+    setReferralData(null)
+
+    api.get(`/api/clients/${client.id}/referral`)
+      .then(data => {
+        if (active) setReferralData(data)
+      })
+      .catch(() => {
+        if (active) setReferralData(null)
+      })
+      .finally(() => {
+        if (active) setLoading(false)
+      })
+
+    return () => { active = false }
+  }, [client?.id])
+
+  return (
+    <Overlay onClick={onClose}>
+      <ModalCard
+        onClick={e => e.stopPropagation()}
+        style={{ maxWidth: 760, width: '100%' }}
+      >
+        <ModalHead>
+          <div>
+            <ModalTitle>Referidos</ModalTitle>
+            <ModalSub>{client.username}</ModalSub>
+          </div>
+          <ModalClose onClick={onClose}><CloseIcon /></ModalClose>
+        </ModalHead>
+
+        <ModalBody style={{ padding: 16 }}>
+          <ReferralDetailsSection data={referralData} loading={loading} />
+        </ModalBody>
+
+        <ModalFoot>
+          <FootLeft />
+          <FootRight>
+            <ModalBtn onClick={onClose}>Cerrar</ModalBtn>
+          </FootRight>
+        </ModalFoot>
+      </ModalCard>
+    </Overlay>
+  )
+}
+
 const QUICK_AMOUNTS = [500, 1000, 2000, 3000, 5000, 10000]
 
 const BalanceModal = ({ client, onClose, notify }) => {
@@ -447,6 +506,7 @@ const ClientsPage = ({ onMenuOpen }) => {
   const [totalClients, setTotalClients] = useState(0)
   const [stats, setStats]           = useState({ total: 0, active: 0, inactive: 0 })
   const [modal, setModal]           = useState(null)
+  const [referralModal, setReferralModal] = useState(null)
   const [pwdModal, setPwdModal]     = useState(null)
   const [balanceModal, setBalanceModal] = useState(null)
   const [alert, setAlert]           = useState(null)
@@ -785,6 +845,12 @@ const ClientsPage = ({ onMenuOpen }) => {
                           <VisibilityOutlinedIcon />
                         </ActionBtn>
                         <ActionBtn
+                          title="Ver referidos"
+                          onClick={() => setReferralModal({ client: c })}
+                        >
+                          <GroupAddOutlinedIcon />
+                        </ActionBtn>
+                        <ActionBtn
                           title="Cambiar contraseña"
                           onClick={() => setPwdModal({ client: c })}
                         >
@@ -873,6 +939,13 @@ const ClientsPage = ({ onMenuOpen }) => {
         />
       )}
 
+      {referralModal && (
+        <ReferralModal
+          client={referralModal.client}
+          onClose={() => setReferralModal(null)}
+        />
+      )}
+
       {balanceModal && (
         <BalanceModal
           client={balanceModal.client}
@@ -911,3 +984,4 @@ const ClientsPage = ({ onMenuOpen }) => {
 }
 
 export default ClientsPage
+

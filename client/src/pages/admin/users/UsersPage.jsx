@@ -15,6 +15,7 @@ import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import { api } from '../../../utils/api'
 import useAuth from '../../../hooks/useAuth'
 import { getPaginationItems } from '../../../utils/pagination'
+import SessionGeoCard from '../../../components/admin/sessions/SessionGeoCard'
 import {
   PageWrap, PageScroll,
   PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
@@ -482,6 +483,8 @@ const UsersPage = ({ onMenuOpen }) => {
     await openSessions(sessionsUser, { online: false })
   }
 
+  const latestSession = sessions[0] || null
+
   const pages = getPaginationItems({ currentPage: safePage, totalPages })
   const displayInitial = (u) => (u.full_name || u.username || '?')[0].toUpperCase()
 
@@ -897,29 +900,35 @@ const UsersPage = ({ onMenuOpen }) => {
               ) : sessions.length === 0 ? (
                 <EmptyCell as="div">No hay sesiones registradas</EmptyCell>
               ) : (
-                <SessionList>
-                  {sessions.map(session => (
-                    <SessionCard key={session.id}>
-                      <SessionMain>
-                        <SessionTitle>
-                          <DevicesOutlinedIcon style={{ fontSize: 17 }} />
-                          {sessionDevice(session)}
-                        </SessionTitle>
-                        <SessionMeta>
-                          <SessionPill>IP: {session.ip_address || 'No disponible'}</SessionPill>
-                          <SessionPill>Navegador: {session.browser || 'No disponible'}</SessionPill>
-                          <SessionPill>SO: {session.os || 'No disponible'}</SessionPill>
-                          <SessionPill>Inicio: {formatDate(session.created_at)}</SessionPill>
-                          <SessionPill>Última actividad: {formatDate(session.last_activity_at)}</SessionPill>
-                          <SessionPill>Expira: {formatDate(session.expires_at)}</SessionPill>
-                        </SessionMeta>
-                      </SessionMain>
-                      <SessionStatus $active={session.is_active}>
-                        {session.is_active ? 'Activa' : 'Cerrada'}
-                      </SessionStatus>
-                    </SessionCard>
-                  ))}
-                </SessionList>
+                <>
+                  <SessionGeoCard
+                    session={latestSession}
+                    title="Ubicación de la sesión más reciente"
+                  />
+                  <SessionList>
+                    {sessions.map(session => (
+                      <SessionCard key={session.id}>
+                        <SessionMain>
+                          <SessionTitle>
+                            <DevicesOutlinedIcon style={{ fontSize: 17 }} />
+                            {sessionDevice(session)}
+                          </SessionTitle>
+                          <SessionMeta>
+                            <SessionPill>IP: {session.ip_address || 'No disponible'}</SessionPill>
+                            <SessionPill>Navegador: {session.browser || 'No disponible'}</SessionPill>
+                            <SessionPill>SO: {session.os || 'No disponible'}</SessionPill>
+                            <SessionPill>Inicio: {formatDate(session.created_at)}</SessionPill>
+                            <SessionPill>Última actividad: {formatDate(session.last_activity_at)}</SessionPill>
+                            <SessionPill>Expira: {formatDate(session.expires_at)}</SessionPill>
+                          </SessionMeta>
+                        </SessionMain>
+                        <SessionStatus $active={session.is_active}>
+                          {session.is_active ? 'Activa' : 'Cerrada'}
+                        </SessionStatus>
+                      </SessionCard>
+                    ))}
+                  </SessionList>
+                </>
               )}
             </ModalBody>
 

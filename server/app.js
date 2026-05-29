@@ -36,6 +36,7 @@ import clientPopupRoutes from './routes/clientPopupRoutes.js'
 import clientEventsRoutes from './routes/clientEventsRoutes.js'
 import supportProxyRoutes from './routes/supportProxyRoutes.js'
 import broadcastRoutes from './routes/broadcastRoutes.js'
+import notificationSoundsRoutes from './routes/notificationSoundsRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { startEventScheduler, stopEventScheduler } from './utils/eventScheduler.js'
@@ -108,6 +109,7 @@ app.use('/api/commands', commandRoutes);
 app.use('/api/modals', modalRoutes);
 app.use('/api/bank-accounts', bankAccountRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/notification-sounds', notificationSoundsRoutes);
 app.use('/api/clients', clientsRoutes);
 app.use('/api/bot-builder', botBuilderRoutes);
 app.use('/api/chats', chatRoutes);

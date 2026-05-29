@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useContext } from 'react'
+import { useState, useRef, useEffect, useContext, useCallback } from 'react'
 import { useDateFormat } from '../../../hooks/useDateFormat'
 import { parseDateValue } from '../../../utils/dateUtils'
 import { AuthContext } from '../../../context/AuthContext'
@@ -39,6 +39,7 @@ import WithdrawalDrawer from './WithdrawalDrawer'
 import TransactionHistoryDrawer from './TransactionHistoryDrawer'
 import ReceiptLogModal from './ReceiptLogModal'
 import { api, resolveApiAsset } from '../../../utils/api'
+import { useNotificationSound } from '../../../hooks/useNotificationSound'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../../utils/richText'
 import {
@@ -427,6 +428,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
   const { user } = useContext(AuthContext) || {}
   useEffect(() => { _adminChatTz = timezone; return () => { _adminChatTz = undefined } }, [timezone])
   const { confirm, alert: alertDialog, dialogNode } = useConfirm()
+  const { playNotification } = useNotificationSound()
   const [input, setInput]           = useState('')
   const [messages, setMessages]     = useState([])
   const [messagePage, setMessagePage] = useState({ previousDate: null, hasPrevious: false })
@@ -591,6 +593,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
         window.clearTimeout(clientTypingTimerRef.current)
         setClientTyping(false)
         api.put(`/api/chats/${chatId}/read`, {}).catch(() => {})
+        playNotification()
       }
     }
     const onTyping = (event) => {
