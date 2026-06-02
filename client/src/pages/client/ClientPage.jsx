@@ -34,6 +34,22 @@ const slideUp = keyframes`
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0);    }
 `
+const spinRing = keyframes`
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+`
+const dotBounce = keyframes`
+  0%, 60%, 100% { transform: translateY(0);   opacity: 0.4; }
+  30%           { transform: translateY(-5px); opacity: 1;   }
+`
+const indeterminate = keyframes`
+  0%   { left: -50%; }
+  100% { left: 110%; }
+`
+const fadeIn = keyframes`
+  from { opacity: 0; }
+  to   { opacity: 1; }
+`
 
 /* ── overlay ── */
 const Overlay = styled.div`
@@ -158,9 +174,152 @@ const ProgressFill = styled.div`
   transition: width 0.6s ease;
 `
 
+/* ── auth session loading overlay ── */
+const AuthOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  background: radial-gradient(ellipse at 50% 42%, #0d0c22 0%, #07070f 58%, #000 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: ${({ $out }) => $out ? 'none' : 'all'};
+  animation: ${({ $out }) => $out ? css`${fadeOut} 0.65s cubic-bezier(0.4,0,0.2,1) forwards` : css`${fadeIn} 0.3s ease both`};
+`
+const AuthAmbient = styled.div`
+  position: absolute;
+  width: 520px;
+  height: 520px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(90,70,255,0.07) 0%, rgba(50,40,200,0.04) 45%, transparent 70%);
+  pointer-events: none;
+`
+const AuthAmbient2 = styled.div`
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(60,180,255,0.05) 0%, transparent 70%);
+  transform: translate(120px, -80px);
+  pointer-events: none;
+`
+const AuthOrbWrap = styled.div`
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 108px;
+  height: 108px;
+  margin-bottom: 40px;
+`
+const AuthSpinner = styled.div`
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0%,
+    rgba(140, 110, 255, 0.9) 22%,
+    rgba(100, 190, 255, 0.75) 48%,
+    transparent 68%
+  );
+  animation: ${spinRing} 1.5s linear infinite;
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #fff calc(100% - 2.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #fff calc(100% - 2.5px));
+`
+const AuthOrb = styled.div`
+  position: relative;
+  z-index: 1;
+  width: 78px;
+  height: 78px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle at 35% 35%,
+    rgba(165, 155, 255, 0.95) 0%,
+    rgba(95, 82, 235, 0.9) 45%,
+    rgba(52, 42, 195, 0.75) 100%
+  );
+  box-shadow:
+    0 0 0 1px rgba(145, 130, 255, 0.18),
+    0 0 34px rgba(115, 100, 255, 0.52),
+    0 0 90px rgba(92, 80, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.95);
+  letter-spacing: -0.02em;
+  user-select: none;
+`
+const AuthTitle = styled.div`
+  font-size: 22px;
+  font-weight: 700;
+  color: #ffffff;
+  letter-spacing: -0.025em;
+  animation: ${slideUp} 0.45s 0.05s cubic-bezier(0.16,1,0.3,1) both;
+`
+const AuthSub = styled.div`
+  margin-top: 9px;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  background: linear-gradient(
+    90deg,
+    rgba(160,148,255,0.4) 0%,
+    rgba(200,214,255,0.78) 50%,
+    rgba(160,148,255,0.4) 100%
+  );
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation:
+    ${slideUp}  0.45s 0.2s  cubic-bezier(0.16,1,0.3,1) both,
+    ${shimmer}  2.6s  0.65s linear infinite;
+`
+const AuthDots = styled.div`
+  display: flex;
+  gap: 9px;
+  margin-top: 30px;
+`
+const AuthDot = styled.span`
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(140,128,255,0.62);
+  animation: ${dotBounce} 1.45s ease-in-out infinite;
+  animation-delay: ${({ $d }) => $d};
+`
+const AuthBarWrap = styled.div`
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: rgba(255,255,255,0.04);
+  overflow: hidden;
+`
+const AuthBarFill = styled.div`
+  position: absolute;
+  height: 100%;
+  width: 46%;
+  background: linear-gradient(90deg, transparent, rgba(125,105,255,0.9), rgba(165,205,255,0.85), transparent);
+  animation: ${indeterminate} 2.3s ease-in-out infinite;
+`
+
 /* ── component ── */
 const ClientPage = () => {
-  const { clientSession, setClientSession, setIsOpen, setClientAuthLoading } = useContext(ChatContext)
+  const {
+    clientSession,
+    setClientSession,
+    setIsOpen,
+    setClientAuthLoading,
+    iframeLoginData,
+    setIframeLoginData,
+  } = useContext(ChatContext)
   const { systemConfig, configLoading } = useSystemConfig()
   const iframeUrl = systemConfig?.iframeUrl || ''
   const appName   = systemConfig?.appName   || 'BetChat'
@@ -169,7 +328,7 @@ const ClientPage = () => {
   const loggingInRef = useRef(null)
   const [popups, setPopups] = useState([])
 
-  /* ── loading screen state ── */
+  /* ── initial loading screen state ── */
   const [loadingOut, setLoadingOut]   = useState(false)
   const [gone, setGone]               = useState(false)
   const [progress, setProgress]       = useState(8)
@@ -177,6 +336,12 @@ const ClientPage = () => {
   const progressTimerRef = useRef(null)
   const readyCalledRef   = useRef(false)
   const iframeRef        = useRef(null)
+
+  /* ── auth session loading overlay state ── */
+  const [authOverlayGone, setAuthOverlayGone] = useState(true)
+  const [authOverlayOut,  setAuthOverlayOut]  = useState(false)
+  const authDismissRef  = useRef(null)
+  const prevLoginDataRef = useRef(null)
 
   const markReady = useCallback(() => {
     if (readyCalledRef.current) return
@@ -189,6 +354,26 @@ const ClientPage = () => {
       setTimeout(() => setGone(true), 580)
     }, 220)
   }, [])
+
+  const dismissAuthOverlay = useCallback(() => {
+    clearTimeout(authDismissRef.current)
+    setAuthOverlayOut(true)
+    authDismissRef.current = setTimeout(() => {
+      setAuthOverlayGone(true)
+      setAuthOverlayOut(false)
+    }, 680)
+  }, [])
+
+  /* show auth overlay when credentials change after initial load */
+  useEffect(() => {
+    const prev = prevLoginDataRef.current
+    prevLoginDataRef.current = iframeLoginData
+    if (!gone || !iframeUrl || !iframeLoginData) return
+    if (prev?.username === iframeLoginData?.username && prev?.password === iframeLoginData?.password) return
+    clearTimeout(authDismissRef.current)
+    setAuthOverlayOut(false)
+    setAuthOverlayGone(false)
+  }, [iframeLoginData, gone, iframeUrl]) // eslint-disable-line
 
   /* advance progress bar gradually while waiting */
   useEffect(() => {
@@ -217,8 +402,8 @@ const ClientPage = () => {
 
   const handleIframeLoad = useCallback(() => {
     if (!configLoading) markReady()
-    // if config still loading, markReady will fire from the configLoading effect
-  }, [configLoading, markReady])
+    dismissAuthOverlay()
+  }, [configLoading, markReady, dismissAuthOverlay])
 
   /* ── session ── */
   const applySession = useCallback((session) => {
@@ -259,14 +444,35 @@ const ClientPage = () => {
       localStorage.removeItem('chatId')
       localStorage.removeItem('__HOST_USERNAME__')
       localStorage.removeItem('__HOST_TOKEN__')
+      setIframeLoginData(null)
       setClientSession(null)
       setIsOpen(false)
     }
-  }, [setClientSession, setIsOpen])
+  }, [setClientSession, setIframeLoginData, setIsOpen])
 
   const hostOrigin = iframeUrl
     ? (() => { try { return new URL(iframeUrl).origin } catch { return null } })()
     : null
+
+  const iframeSrc = (() => {
+    if (!iframeUrl) return ''
+    const username = String(iframeLoginData?.username || '').trim()
+    const password = String(iframeLoginData?.password || '')
+    if (!username && !password) return iframeUrl
+
+    try {
+      const url = new URL(iframeUrl, window.location.href)
+      if (username) url.searchParams.set('u', username)
+      if (password) url.searchParams.set('p', password)
+      return url.toString()
+    } catch {
+      const params = new URLSearchParams()
+      if (username) params.set('u', username)
+      if (password) params.set('p', password)
+      const joiner = iframeUrl.includes('?') ? '&' : '?'
+      return `${iframeUrl}${joiner}${params.toString()}`
+    }
+  })()
 
   const handleHostMessage = useCallback(async (eventOrBus) => {
     const origin = eventOrBus?.origin
@@ -275,8 +481,9 @@ const ClientPage = () => {
     try {
       if (data?.tipo === 'login' && data.usuario) {
         const username = String(data.usuario || '').trim()
+        const token = String(data.token || '')
         localStorage.setItem('__HOST_USERNAME__', username)
-        if (data.token) localStorage.setItem('__HOST_TOKEN__', String(data.token))
+        if (token) localStorage.setItem('__HOST_TOKEN__', token)
         await doAutoLogin(username)
         return
       }
@@ -350,7 +557,7 @@ const ClientPage = () => {
         <iframe
           ref={iframeRef}
           className="slots-iframe"
-          src={iframeUrl}
+          src={iframeSrc}
           title="Cliente"
           allowFullScreen
           onLoad={handleIframeLoad}
@@ -384,6 +591,36 @@ const ClientPage = () => {
             <ProgressFill $pct={progress} />
           </ProgressBar>
         </Overlay>
+      )}
+
+      {!authOverlayGone && (
+        <AuthOverlay $out={authOverlayOut}>
+          <AuthAmbient />
+          <AuthAmbient2 />
+
+          <AuthOrbWrap>
+            <AuthSpinner />
+            <AuthOrb>
+              {logoUrl
+                ? <img src={logoUrl} alt="" style={{ width: 40, height: 40, objectFit: 'contain', borderRadius: 6 }} />
+                : orbLabel
+              }
+            </AuthOrb>
+          </AuthOrbWrap>
+
+          <AuthTitle>Iniciando sesión</AuthTitle>
+          <AuthSub>Preparando tu experiencia</AuthSub>
+
+          <AuthDots>
+            <AuthDot $d="0s" />
+            <AuthDot $d="0.24s" />
+            <AuthDot $d="0.48s" />
+          </AuthDots>
+
+          <AuthBarWrap>
+            <AuthBarFill />
+          </AuthBarWrap>
+        </AuthOverlay>
       )}
     </div>
   )

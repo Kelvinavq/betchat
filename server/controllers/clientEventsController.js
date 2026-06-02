@@ -135,7 +135,12 @@ function resolveGame(event, body) {
   // Scratch — 3×3 grid (9 cards). Win = 3 matching winning symbols.
   if (type === 'scratch') {
     const prizes = cfg.prizes || []
-    const cards = Array.from({ length: 9 }, () => weightedRandom(prizes))
+    // Fixed-grid format (new): exactly 9 cells with no probability field → use as-is
+    // Probability format (legacy): fill randomly via weightedRandom
+    const isFixedGrid = prizes.length === 9 && prizes.every(p => !('probability' in p))
+    const cards = isFixedGrid
+      ? prizes
+      : Array.from({ length: 9 }, () => weightedRandom(prizes))
 
     const signatureOf = (card) => {
       if (!card) return ''

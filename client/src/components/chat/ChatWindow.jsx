@@ -35,7 +35,7 @@ import {
   FormSection, FormTitle, FormHint, FormGroup, InputLabel,
   ErrorBanner,
   StyledInput, PhoneInputRow, CountrySelect, PasswordWrapper, PasswordInput, PasswordToggle,
-  ForgotLink, SupportRow, SupportContactLink, ActionBtn, OrDivider, SwitchText,
+  ForgotLink, SupportRow, SupportContactLink, SupportGrid, SupportSep, SupportPill, SupportList, SupportItem, ActionBtn, OrDivider, SwitchText,
   HelpOverlay, HelpCard, HelpHead, HelpTitle, HelpSub, HelpClose,
   HelpOptionGrid, HelpOption, HelpTextarea, HelpActions, HelpBtn,
   ChatViewContainer,
@@ -135,8 +135,8 @@ const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled, 
 
   return (
     <form onSubmit={submitLogin}>
-      <FormTitle align="center">Iniciar sesión</FormTitle>
-      <FormHint align="center">Bienvenido de vuelta</FormHint>
+      <FormTitle style={{ textAlign: 'center' }}>Iniciar sesión</FormTitle>
+      <FormHint style={{ textAlign: 'center' }}>Bienvenido de vuelta</FormHint>
 
       <FormGroup>
         <InputLabel>Nombre de usuario</InputLabel>
@@ -165,32 +165,13 @@ const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled, 
         </PasswordWrapper>
       </FormGroup>
 
-      <ForgotLink href="#">¿Olvidaste tu contraseña?</ForgotLink>
-      <SupportRow>
-        <ForgotLink as="button" type="button" onClick={onHelp}>{helpLabel}</ForgotLink>
-        {supportUrl && (
-          <SupportContactLink
-            href={supportUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            {isWhatsApp ? '💬 WhatsApp' : '🔗 Soporte'}
-          </SupportContactLink>
-        )}
-      </SupportRow>
-
-      {/* Referral code (collapsible) */}
-      {!showRef ? (
-        <ForgotLink as="button" type="button" style={{ marginBottom: 4 }} onClick={() => setShowRef(true)}>
-          🎁 ¿Tenés código de referido?
-        </ForgotLink>
-      ) : (
-        <FormGroup style={{ marginBottom: 4 }}>
+      {showRef && (
+        <FormGroup>
           <InputLabel>
             Código de referido (opcional)
             {referralLocked && (
-              <span style={{ marginLeft: 8, color: 'var(--text-muted,#94a3b8)', fontWeight: 500 }}>
-                (cargado desde tu enlace)
+              <span style={{ marginLeft: 6, color: 'rgba(255,255,255,0.35)', fontWeight: 400 }}>
+                · desde tu enlace
               </span>
             )}
           </InputLabel>
@@ -212,9 +193,33 @@ const LoginView = ({ onLogin, onRegister, onHelp, loading, registrationEnabled, 
       </ActionBtn>
       {registrationEnabled && <OrDivider>O</OrDivider>}
 
-      {registrationEnabled && <SwitchText>
-        ¿No tienes cuenta? <a onClick={onRegister}>Regístrate</a>
-      </SwitchText>}
+      {registrationEnabled && (
+        <SwitchText>
+          ¿No tienes cuenta? <a onClick={onRegister}>Regístrate</a>
+        </SwitchText>
+      )}
+
+      <SupportList>
+        <SupportItem type="button" onClick={onHelp}>
+          <WavingHandOutlinedIcon style={{ color: 'var(--bc-client-accent,#1e85ff)' }} />
+          <span style={{ flex: 1 }}>{helpLabel}</span>
+          <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: 16 }}>›</span>
+        </SupportItem>
+        {supportUrl && (
+          <SupportItem as="a" href={supportUrl} target="_blank" rel="noopener noreferrer">
+            <span style={{ fontSize: 15 }}>💬</span>
+            <span style={{ flex: 1 }}>{isWhatsApp ? 'WhatsApp' : 'Soporte'}</span>
+            <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: 16 }}>›</span>
+          </SupportItem>
+        )}
+        {!showRef && (
+          <SupportItem type="button" onClick={() => setShowRef(true)}>
+            <CardGiftcardOutlinedIcon style={{ color: '#f59e0b' }} />
+            <span style={{ flex: 1 }}>Tengo un código de referido</span>
+            <span style={{ color: 'rgba(255,255,255,0.18)', fontSize: 16 }}>›</span>
+          </SupportItem>
+        )}
+      </SupportList>
     </form>
   )
 }
@@ -3182,7 +3187,13 @@ const ChatWindow = ({ onClose }) => {
   const { timezone } = useDateFormat()
   const { systemConfig }  = useSystemConfig()
   useEffect(() => { _chatTz = timezone; return () => { _chatTz = undefined } }, [timezone])
-  const { clientSession, setClientSession, clientAuthLoading, setClientAuthLoading } = useContext(ChatContext)
+  const {
+    clientSession,
+    setClientSession,
+    clientAuthLoading,
+    setClientAuthLoading,
+    setIframeLoginData,
+  } = useContext(ChatContext)
   const [view, setView] = useState(clientSession ? 'chat' : 'login')
   const [loading, setLoading] = useState(false)
   const [loggingOut, setLoggingOut] = useState(false)
@@ -3219,13 +3230,14 @@ const ChatWindow = ({ onClose }) => {
       localStorage.removeItem('clientUsername')
       localStorage.removeItem('clientId')
       localStorage.removeItem('chatId')
+      setIframeLoginData(null)
       setClientSession(null)
       setView('login')
       setError('El chat temporal fue cerrado por soporte.')
     }
     socket.on('temp-session:closed', closeTemporarySession)
     return () => socket.off('temp-session:closed', closeTemporarySession)
-  }, [setClientSession])
+  }, [setClientSession, setIframeLoginData])
 
   const handleLogin = async ({ username, password, referralCode }) => {
     if (!username?.trim() || !password) {
@@ -3244,6 +3256,7 @@ const ChatWindow = ({ onClose }) => {
         password,
         ...(referralCode ? { referralCode } : {}),
       })
+      setIframeLoginData({ username: username.trim(), password })
       setClientSession(session.client)
       localStorage.setItem('clientUsername', session.client.username)
       localStorage.setItem('clientId', String(session.client.id))
@@ -3303,6 +3316,7 @@ const ChatWindow = ({ onClose }) => {
         password,
         ...(referralCode ? { referralCode } : {}),
       })
+      setIframeLoginData({ username: username.trim(), password })
       setClientSession(session.client)
       localStorage.setItem('clientUsername', session.client.username)
       localStorage.setItem('clientId', String(session.client.id))
@@ -3324,6 +3338,7 @@ const ChatWindow = ({ onClose }) => {
     setError('')
     try {
       const session = await api.post('/api/client/auth/help-session', { reason, note })
+      setIframeLoginData(null)
       setClientSession(session.client)
       localStorage.setItem('clientUsername', session.client.username)
       localStorage.setItem('clientId', String(session.client.id))
@@ -3345,6 +3360,7 @@ const ChatWindow = ({ onClose }) => {
     localStorage.removeItem('chatId')
     localStorage.removeItem('__HOST_USERNAME__')
     localStorage.removeItem('__HOST_TOKEN__')
+    setIframeLoginData(null)
     if (chatId) localStorage.removeItem(outboxKey(chatId))
   }
 

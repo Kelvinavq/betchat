@@ -134,7 +134,7 @@ const DashboardPage = () => {
   const { search }                  = useLocation()
   const navigate                    = useNavigate()
   const { user }                    = useAuth()
-  const eventsSubsection = new URLSearchParams(search).get('tab') || 'games'
+  const eventsSubsection = new URLSearchParams(search).get('tab') || (section === 'events' ? 'games' : null)
 
   const allowedSections = Object.keys(SECTION_MODULES).filter(id => canViewSection(user, id))
   const firstAllowedSection = allowedSections[0]

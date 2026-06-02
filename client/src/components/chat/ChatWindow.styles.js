@@ -53,7 +53,7 @@ export const Window = styled.div`
 export const VisualSection = styled.div`
   position: relative;
   flex-shrink: 0;
-  height: 190px;
+  height: 128px;
   background:
     radial-gradient(ellipse at 50% 130%, rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.22) 0%, transparent 65%),
     #000000;
@@ -61,9 +61,9 @@ export const VisualSection = styled.div`
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 8px;
 
-  ${MOBILE} { height: 32vh; }
+  ${MOBILE} { height: 26vh; }
 `
 
 export const CloseBtn = styled.button`
@@ -86,25 +86,25 @@ export const CloseBtn = styled.button`
 `
 
 export const VisualLogo = styled.div`
-  width: 68px;
-  height: 68px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
   border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.30);
-  box-shadow: 0 0 36px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.30), ${shadows.glassBubble};
+  box-shadow: 0 0 26px rgba(var(--bc-client-accent-rgb, 30, 133, 255), 0.30), ${shadows.glassBubble};
   display: flex;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  svg { color: #ffffff; font-size: 1.9rem; }
+  svg { color: #ffffff; font-size: 1.5rem; }
   img { width: 100%; height: 100%; object-fit: cover; display: block; }
 `
 
 export const AppLabel = styled.span`
-  font-size: 11px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.38);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  color: rgba(255, 255, 255, 0.72);
 `
 
 /* ── form card (login / register) ── */
@@ -123,33 +123,34 @@ export const FormSection = styled.div`
     gap: 0;
   ` : css`
     overflow-y: auto;
-    border-radius: 28px 28px 0 0;
-    padding: 32px 24px 34px;
-    gap: 18px;
+    border-radius: 24px 24px 0 0;
+    padding: 22px 22px 24px;
+    gap: 12px;
     form {
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 13px;
     }
     &::-webkit-scrollbar { width: 6px; }
     ${MOBILE} {
-      border-radius: 32px 32px 0 0;
-      padding: 36px 26px 40px;
+      border-radius: 28px 28px 0 0;
+      padding: 24px 22px 26px;
     }
   `}
 `
 
 export const FormTitle = styled.h2`
-  font-size: 21px;
+  font-size: 18px;
   font-weight: 600;
   color: #ffffff;
   letter-spacing: -0.02em;
+  margin: 0;
 `
 
 export const FormHint = styled.p`
-  font-size: 12px;
+  font-size: 11.5px;
   color: rgba(255, 255, 255, 0.35);
-  margin-top: -6px;
+  margin: -3px 0 0;
 `
 
 export const ErrorBanner = styled.div`
@@ -181,11 +182,11 @@ export const InputLabel = styled.label`
 
 export const StyledInput = styled.input`
   width: 100%;
-  height: 48px;
+  height: 44px;
   padding: 0 14px;
   background: rgba(255, 255, 255, 0.05);
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 12px;
+  border-radius: 10px;
   color: #ffffff;
   font-size: 16px;
   font-family: inherit;
@@ -290,6 +291,73 @@ export const SupportContactLink = styled.a`
   transition: opacity 0.2s;
   &:hover { opacity: 0.75; }
   svg { font-size: 14px; }
+`
+
+export const SupportGrid = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+`
+
+export const SupportSep = styled.span`
+  font-size: 11px;
+  color: rgba(255,255,255,0.15);
+  user-select: none;
+  pointer-events: none;
+`
+
+export const SupportPill = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0;
+  border: none;
+  background: none;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 400;
+  cursor: pointer;
+  text-decoration: none;
+  color: rgba(255,255,255,0.36);
+  transition: color 0.18s;
+  svg { font-size: 12px; flex-shrink: 0; }
+  &:hover {
+    color: ${({ $v }) =>
+      $v === 'wa'  ? '#25d366' :
+      $v === 'ref' ? '#f59e0b' :
+      'var(--bc-client-accent,#1e85ff)'};
+  }
+`
+
+export const SupportList = styled.div`
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.07);
+`
+
+export const SupportItem = styled.button`
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  padding: 0 14px;
+  height: 42px;
+  background: rgba(255,255,255,0.035);
+  border: none;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 400;
+  color: rgba(255,255,255,0.58);
+  cursor: pointer;
+  text-decoration: none;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+  &:first-child { border-top: none; }
+  &:hover { background: rgba(255,255,255,0.065); color: rgba(255,255,255,0.82); }
+  svg { font-size: 15px; flex-shrink: 0; }
 `
 
 export const HelpOverlay = styled.div`
@@ -403,7 +471,7 @@ export const HelpBtn = styled.button`
 
 export const ActionBtn = styled.button`
   width: 100%;
-  min-height: 50px;
+  min-height: 46px;
   border-radius: 50px;
   background: var(--bc-client-button-gradient, linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%));
   color: #ffffff;
