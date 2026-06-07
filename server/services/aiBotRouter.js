@@ -169,6 +169,34 @@ async function getOpenRouterConfig() {
   }
 }
 
+async function getActiveAmountsForBot() {
+  const { rows, error } = await query(
+    `SELECT currency, operation, min_amount, is_active
+       FROM amounts
+      WHERE operation IN ('deposit', 'withdrawal')
+      ORDER BY operation, is_active DESC, updated_at DESC, id DESC`,
+    []
+  )
+  if (error) throw error
+
+  const amounts = {
+    carga: null,
+    retiro: null,
+  }
+
+  for (const row of rows || []) {
+    const key = row.operation === 'deposit' ? 'carga' : 'retiro'
+    if (amounts[key]) continue
+    if (!row.is_active) continue
+    amounts[key] = {
+      amount: Number(row.min_amount || 0),
+      currency: row.currency || 'USD',
+    }
+  }
+
+  return amounts
+}
+
 const SAFE_BANK_FIELDS_AI = new Set(['nombre_titular', 'alias', 'cbu', 'email', 'cuit', 'currency'])
 
 async function resolveReceiptPrompt(text) {
@@ -414,6 +442,7 @@ Reglas principales:
 - Si el cliente saluda, responde amable y muestra las opciones principales.
 - Si el cliente insulta o está molesto, responde con calma y ofrece soporte.
 - Si el cliente manda algo relacionado con comprobantes, pagos pendientes o acreditación, guíalo al flujo de carga/comprobante si está disponible.
+- Si el cliente pregunta por el monto mínimo de carga o retiro, responde usando los valores configurados en "amounts" del sistema, sin inventar.
 
 Debes devolver ÚNICAMENTE JSON válido, sin markdown, sin explicaciones y sin texto fuera del JSON.
 
@@ -455,6 +484,30 @@ ${JSON.stringify(recentMessages, null, 2)}
 
 Mensaje actual del cliente:
 ${JSON.stringify({ content: clientMessage }, null, 2)}`
+}
+
+function detectAmountQuestion(text) {
+  const normalized = normalizeSearchText(text)
+  const asksMin = /(monto minimo|minimo de monto|minimo|mínimo|cuanto puedo|cuánto puedo|cual es el minimo|cuál es el minimo|monto mínimo|importe mínimo|monto de carga|monto de retiro)/i.test(text)
+  const asksDeposit = /(carga|deposit|deposito|depósito|cargar saldo|cargar)/i.test(text)
+  const asksWithdrawal = /(retiro|retirar|cobrar|sacar dinero|withdraw)/i.test(text)
+  if (!asksMin && !asksDeposit && !asksWithdrawal) return null
+
+  const wantsDeposit = asksDeposit || normalized.includes('carga') || normalized.includes('deposit')
+  const wantsWithdrawal = asksWithdrawal || normalized.includes('retiro') || normalized.includes('retirar')
+
+  if (!wantsDeposit && !wantsWithdrawal && !asksMin) return null
+  return {
+    wantsDeposit,
+    wantsWithdrawal,
+  }
+}
+
+function formatAmountLabel(amountEntry) {
+  if (!amountEntry) return 'no configurado'
+  const amount = Number(amountEntry.amount || 0)
+  const currency = String(amountEntry.currency || 'USD').toUpperCase()
+  return `${amount.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${currency}`
 }
 
 async function callOpenRouter({ model, temperature, maxTokens, prompt }) {
@@ -901,6 +954,7 @@ export async function processHybridBotTextMessage({
       loadBotFlow(),
       loadRecentMessages(chatId, 10),
     ])
+    const amounts = await getActiveAmountsForBot().catch(() => ({ carga: null, retiro: null }))
 
     if (!chat || Number(chat.client_id) !== Number(clientId)) {
       return { handled: false, reason: 'chat_not_found' }
@@ -950,7 +1004,41 @@ export async function processHybridBotTextMessage({
         createdAt: message.created_at || '',
       })),
       clientMessage: normalizeText(content),
+      amounts,
     })
+
+    const amountQuestion = detectAmountQuestion(content)
+    if (amountQuestion) {
+      const depositLabel = formatAmountLabel(amounts?.carga)
+      const withdrawalLabel = formatAmountLabel(amounts?.retiro)
+      const wantsDeposit = amountQuestion.wantsDeposit
+      const wantsWithdrawal = amountQuestion.wantsWithdrawal
+      const replyParts = []
+      if (wantsDeposit || (!wantsDeposit && !wantsWithdrawal)) {
+        replyParts.push(`El mínimo de carga es ${depositLabel}.`)
+      }
+      if (wantsWithdrawal || (!wantsDeposit && !wantsWithdrawal)) {
+        replyParts.push(`El mínimo de retiro es ${withdrawalLabel}.`)
+      }
+      const reply = replyParts.join(' ')
+      await persistReplyMessage({ chatId, reply, messageId, clientMessageId })
+      io.to(`chat:${chatId}`).emit('bot:ai-transition', {
+        chatId: Number(chatId),
+        action: 'none',
+        reply,
+        reason: 'amounts_inquiry',
+        state: {
+          chatId: Number(chatId),
+          currentScreenId: chat.bot_screen_id || null,
+          lastButtonId: chat.bot_last_button_id || null,
+        },
+        botMessages: [],
+        receiptRequest: null,
+        clearBotMessages: false,
+      })
+      await emitChatRefresh(chatId)
+      return { handled: true, action: 'amounts_inquiry' }
+    }
 
     let rawDecision = null
     let fallback = false
