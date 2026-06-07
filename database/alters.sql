@@ -765,3 +765,23 @@ CREATE TABLE IF NOT EXISTS `referral_rewards` (
   CONSTRAINT `fk_referral_referrer` FOREIGN KEY (`referrer_client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE,
   CONSTRAINT `fk_referral_referred` FOREIGN KEY (`referred_client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  Admin manual balance adjustments (add / remove fichas)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `balance_adjustments` (
+  `id`           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `client_id`    INT UNSIGNED    NOT NULL,
+  `chat_id`      INT UNSIGNED    DEFAULT NULL,
+  `amount`       DECIMAL(18,2)   NOT NULL,
+  `operation`    ENUM('in','out') NOT NULL,
+  `performed_by` INT UNSIGNED    DEFAULT NULL COMMENT 'admin user id',
+  `note`         TEXT            DEFAULT NULL,
+  `created_at`   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ba_client_created` (`client_id`, `created_at`),
+  KEY `idx_ba_chat` (`chat_id`),
+  CONSTRAINT `fk_ba_client` FOREIGN KEY (`client_id`) REFERENCES `clients` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_ba_chat`   FOREIGN KEY (`chat_id`)   REFERENCES `chats`   (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_ba_user`   FOREIGN KEY (`performed_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

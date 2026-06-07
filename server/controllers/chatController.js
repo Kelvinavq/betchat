@@ -1630,7 +1630,7 @@ async function getCasinoConfig() {
 
 async function getChatExternalClient(chatId) {
   const { rows, error } = await query(
-    `SELECT c.external_id, c.username
+    `SELECT c.id AS client_id, c.external_id, c.username
      FROM chats ch
      JOIN clients c ON c.id = ch.client_id
      WHERE ch.id = ?`,
@@ -1872,6 +1872,23 @@ export async function adjustChatClientBalance(req, res, next) {
       chatId,
       balance: data.currencies?.ARS ?? null,
     })
+
+    // Log the adjustment locally so it appears in client history
+    query(
+      `INSERT INTO balance_adjustments (client_id, chat_id, amount, operation, performed_by)
+       VALUES (?, ?, ?, ?, ?)`,
+      [client.client_id, chatId, amount, operation, req.user?.id ?? null]
+    ).catch(e => console.error('[adjustBalance] log error:', e?.message))
+
+    // Send configurable auto-message to client
+    const msgKey = operation === 'in' ? 'balance_added' : 'balance_removed'
+    getAutoMessage(msgKey, { amount })
+      .then(msg => {
+        if (msg) {
+          return persistMessage({ chatId, senderType: 'system', content: msg })
+        }
+      })
+      .catch(e => console.error('[adjustBalance] auto-message error:', e?.message))
   } catch (error) {
     next(error)
   }

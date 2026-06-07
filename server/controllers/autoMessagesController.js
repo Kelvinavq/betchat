@@ -16,6 +16,8 @@ const EVENTS = [
   'event_vote_prompt',
   'event_vote_reminder',
   'ranking_goal_achieved',
+  'balance_added',
+  'balance_removed',
 ]
 
 const DEFAULTS = {
@@ -34,6 +36,8 @@ const DEFAULTS = {
   event_vote_prompt:        '🗳️ ¡Tu comprobante fue acreditado! Ahora podés ingresar al evento "{{evento}}" y elegir tu número. ¡No te quedes afuera — el tiempo corre!',
   event_vote_reminder:      '⏰ {{nombre}}, todavía no elegiste tu número en el evento "{{evento}}". ¡No te quedes afuera! Ingresá ahora y hacé tu elección antes de que termine.',
   ranking_goal_achieved:    '🏆 ¡Cumpliste la meta del evento "{{evento}}"! Te acreditamos {{amount}} en fichas. ¡Felicitaciones!',
+  balance_added:            '✅ Se acreditaron {{amount}} en fichas a tu cuenta.',
+  balance_removed:          '⚠️ Se descontaron {{amount}} de tu cuenta.',
 }
 
 export async function getAutoMessages(req, res, next) {

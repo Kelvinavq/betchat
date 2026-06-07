@@ -439,6 +439,23 @@ const PlayBtn = styled.button`
   &:hover { background: rgba(59,130,246,0.22); }
 `
 
+const LoadMoreBtn = styled.button`
+  width: 100%;
+  padding: 11px;
+  border-radius: 10px;
+  border: 1px solid ${T.border};
+  background: rgba(255,255,255,0.04);
+  color: ${T.t2};
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: background 0.15s;
+  &:hover { background: rgba(255,255,255,0.08); }
+  &:disabled { opacity: 0.5; cursor: default; }
+`
+
 const ViewAllBtn = styled.button`
   width: 100%;
   padding: 12px;
@@ -478,13 +495,14 @@ const MISSION_LABEL = {
 }
 
 const STATUS_MAP = {
-  paid:     { label: 'Acreditado', color: T.success, bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
-  pending:  { label: 'En revisión', color: T.gold,   bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
-  approved: { label: 'Aprobado',   color: T.success, bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
-  rejected: { label: 'Rechazado',  color: T.danger,  bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)' },
-  duplicate:{ label: 'Duplicado',  color: T.warn,    bg: 'rgba(249,115,22,0.1)',  border: 'rgba(249,115,22,0.25)' },
-  invalid:  { label: 'Inválido',   color: T.danger,  bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)' },
-  amount_low:{ label:'Monto bajo', color: T.warn,    bg: 'rgba(249,115,22,0.1)',  border: 'rgba(249,115,22,0.25)' },
+  paid:       { label: 'Acreditado', color: T.success, bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
+  pending:    { label: 'En revisión', color: T.gold,   bg: 'rgba(245,158,11,0.12)', border: 'rgba(245,158,11,0.3)' },
+  approved:   { label: 'Aprobado',   color: T.success, bg: 'rgba(16,185,129,0.12)', border: 'rgba(16,185,129,0.3)' },
+  rejected:   { label: 'Rechazado',  color: T.danger,  bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)' },
+  error:      { label: 'Error',      color: T.danger,  bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)' },
+  duplicate:  { label: 'Duplicado',  color: T.warn,    bg: 'rgba(249,115,22,0.1)',  border: 'rgba(249,115,22,0.25)' },
+  invalid:    { label: 'Inválido',   color: T.danger,  bg: 'rgba(239,68,68,0.1)',   border: 'rgba(239,68,68,0.25)' },
+  amount_low: { label: 'Monto bajo', color: T.warn,    bg: 'rgba(249,115,22,0.1)',  border: 'rgba(249,115,22,0.25)' },
 }
 
 function fmtStatus(s) {
@@ -689,27 +707,94 @@ function EventsView({ onBack, onOpenOverlay }) {
   )
 }
 
-function MovementHistory({ onBack }) {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState('deposits')
-
-  const load = useCallback(async () => {
-    setLoading(true)
+function useTabHistory(type) {
+  const [items, setItems]       = useState([])
+  const [total, setTotal]       = useState(0)
+  const [page, setPage]         = useState(1)
+  const [hasMore, setHasMore]   = useState(false)
+  const [loading, setLoading]   = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const fetchPage = useCallback(async (p, append = false) => {
+    if (p === 1) setLoading(true); else setLoadingMore(true)
     try {
-      const res = await api.get('/api/client/history/movements')
-      setData(res)
+      const res = await api.get(`/api/client/history/movements?type=${type}&page=${p}&limit=20`)
+      setItems(prev => append ? [...prev, ...(res.items || [])] : (res.items || []))
+      setTotal(res.total || 0)
+      setHasMore(res.hasMore || false)
+      setPage(p)
     } catch {
-      setData({ deposits: [], withdrawals: [] })
+      if (!append) setItems([])
     } finally {
       setLoading(false)
+      setLoadingMore(false)
     }
-  }, [])
+  }, [type])
 
-  useEffect(() => { load() }, [load])
+  const loadMore = useCallback(() => fetchPage(page + 1, true), [fetchPage, page])
+  const reload   = useCallback(() => fetchPage(1, false), [fetchPage])
 
-  const deposits    = data?.deposits    || []
-  const withdrawals = data?.withdrawals || []
+  return { items, total, hasMore, loading, loadingMore, loadMore, reload }
+}
+
+function DepositItem({ d }) {
+  const st = fmtStatus(d.status)
+  return (
+    <HistItem>
+      <HistIcon $bg={d.status === 'paid' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.12)'}>
+        {d.event ? '🎮' : '💳'}
+      </HistIcon>
+      <HistInfo>
+        <HistTitle>{d.label || (d.event ? d.event.title || 'Evento' : 'Carga')}</HistTitle>
+        <HistSub>
+          {fmtDate(d.created_at)}
+          {d.event && <span style={{ color: T.accent, marginLeft: 6 }}>• Evento</span>}
+        </HistSub>
+      </HistInfo>
+      <HistRight>
+        <HistAmount $positive={d.status === 'paid'}>{fmtAmount(d.amount)}</HistAmount>
+        <div style={{ marginTop: 4 }}>
+          <StatusBadge $bg={st.bg} $color={st.color} $border={st.border}>{st.label}</StatusBadge>
+        </div>
+      </HistRight>
+    </HistItem>
+  )
+}
+
+function WithdrawalItem({ w }) {
+  const st = fmtStatus(w.status)
+  const isAdj = w.kind === 'adjustment'
+  return (
+    <HistItem>
+      <HistIcon $bg={isAdj ? 'rgba(99,102,241,0.13)' : w.status === 'approved' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.1)'}>
+        {isAdj ? '⚙️' : '💸'}
+      </HistIcon>
+      <HistInfo>
+        <HistTitle>{isAdj ? 'Ajuste de saldo' : 'Solicitud de retiro'}</HistTitle>
+        <HistSub>{fmtDate(w.created_at)}</HistSub>
+        {w.rejection_message && (
+          <div style={{ fontSize: 11, color: T.danger, marginTop: 3 }}>{w.rejection_message}</div>
+        )}
+      </HistInfo>
+      <HistRight>
+        <HistAmount $positive={false}>{w.amount ? fmtAmount(w.amount) : '—'}</HistAmount>
+        <div style={{ marginTop: 4 }}>
+          <StatusBadge $bg={st.bg} $color={st.color} $border={st.border}>{st.label}</StatusBadge>
+        </div>
+      </HistRight>
+    </HistItem>
+  )
+}
+
+function MovementHistory({ onBack }) {
+  const [tab, setTab] = useState('deposits')
+
+  const deposits    = useTabHistory('deposits')
+  const withdrawals = useTabHistory('withdrawals')
+
+  useEffect(() => { deposits.reload()    }, [])  // eslint-disable-line
+  useEffect(() => { withdrawals.reload() }, [])  // eslint-disable-line
+
+  const active = tab === 'deposits' ? deposits : withdrawals
 
   return (
     <>
@@ -720,8 +805,8 @@ function MovementHistory({ onBack }) {
 
       <div style={{ display: 'flex', borderBottom: `1px solid ${T.border}`, flexShrink: 0 }}>
         {[
-          { id: 'deposits', label: `Cargas (${deposits.length})` },
-          { id: 'withdrawals', label: `Retiros (${withdrawals.length})` },
+          { id: 'deposits',    label: `Cargas${deposits.total    ? ` (${deposits.total})`    : ''}` },
+          { id: 'withdrawals', label: `Retiros${withdrawals.total ? ` (${withdrawals.total})` : ''}` },
         ].map(t => (
           <button
             key={t.id}
@@ -743,84 +828,28 @@ function MovementHistory({ onBack }) {
       </div>
 
       <SheetBody>
-        {loading ? (
+        {active.loading ? (
           <LoaderWrap><Spinner /></LoaderWrap>
-        ) : tab === 'deposits' ? (
-          deposits.length === 0 ? (
-            <EmptyBox>Sin cargas registradas</EmptyBox>
-          ) : (
-            <HistSection>
-              <HistGroup>
-                {deposits.map(d => {
-                  const st = fmtStatus(d.status)
-                  return (
-                    <HistItem key={d.id}>
-                      <HistIcon $bg={d.status === 'paid' ? 'rgba(16,185,129,0.15)' : 'rgba(245,158,11,0.12)'}>
-                        {d.event ? '🎮' : '💳'}
-                      </HistIcon>
-                      <HistInfo>
-                        <HistTitle>
-                          {d.event ? d.event.title || 'Evento' : 'Carga normal'}
-                        </HistTitle>
-                        <HistSub>
-                          {fmtDate(d.created_at)}
-                          {d.event && <span style={{ color: T.accent, marginLeft: 6 }}>• Evento</span>}
-                        </HistSub>
-                      </HistInfo>
-                      <HistRight>
-                        <HistAmount $positive={d.status === 'paid'}>
-                          {fmtAmount(d.amount)}
-                        </HistAmount>
-                        <div style={{ marginTop: 4 }}>
-                          <StatusBadge $bg={st.bg} $color={st.color} $border={st.border}>
-                            {st.label}
-                          </StatusBadge>
-                        </div>
-                      </HistRight>
-                    </HistItem>
-                  )
-                })}
-              </HistGroup>
-            </HistSection>
-          )
+        ) : active.items.length === 0 ? (
+          <EmptyBox>{tab === 'deposits' ? 'Sin cargas registradas' : 'Sin retiros registrados'}</EmptyBox>
         ) : (
-          withdrawals.length === 0 ? (
-            <EmptyBox>Sin retiros registrados</EmptyBox>
-          ) : (
-            <HistSection>
-              <HistGroup>
-                {withdrawals.map(w => {
-                  const st = fmtStatus(w.status)
-                  return (
-                    <HistItem key={w.id}>
-                      <HistIcon $bg={w.status === 'approved' ? 'rgba(16,185,129,0.15)' : 'rgba(239,68,68,0.1)'}>
-                        💸
-                      </HistIcon>
-                      <HistInfo>
-                        <HistTitle>Solicitud de retiro</HistTitle>
-                        <HistSub>{fmtDate(w.created_at)}</HistSub>
-                        {w.rejection_message && (
-                          <div style={{ fontSize: 11, color: T.danger, marginTop: 3 }}>
-                            {w.rejection_message}
-                          </div>
-                        )}
-                      </HistInfo>
-                      <HistRight>
-                        <HistAmount $positive={false}>
-                          {w.amount ? fmtAmount(w.amount) : '—'}
-                        </HistAmount>
-                        <div style={{ marginTop: 4 }}>
-                          <StatusBadge $bg={st.bg} $color={st.color} $border={st.border}>
-                            {st.label}
-                          </StatusBadge>
-                        </div>
-                      </HistRight>
-                    </HistItem>
-                  )
-                })}
-              </HistGroup>
-            </HistSection>
-          )
+          <HistSection>
+            <HistGroup>
+              {tab === 'deposits'
+                ? deposits.items.map(d => <DepositItem key={`dep-${d.id}`} d={d} />)
+                : withdrawals.items.map(w => <WithdrawalItem key={`wd-${w.kind}-${w.id}`} w={w} />)
+              }
+            </HistGroup>
+            {active.hasMore && (
+              <LoadMoreBtn
+                type="button"
+                disabled={active.loadingMore}
+                onClick={active.loadMore}
+              >
+                {active.loadingMore ? 'Cargando...' : 'Cargar más'}
+              </LoadMoreBtn>
+            )}
+          </HistSection>
         )}
         <div style={{ height: 20 }} />
       </SheetBody>

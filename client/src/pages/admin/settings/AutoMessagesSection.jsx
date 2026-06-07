@@ -113,6 +113,20 @@ const MESSAGE_DEFS = [
     icon: '🏆',
     bg: 'rgba(234,179,8,0.13)',
   },
+  {
+    event: 'balance_added',
+    label: 'Fichas acreditadas (admin)',
+    desc: 'Se envía al cliente cuando un administrador le suma fichas desde el panel de chat. Variable: {{amount}}',
+    icon: '➕',
+    bg: 'rgba(16,185,129,0.13)',
+  },
+  {
+    event: 'balance_removed',
+    label: 'Fichas descontadas (admin)',
+    desc: 'Se envía al cliente cuando un administrador le resta fichas desde el panel de chat. Variable: {{amount}}',
+    icon: '➖',
+    bg: 'rgba(239,68,68,0.13)',
+  },
 ]
 
 export default function AutoMessagesSection() {
