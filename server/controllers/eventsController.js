@@ -954,18 +954,73 @@ export async function getStats(req, res, next) {
 
 export async function listRewards(req, res, next) {
   try {
-    const { status } = req.query;
-    const where = ['1=1'];
-    const values = [];
-    if (status) { where.push('status = ?'); values.push(status); }
-    const { rows, error } = await query(
-      `SELECT * FROM event_rewards WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT 300`,
-      values
-    );
-    if (error) return next(error);
-    res.json({ rewards: rows || [] });
+    const page     = Math.max(1, parseInt(req.query.page  || '1',  10) || 1)
+    const limit    = Math.max(1, Math.min(100, parseInt(req.query.limit || '20', 10) || 20))
+    const offset   = (page - 1) * limit
+    const status   = ['pending', 'paid', 'failed', 'discarded'].includes(req.query.status) ? req.query.status : null
+    const eventId  = req.query.eventId ? Number(req.query.eventId) : null
+    const dateFrom = req.query.dateFrom ? String(req.query.dateFrom).slice(0, 10) : null
+    const dateTo   = req.query.dateTo   ? String(req.query.dateTo).slice(0, 10)   : null
+
+    // List filters (all params)
+    const listWhere  = ['1=1']
+    const listValues = []
+    if (status)   { listWhere.push('er.status = ?');       listValues.push(status) }
+    if (eventId)  { listWhere.push('er.event_id = ?');     listValues.push(eventId) }
+    if (dateFrom) { listWhere.push('er.created_at >= ?');  listValues.push(`${dateFrom} 00:00:00`) }
+    if (dateTo)   { listWhere.push('er.created_at <= ?');  listValues.push(`${dateTo} 23:59:59`) }
+    const listSQL = listWhere.join(' AND ')
+
+    // Stats filters (event + date only — not status, so cards show full breakdown)
+    const statsWhere  = ['1=1']
+    const statsValues = []
+    if (eventId)  { statsWhere.push('er.event_id = ?');    statsValues.push(eventId) }
+    if (dateFrom) { statsWhere.push('er.created_at >= ?'); statsValues.push(`${dateFrom} 00:00:00`) }
+    if (dateTo)   { statsWhere.push('er.created_at <= ?'); statsValues.push(`${dateTo} 23:59:59`) }
+    const statsSQL = statsWhere.join(' AND ')
+
+    const [countResult, dataResult, statsResult] = await Promise.all([
+      query(`SELECT COUNT(*) AS total FROM event_rewards er WHERE ${listSQL}`, listValues),
+      query(
+        `SELECT er.*, e.title AS event_title, e.type AS event_type_label
+         FROM event_rewards er
+         LEFT JOIN events e ON e.id = er.event_id
+         WHERE ${listSQL}
+         ORDER BY er.created_at DESC
+         LIMIT ${limit} OFFSET ${offset}`,
+        listValues
+      ),
+      query(
+        `SELECT
+           COUNT(CASE WHEN er.status = 'pending'   THEN 1 END) AS pending_count,
+           COUNT(CASE WHEN er.status = 'failed'    THEN 1 END) AS failed_count,
+           COUNT(CASE WHEN er.status = 'paid'      THEN 1 END) AS paid_count,
+           COUNT(CASE WHEN er.status = 'discarded' THEN 1 END) AS discarded_count
+         FROM event_rewards er
+         WHERE ${statsSQL}`,
+        statsValues
+      ),
+    ])
+
+    if (countResult.error) throw countResult.error
+    if (dataResult.error)  throw dataResult.error
+    if (statsResult.error) throw statsResult.error
+
+    const total      = Number(countResult.rows?.[0]?.total || 0)
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+    const s          = statsResult.rows?.[0] || {}
+
+    res.json({
+      rewards: dataResult.rows || [],
+      pagination: { total, page, limit, totalPages, hasMore: page < totalPages },
+      stats: {
+        pending:   Number(s.pending_count || 0) + Number(s.failed_count || 0),
+        paid:      Number(s.paid_count    || 0),
+        discarded: Number(s.discarded_count || 0),
+      },
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 
@@ -1052,37 +1107,93 @@ export async function payReward(req, res, next) {
 
 export async function getClientEventRewards(req, res, next) {
   try {
-    const chatId = Number(req.params.chatId);
+    const chatId = Number(req.params.chatId)
     const { rows: chatRows, error: chatErr } = await query(
-      'SELECT client_id FROM chats WHERE id = ? LIMIT 1',
-      [chatId]
-    );
-    if (chatErr) return next(chatErr);
-    const clientId = chatRows?.[0]?.client_id;
-    if (!clientId) return res.status(404).json({ error: 'Chat no encontrado' });
+      'SELECT client_id FROM chats WHERE id = ? LIMIT 1', [chatId]
+    )
+    if (chatErr) return next(chatErr)
+    const clientId = chatRows?.[0]?.client_id
+    if (!clientId) return res.status(404).json({ error: 'Chat no encontrado' })
 
-    const { rows, error } = await query(
-      `SELECT er.*,
-              e.title AS event_title, e.type AS event_type, e.status AS event_status,
-              JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_url'))               AS receipt_url,
-              JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_status'))             AS receipt_status_raw,
-              JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_processing_reason')) AS receipt_reason,
-              ep.id AS participant_id
-       FROM event_rewards er
-       LEFT JOIN events e ON e.id = er.event_id
-       LEFT JOIN event_participants ep ON ep.id = (
-         SELECT id FROM event_participants
-         WHERE event_id = er.event_id AND client_id = er.client_id
-         ORDER BY created_at DESC LIMIT 1
-       )
-       WHERE er.client_id = ?
-       ORDER BY er.created_at DESC`,
-      [clientId]
-    );
-    if (error) return next(error);
-    res.json({ rewards: rows || [], clientId: Number(clientId) });
+    const page     = Math.max(1, parseInt(req.query.page  || '1',  10) || 1)
+    const limit    = Math.max(1, Math.min(100, parseInt(req.query.limit || '15', 10) || 15))
+    const offset   = (page - 1) * limit
+    const eventId  = req.query.eventId ? Number(req.query.eventId) : null
+    const dateFrom = req.query.dateFrom ? String(req.query.dateFrom).slice(0, 10) : null
+    const dateTo   = req.query.dateTo   ? String(req.query.dateTo).slice(0, 10)   : null
+    const status   = ['pending', 'paid', 'failed', 'discarded'].includes(req.query.status) ? req.query.status : null
+
+    const where  = ['er.client_id = ?']
+    const values = [clientId]
+    if (eventId)  { where.push('er.event_id = ?');    values.push(eventId) }
+    if (dateFrom) { where.push('er.created_at >= ?'); values.push(`${dateFrom} 00:00:00`) }
+    if (dateTo)   { where.push('er.created_at <= ?'); values.push(`${dateTo} 23:59:59`) }
+    if (status)   { where.push('er.status = ?');      values.push(status) }
+    const whereSQL = where.join(' AND ')
+
+    const [countResult, dataResult, statsResult, eventsResult] = await Promise.all([
+      query(`SELECT COUNT(*) AS total FROM event_rewards er WHERE ${whereSQL}`, values),
+      query(
+        `SELECT er.*,
+                e.title AS event_title, e.type AS event_type, e.status AS event_status,
+                JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_url'))               AS receipt_url,
+                JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_status'))             AS receipt_status_raw,
+                JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_processing_reason')) AS receipt_reason,
+                ep.id AS participant_id
+         FROM event_rewards er
+         LEFT JOIN events e ON e.id = er.event_id
+         LEFT JOIN event_participants ep ON ep.id = (
+           SELECT id FROM event_participants
+           WHERE event_id = er.event_id AND client_id = er.client_id
+           ORDER BY created_at DESC LIMIT 1
+         )
+         WHERE ${whereSQL}
+         ORDER BY
+           CASE WHEN er.status IN ('pending','failed') THEN 0 ELSE 1 END,
+           er.created_at DESC
+         LIMIT ${limit} OFFSET ${offset}`,
+        values
+      ),
+      query(
+        `SELECT COUNT(*) AS total,
+                COUNT(CASE WHEN er.status IN ('pending','failed') THEN 1 END) AS pending_count,
+                COUNT(CASE WHEN er.status = 'paid' THEN 1 END) AS paid_count
+         FROM event_rewards er WHERE ${whereSQL}`,
+        values
+      ),
+      query(
+        `SELECT DISTINCT er.event_id, e.title AS event_title
+         FROM event_rewards er
+         LEFT JOIN events e ON e.id = er.event_id
+         WHERE er.client_id = ?
+         ORDER BY er.created_at DESC`,
+        [clientId]
+      ),
+    ])
+
+    if (countResult.error) throw countResult.error
+    if (dataResult.error)  throw dataResult.error
+    if (statsResult.error) throw statsResult.error
+
+    const total      = Number(countResult.rows?.[0]?.total || 0)
+    const totalPages = Math.max(1, Math.ceil(total / limit))
+    const s          = statsResult.rows?.[0] || {}
+
+    res.json({
+      rewards:    dataResult.rows || [],
+      clientId:   Number(clientId),
+      pagination: { total, page, limit, totalPages, hasMore: page < totalPages },
+      stats: {
+        total:   Number(s.total         || 0),
+        pending: Number(s.pending_count || 0),
+        paid:    Number(s.paid_count    || 0),
+      },
+      events: (eventsResult.rows || [])
+        .filter(e => e.event_id)
+        .map(e => ({ id: Number(e.event_id), title: e.event_title || `Evento #${e.event_id}` })),
+    })
   } catch (error) {
-    next(error);
+    next(error)
   }
 }
 

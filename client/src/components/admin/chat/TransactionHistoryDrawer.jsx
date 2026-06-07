@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useDateFormat } from '../../../hooks/useDateFormat'
 import styled, { css, keyframes } from 'styled-components'
 import CloseIcon from '@mui/icons-material/Close'
@@ -43,7 +43,9 @@ const SOURCE_LABELS = {
   manual:      'Comprobante',
   hgcash:      'HGCash',
   mercadopago: 'Mercado Pago',
+  telepagos:   'Telepagos',
   withdrawal:  'Retiro',
+  adjustment:  'Ajuste admin',
 }
 
 const STATUS_META = {
@@ -270,6 +272,60 @@ const FilterCount = styled.span`
   `}
 `
 
+/* ─── date filter ────────────────────────────────────────── */
+const DateFilterRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px 10px;
+  flex-shrink: 0;
+`
+
+const DateLabel = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.28);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+`
+
+const DateInput = styled.input`
+  flex: 1;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.70);
+  font-family: inherit;
+  outline: none;
+  min-width: 0;
+  transition: border-color 0.2s, background 0.2s;
+  color-scheme: dark;
+  &:focus {
+    border-color: rgba(30, 133, 255, 0.40);
+    background: rgba(30, 133, 255, 0.04);
+  }
+  &::-webkit-calendar-picker-indicator {
+    filter: invert(0.6);
+    cursor: pointer;
+  }
+`
+
+const ClearDateBtn = styled.button`
+  padding: 5px 9px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.03);
+  color: rgba(255, 255, 255, 0.30);
+  font-size: 11px;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  &:hover { color: rgba(255,255,255,0.65); background: rgba(255,255,255,0.07); }
+`
+
 /* ─── list ───────────────────────────────────────────────── */
 const ListWrap = styled.div`
   flex: 1;
@@ -437,6 +493,8 @@ const TransactionHistoryDrawer = ({ chat, onClose }) => {
   const [searchInput, setSearchInput]   = useState('')
   const [search, setSearch]             = useState('')
   const [page, setPage]                 = useState(1)
+  const [dateFrom, setDateFrom]         = useState('')
+  const [dateTo, setDateTo]             = useState('')
   const debounceRef                     = useRef(null)
 
   /* reset everything when chat changes */
@@ -445,6 +503,8 @@ const TransactionHistoryDrawer = ({ chat, onClose }) => {
     setSearchInput('')
     setSearch('')
     setPage(1)
+    setDateFrom('')
+    setDateTo('')
     setTransactions([])
     setStats(DEFAULT_STATS)
     setPagination(DEFAULT_PAGINATION)
@@ -459,6 +519,8 @@ const TransactionHistoryDrawer = ({ chat, onClose }) => {
     const params = new URLSearchParams({ page: String(page), limit: String(PAGE_LIMIT) })
     if (search) params.set('search', search)
     if (kindParam) params.set('kind', kindParam)
+    if (dateFrom) params.set('dateFrom', dateFrom)
+    if (dateTo) params.set('dateTo', dateTo)
 
     setLoading(true)
     api.get(`/api/chats/${chat.id}/transactions?${params}`)
@@ -476,7 +538,7 @@ const TransactionHistoryDrawer = ({ chat, onClose }) => {
       .finally(() => { if (alive) setLoading(false) })
 
     return () => { alive = false }
-  }, [chat?.id, filter, search, page])
+  }, [chat?.id, filter, search, page, dateFrom, dateTo])
 
   const handleSearchChange = (e) => {
     const val = e.target.value
@@ -500,6 +562,24 @@ const TransactionHistoryDrawer = ({ chat, onClose }) => {
     setFilter(newFilter)
     setPage(1)
   }
+
+  const handleDateFrom = useCallback((e) => {
+    setDateFrom(e.target.value)
+    setPage(1)
+  }, [])
+
+  const handleDateTo = useCallback((e) => {
+    setDateTo(e.target.value)
+    setPage(1)
+  }, [])
+
+  const clearDates = useCallback(() => {
+    setDateFrom('')
+    setDateTo('')
+    setPage(1)
+  }, [])
+
+  const hasDateFilter = Boolean(dateFrom || dateTo)
 
   const showPagination = pagination.total > PAGE_LIMIT || page > 1
 
@@ -575,6 +655,17 @@ const TransactionHistoryDrawer = ({ chat, onClose }) => {
             Retiros<FilterCount $active={filter === 'withdrawals'}>{stats.withdrawalCount}</FilterCount>
           </FilterChip>
         </FilterRow>
+
+        {/* date filters */}
+        <DateFilterRow>
+          <DateLabel>Desde</DateLabel>
+          <DateInput type="date" value={dateFrom} onChange={handleDateFrom} />
+          <DateLabel>Hasta</DateLabel>
+          <DateInput type="date" value={dateTo} onChange={handleDateTo} />
+          {hasDateFilter && (
+            <ClearDateBtn type="button" onClick={clearDates}>Limpiar</ClearDateBtn>
+          )}
+        </DateFilterRow>
 
         {/* list */}
         <ListWrap $dim={loading && transactions.length > 0}>

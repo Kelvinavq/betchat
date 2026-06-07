@@ -37,9 +37,16 @@ export const eventsApi = {
     toggle: (id) => api.post(`${BASE}/automations/${id}/toggle`),
   },
   stats: (period = 'today') => api.get(`${BASE}/stats?period=${period}`),
-  rewards: (status) => {
-    const q = status ? `?status=${status}` : ''
-    return api.get(`${BASE}/rewards${q}`)
+  rewards: (params = {}) => {
+    const q = new URLSearchParams()
+    if (params.status)   q.set('status',   params.status)
+    if (params.eventId)  q.set('eventId',  String(params.eventId))
+    if (params.dateFrom) q.set('dateFrom', params.dateFrom)
+    if (params.dateTo)   q.set('dateTo',   params.dateTo)
+    if (params.page)     q.set('page',     String(params.page))
+    if (params.limit)    q.set('limit',    String(params.limit))
+    const qs = q.toString()
+    return api.get(`${BASE}/rewards${qs ? `?${qs}` : ''}`)
   },
   payReward: (id) => api.post(`${BASE}/rewards/${id}/pay`),
   discardReward: (id, reason) => api.post(`${BASE}/rewards/${id}/discard`, { reason }),

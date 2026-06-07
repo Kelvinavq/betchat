@@ -1673,69 +1673,125 @@ export async function getChatTransactions(req, res, next) {
     const offset     = (page - 1) * limit
     const search     = String(req.query.search || '').trim()
     const kindFilter = ['deposit', 'withdrawal'].includes(req.query.kind) ? req.query.kind : null
+    const dateFrom   = req.query.dateFrom ? String(req.query.dateFrom).slice(0, 10) : null
+    const dateTo     = req.query.dateTo   ? String(req.query.dateTo).slice(0, 10)   : null
 
-    const baseArgs = [chatId, chatId, chatId, chatId]
+    // Resolve client_id for balance_adjustments (keyed by client_id, not chat_id)
+    const { rows: chatRows } = await query('SELECT client_id FROM chats WHERE id = ? LIMIT 1', [chatId])
+    const clientId = chatRows?.[0]?.client_id ?? null
+
+    // ── Main UNION (for list + count) ────────────────────────────────────
+    // balance_adjustments: in → deposit/paid, out → withdrawal/approved
+    const mainArgs = [chatId, chatId, chatId, chatId, chatId]
+    if (clientId) { mainArgs.push(clientId, clientId) }
+
+    const adjustmentRows = clientId ? `
+        UNION ALL
+        SELECT 'deposit'    AS kind, CAST(id AS CHAR) AS row_id, amount, 'paid'     AS status,
+               created_at, 'adjustment' AS source, NULL AS form_data, '' AS transaction_id
+          FROM balance_adjustments WHERE client_id = ? AND operation = 'in'
+        UNION ALL
+        SELECT 'withdrawal' AS kind, CAST(id AS CHAR) AS row_id, amount, 'approved' AS status,
+               created_at, 'adjustment' AS source, NULL AS form_data, '' AS transaction_id
+          FROM balance_adjustments WHERE client_id = ? AND operation = 'out'` : ''
 
     const innerSql = `
       SELECT kind, row_id, amount, status, created_at, source, form_data, transaction_id
       FROM (
         SELECT 'deposit' AS kind, CAST(id AS CHAR) AS row_id, amount, status, created_at,
                'manual' AS source, NULL AS form_data, COALESCE(transaction_id, '') AS transaction_id
-        FROM manual_payment_movements WHERE chat_id = ?
+          FROM manual_payment_movements WHERE chat_id = ?
         UNION ALL
         SELECT 'deposit', CAST(id AS CHAR), amount, status, created_at, 'hgcash', NULL, ''
-        FROM hgcash_movements WHERE chat_id = ?
+          FROM hgcash_movements WHERE chat_id = ?
         UNION ALL
         SELECT 'deposit', CAST(id AS CHAR), amount, status, created_at, 'mercadopago', NULL, ''
-        FROM mercadopago_movements WHERE chat_id = ?
+          FROM mercadopago_movements WHERE chat_id = ?
+        UNION ALL
+        SELECT 'deposit', CAST(id AS CHAR), amount, status, created_at, 'telepagos', NULL, ''
+          FROM telepagos_movements WHERE chat_id = ?
         UNION ALL
         SELECT 'withdrawal', CAST(id AS CHAR), NULL AS amount, status, created_at, 'withdrawal', form_data, ''
-        FROM withdrawal_requests WHERE chat_id = ?
+          FROM withdrawal_requests WHERE chat_id = ?
+        ${adjustmentRows}
       ) AS all_txns`
 
-    const conditions = []
-    const filterArgs = []
+    // ── Filter conditions ────────────────────────────────────────────────
+    const conditions  = []
+    const filterArgs  = []
     if (kindFilter) {
       conditions.push('kind = ?')
       filterArgs.push(kindFilter)
     }
+    if (dateFrom) {
+      conditions.push('created_at >= ?')
+      filterArgs.push(`${dateFrom} 00:00:00`)
+    }
+    if (dateTo) {
+      conditions.push('created_at <= ?')
+      filterArgs.push(`${dateTo} 23:59:59`)
+    }
     if (search) {
-      conditions.push('(row_id LIKE ? OR CAST(COALESCE(amount, 0) AS CHAR) LIKE ? OR transaction_id LIKE ? OR form_data LIKE ?)')
+      conditions.push('(row_id LIKE ? OR CAST(COALESCE(amount, 0) AS CHAR) LIKE ? OR transaction_id LIKE ? OR COALESCE(form_data, \'\') LIKE ?)')
       const s = `%${search}%`
       filterArgs.push(s, s, s, s)
     }
     const whereSQL = conditions.length ? ' WHERE ' + conditions.join(' AND ') : ''
 
+    // ── Stats UNION (simpler — no row_id / form_data needed) ────────────
+    // Stats respect kind + date filters but NOT search (so counts stay accurate).
+    const statsArgs = [chatId, chatId, chatId, chatId, chatId]
+    if (clientId) { statsArgs.push(clientId, clientId) }
+
+    const statsAdjRows = clientId ? `
+        UNION ALL
+        SELECT 'deposit'    AS kind, amount, 'paid'     AS status, created_at FROM balance_adjustments WHERE client_id = ? AND operation = 'in'
+        UNION ALL
+        SELECT 'withdrawal' AS kind, amount, 'approved' AS status, created_at FROM balance_adjustments WHERE client_id = ? AND operation = 'out'` : ''
+
+    const statsInnerSql = `
+      SELECT kind, amount, status, created_at FROM (
+        SELECT 'deposit'    AS kind, amount, status, created_at FROM manual_payment_movements WHERE chat_id = ?
+        UNION ALL
+        SELECT 'deposit',                    amount, status, created_at FROM hgcash_movements    WHERE chat_id = ?
+        UNION ALL
+        SELECT 'deposit',                    amount, status, created_at FROM mercadopago_movements WHERE chat_id = ?
+        UNION ALL
+        SELECT 'deposit',                    amount, status, created_at FROM telepagos_movements  WHERE chat_id = ?
+        UNION ALL
+        SELECT 'withdrawal', NULL AS amount, status, created_at FROM withdrawal_requests WHERE chat_id = ?
+        ${statsAdjRows}
+      ) AS _s`
+
+    const statsConditions = []
+    const statsFilterArgs = []
+    if (kindFilter) { statsConditions.push('kind = ?');        statsFilterArgs.push(kindFilter) }
+    if (dateFrom)   { statsConditions.push('created_at >= ?'); statsFilterArgs.push(`${dateFrom} 00:00:00`) }
+    if (dateTo)     { statsConditions.push('created_at <= ?'); statsFilterArgs.push(`${dateTo} 23:59:59`) }
+    const statsWhereSQL = statsConditions.length ? ' WHERE ' + statsConditions.join(' AND ') : ''
+
     const [countResult, dataResult, statsResult] = await Promise.all([
       query(
         `SELECT COUNT(*) AS total FROM (${innerSql}${whereSQL}) AS cnt`,
-        [...baseArgs, ...filterArgs]
+        [...mainArgs, ...filterArgs]
       ),
       query(
         `${innerSql}${whereSQL} ORDER BY created_at DESC LIMIT ${limit} OFFSET ${offset}`,
-        [...baseArgs, ...filterArgs]
+        [...mainArgs, ...filterArgs]
       ),
       query(`
         SELECT
-          COUNT(CASE WHEN kind = 'deposit'    THEN 1 END)    AS deposit_count,
-          COUNT(CASE WHEN kind = 'withdrawal' THEN 1 END)    AS withdrawal_count,
-          COUNT(*)                                            AS total_count,
+          COUNT(CASE WHEN kind = 'deposit'    THEN 1 END) AS deposit_count,
+          COUNT(CASE WHEN kind = 'withdrawal' THEN 1 END) AS withdrawal_count,
+          COUNT(*)                                         AS total_count,
           COALESCE(SUM(CASE WHEN kind = 'deposit'    AND status = 'paid'     THEN COALESCE(amount, 0) END), 0) AS total_deposited,
           COALESCE(SUM(CASE WHEN kind = 'withdrawal' AND status = 'approved' THEN COALESCE(amount, 0) END), 0) AS total_withdrawn
-        FROM (
-          SELECT 'deposit' AS kind, amount, status FROM manual_payment_movements WHERE chat_id = ?
-          UNION ALL
-          SELECT 'deposit', amount, status FROM hgcash_movements WHERE chat_id = ?
-          UNION ALL
-          SELECT 'deposit', amount, status FROM mercadopago_movements WHERE chat_id = ?
-          UNION ALL
-          SELECT 'withdrawal', NULL AS amount, status FROM withdrawal_requests WHERE chat_id = ?
-        ) AS s
-      `, [chatId, chatId, chatId, chatId]),
+        FROM (${statsInnerSql}${statsWhereSQL}) AS agg
+      `, [...statsArgs, ...statsFilterArgs]),
     ])
 
     if (countResult.error) throw countResult.error
-    if (dataResult.error) throw dataResult.error
+    if (dataResult.error)  throw dataResult.error
     if (statsResult.error) throw statsResult.error
 
     const total      = Number(countResult.rows?.[0]?.total || 0)
@@ -1744,12 +1800,17 @@ export async function getChatTransactions(req, res, next) {
     const transactions = (dataResult.rows || []).map(r => {
       let amount = r.amount !== null && r.amount !== undefined ? Number(r.amount) : null
       if (r.kind === 'withdrawal' && amount === null && r.form_data) {
-        for (const line of String(r.form_data).split('\n')) {
-          if (/monto|importe|amount/i.test(line)) {
-            const idx = line.indexOf(':')
-            if (idx >= 0) {
-              const n = parseFloat(line.slice(idx + 1).replace(/[^0-9.]/g, ''))
-              if (!isNaN(n)) { amount = n; break }
+        try {
+          const fd = JSON.parse(r.form_data)
+          amount = Number(fd.monto ?? fd.amount ?? 0) || null
+        } catch {
+          for (const line of String(r.form_data).split('\n')) {
+            if (/monto|importe|amount/i.test(line)) {
+              const idx = line.indexOf(':')
+              if (idx >= 0) {
+                const n = parseFloat(line.slice(idx + 1).replace(/[^0-9.]/g, ''))
+                if (!isNaN(n)) { amount = n; break }
+              }
             }
           }
         }
@@ -1768,13 +1829,7 @@ export async function getChatTransactions(req, res, next) {
     const s = statsResult.rows?.[0] || {}
     res.json({
       transactions,
-      pagination: {
-        page,
-        limit,
-        total,
-        totalPages,
-        hasMore: page < totalPages,
-      },
+      pagination: { page, limit, total, totalPages, hasMore: page < totalPages },
       stats: {
         totalCount:      Number(s.total_count      || 0),
         depositCount:    Number(s.deposit_count    || 0),
