@@ -342,6 +342,7 @@ const ClientPage = () => {
   const [authOverlayOut,  setAuthOverlayOut]  = useState(false)
   const authDismissRef  = useRef(null)
   const prevLoginDataRef = useRef(null)
+  const iframeLoadedAtRef = useRef(0)
 
   const markReady = useCallback(() => {
     if (readyCalledRef.current) return
@@ -401,6 +402,7 @@ const ClientPage = () => {
   }, [configLoading, iframeUrl, markReady])
 
   const handleIframeLoad = useCallback(() => {
+    iframeLoadedAtRef.current = Date.now()
     if (!configLoading) markReady()
     dismissAuthOverlay()
   }, [configLoading, markReady, dismissAuthOverlay])
@@ -487,7 +489,11 @@ const ClientPage = () => {
         await doAutoLogin(username)
         return
       }
-      if (data?.tipo === 'logout') await handleLogout()
+      if (data?.tipo === 'logout') {
+        const justLoaded = Date.now() - iframeLoadedAtRef.current < 5000
+        if (justLoaded) return
+        await handleLogout()
+      }
     } catch (error) {
       console.error('[CLIENT] Error procesando mensaje del host:', error)
     }
@@ -498,7 +504,22 @@ const ClientPage = () => {
       try {
         const session = await api.get('/api/client/auth/me')
         applySession(session)
+        setIsOpen(true)
+        return
       } catch {
+        const fallbackUsername = String(iframeLoginData?.username || localStorage.getItem('clientUsername') || '').trim()
+
+        if (fallbackUsername) {
+          try {
+            const session = await api.post('/api/client/auth/auto-login', { username: fallbackUsername })
+            applySession(session)
+            setIsOpen(true)
+            return
+          } catch (fallbackError) {
+            console.warn('[CLIENT] No se pudo rehidratar la sesion de cliente:', fallbackError)
+          }
+        }
+
         localStorage.removeItem('clientUsername')
         localStorage.removeItem('clientId')
         localStorage.removeItem('chatId')
@@ -506,7 +527,7 @@ const ClientPage = () => {
       }
     }
     restoreSession()
-  }, [applySession, setClientSession])
+  }, [applySession, iframeLoginData?.username, setClientSession, setIsOpen])
 
   useEffect(() => {
     window.addEventListener('message', handleHostMessage)

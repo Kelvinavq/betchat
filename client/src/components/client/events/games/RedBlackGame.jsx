@@ -176,7 +176,6 @@ export default function RedBlackGame({ event, clientId, onResult, onClose }) {
     }
   }
 
-  const outcome = apiResult?.data?.outcome
   const won = apiResult?.won === true
 
   const getCardResultState = (option) => {
@@ -231,11 +230,6 @@ export default function RedBlackGame({ event, clientId, onResult, onClose }) {
 
       {phase === 'result' && apiResult && (
         <OutcomeBox won={won ? 1 : 0}>
-          {outcome?.label && (
-            <div style={{ marginBottom: 6, fontSize: 14, color: T.t2 }}>
-              El resultado fue: <strong style={{ color: T.t1 }}>{outcome.icon || ''} {outcome.label}</strong>
-            </div>
-          )}
           {won
             ? `🎉 ¡Ganaste! ${event?.prize_amount} ${prizeLabel(event?.prize_type)}`
             : '😔 No fue esta vez. ¡Suerte la próxima!'}

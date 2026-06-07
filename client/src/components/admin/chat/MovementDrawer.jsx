@@ -14,7 +14,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined'
 import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined'
+import EmojiEventsOutlinedIcon from '@mui/icons-material/EmojiEventsOutlined'
 import { api } from '../../../utils/api'
+import { getSocket } from '../../../utils/socket'
 import { useToast } from '../../../context/ToastContext'
 import ReceiptLogModal from './ReceiptLogModal'
 
@@ -39,6 +41,16 @@ const STATUS_LABELS = {
   paid: 'Pagado',
   rejected: 'Rechazado',
   error: 'Error',
+}
+
+const EVENT_RECEIPT_STATUS_LABELS = {
+  paid: 'Acreditado',
+  pending: 'Pendiente',
+  duplicate: 'Duplicado',
+  invalid: 'No válido',
+  error: 'Error',
+  amount_low: 'Monto bajo',
+  insufficient_info: 'Info incompleta',
 }
 
 const SYNC_LABELS = {
@@ -112,14 +124,23 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
   const [customMsg, setCustomMsg] = useState('')
   const [loadingMsgs, setLoadingMsgs] = useState(false)
   const [showReceiptLog, setShowReceiptLog] = useState(false)
+  const [rewardPayingId, setRewardPayingId] = useState(null)
+  const [showRewardDetail, setShowRewardDetail] = useState(false)
   const ai = movement.aiExtractedText || {}
   const receiptSrc = resolveUrl(movement.receiptUrl)
+  const eventReceipt = movement.eventReceipt || null
+  const reward = eventReceipt?.reward || null
 
   // Apply initialAction whenever the opened movement changes
   useEffect(() => {
     setPendingAction(initialAction || null)
     setEditAmount(initialAction === 'paid' ? String(movement.amount || '') : '')
   }, [movement.id, initialAction])
+
+  useEffect(() => {
+    setRewardPayingId(null)
+    setShowRewardDetail(false)
+  }, [movement.id])
 
   // Load rejection messages whenever the rejected form is opened
   useEffect(() => {
@@ -181,6 +202,31 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
     }
   }
 
+  const payEventReward = async () => {
+    if (!reward?.id || rewardPayingId) return
+    setRewardPayingId(reward.id)
+    try {
+      await api.post(`/api/events/rewards/${reward.id}/pay`)
+      const nextMovement = {
+        ...movement,
+        eventReceipt: {
+          ...eventReceipt,
+          reward: {
+            ...reward,
+            status: 'paid',
+            paidAt: new Date().toISOString(),
+          },
+        },
+      }
+      onStatusChange(nextMovement)
+      setShowRewardDetail(true)
+    } catch (err) {
+      toast.error(err.message || 'No se pudo pagar el premio del evento.')
+    } finally {
+      setRewardPayingId(null)
+    }
+  }
+
   return (
     <DetailSheet>
       <DetailHead>
@@ -237,6 +283,79 @@ const MovementDetail = ({ movement, chatId, onBack, onStatusChange, initialActio
                 <OpenInNewIcon />
               </ReceiptOpenBtn>
             </ReceiptBox>
+          </DetailSection>
+        )}
+
+        {/* ── Evento ────────────────────────────────────── */}
+        {eventReceipt && (
+          <DetailSection>
+            <SectionTitle>
+              Evento
+              {eventReceipt.receiptStatus && (
+                <AiStatusChip $ok={String(eventReceipt.receiptStatus).toLowerCase() === 'paid'}>
+                  {String(eventReceipt.receiptStatus).toLowerCase() === 'paid' ? 'Acreditado' : (String(eventReceipt.receiptStatus).toLowerCase() || 'Pendiente')}
+                </AiStatusChip>
+              )}
+            </SectionTitle>
+
+            <DuplicateAlert style={{ marginBottom: 12, background: 'rgba(59,130,246,0.08)', borderColor: 'rgba(59,130,246,0.20)' }}>
+              <ReceiptLongIcon />
+              <div>
+                <strong>{eventReceipt.eventTitle || 'Evento sin título'}</strong>
+                <p>
+                  {eventReceipt.receiptStatus === 'paid'
+                    ? 'El comprobante quedó acreditado y el premio puede procesarse.'
+                    : eventReceipt.receiptRetryable
+                      ? 'El comprobante requiere reenvío o revisión.'
+                      : 'Este movimiento está asociado a un evento.'
+                  }
+                </p>
+              </div>
+            </DuplicateAlert>
+
+            <DetailActions>
+              {eventReceipt.receiptUrl && (
+                <DetailActionBtn
+                  type="button"
+                  $tone="wait"
+                  onClick={() => window.open(resolveUrl(eventReceipt.receiptUrl), '_blank', 'noopener,noreferrer')}
+                >
+                  <OpenInNewIcon />
+                  Ver comprobante
+                </DetailActionBtn>
+              )}
+              <DetailActionBtn
+                type="button"
+                $tone="good"
+                onClick={() => setShowRewardDetail(v => !v)}
+                disabled={!reward}
+              >
+                <ReceiptLongIcon />
+                Ver premio
+              </DetailActionBtn>
+              {reward?.id && reward.status !== 'paid' && (
+                <DetailActionBtn
+                  type="button"
+                  $tone="good"
+                  disabled={!!rewardPayingId}
+                  onClick={payEventReward}
+                >
+                  <CheckCircleIcon />
+                  {rewardPayingId === reward.id ? 'Pagando...' : 'Pagar fichas'}
+                </DetailActionBtn>
+              )}
+            </DetailActions>
+
+            {showRewardDetail && reward && (
+              <InfoGrid style={{ marginTop: 12 }}>
+                <DetailInfoRow label="ID premio" value={reward.id} mono />
+                <DetailInfoRow label="Estado premio" value={reward.status || 'pendiente'} />
+                <DetailInfoRow label="Monto" value={reward.amount != null ? money(reward.amount) : null} />
+                <DetailInfoRow label="Descripción" value={reward.description || eventReceipt.receiptReason || 'Premio del evento'} />
+                <DetailInfoRow label="Fecha pago" value={reward.paidAt ? dateTime(reward.paidAt, timezone) : null} />
+                <DetailInfoRow label="Motivo" value={reward.discardReason || eventReceipt.receiptReason || null} />
+              </InfoGrid>
+            )}
           </DetailSection>
         )}
 
@@ -405,6 +524,7 @@ const MovementDrawer = ({ chat, onClose }) => {
   const [refreshTick, setRefreshTick] = useState(0)
   const [selectedMovement, setSelectedMovement] = useState(null)
   const [initialAction, setInitialAction] = useState(null)
+  const [rewardPayingId, setRewardPayingId] = useState(null)
 
   useEffect(() => {
     setProvider('all')
@@ -414,6 +534,19 @@ const MovementDrawer = ({ chat, onClose }) => {
     setDefaultApplied(false)
     setSelectedMovement(null)
     setInitialAction(null)
+  }, [chat?.id])
+
+  useEffect(() => {
+    if (!chat?.id) return undefined
+    const socket = getSocket('admin')
+    const onReceiptResult = (payload = {}) => {
+      if (Number(payload.chatId) !== Number(chat.id)) return
+      setRefreshTick(t => t + 1)
+    }
+    socket.on('receipt:result', onReceiptResult)
+    return () => {
+      socket.off('receipt:result', onReceiptResult)
+    }
   }, [chat?.id])
 
   useEffect(() => {
@@ -460,6 +593,31 @@ const MovementDrawer = ({ chat, onClose }) => {
   const changeProvider = (next) => { setProvider(next); setAccountId('all'); setPage(1) }
   const changeSearch = (e) => { setSearch(e.target.value); setPage(1) }
   const handleRefresh = useCallback(() => { setRefreshTick(t => t + 1) }, [])
+
+  const payEventRewardFromList = async (movement, rewardId) => {
+    if (!rewardId || rewardPayingId) return
+    setRewardPayingId(rewardId)
+    try {
+      await api.post(`/api/events/rewards/${rewardId}/pay`)
+      setData(prev => ({
+        ...prev,
+        movements: prev.movements.map(item => {
+          if (item.id !== movement.id || item.provider !== movement.provider) return item
+          return {
+            ...item,
+            eventReceipt: {
+              ...item.eventReceipt,
+              reward: { ...item.eventReceipt?.reward, status: 'paid', paidAt: new Date().toISOString() },
+            },
+          }
+        }),
+      }))
+    } catch (err) {
+      toast.error(err.message || 'No se pudo pagar el premio del evento.')
+    } finally {
+      setRewardPayingId(null)
+    }
+  }
 
   const updateManualStatus = async (movement, status) => {
     if (!chat?.id || movement.provider !== 'manual') return
@@ -573,80 +731,140 @@ const MovementDrawer = ({ chat, onClose }) => {
           ) : loading ? (
             <Empty>Cargando movimientos...</Empty>
           ) : data.movements?.length ? (
-            <MovementList>
-              {data.movements.map(movement => (
-                <MovementRow
-                  key={`${movement.provider}-${movement.id}`}
-                  onClick={() => setSelectedMovement(movement)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={e => e.key === 'Enter' && setSelectedMovement(movement)}
-                >
-                  <MainCell>
-                    <ProviderPill>{PROVIDER_LABELS[movement.provider] || movement.provider}</ProviderPill>
-                    <Amount>{money(movement.amount)}</Amount>
-                    <SubLine>{movement.accountLabel || 'Sin cuenta'} · {dateTime(movement.createdAt, timezone)}</SubLine>
-                  </MainCell>
+            <TimelineWrap>
+              {data.movements.map(movement => {
+                const eventReceipt = movement.eventReceipt || null
+                const reward = eventReceipt?.reward || null
+                return (
+                  <TimelineItem key={`${movement.provider}-${movement.id}`} $tone={statusTone(movement.status)}>
+                    <TimelineDot $tone={statusTone(movement.status)} />
+                    <MovementRow
+                      onClick={() => setSelectedMovement(movement)}
+                      role="button"
+                      tabIndex={0}
+                      onKeyDown={e => e.key === 'Enter' && setSelectedMovement(movement)}
+                    >
+                      <MainCell>
+                        <ProviderPill>{PROVIDER_LABELS[movement.provider] || movement.provider}</ProviderPill>
+                        <Amount>{money(movement.amount)}</Amount>
+                        <SubLine>{movement.accountLabel || 'Sin cuenta'} · {dateTime(movement.createdAt, timezone)}</SubLine>
+                      </MainCell>
 
-                  <DetailGrid>
-                    <Detail>
-                      <span>Coelsa / ID</span>
-                      <strong>{short(movement.coelsaId || movement.transactionId || movement.mercadopagoId)}</strong>
-                    </Detail>
-                    <Detail>
-                      <span>IA</span>
-                      <strong style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <span>{movement.aiStatus === 'ok' ? '✓ OK' : movement.aiStatus === 'error' ? '✗ Error' : '-'}</span>
-                        {movement.aiStatus === 'ok' && movement.aiModel && (
-                          <small style={{ color: 'rgba(255,255,255,0.42)', fontSize: 10.5, fontWeight: 600 }}>
-                            {AI_MODEL_LABELS[movement.aiModel] || short(movement.aiModel)}
-                          </small>
+                      <DetailGrid>
+                        <Detail>
+                          <span>Coelsa / ID</span>
+                          <strong>{short(movement.coelsaId || movement.transactionId || movement.mercadopagoId)}</strong>
+                        </Detail>
+                        <Detail>
+                          <span>IA</span>
+                          <strong style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+                            <span>{movement.aiStatus === 'ok' ? '✓ OK' : movement.aiStatus === 'error' ? '✗ Error' : '-'}</span>
+                            {movement.aiStatus === 'ok' && movement.aiModel && (
+                              <small style={{ color: 'rgba(255,255,255,0.42)', fontSize: 10.5, fontWeight: 600 }}>
+                                {AI_MODEL_LABELS[movement.aiModel] || short(movement.aiModel)}
+                              </small>
+                            )}
+                          </strong>
+                        </Detail>
+                      </DetailGrid>
+
+                      <StatusCell>
+                        <StatusBadge $tone={statusTone(movement.status)}>
+                          {STATUS_LABELS[movement.status] || movement.status}
+                        </StatusBadge>
+                        {eventReceipt && (
+                          <EventBadge title={eventReceipt.eventTitle || 'Evento'}>
+                            <EmojiEventsOutlinedIcon />Evento
+                          </EventBadge>
                         )}
-                      </strong>
-                    </Detail>
-                  </DetailGrid>
+                        {movement.syncStatus && (
+                          <SyncBadge $tone={statusTone(movement.syncStatus)}>
+                            <SyncIcon />{SYNC_LABELS[movement.syncStatus] || movement.syncStatus}
+                          </SyncBadge>
+                        )}
+                        {movement.isDuplicate && (
+                          <Duplicate title={movement.duplicateSummary}>
+                            <WarningAmberIcon />Duplicado
+                          </Duplicate>
+                        )}
+                      </StatusCell>
 
-                  <StatusCell>
-                    <StatusBadge $tone={statusTone(movement.status)}>
-                      {STATUS_LABELS[movement.status] || movement.status}
-                    </StatusBadge>
-                    {movement.syncStatus && (
-                      <SyncBadge $tone={statusTone(movement.syncStatus)}>
-                        <SyncIcon />{SYNC_LABELS[movement.syncStatus] || movement.syncStatus}
-                      </SyncBadge>
-                    )}
-                    {movement.isDuplicate && (
-                      <Duplicate title={movement.duplicateSummary}>
-                        <WarningAmberIcon />Duplicado
-                      </Duplicate>
-                    )}
-                  </StatusCell>
+                      {movement.provider === 'manual' && (
+                        <Actions onClick={e => e.stopPropagation()}>
+                          <ActionBtn type="button" $tone="wait"
+                            disabled={updatingId === movement.id}
+                            onClick={() => updateManualStatus(movement, 'pending')}
+                            title="Marcar pendiente">
+                            <HourglassEmptyIcon />
+                          </ActionBtn>
+                          <ActionBtn type="button" $tone="good"
+                            disabled={updatingId === movement.id}
+                            onClick={() => { setSelectedMovement(movement); setInitialAction('paid') }}
+                            title="Marcar pagado">
+                            <CheckCircleIcon />
+                          </ActionBtn>
+                          <ActionBtn type="button" $tone="bad"
+                            disabled={updatingId === movement.id}
+                            onClick={() => { setSelectedMovement(movement); setInitialAction('rejected') }}
+                            title="Rechazar">
+                            <CancelIcon />
+                          </ActionBtn>
+                        </Actions>
+                      )}
 
-                  {movement.provider === 'manual' && (
-                    <Actions onClick={e => e.stopPropagation()}>
-                      <ActionBtn type="button" $tone="wait"
-                        disabled={updatingId === movement.id}
-                        onClick={() => updateManualStatus(movement, 'pending')}
-                        title="Marcar pendiente">
-                        <HourglassEmptyIcon />
-                      </ActionBtn>
-                      <ActionBtn type="button" $tone="good"
-                        disabled={updatingId === movement.id}
-                        onClick={() => { setSelectedMovement(movement); setInitialAction('paid') }}
-                        title="Marcar pagado">
-                        <CheckCircleIcon />
-                      </ActionBtn>
-                      <ActionBtn type="button" $tone="bad"
-                        disabled={updatingId === movement.id}
-                        onClick={() => { setSelectedMovement(movement); setInitialAction('rejected') }}
-                        title="Rechazar">
-                        <CancelIcon />
-                      </ActionBtn>
-                    </Actions>
-                  )}
-                </MovementRow>
-              ))}
-            </MovementList>
+                      {eventReceipt && (
+                        <EventBlock onClick={e => e.stopPropagation()}>
+                          <EventBlockLeft>
+                            <EmojiEventsOutlinedIcon />
+                            <EventBlockTitle>
+                              <strong>{eventReceipt.eventTitle || 'Evento sin título'}</strong>
+                              <span>{eventReceipt.eventType || 'evento'}</span>
+                            </EventBlockTitle>
+                            <EventStatusChip $status={eventReceipt.receiptStatus}>
+                              {EVENT_RECEIPT_STATUS_LABELS[eventReceipt.receiptStatus] || eventReceipt.receiptStatus || 'Pendiente'}
+                            </EventStatusChip>
+                          </EventBlockLeft>
+                          <EventBlockActions>
+                            {eventReceipt.receiptUrl && (
+                              <EventQuickBtn
+                                type="button"
+                                $tone="wait"
+                                onClick={() => window.open(resolveUrl(eventReceipt.receiptUrl), '_blank', 'noopener,noreferrer')}
+                                title="Ver comprobante"
+                              >
+                                <OpenInNewIcon />Ver comprobante
+                              </EventQuickBtn>
+                            )}
+                            {reward?.id && (
+                              <EventQuickBtn
+                                type="button"
+                                $tone="wait"
+                                onClick={() => setSelectedMovement(movement)}
+                                title="Ver detalles del premio"
+                              >
+                                <ReceiptLongIcon />Ver premio
+                              </EventQuickBtn>
+                            )}
+                            {reward?.id && reward.status !== 'paid' && (
+                              <EventQuickBtn
+                                type="button"
+                                $tone="good"
+                                disabled={rewardPayingId === reward.id}
+                                onClick={() => payEventRewardFromList(movement, reward.id)}
+                                title="Pagar fichas al cliente"
+                              >
+                                <CheckCircleIcon />
+                                {rewardPayingId === reward.id ? 'Pagando...' : 'Pagar fichas'}
+                              </EventQuickBtn>
+                            )}
+                          </EventBlockActions>
+                        </EventBlock>
+                      )}
+                    </MovementRow>
+                  </TimelineItem>
+                )
+              })}
+            </TimelineWrap>
           ) : (
             <Empty>Sin movimientos para este filtro.</Empty>
           )}
@@ -791,6 +1009,11 @@ const SyncBadge = styled(StatusBadge)`gap:4px;svg{font-size:13px;}`
 const Duplicate = styled.span`
   min-height:22px;display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;
   background:rgba(245,158,11,.10);color:#fcd34d;border:1px solid rgba(245,158,11,.22);
+  font-size:10.5px;font-weight:900;svg{font-size:13px;}
+`
+const EventBadge = styled.span`
+  min-height:22px;display:inline-flex;align-items:center;gap:4px;padding:3px 7px;border-radius:999px;
+  background:rgba(99,102,241,.14);color:#a5b4fc;border:1px solid rgba(99,102,241,.28);
   font-size:10.5px;font-weight:900;svg{font-size:13px;}
 `
 const Actions = styled.div`display:flex;align-items:center;gap:5px;`
@@ -997,6 +1220,63 @@ const CustomTextarea = styled.textarea`
   color:#fff;font:inherit;font-size:13px;resize:vertical;outline:0;min-height:72px;
   &::placeholder{color:rgba(255,255,255,.3);}
   &:focus{border-color:rgba(96,165,250,.5);}
+`
+
+/* ─── Timeline ──────────────────────────────────────────────────────── */
+const toneColor = ($tone) => $tone === 'good' ? '#22c55e' : $tone === 'bad' ? '#ef4444' : '#f59e0b'
+
+const TimelineWrap = styled.div`
+  display:flex;flex-direction:column;
+`
+const TimelineItem = styled.div`
+  position:relative;padding-left:30px;margin-bottom:8px;
+  &::before{
+    content:'';position:absolute;left:8px;top:26px;bottom:-8px;width:2px;
+    background:linear-gradient(180deg, ${({$tone}) => toneColor($tone)}38 0%, rgba(255,255,255,.04) 100%);
+  }
+  &:last-child::before{display:none;}
+`
+const TimelineDot = styled.div`
+  position:absolute;left:0;top:12px;width:16px;height:16px;border-radius:50%;z-index:1;
+  border:2px solid ${({$tone}) => toneColor($tone)};
+  background:${({$tone}) => toneColor($tone)}20;
+  box-shadow:0 0 0 3px ${({$tone}) => toneColor($tone)}14;
+`
+
+/* ─── Event Block ───────────────────────────────────────────────────── */
+const EventBlock = styled.div`
+  grid-column:1 / -1;
+  display:flex;align-items:center;flex-wrap:wrap;gap:8px;
+  margin-top:4px;padding:9px 12px;border-radius:9px;
+  border:1px solid rgba(99,102,241,.22);background:rgba(99,102,241,.07);
+`
+const EventBlockLeft = styled.div`
+  flex:1;min-width:0;display:flex;align-items:center;gap:8px;
+  svg{font-size:16px;color:#818cf8;flex-shrink:0;}
+`
+const EventBlockTitle = styled.div`
+  min-width:0;
+  strong{display:block;font-size:11.5px;font-weight:800;color:#c7d2fe;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  span{display:block;font-size:10px;color:rgba(255,255,255,.42);margin-top:1px;}
+`
+const EventBlockActions = styled.div`
+  display:flex;align-items:center;gap:5px;flex-wrap:wrap;
+`
+const EventQuickBtn = styled.button`
+  display:inline-flex;align-items:center;gap:5px;padding:5px 10px;border-radius:8px;
+  font-size:11px;font-weight:700;cursor:pointer;transition:background .15s,border-color .15s;
+  border:1px solid ${({$tone}) => `${actionColors[$tone] || '#818cf8'}44`};
+  background:${({$tone}) => `${actionColors[$tone] || '#818cf8'}14`};
+  color:${({$tone}) => actionColors[$tone] || '#a5b4fc'};
+  svg{font-size:14px;}
+  &:disabled{opacity:.45;cursor:default;}
+  &:hover:not(:disabled){background:${({$tone}) => `${actionColors[$tone] || '#818cf8'}24`};}
+`
+const EventStatusChip = styled.span`
+  flex-shrink:0;padding:3px 8px;border-radius:999px;font-size:10px;font-weight:900;
+  background:${({$status}) => $status === 'paid' ? 'rgba(34,197,94,.14)' : ['duplicate','invalid','error','amount_low'].includes($status) ? 'rgba(245,158,11,.12)' : 'rgba(148,163,184,.10)'};
+  color:${({$status}) => $status === 'paid' ? '#86efac' : ['duplicate','invalid','error','amount_low'].includes($status) ? '#fbbf24' : '#cbd5e1'};
+  border:1px solid ${({$status}) => $status === 'paid' ? 'rgba(34,197,94,.25)' : ['duplicate','invalid','error','amount_low'].includes($status) ? 'rgba(245,158,11,.28)' : 'rgba(148,163,184,.22)'};
 `
 
 export default MovementDrawer

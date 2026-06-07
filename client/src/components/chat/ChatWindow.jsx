@@ -782,7 +782,7 @@ const mapDbMessage = (msg) => ({
   duration: msg.messageType === 'audio' ? Number(msg.content) || 0 : undefined,
   fileName: msg.fileName,
   received: msg.senderType !== 'client',
-  isDepositSuccess: ['deposit_completed', 'deposit_completed_report'].includes(msg.depositEvent),
+  isDepositSuccess: ['deposit_completed', 'deposit_completed_report', 'fichas_credited'].includes(msg.depositEvent),
   depositEvent:    msg.depositEvent || null,
   referralEvent:   msg.referralEvent || null,
   referralFichas:  msg.referralFichas || null,
@@ -3018,11 +3018,14 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
                 ) : (
                   (() => {
                     if (msg.isDepositSuccess) {
+                      const depositTitle = msg.depositEvent === 'fichas_credited'
+                        ? 'Fichas acreditadas'
+                        : 'Depósito acreditado'
                       return (
                         <DepositSuccessBubble>
                           <DepositSuccessIcon><CheckIcon /></DepositSuccessIcon>
                           <DepositSuccessBody>
-                            <DepositSuccessTitle>Depósito acreditado</DepositSuccessTitle>
+                            <DepositSuccessTitle>{depositTitle}</DepositSuccessTitle>
                             <DepositSuccessText>{msg.text}</DepositSuccessText>
                           </DepositSuccessBody>
                         </DepositSuccessBubble>

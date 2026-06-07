@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { api } from '../../../../utils/api.js'
+import ReceiptUpload from '../ReceiptUpload.jsx'
 
 /* ── Animations ── */
 const fadeIn = keyframes`from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}`
@@ -121,16 +122,31 @@ export default function BriefcaseGame({ event, clientId, onResult, onClose }) {
   const cfg = event?.config_json || {}
   const numbersCount = cfg.numbers_count || 5
   const requiresDeposit = Number(event?.min_deposit_amount) > 0
+  const initialReceiptStatus = String(event?.receipt_status || '').toLowerCase()
 
-  const [phase, setPhase] = useState('choosing') // 'choosing' | 'voted'
+  const [phase, setPhase] = useState(requiresDeposit && initialReceiptStatus !== 'paid' ? 'awaiting_receipt' : 'choosing') // 'awaiting_receipt' | 'choosing' | 'voted'
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [receiptStatus, setReceiptStatus] = useState(initialReceiptStatus)
 
   const numbers = Array.from({ length: numbersCount }, (_, i) => i + 1)
 
+  useEffect(() => {
+    const nextReceiptStatus = String(event?.receipt_status || '').toLowerCase()
+    setReceiptStatus(nextReceiptStatus)
+    setPhase(requiresDeposit && nextReceiptStatus !== 'paid' ? 'awaiting_receipt' : 'choosing')
+    setSelected(null)
+    setError('')
+  }, [event?.id, event?.receipt_status, requiresDeposit])
+
   const handleConfirm = async () => {
     if (!selected || loading) return
+    if (requiresDeposit && receiptStatus !== 'paid') {
+      setError('Primero tenés que acreditar tu depósito para poder votar.')
+      setPhase('awaiting_receipt')
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -151,6 +167,35 @@ export default function BriefcaseGame({ event, clientId, onResult, onClose }) {
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleReceiptUploaded = (res) => {
+    const status = String(res?.receipt_status || res?.data?.receipt_status || 'pending').toLowerCase()
+    setReceiptStatus(status)
+    if (status === 'paid') {
+      setPhase('choosing')
+    }
+  }
+
+  if (requiresDeposit && receiptStatus !== 'paid') {
+    return (
+      <Wrap>
+        <div style={{ textAlign: 'center', fontSize: 26, marginBottom: -4 }}>💼</div>
+
+        <RuleBox>
+          Primero subí tu comprobante de depósito.
+          <br />
+          Cuando quede acreditado, vas a poder votar un número.
+        </RuleBox>
+
+        <ReceiptUpload
+          eventId={event.id}
+          clientId={clientId}
+          onUploaded={handleReceiptUploaded}
+          initialStatus={receiptStatus}
+        />
+      </Wrap>
+    )
   }
 
   if (phase === 'voted') {
@@ -176,12 +221,10 @@ export default function BriefcaseGame({ event, clientId, onResult, onClose }) {
         <br />¡Elegí sabiamente!
       </RuleBox>
 
-      {requiresDeposit && (
-        <DepositInfo>
-          <span>💰</span>
-          <span>Depósito mínimo requerido: <strong style={{ color: T.t1 }}>${event.min_deposit_amount}</strong></span>
-        </DepositInfo>
-      )}
+      <DepositInfo>
+        <span>💰</span>
+        <span>Depósito mínimo requerido: <strong style={{ color: T.t1 }}>${event.min_deposit_amount}</strong></span>
+      </DepositInfo>
 
       <div style={{ fontSize: 13, color: T.t2, textAlign: 'center' }}>
         Elegí un número del 1 al {numbersCount}:

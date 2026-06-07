@@ -19,8 +19,6 @@ import {
 
 const PRIZE_TYPE_OPTIONS = [
   { value: 'fichas', label: 'Fichas' },
-  { value: 'bono_200', label: 'Bono 200%' },
-  { value: 'otro', label: 'Otro' },
   { value: 'none', label: 'Sin premio' },
 ];
 
@@ -28,8 +26,8 @@ const DEFAULT_SEGMENTS = [
   { color: '#ef4444', label: 'Premio Mayor', icon: '🏆', prize_type: 'fichas', amount: 500, probability: 20 },
   { color: '#f59e0b', label: 'Premio Medio', icon: '🥈', prize_type: 'fichas', amount: 200, probability: 20 },
   { color: '#10b981', label: 'Premio Menor', icon: '🥉', prize_type: 'fichas', amount: 50, probability: 20 },
-  { color: '#2563eb', label: 'Bonus 200%', icon: '🎁', prize_type: 'bono_200', amount: 0, probability: 20 },
-  { color: '#7c3aed', label: 'Sin premio', icon: '⚪', prize_type: 'none', amount: 0, probability: 20 },
+  { color: '#2563eb', label: 'Premio',       icon: '🎁', prize_type: 'fichas', amount: 0,  probability: 20 },
+  { color: '#7c3aed', label: 'Sin premio',   icon: '⚪', prize_type: 'none',   amount: 0,  probability: 20 },
 ];
 
 // color | label | icon | prize_type | amount | prob% | delete

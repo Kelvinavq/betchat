@@ -174,6 +174,20 @@ const SuccessBox = styled.div`
   animation: ${popIn} 0.4s ease both;
 `
 
+const InfoBox = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 14px 16px;
+  background: rgba(59,130,246,0.07);
+  border: 1px solid rgba(59,130,246,0.2);
+  border-radius: 10px;
+  color: ${T.t2};
+  font-size: 13px;
+  line-height: 1.5;
+  animation: ${popIn} 0.35s ease both;
+`
+
 const ErrorBox = styled.div`
   padding: 12px 16px;
   background: rgba(239,68,68,0.08);
@@ -194,12 +208,13 @@ function formatBytes(bytes) {
 const MAX_SIZE = 10 * 1024 * 1024 // 10 MB
 const ACCEPT = '.jpg,.jpeg,.png,.gif,.pdf,.webp'
 
-export default function ReceiptUpload({ eventId, clientId, onUploaded }) {
+export default function ReceiptUpload({ eventId, clientId, onUploaded, initialStatus }) {
   const [file, setFile] = useState(null)
   const [preview, setPreview] = useState(null)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState('')
-  const [done, setDone] = useState(false)
+  const [done, setDone] = useState(initialStatus === 'paid')
+  const [pending, setPending] = useState(initialStatus === 'pending')
   const [dragOver, setDragOver] = useState(false)
 
   const inputRef = useRef(null)
@@ -255,9 +270,31 @@ export default function ReceiptUpload({ eventId, clientId, onUploaded }) {
     try {
       const fd = new FormData()
       fd.append('receipt', file)
-      await api.post(`/api/client/events/${eventId}/receipt`, fd)
-      setDone(true)
-      if (onUploaded) onUploaded()
+      const res = await api.post(`/api/client/events/${eventId}/receipt`, fd)
+      const status = res?.receipt_status || res?.data?.receipt_status || 'pending'
+
+      if (status === 'paid') {
+        setDone(true)
+        if (onUploaded) onUploaded(res)
+        return
+      }
+
+      if (status === 'pending') {
+        setPending(true)
+        if (onUploaded) onUploaded(res)
+        return
+      }
+
+      const friendlyMessage =
+        status === 'duplicate'
+          ? 'El comprobante ya fue enviado o procesado. Podés subir uno distinto sin salir del evento.'
+          : status === 'error' || status === 'invalid'
+            ? 'El comprobante dio error de validación. Podés volver a subirlo desde este mismo evento.'
+            : status === 'amount_low'
+              ? 'El monto es menor al mínimo. Subí otro comprobante y probá nuevamente.'
+              : 'No se pudo procesar el comprobante. Podés volver a intentarlo.'
+
+      setError(friendlyMessage)
     } catch (err) {
       setError(err.message || 'Error al enviar el comprobante')
     } finally {
@@ -270,11 +307,32 @@ export default function ReceiptUpload({ eventId, clientId, onUploaded }) {
       <Wrap>
         <SuccessBox>
           <div style={{ fontSize: 38 }}>✓</div>
-          <div>Comprobante recibido.</div>
+          <div>Comprobante acreditado.</div>
           <div style={{ fontSize: 13, color: T.t2 }}>
-            Lo revisaremos pronto y te notificaremos el resultado.
+            Ya podés continuar con el evento.
           </div>
         </SuccessBox>
+      </Wrap>
+    )
+  }
+
+  if (pending) {
+    return (
+      <Wrap>
+        <InfoBox>
+          <span style={{ fontSize: 18, flexShrink: 0 }}>⏳</span>
+          <div>
+            <div style={{ color: T.t1, fontWeight: 700, marginBottom: 4 }}>Comprobante en revisión</div>
+            <div>Cuando lo acreditemos, podrás continuar con el evento.</div>
+            <button
+              type="button"
+              onClick={() => { setPending(false); setError(''); setFile(null); setPreview(null) }}
+              style={{ background: 'none', border: 'none', color: T.accent, fontSize: 12, cursor: 'pointer', padding: '6px 0 0', fontFamily: 'inherit', textDecoration: 'underline' }}
+            >
+              Subir otro comprobante
+            </button>
+          </div>
+        </InfoBox>
       </Wrap>
     )
   }

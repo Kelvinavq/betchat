@@ -43,4 +43,8 @@ export const eventsApi = {
   },
   payReward: (id) => api.post(`${BASE}/rewards/${id}/pay`),
   discardReward: (id, reason) => api.post(`${BASE}/rewards/${id}/discard`, { reason }),
+  eventDetail: (id) => api.get(`${BASE}/${id}/detail`),
+  resetParticipation: (eventId, participantId) => api.delete(`${BASE}/${eventId}/participants/${participantId}`),
+  payBriefcaseWinners: (eventId, voteKeys) => api.post(`${BASE}/${eventId}/pay-briefcase-winners`, { vote_keys: voteKeys }),
+  sendVoteReminder: (eventId) => api.post(`${BASE}/${eventId}/send-vote-reminder`),
 }

@@ -378,7 +378,13 @@ function renderRoulettePreview(form, cfg) {
    SLOTS PREVIEW
 ───────────────────────────────────────────── */
 function renderSlotsPreview(form, cfg) {
-  const symbols = cfg.symbols || [];
+  const symbols = cfg.symbols && cfg.symbols.length > 0
+    ? cfg.symbols
+    : [
+      { icon: '7', label: 'Siete' },
+      { icon: '🍒', label: 'Cereza' },
+      { icon: '⭐', label: 'Estrella' },
+    ];
   const displaySymbols = symbols.slice(0, 3);
   while (displaySymbols.length < 3) displaySymbols.push({ icon: '?' });
 
@@ -697,6 +703,10 @@ function renderRankingPreview(form, cfg) {
             }}
           />
         </div>
+      </div>
+
+      <div style={{ fontSize: 12, color: 'rgba(255,255,255,.72)', textAlign: 'center', marginBottom: 8 }}>
+        Gana si formás 3 iguales en línea horizontal, vertical o diagonal.
       </div>
     </div>
   );

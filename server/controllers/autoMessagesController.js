@@ -13,6 +13,8 @@ const EVENTS = [
   'hgcash_payment_not_found',
   'withdrawal_approved',
   'withdrawal_rejected',
+  'event_vote_prompt',
+  'event_vote_reminder',
 ]
 
 const DEFAULTS = {
@@ -28,6 +30,8 @@ const DEFAULTS = {
   hgcash_payment_not_found:  'No encontramos ningún pago pendiente con tu CUIL. Por favor subí el comprobante para que podamos validarlo.',
   withdrawal_approved:      '¡Tu retiro fue aprobado y procesado con éxito! En breve recibirás el dinero.',
   withdrawal_rejected:      'Tu solicitud de retiro fue rechazada. Contactá a soporte para más información.',
+  event_vote_prompt:        '🗳️ ¡Tu comprobante fue acreditado! Ahora podés ingresar al evento "{{evento}}" y elegir tu número. ¡No te quedes afuera — el tiempo corre!',
+  event_vote_reminder:      '⏰ {{nombre}}, todavía no elegiste tu número en el evento "{{evento}}". ¡No te quedes afuera! Ingresá ahora y hacé tu elección antes de que termine.',
 }
 
 export async function getAutoMessages(req, res, next) {
@@ -97,6 +101,11 @@ export async function resolveMessage(template, context = {}) {
 
   const needed = new Set([...template.matchAll(PLACEHOLDER_RE)].map(m => m[1]))
   const vars   = {}
+
+  // Support arbitrary vars passed directly via context.vars
+  for (const [key, value] of Object.entries(context.vars || {})) {
+    if (needed.has(key)) vars[key] = value
+  }
 
   if (context.amount != null && needed.has('amount')) {
     vars.amount = `$${new Intl.NumberFormat('es-AR').format(Number(context.amount))}`

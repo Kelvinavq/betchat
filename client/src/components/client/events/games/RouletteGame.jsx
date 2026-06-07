@@ -176,7 +176,7 @@ function normalizeSegments(segments) {
     icon: seg.icon || fallback[index % fallback.length].icon,
     probability: Number(seg.probability) || 1,
     prize_type: seg.prize_type || 'none',
-    amount: Number(seg.amount) || 0,
+    amount: Number(seg.amount ?? seg.prize_amount ?? 0) || 0,
   }))
 }
 
@@ -209,8 +209,10 @@ export default function RouletteGame({ event, clientId, onResult }) {
 
     try {
       const res = await api.post(`/api/client/events/${event.id}/play`, {})
-      const targetIndex = Number(res.result?.data?.segmentIndex)
-      const safeIndex = Number.isInteger(targetIndex) && targetIndex >= 0 ? targetIndex : 0
+      const serverIndex = Number(res?.result?.data?.segmentIndex)
+      const safeIndex = Number.isInteger(serverIndex) && serverIndex >= 0
+        ? serverIndex
+        : Math.floor(Math.random() * Math.max(segments.length, 1))
       const nextRotation = buildWheelRotation(segments, safeIndex, 5)
 
       requestAnimationFrame(() => {
@@ -234,7 +236,6 @@ export default function RouletteGame({ event, clientId, onResult }) {
     if (apiResult) onResult(apiResult)
   }
 
-  const landedSegment = apiResult?.data?.segment
   const rOuter = 110
   const rInner = 34
   const center = 130
@@ -305,14 +306,12 @@ export default function RouletteGame({ event, clientId, onResult }) {
         <>
           <ResultOverlay>
             <div style={{ fontSize: 40, marginBottom: 8 }}>
-              {landedSegment?.icon || (apiResult.won ? '🏆' : '😔')}
+              {apiResult.won ? '🏆' : '😔'}
             </div>
             <div style={{ fontSize: 16, fontWeight: 800, color: T.t1, marginBottom: 6 }}>
-              {landedSegment?.label
-                ? `Resultado: ${landedSegment.label}`
-                : apiResult.won
-                  ? `¡Ganaste! ${event?.prize_amount} ${prizeLabel(event?.prize_type)}`
-                  : 'No fue esta vez'}
+              {apiResult.won
+                ? `¡Ganaste! ${apiResult.prize?.amount ?? event?.prize_amount ?? 0} ${prizeLabel(apiResult.prize?.prize_type || event?.prize_type)}`
+                : 'No fue esta vez'}
             </div>
             {apiResult.message && (
               <div style={{ fontSize: 13, color: T.t2 }}>{apiResult.message}</div>

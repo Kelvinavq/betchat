@@ -219,19 +219,22 @@ function normalizeMessageText(value) {
     .trim()
 }
 
+const FICHAS_CREDITED_PATTERN = /en fichas por el evento/i
+
 async function decorateDepositMessages(messages) {
   const hasSystemMessages = (messages || []).some(message => message?.senderType === 'system' && message?.messageType === 'text')
   if (!hasSystemMessages) return messages
 
   const depositText = await getAutoMessage('deposit_completed')
-  if (!depositText) return messages
-
-  const targetText = normalizeMessageText(depositText)
-  if (!targetText) return messages
+  const targetText = depositText ? normalizeMessageText(depositText) : null
 
   return (messages || []).map(message => {
-    if (message?.senderType === 'system' && message?.messageType === 'text' && normalizeMessageText(message.content) === targetText) {
+    if (message?.senderType !== 'system' || message?.messageType !== 'text') return message
+    if (targetText && normalizeMessageText(message.content) === targetText) {
       return { ...message, depositEvent: 'deposit_completed' }
+    }
+    if (FICHAS_CREDITED_PATTERN.test(message.content || '')) {
+      return { ...message, depositEvent: 'fichas_credited' }
     }
     return message
   })
@@ -323,6 +326,33 @@ function sanitizeMessage(row) {
     receiptLogResultReason: row.receipt_log_result_reason || null,
     receiptLogResultDetail: row.receipt_log_result_detail || null,
     depositEvent: row.receipt_log_result_reason === 'report_payment_paid' ? 'deposit_completed_report' : null,
+    eventReceipt: row.event_id ? {
+      participantId: row.event_participant_id ? Number(row.event_participant_id) : null,
+      eventId: Number(row.event_id),
+      eventType: row.event_type || null,
+      eventTitle: row.event_title || null,
+      eventStatus: row.event_status || null,
+      receiptStatus: row.event_receipt_status || null,
+      receiptRetryable: ['1', 'true', 'yes'].includes(String(row.event_receipt_retryable || '').toLowerCase()),
+      receiptPending: ['1', 'true', 'yes'].includes(String(row.event_receipt_pending || '').toLowerCase()),
+      receiptSource: row.event_receipt_source || 'event',
+      receiptReason: row.event_receipt_reason || null,
+      receiptChatId: row.event_receipt_chat_id ? Number(row.event_receipt_chat_id) : null,
+      receiptMessageId: row.event_receipt_message_id ? Number(row.event_receipt_message_id) : null,
+      receiptUrl: row.event_receipt_url || null,
+      uploadedAt: row.event_receipt_uploaded_at || null,
+      processedAt: row.event_receipt_processed_at || null,
+      reward: row.event_reward_id ? {
+        id: Number(row.event_reward_id),
+        status: row.event_reward_status || null,
+        type: row.event_reward_type || null,
+        amount: row.event_reward_amount != null ? Number(row.event_reward_amount) : null,
+        description: row.event_reward_description || null,
+        paidAt: row.event_reward_paid_at || null,
+        discardedAt: row.event_reward_discarded_at || null,
+        discardReason: row.event_reward_discard_reason || null,
+      } : null,
+    } : null,
     createdAt: toUtcIso(row.created_at),
     createdAtUtc: toUtcIso(row.created_at_utc || row.created_at),
     time: timeOf(row.created_at_utc || row.created_at),
@@ -339,6 +369,30 @@ function messageSelectSql(whereClause) {
                  rl.result_status AS receipt_log_result_status,
                  rl.result_reason AS receipt_log_result_reason,
                  rl.result_detail AS receipt_log_result_detail,
+                 ep.id AS event_participant_id,
+                 ep.event_id AS event_id,
+                 e.type AS event_type,
+                 e.title AS event_title,
+                 e.status AS event_status,
+                 ep.client_id AS event_client_id,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_status')) AS event_receipt_status,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_retryable')) AS event_receipt_retryable,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_pending')) AS event_receipt_pending,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_source')) AS event_receipt_source,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_processing_reason')) AS event_receipt_reason,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_chat_id')) AS event_receipt_chat_id,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_message_id')) AS event_receipt_message_id,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_url')) AS event_receipt_url,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.uploaded_at')) AS event_receipt_uploaded_at,
+                 JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_processed_at')) AS event_receipt_processed_at,
+                 er.id AS event_reward_id,
+                 er.status AS event_reward_status,
+                 er.reward_type AS event_reward_type,
+                 er.reward_amount AS event_reward_amount,
+                 er.reward_description AS event_reward_description,
+                 er.paid_at AS event_reward_paid_at,
+                 er.discarded_at AS event_reward_discarded_at,
+                 er.discard_reason AS event_reward_discard_reason,
                  r.sender_type AS reply_sender_type,
                  r.message_type AS reply_message_type,
                  r.content AS reply_content,
@@ -349,6 +403,17 @@ function messageSelectSql(whereClause) {
             SELECT id FROM receipt_logs
             WHERE message_id = m.id
             ORDER BY id DESC
+            LIMIT 1
+          )
+          LEFT JOIN event_participants ep ON ep.client_id = m.client_id AND JSON_UNQUOTE(JSON_EXTRACT(ep.payload_json, '$.receipt_message_id')) = CAST(m.id AS CHAR)
+          LEFT JOIN events e ON e.id = ep.event_id
+          LEFT JOIN event_rewards er ON er.id = (
+            SELECT id
+            FROM event_rewards
+            WHERE event_id = ep.event_id
+              AND client_id = ep.client_id
+              AND source = e.type
+            ORDER BY created_at DESC
             LIMIT 1
           )
           LEFT JOIN messages r ON r.id = m.reply_to_message_id
@@ -873,6 +938,7 @@ export async function persistMessage({
   replyToMessageId = null,
   extra = {},
 }) {
+  const normalizedContent = String(content || '').trim()
   if (messageType === 'text' && !String(content || '').trim()) {
     const error = new Error('El mensaje no puede estar vacio')
     error.status = 400
@@ -926,7 +992,7 @@ export async function persistMessage({
         senderType,
         senderUserId,
         messageType,
-        messageType === 'text' ? content : null,
+        normalizedContent || null,
         filePayload.fileUrl || null,
         filePayload.fileName || null,
         filePayload.fileSize || null,
@@ -1085,6 +1151,7 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
   }
 
   const resultStatus = isDuplicate ? 'duplicate' : aiStatus === 'error' ? 'error' : (!extracted?.amount || !extracted?.transaction_id) ? 'insufficient_info' : 'pending'
+  const resultReason = isDuplicate ? 'duplicate_transaction_id' : aiStatus === 'error' ? 'ai_extraction_failed' : (!extracted?.transaction_id ? 'missing_transaction_id' : !extracted?.amount ? 'missing_amount' : 'pending_admin_review')
   try {
     await finalizeReceiptLog(logId, {
       movementId: movementDbId,
@@ -1093,15 +1160,20 @@ async function runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankA
       aiExtractedJson: extracted ? { amount: extracted.amount, transaction_id: extracted.transaction_id, id_type: extracted.id_type } : null,
       processingSteps: logSteps,
       resultStatus,
-      resultReason: isDuplicate ? 'duplicate_transaction_id' : aiStatus === 'error' ? 'ai_extraction_failed' : (!extracted?.transaction_id ? 'missing_transaction_id' : !extracted?.amount ? 'missing_amount' : 'pending_admin_review'),
+      resultReason,
       resultDetail: { isDuplicate, duplicateOfId, aiStatus, bankAccountId },
     })
   } catch (e) {
     console.error('[Receipt][Log] Error finalizando log manual:', e.message)
   }
+  return { status: resultStatus, resultReason, receiptLogId: logId, movementId: movementDbId, extractedData: extracted }
 }
 
-export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl }) {
+export async function processManualClientReceipt({ chatId, clientId, messageId, dataUrl, bankAccountId = null, eventMinDepositAmount = null }) {
+  return runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId, eventMinDepositAmount })
+}
+
+export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl, eventMinDepositAmount = null }) {
   try {
     console.log(`[Receipt] Iniciando procesamiento — chatId=${chatId} clientId=${clientId} messageId=${messageId}`)
 
@@ -1138,6 +1210,7 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
         messageId,
         dataUrl,
         fileName: '',
+        eventMinDepositAmount,
       })
       const amount = result?.extractedData?.amount ? Number(result.extractedData.amount) : null
       if (result?.status) {
@@ -1168,6 +1241,7 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
         messageId,
         dataUrl,
         fileName: '',
+        eventMinDepositAmount,
       })
       const amount = result?.extractedData?.amount ? Number(result.extractedData.amount) : null
       if (result?.status) {

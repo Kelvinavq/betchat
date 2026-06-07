@@ -11,6 +11,7 @@ import { getAutoMessage } from './autoMessagesController.js'
 import { getIo } from '../socket/socketServer.js'
 import { insertReceiptLog, finalizeReceiptLog } from './receiptLogController.js'
 import { processReferralRewardForMovement } from './referralController.js'
+import { syncClientEventReceiptPaid } from '../utils/eventParticipantStatus.js'
 
 const SUPABASE_AUTH_URL = 'https://oafouerwrpwzlthrsaba.supabase.co/auth/v1/token?grant_type=password'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZm91ZXJ3cnB3emx0aHJzYWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MTQwNzMsImV4cCI6MjA2MjM5MDA3M30.RKET8maIzQvYm2yGDtrEIbfT8rw7EKjgzUf886LU_wE'
@@ -1013,6 +1014,7 @@ async function processHgReceiptBase(req, res, mimeType) {
   const chatId = Number(req.body?.chatId)
   const clientId = Number(req.body?.clientId)
   const messageId = Number(req.body?.messageId) || null
+  const eventMinDepositAmount = Number(req.body?.eventMinDepositAmount || 0) || null
 
   let logId = null
   const logSteps = []
@@ -1063,6 +1065,7 @@ async function processHgReceiptBase(req, res, mimeType) {
     const { currency: activeCurrency, minAmount } = await getActiveAmountConfig('deposit')
     const amount = extractedData.amount ? Number(extractedData.amount) : null
     const amountTooLow = Number.isFinite(amount) && amount > 0 && amount < minAmount
+    const amountBelowEventMin = eventMinDepositAmount > 0 && Number.isFinite(amount) && amount > 0 && amount < eventMinDepositAmount
     const activeAccount = await getActiveHgBankAccount()
 
     let outcome = 'invalid'
@@ -1079,6 +1082,10 @@ async function processHgReceiptBase(req, res, mimeType) {
       outcome = 'amount_low'
       resultReason = `amount_below_minimum_${minAmount}_${activeCurrency}`
       logSteps.push({ step: 'amount_too_low', ts: ts(), detail: { amount, minAmount, currency: activeCurrency } })
+    } else if (amountBelowEventMin) {
+      outcome = 'amount_low'
+      resultReason = `amount_below_event_min_${eventMinDepositAmount}`
+      logSteps.push({ step: 'amount_below_event_min', ts: ts(), detail: { amount, eventMinDepositAmount } })
     } else if (!activeAccount) {
       outcome = 'invalid'
       resultReason = 'active_hgcash_account_not_found'
@@ -1194,6 +1201,31 @@ async function processHgReceiptBase(req, res, mimeType) {
       source: activeAccount ? (isWebhookHgAccount(activeAccount) ? 'local' : 'bank') : 'none',
     })
 
+    if (outcome === 'paid') {
+      const syncResult = await syncClientEventReceiptPaid({
+        clientId,
+        messageId,
+        movementId: matchedMovement?.id || null,
+        receiptLogId: logId || null,
+        chatId,
+        creditPanelBalance,
+        paymentAmount: amount,
+      }).catch((syncErr) => {
+        console.error('[HGCash] Error sincronizando evento pagado:', syncErr?.message || syncErr)
+        return null
+      })
+
+      const rewardResult = syncResult?.rewardResult || syncResult?.reward_result || null
+      if (rewardResult?.status === 'paid' && !rewardResult?.alreadyPaid) {
+        getIo()?.to(`client:${clientId}`).emit('event:reward_paid', {
+          rewardId: rewardResult.rewardId,
+          eventId: Number(syncResult?.event_id || rewardResult.eventId || 0),
+          clientId: Number(clientId),
+          status: 'paid',
+        })
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       status: outcome,
@@ -1234,7 +1266,7 @@ export async function processPdf(req, res) {
   return processHgReceiptBase(req, res, 'application/pdf')
 }
 
-export async function processHgCashClientReceipt({ chatId, clientId, messageId, dataUrl }) {
+export async function processHgCashClientReceipt({ chatId, clientId, messageId, dataUrl, eventMinDepositAmount = null }) {
   const parsed = String(dataUrl || '').match(/^data:([^;]+);base64,(.+)$/)
   if (!parsed) throw new Error('No se pudo leer el archivo enviado por el cliente')
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hg-receipt-'))
@@ -1243,7 +1275,7 @@ export async function processHgCashClientReceipt({ chatId, clientId, messageId, 
   fs.writeFileSync(tempFile, Buffer.from(parsed[2], 'base64'))
   const fakeReq = {
     file: { path: tempFile, filename: `hg-${Date.now()}${ext}`, mimetype: parsed[1] },
-    body: { chatId, clientId, messageId },
+    body: { chatId, clientId, messageId, eventMinDepositAmount },
   }
   const fakeRes = {
     status(code) { this.statusCode = code; return this },
@@ -1444,6 +1476,29 @@ export async function reportHgCashPaymentByClientCuil(req, res, next) {
         panel: result.panel || null,
       },
     })
+
+    const syncResult = await syncClientEventReceiptPaid({
+      clientId: Number(clientSession.sub),
+      messageId: autoMessageId || null,
+      movementId: movement.id,
+      receiptLogId: logId || null,
+      chatId,
+      creditPanelBalance,
+      paymentAmount: result.amount,
+    }).catch((syncErr) => {
+      console.error('[HGCash] Error sincronizando evento pagado desde reporte:', syncErr?.message || syncErr)
+      return null
+    })
+
+    const rewardResult = syncResult?.rewardResult || syncResult?.reward_result || null
+    if (rewardResult?.status === 'paid' && !rewardResult?.alreadyPaid) {
+      getIo()?.to(`client:${Number(clientSession.sub)}`).emit('event:reward_paid', {
+        rewardId: rewardResult.rewardId,
+        eventId: Number(syncResult?.event_id || rewardResult.eventId || 0),
+        clientId: Number(clientSession.sub),
+        status: 'paid',
+      })
+    }
 
     getIo()?.to(`chat:${chatId}`).emit('receipt:result', {
       chatId: Number(chatId),
@@ -2010,6 +2065,27 @@ async function processGatewaySideEffects({ movement, providerStatus, clientId, c
          WHERE id = ?`,
         [result.message.id, movement.id]
       )
+      const syncResult = await syncClientEventReceiptPaid({
+        clientId: finalClientId,
+        messageId: result.message.id,
+        movementId: movement.id,
+        chatId: finalChatId,
+        creditPanelBalance,
+        paymentAmount: depositAmount,
+      }).catch((syncErr) => {
+        console.error('[CashGateway] Error sincronizando evento pagado:', syncErr?.message || syncErr)
+        return null
+      })
+
+      const rewardResult = syncResult?.rewardResult || syncResult?.reward_result || null
+      if (rewardResult?.status === 'paid' && !rewardResult?.alreadyPaid) {
+        getIo()?.to(`client:${finalClientId}`).emit('event:reward_paid', {
+          rewardId: rewardResult.rewardId,
+          eventId: Number(syncResult?.event_id || rewardResult.eventId || 0),
+          clientId: Number(finalClientId),
+          status: 'paid',
+        })
+      }
       io?.to(`chat:${finalChatId}`).emit('receipt:result', {
         chatId: Number(finalChatId),
         messageId: Number(result.message.id),

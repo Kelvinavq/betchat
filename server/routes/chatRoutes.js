@@ -33,6 +33,7 @@ import {
 } from '../controllers/receiptLogController.js'
 import { listWithdrawals } from '../controllers/withdrawalController.js'
 import { getChatProfile } from '../controllers/profileController.js'
+import { getClientEventRewards } from '../controllers/eventsController.js'
 
 const router = Router()
 
@@ -50,6 +51,7 @@ router.get('/:chatId/transactions', getChatTransactions)
 router.get('/:chatId/profile', getChatProfile)
 router.put('/:chatId/client/labels', updateChatClientLabels)
 router.get('/:chatId/movements', getChatMovements)
+router.get('/:chatId/event-rewards', getClientEventRewards)
 router.get('/:chatId/withdrawals', listWithdrawals)
 router.get('/:chatId/pending-counts', getPendingCounts)
 router.put('/:chatId/movements/manual/:id/status', updateManualMovementStatus)

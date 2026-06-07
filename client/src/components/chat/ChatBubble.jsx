@@ -562,6 +562,7 @@ const ChatBubble = () => {
       )}
 
       <BubbleWrap
+        data-chat-bubble-wrap
         $gameHiding={gameAnim === 'hiding'}
         $gameHidden={gameAnim === 'hidden'}
         $gameShowing={gameAnim === 'showing'}

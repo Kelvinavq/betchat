@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styled, { keyframes } from 'styled-components'
 import ResultScreen from './ResultScreen'
@@ -126,6 +126,15 @@ export default function GameModal({ event, clientId, onClose }) {
 
   const GameComponent = GAME_COMPONENTS[event?.type]
 
+  useEffect(() => {
+    console.log('[GameModal] mount', { eventId: event?.id, type: event?.type })
+    window.postMessage({ type: 'game_event', event: 'game_opened' }, '*')
+    return () => {
+      console.log('[GameModal] unmount', { eventId: event?.id, type: event?.type })
+      window.postMessage({ type: 'game_event', event: 'game_closed' }, '*')
+    }
+  }, [])
+
   const handleResult = (res) => {
     setResult(res)
     setPhase('result')
@@ -133,14 +142,20 @@ export default function GameModal({ event, clientId, onClose }) {
 
   return createPortal(
     <>
-      <Backdrop onClick={onClose} />
+      <Backdrop onClick={() => {
+        console.log('[GameModal] backdrop close', { eventId: event?.id, type: event?.type })
+        onClose?.('manual')
+      }} />
       <ModalWrap>
         <ModalHeader>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, color: '#f8fafc' }}>
             <span style={{ fontSize: 20 }}>{GAME_EMOJI[event?.type] || '🎮'}</span>
             {event?.title}
           </div>
-          <CloseBtn onClick={onClose} aria-label="Cerrar">×</CloseBtn>
+          <CloseBtn onClick={() => {
+            console.log('[GameModal] button close', { eventId: event?.id, type: event?.type })
+            onClose?.('manual')
+          }} aria-label="Cerrar">×</CloseBtn>
         </ModalHeader>
 
         <div style={{ padding: '20px' }}>

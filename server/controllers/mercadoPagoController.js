@@ -9,6 +9,8 @@ import { persistMessage } from './chatController.js'
 import { getAutoMessage } from './autoMessagesController.js'
 import { insertReceiptLog, finalizeReceiptLog } from './receiptLogController.js'
 import { processReferralRewardForMovement } from './referralController.js'
+import { syncClientEventReceiptPaid } from '../utils/eventParticipantStatus.js'
+import { getIo } from '../socket/socketServer.js'
 
 const MP_API_BASE = 'https://api.mercadopago.com'
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
@@ -294,7 +296,7 @@ async function getClientExternalId(clientId) {
   return String(externalId).trim()
 }
 
-async function creditPanelBalance({ clientId, amountArs }) {
+export async function creditPanelBalance({ clientId, amountArs }) {
   const n = Number(amountArs)
   if (!Number.isFinite(n) || n <= 0) {
     return {
@@ -553,6 +555,7 @@ async function processReceiptBase(req, res, mimeType) {
   const chatId = Number(req.body?.chatId)
   const clientId = Number(req.body?.clientId)
   const messageId = Number(req.body?.messageId) || null
+  const eventMinDepositAmount = Number(req.body?.eventMinDepositAmount || 0) || null
 
   let logId = null
   const logSteps = []
@@ -607,6 +610,7 @@ async function processReceiptBase(req, res, mimeType) {
     const { currency: activeCurrency, minAmount } = await getActiveAmountConfig('deposit')
     const amount = extractedData.amount ? Number(extractedData.amount) : null
     const amountTooLow = Number.isFinite(amount) && amount > 0 && amount < minAmount
+    const amountBelowEventMin = eventMinDepositAmount > 0 && Number.isFinite(amount) && amount > 0 && amount < eventMinDepositAmount
     let isDuplicate = false
 
     let outcome = 'invalid'
@@ -621,6 +625,10 @@ async function processReceiptBase(req, res, mimeType) {
       outcome = 'amount_low'
       resultReason = `amount_below_minimum_${minAmount}_${activeCurrency}`
       logSteps.push({ step: 'amount_too_low', ts: ts(), detail: { amount, minAmount, currency: activeCurrency } })
+    } else if (amountBelowEventMin) {
+      outcome = 'amount_low'
+      resultReason = `amount_below_event_min_${eventMinDepositAmount}`
+      logSteps.push({ step: 'amount_below_event_min', ts: ts(), detail: { amount, eventMinDepositAmount } })
     } else {
       logSteps.push({ step: 'validation_ok', ts: ts(), detail: { amount, transactionId: extractedData.transaction_id, idType: extractedData.id_type } })
       logSteps.push({ step: 'mp_api_lookup_start', ts: ts(), detail: { transactionId: extractedData.transaction_id, amount, date: extractedData.date } })
@@ -796,6 +804,30 @@ async function processReceiptBase(req, res, mimeType) {
       syncStatus: outcome === 'paid' ? 'synced' : 'not_synced',
     })
 
+    if (outcome === 'paid') {
+      const syncResult = await syncClientEventReceiptPaid({
+        clientId,
+        messageId,
+        receiptLogId: logId || null,
+        chatId,
+        creditPanelBalance,
+        paymentAmount: amount,
+      }).catch((syncErr) => {
+        console.error('[MP] Error sincronizando evento pagado:', syncErr?.message || syncErr)
+        return null
+      })
+
+      const rewardResult = syncResult?.rewardResult || syncResult?.reward_result || null
+      if (rewardResult?.status === 'paid' && !rewardResult?.alreadyPaid) {
+        getIo()?.to(`client:${clientId}`).emit('event:reward_paid', {
+          rewardId: rewardResult.rewardId,
+          eventId: Number(syncResult?.event_id || rewardResult.eventId || 0),
+          clientId: Number(clientId),
+          status: 'paid',
+        })
+      }
+    }
+
     return res.status(200).json({
       ok: true,
       status: outcome,
@@ -825,7 +857,7 @@ async function processReceiptBase(req, res, mimeType) {
   }
 }
 
-export async function processMercadoPagoClientReceipt({ chatId, clientId, messageId, dataUrl, fileName }) {
+export async function processMercadoPagoClientReceipt({ chatId, clientId, messageId, dataUrl, fileName, eventMinDepositAmount = null }) {
   const parsed = dataUrlToBuffer(dataUrl)
   if (!parsed?.buffer) {
     throw new Error('No se pudo leer el archivo enviado por el cliente')
@@ -846,6 +878,7 @@ export async function processMercadoPagoClientReceipt({ chatId, clientId, messag
       chatId,
       clientId,
       messageId,
+      eventMinDepositAmount,
     },
   }
 

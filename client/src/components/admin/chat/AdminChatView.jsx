@@ -30,15 +30,22 @@ import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import ContentCopyIcon from '@mui/icons-material/ContentCopy'
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import CurrencyExchangeIcon from '@mui/icons-material/CurrencyExchange'
+import OpenInNewIcon from '@mui/icons-material/OpenInNew'
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined'
 import SmartToyOutlinedIcon from '@mui/icons-material/SmartToyOutlined'
+import WarningAmberIcon from '@mui/icons-material/WarningAmber'
+import HourglassEmptyIcon from '@mui/icons-material/HourglassEmpty'
+import CheckCircleIcon from '@mui/icons-material/CheckCircle'
+import EmojiEventsOutlinedIcon from '@mui/icons-material/EmojiEventsOutlined'
 import DropUpload from '../../common/DropUpload'
 import { useConfirm } from '../../common/ConfirmDialog'
+import EventRewardsDrawer from './EventRewardsDrawer'
 import MovementDrawer from './MovementDrawer'
 import WithdrawalDrawer from './WithdrawalDrawer'
 import TransactionHistoryDrawer from './TransactionHistoryDrawer'
 import ReceiptLogModal from './ReceiptLogModal'
 import { api, resolveApiAsset } from '../../../utils/api'
+import { useToast } from '../../../context/ToastContext'
 import { useNotificationSound } from '../../../hooks/useNotificationSound'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../../utils/richText'
@@ -53,6 +60,8 @@ import {
   MessageActionMenu, MessageActionItem, ReplyQuote, ReplyAuthor, ReplyText,
   LoadEarlierBtn, TypingBubble, TypingDot, TypingText,
   ScrollDownBtn, MediaMsgImg, MediaMsgPdf, LogAiBtn,
+  EventReceiptCard, EventReceiptHead, EventReceiptTitle, EventReceiptBadges, EventReceiptBadge, EventReceiptActions, EventReceiptBtn,
+  EventReceiptAlertBlock, EventReceiptAlertText,
   BottomArea,
   CommandSuggestions, CommandSuggestionBtn, CommandSuggestionMeta, CommandSuggestionName,
   CommandSuggestionPreview, CommandSuggestionTrigger, CommandPreview, CommandPreviewHead,
@@ -167,7 +176,102 @@ const mapDbMessage = (msg) => ({
   receiptLogId: msg.receiptLogId || null,
   depositEvent: msg.depositEvent || null,
   receiptLogResultReason: msg.receiptLogResultReason || null,
+  eventReceipt: msg.eventReceipt || null,
 })
+
+const EVENT_RECEIPT_STATUS_LABEL = {
+  paid: 'Acreditado',
+  pending: 'Pendiente',
+  duplicate: 'Duplicado',
+  invalid: 'No válido',
+  error: 'Error',
+  amount_low: 'Monto bajo',
+  insufficient_info: 'Info incompleta',
+}
+
+const EVENT_RECEIPT_ALERTS = {
+  paid:              { tone: 'good', label: 'Comprobante acreditado',    desc: 'El pago fue procesado. El premio puede acreditarse al cliente.' },
+  pending:           { tone: 'wait', label: 'En revisión',               desc: 'El comprobante está pendiente de aprobación por el equipo.' },
+  duplicate:         { tone: 'warn', label: 'Comprobante duplicado',     desc: 'Este comprobante ya fue registrado anteriormente en el sistema.' },
+  invalid:           { tone: 'warn', label: 'Comprobante inválido',      desc: 'No se pudo validar. El cliente puede reenviar un nuevo comprobante.' },
+  error:             { tone: 'warn', label: 'Error de procesamiento',    desc: 'Hubo un error al procesar el comprobante. El cliente puede reintentar.' },
+  amount_low:        { tone: 'warn', label: 'Monto insuficiente',        desc: 'El importe no alcanza el mínimo requerido para participar.' },
+  insufficient_info: { tone: 'wait', label: 'Información incompleta',   desc: 'La IA no pudo extraer los datos necesarios del comprobante.' },
+}
+
+const eventReceiptTone = (receipt) => {
+  const status = String(receipt?.receiptStatus || '').toLowerCase()
+  if (status === 'paid') return 'good'
+  if (['duplicate', 'invalid', 'error', 'amount_low'].includes(status)) return 'warn'
+  return 'wait'
+}
+
+const renderEventReceiptCard = (msg, rewardPayingId, payEventReward, onOpenMovementDrawer) => {
+  if (!msg?.eventReceipt) return null
+  const receipt = msg.eventReceipt
+  const status = String(receipt.receiptStatus || 'pending').toLowerCase()
+  const alert = EVENT_RECEIPT_ALERTS[status] || EVENT_RECEIPT_ALERTS.pending
+  const AlertIcon = alert.tone === 'good' ? CheckCircleIcon : alert.tone === 'warn' ? WarningAmberIcon : HourglassEmptyIcon
+
+  return (
+    <EventReceiptCard>
+      <EventReceiptHead>
+        <EventReceiptTitle>
+          <strong>Comprobante de evento</strong>
+          <span>{receipt.eventTitle || 'Evento sin título'} · #{receipt.eventId}</span>
+        </EventReceiptTitle>
+        <EventReceiptBadge $tone={eventReceiptTone(receipt)}>
+          {EVENT_RECEIPT_STATUS_LABEL[status] || 'Pendiente'}
+        </EventReceiptBadge>
+      </EventReceiptHead>
+
+      <EventReceiptAlertBlock $tone={alert.tone}>
+        <AlertIcon />
+        <EventReceiptAlertText $tone={alert.tone}>
+          <strong>{alert.label}</strong>
+          <p>{alert.desc}</p>
+        </EventReceiptAlertText>
+      </EventReceiptAlertBlock>
+
+      {receipt.reward && (
+        <EventReceiptBadges>
+          <EventReceiptBadge $tone={receipt.reward.status === 'paid' ? 'good' : 'warn'}>
+            Premio: {receipt.reward.amount != null ? `${receipt.reward.amount} fichas` : 'pendiente'}
+          </EventReceiptBadge>
+          {receipt.receiptReason && (
+            <EventReceiptBadge $tone="warn">{receipt.receiptReason}</EventReceiptBadge>
+          )}
+        </EventReceiptBadges>
+      )}
+
+      <EventReceiptActions>
+        {receipt.receiptUrl && (
+          <EventReceiptBtn
+            type="button"
+            onClick={() => window.open(receipt.receiptUrl, '_blank', 'noopener,noreferrer')}
+          >
+            <OpenInNewIcon />Ver comprobante
+          </EventReceiptBtn>
+        )}
+        {receipt.reward?.id && onOpenMovementDrawer && (
+          <EventReceiptBtn type="button" onClick={onOpenMovementDrawer}>
+            <ReceiptLongOutlinedIcon />Ver premio
+          </EventReceiptBtn>
+        )}
+        {receipt.reward?.id && receipt.reward.status !== 'paid' && (
+          <EventReceiptBtn
+            type="button"
+            disabled={rewardPayingId === receipt.reward.id}
+            onClick={() => payEventReward(receipt.reward.id)}
+          >
+            <CheckCircleIcon />
+            {rewardPayingId === receipt.reward.id ? 'Pagando...' : 'Pagar fichas'}
+          </EventReceiptBtn>
+        )}
+      </EventReceiptActions>
+    </EventReceiptCard>
+  )
+}
 
 const mapApiCommand = (command) => ({
   id: command.id,
@@ -428,6 +532,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
   const { user } = useContext(AuthContext) || {}
   useEffect(() => { _adminChatTz = timezone; return () => { _adminChatTz = undefined } }, [timezone])
   const { confirm, alert: alertDialog, dialogNode } = useConfirm()
+  const toast = useToast()
   const { playNotification } = useNotificationSound()
   const [input, setInput]           = useState('')
   const [messages, setMessages]     = useState([])
@@ -451,8 +556,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
   const [movementDrawerOpen, setMovementDrawerOpen] = useState(false)
   const [withdrawalDrawerOpen, setWithdrawalDrawerOpen] = useState(false)
   const [txHistoryOpen, setTxHistoryOpen] = useState(false)
+  const [eventRewardsOpen, setEventRewardsOpen] = useState(false)
   const [pendingCounts, setPendingCounts] = useState({ movements: 0, withdrawals: 0 })
   const [receiptLogMsg, setReceiptLogMsg] = useState(null)
+  const [rewardPayingId, setRewardPayingId] = useState(null)
 
   /* recording */
   const [isRecording, setIsRecording] = useState(false)
@@ -852,6 +959,33 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
     }
   }
 
+  const payEventReward = async (rewardId) => {
+    if (!rewardId || rewardPayingId) return
+    setRewardPayingId(rewardId)
+    try {
+      await api.post(`/api/events/rewards/${rewardId}/pay`)
+      setMessages(prev => prev.map(msg => {
+        if (Number(msg?.eventReceipt?.reward?.id) !== Number(rewardId)) return msg
+        return {
+          ...msg,
+          eventReceipt: {
+            ...msg.eventReceipt,
+            reward: {
+              ...msg.eventReceipt.reward,
+              status: 'paid',
+              paidAt: new Date().toISOString(),
+            },
+          },
+        }
+      }))
+      toast?.success('Premio marcado como acreditado. Se notificó al cliente.')
+    } catch (error) {
+      alertDialog({ variant: 'error', title: 'Error', message: error.message || 'No se pudo pagar el premio del evento.' })
+    } finally {
+      setRewardPayingId(null)
+    }
+  }
+
   /* ── voice recording ── */
   const startRecording = async () => {
     if (isRecording) return
@@ -1205,6 +1339,10 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
         <TransactionHistoryDrawer chat={chat} onClose={() => setTxHistoryOpen(false)} />,
         document.body
       )}
+      {eventRewardsOpen && createPortal(
+        <EventRewardsDrawer chat={chat} onClose={() => setEventRewardsOpen(false)} />,
+        document.body
+      )}
       {messageMenu && createPortal(
         <MessageActionMenu ref={messageMenuRef} $x={messageMenu.x} $y={messageMenu.y}>
           <MessageActionItem type="button" onClick={() => beginReply(messageMenu.message)}>
@@ -1262,6 +1400,12 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
         <HeaderBtnWrap>
           <HeaderMenuBtn onClick={() => setTxHistoryOpen(true)} aria-label="Historial de transacciones">
             <ReceiptLongOutlinedIcon />
+          </HeaderMenuBtn>
+        </HeaderBtnWrap>
+
+        <HeaderBtnWrap>
+          <HeaderMenuBtn onClick={() => setEventRewardsOpen(true)} aria-label="Premios de eventos">
+            <EmojiEventsOutlinedIcon />
           </HeaderMenuBtn>
         </HeaderBtnWrap>
 
@@ -1373,6 +1517,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                         <SmartToyOutlinedIcon />Log IA
                       </LogAiBtn>
                     )}
+                    {renderEventReceiptCard(msg, rewardPayingId, payEventReward, () => setMovementDrawerOpen(true))}
                   </>
                 ) : msg.type === 'pdf' ? (
                   <>
@@ -1386,6 +1531,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                         <SmartToyOutlinedIcon />Log IA
                       </LogAiBtn>
                     )}
+                    {renderEventReceiptCard(msg, rewardPayingId, payEventReward, () => setMovementDrawerOpen(true))}
                   </>
                 ) : msg.type === 'voice' ? (
                   <>
@@ -1429,6 +1575,7 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
                             <SmartToyOutlinedIcon />Log reporte
                           </LogAiBtn>
                         )}
+                        {renderEventReceiptCard(msg, rewardPayingId, payEventReward, () => setMovementDrawerOpen(true))}
                       </>
                     )
                   })()

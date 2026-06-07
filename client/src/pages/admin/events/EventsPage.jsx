@@ -15,7 +15,9 @@ import GamePreview from './components/GamePreview.jsx'
 import AgendaPanel from './components/AgendaPanel.jsx'
 import StatsPanel from './components/StatsPanel.jsx'
 import RewardsPanel from './components/RewardsPanel.jsx'
+import EventDetailDrawer from './components/EventDetailDrawer.jsx'
 import { eventsApi } from './services/eventsApi.js'
+import { parseDateValue } from '../../../utils/dateUtils'
 import {
   PageWrap, ScrollArea, PageHeader, HeaderLeft, HeaderTitle, HeaderSubtitle, MenuBtn,
   TabBar, TabBtn, SubTabBar, SubTabBtn,
@@ -290,7 +292,7 @@ const STATUS_LABEL = {
 }
 
 /* ─── inline event history table ─── */
-function EventHistoryTable({ events, loading, onActivate, onFinish, onCancel, onDelete }) {
+function EventHistoryTable({ events, loading, timezone, onActivate, onFinish, onCancel, onDetail }) {
   if (loading) {
     return <EmptyState>Cargando eventos...</EmptyState>
   }
@@ -316,7 +318,7 @@ function EventHistoryTable({ events, loading, onActivate, onFinish, onCancel, on
               <Td style={{ fontWeight: 600, color: '#f1f5f9' }}>{ev.title}</Td>
               <Td><Badge $v={ev.status}>{STATUS_LABEL[ev.status] ?? ev.status}</Badge></Td>
               <Td style={{ color: '#94a3b8', fontSize: 12 }}>
-                {ev.starts_at ? new Date(ev.starts_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', ...(timezone && { timeZone: timezone }) }) : '—'}
+                {ev.starts_at ? new Date(parseDateValue(ev.starts_at) || ev.starts_at).toLocaleString('es-AR', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', ...(timezone && { timeZone: timezone }) }) : '—'}
               </Td>
               <Td style={{ color: '#94a3b8', fontSize: 12 }}>
                 {ev.duration_minutes ? `${ev.duration_minutes} min` : '—'}
@@ -326,6 +328,7 @@ function EventHistoryTable({ events, loading, onActivate, onFinish, onCancel, on
               </Td>
               <Td>
                 <BtnRow style={{ gap: 6 }}>
+                  <Btn $v="primary" $small onClick={() => onDetail(ev.id)}>👁 Ver</Btn>
                   {ev.status === 'draft' || ev.status === 'scheduled' ? (
                     <Btn $v="success" $small onClick={() => onActivate(ev.id)}>Activar</Btn>
                   ) : null}
@@ -335,7 +338,6 @@ function EventHistoryTable({ events, loading, onActivate, onFinish, onCancel, on
                   {ev.status !== 'cancelled' && ev.status !== 'finished' ? (
                     <Btn $v="warning" $small onClick={() => onCancel(ev.id)}>Cancelar</Btn>
                   ) : null}
-                  <Btn $v="danger" $small onClick={() => onDelete(ev.id)}>Eliminar</Btn>
                 </BtnRow>
               </Td>
             </TrRow>
@@ -372,6 +374,7 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
   const [loading,   setLoading]     = useState(false)
   const [saving,    setSaving]      = useState(false)
   const [alert,     setAlert]       = useState(null) // { type:'error'|'success', msg }
+  const [detailEventId, setDetailEventId] = useState(null)
   const [confirmDialog, setConfirmDialog] = useState({ open: false, message: '', danger: false })
   const resolveConfirmRef = useRef(null)
 
@@ -531,16 +534,6 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
     }
   }
 
-  const handleDelete = async (id) => {
-    if (!await askConfirm('¿Eliminar este evento? Esta acción no se puede deshacer.')) return
-    try {
-      await eventsApi.deleteEvent(id)
-      loadEvents(subTab === 'active' ? 'active' : undefined)
-    } catch (e) {
-      setAlert({ type: 'error', msg: e.message })
-    }
-  }
-
   /* ── render form for current game ── */
   const GameForm = FORM_COMPONENTS[activeTab]
 
@@ -682,10 +675,11 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
               <EventHistoryTable
                 events={events}
                 loading={loading}
+                timezone={timezone}
                 onActivate={handleActivate}
                 onFinish={handleFinish}
                 onCancel={handleCancel}
-                onDelete={handleDelete}
+                onDetail={(id) => setDetailEventId(id)}
               />
             </Card>
           )}
@@ -714,6 +708,16 @@ const EventsPage = ({ onMenuOpen, activeSubsection = 'games' }) => {
 
         </ContentWrap>
       </ScrollArea>
+
+      {/* ── event detail drawer ── */}
+      {detailEventId && (
+        <EventDetailDrawer
+          eventId={detailEventId}
+          onClose={() => setDetailEventId(null)}
+          onFinish={() => loadEvents(subTab === 'active' ? 'active' : undefined)}
+          onCancel={() => loadEvents(subTab === 'active' ? 'active' : undefined)}
+        />
+      )}
 
       {/* ── custom confirm dialog ── */}
       {confirmDialog.open && createPortal(

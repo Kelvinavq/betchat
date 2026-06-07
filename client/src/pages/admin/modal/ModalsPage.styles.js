@@ -212,12 +212,17 @@ export const StatLabel = styled.p`
 export const MainGrid = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 18px;
   margin-bottom: 24px;
   animation: ${fadeUp} .26s ease both;
 
   @media (max-width: 860px) {
     grid-template-columns: 1fr;
+  }
+
+  @media (min-width: 1200px) {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, .95fr);
+    gap: 24px;
   }
 `
 
@@ -229,9 +234,13 @@ export const SendPanel = styled.div`
   padding: 20px;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 15px;
   min-width: 0;
   overflow: hidden;
+  @media (min-width: 1200px) {
+    padding: 26px;
+    gap: 18px;
+  }
   @media (max-width: 480px) { padding: 14px; gap: 11px; }
 `
 
@@ -269,6 +278,10 @@ export const PreviewHistoryPanel = styled.div`
   min-height: 0;
   min-width: 0;
   overflow: hidden;
+  @media (min-width: 1200px) {
+    padding: 26px;
+    gap: 18px;
+  }
   @media (max-width: 480px) { padding: 14px; gap: 12px; }
 `
 
@@ -333,7 +346,7 @@ export const HistEmpty = styled.div`
 
 /* ── form fields (send form) ── */
 export const FieldGroup = styled.div`
-  display: flex; flex-direction: column; gap: 5px;
+  display: flex; flex-direction: column; gap: 6px;
 `
 export const FieldLabel = styled.label`
   font-size: 10px; font-weight: 700; letter-spacing: .09em;
@@ -365,7 +378,8 @@ export const FieldSelect = styled.select`
   option { background: #0d0d20; color: #fff; }
 `
 export const FieldRow = styled.div`
-  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
+  @media (min-width: 1200px) { gap: 14px; }
   @media (max-width: 540px) { grid-template-columns: 1fr; }
 `
 export const CharCount = styled.span`
@@ -407,7 +421,7 @@ export const UploadErr = styled.p`
 
 /* ── audience tabs ── */
 export const AudienceRow = styled.div`
-  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
 `
 export const AudienceLabel = styled.span`
   font-size: 10px; font-weight: 700; letter-spacing: .09em;
@@ -428,6 +442,9 @@ export const ScheduleToggle = styled.div`
   display: flex; align-items: center; justify-content: space-between;
   padding: 10px 12px; border-radius: 10px;
   background: rgba(255,255,255,.025); border: 1px solid rgba(255,255,255,.07);
+  @media (min-width: 1200px) {
+    padding: 12px 14px;
+  }
 `
 export const ScheduleToggleLeft = styled.div``
 export const ScheduleToggleTitle = styled.p`font-size: 12.5px; font-weight: 500; color: rgba(255,255,255,.78);`
@@ -447,9 +464,10 @@ export const ToggleThumb = styled.span`
   box-shadow: 0 1px 4px rgba(0,0,0,.28);
 `
 export const ScheduleFields = styled.div`
-  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
   animation: ${fadeUp} .18s ease both;
   @media (max-width: 480px) { grid-template-columns: 1fr; }
+  @media (min-width: 1200px) { gap: 12px; }
 `
 
 /* ── send button ── */
@@ -738,6 +756,10 @@ export const DlgSelect = styled.select`
 /* ── design picker ── */
 export const DesignPickerWrap = styled.div`
   display: grid; grid-template-columns: repeat(auto-fill, minmax(55px, 1fr)); gap: 8px;
+  @media (min-width: 1200px) {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 12px;
+  }
   @media (max-width: 520px) {
     grid-template-columns: 1fr 1fr;
     & > *:last-child { grid-column: span 2; }
@@ -746,8 +768,14 @@ export const DesignPickerWrap = styled.div`
 export const DesignOption = styled.button`
   padding: 10px 6px; border-radius: 10px; cursor: pointer; transition: all .18s;
   display: flex; flex-direction: column; align-items: center; gap: 5px;
+  min-height: 84px;
   border: 2px solid ${({ $active, $accent }) => $active ? $accent : 'rgba(255,255,255,.08)'};
   background: ${({ $active, $bg }) => $active ? `${$bg}cc` : 'rgba(255,255,255,.03)'};
+  @media (min-width: 1200px) {
+    min-height: 96px;
+    padding: 12px 8px;
+    gap: 7px;
+  }
   &:hover { border-color: ${({ $accent }) => $accent}; background: ${({ $bg }) => $bg}88; }
 `
 export const DesignOptionSwatch = styled.div`
@@ -759,11 +787,17 @@ export const DesignOptionSwatch = styled.div`
   font-size: 17px;
 `
 export const DesignOptionLabel = styled.span`
-  font-size: 11px; font-weight: 700; color: ${({ $active, $accent }) => $active ? $accent : 'rgba(255,255,255,.40)'};
+  font-size: 11px; font-weight: 700;
+  color: ${({ $active, $tone }) => $active
+    ? ($tone === 'dark' ? 'rgba(255,255,255,.96)' : '#111827')
+    : 'rgba(255,255,255,.40)'};
   white-space: nowrap;
 `
 export const DesignOptionDesc = styled.span`
   font-size: 9.5px; color: rgba(255,255,255,.25);
+  ${({ $active, $tone }) => $active && `
+    color: ${$tone === 'dark' ? 'rgba(255,255,255,.72)' : 'rgba(17,24,39,.70)'};
+  `}
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%;
   @media (max-width: 520px) { display: none; }
 `

@@ -85,13 +85,14 @@ function DesignPicker({ value, onChange }) {
           key={d.value}
           type="button"
           $active={value === d.value}
+          $tone={d.value === 'dark' ? 'dark' : 'light'}
           $accent={d.accent}
           $bg={d.bg}
           onClick={() => onChange(d.value)}
         >
           <DesignOptionSwatch $bg={d.bg} $accent={d.accent}>{d.label.split(' ')[0]}</DesignOptionSwatch>
-          <DesignOptionLabel $active={value === d.value} $accent={d.accent}>{d.label.split(' ')[1]}</DesignOptionLabel>
-          <DesignOptionDesc>{d.desc}</DesignOptionDesc>
+          <DesignOptionLabel $active={value === d.value} $tone={d.value === 'dark' ? 'dark' : 'light'} $accent={d.accent}>{d.label.split(' ')[1]}</DesignOptionLabel>
+          <DesignOptionDesc $active={value === d.value} $tone={d.value === 'dark' ? 'dark' : 'light'}>{d.desc}</DesignOptionDesc>
         </DesignOption>
       ))}
     </DesignPickerWrap>

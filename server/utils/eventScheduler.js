@@ -19,7 +19,15 @@ async function tick() {
     // Auto-finish active events whose ends_at has passed
     const { rows: toFinish } = await query(
       `SELECT id, title FROM events
-       WHERE status = 'active' AND ends_at IS NOT NULL AND ends_at <= NOW()`
+       WHERE status = 'active'
+         AND (
+           (ends_at IS NOT NULL AND ends_at <= NOW())
+           OR (
+             ends_at IS NULL
+             AND duration_minutes IS NOT NULL
+             AND DATE_ADD(COALESCE(starts_at, created_at), INTERVAL duration_minutes MINUTE) <= NOW()
+           )
+         )`
     )
     for (const ev of (toFinish || [])) {
       await query(`UPDATE events SET status = 'finished' WHERE id = ?`, [ev.id])

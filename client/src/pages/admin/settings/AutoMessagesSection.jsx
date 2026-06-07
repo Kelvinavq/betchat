@@ -92,6 +92,20 @@ const MESSAGE_DEFS = [
     icon: '🚫',
     bg: 'rgba(239,68,68,0.13)',
   },
+  {
+    event: 'event_vote_prompt',
+    label: 'Aviso de voto — Maletín / Cofre',
+    desc: 'Se envía automáticamente cuando se acredita el comprobante en un evento Maletín o Cofre, invitando al cliente a elegir su número. Variables: {{nombre}}, {{evento}}',
+    icon: '🗳️',
+    bg: 'rgba(16,185,129,0.13)',
+  },
+  {
+    event: 'event_vote_reminder',
+    label: 'Recordatorio de voto — Maletín / Cofre',
+    desc: 'Se envía manualmente desde el detalle del evento a los participantes con depósito acreditado que aún no eligieron su número. Variables: {{nombre}}, {{evento}}',
+    icon: '⏰',
+    bg: 'rgba(59,130,246,0.13)',
+  },
 ]
 
 export default function AutoMessagesSection() {

@@ -161,6 +161,18 @@ function randomSymbol() {
   return ALL_SYMBOLS[Math.floor(Math.random() * ALL_SYMBOLS.length)]
 }
 
+function normalizeCombo(combo, fallbackSymbols = ALL_SYMBOLS) {
+  if (!Array.isArray(combo) || combo.length === 0) {
+    return [randomSymbol(), randomSymbol(), randomSymbol()]
+  }
+
+  return [0, 1, 2].map((index) => {
+    const raw = String(combo[index] || '').trim()
+    if (raw) return raw
+    return fallbackSymbols[index % Math.max(fallbackSymbols.length, 1)] || randomSymbol()
+  })
+}
+
 export default function SlotsGame({ event, clientId, onResult, onClose }) {
   const cfg = event?.config_json || {}
   const primaryColor = cfg.primary_color || T.gold
@@ -200,7 +212,9 @@ export default function SlotsGame({ event, clientId, onResult, onClose }) {
 
     try {
       const res = await api.post(`/api/client/events/${event.id}/play`, {})
-      const finalCombo = res.result?.data?.combo || ['⭐', '⭐', '⭐']
+      const finalCombo = normalizeCombo(
+        res?.result?.prize?.combo || res?.result?.data?.combo,
+      )
       setCombo(finalCombo)
       setApiResult(res.result)
 
@@ -242,7 +256,6 @@ export default function SlotsGame({ event, clientId, onResult, onClose }) {
   }
 
   const isWin = apiResult?.won === true
-  const allMatch = combo && combo.length === 3 && combo[0] === combo[1] && combo[1] === combo[2]
   const prizeAmount = Number(apiResult?.prize?.amount ?? event?.prize_amount ?? 0)
   const prizeType = apiResult?.prize?.prize_type || event?.prize_type || 'fichas'
 
@@ -284,7 +297,7 @@ export default function SlotsGame({ event, clientId, onResult, onClose }) {
         <>
           <ResultBox won={isWin ? 1 : 0}>
             {isWin
-              ? `🎉 ¡${allMatch ? 'JACKPOT! ' : ''}Ganaste ${prizeAmount.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ${prizeLabel(prizeType)}!`
+              ? `🎉 ¡Ganaste ${prizeAmount.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ${prizeLabel(prizeType)}!`
               : '😔 No fue esta vez. ¡Intentá de nuevo!'}
           </ResultBox>
           <BigBtn type="button" onClick={handleViewResult} disabled={false}>

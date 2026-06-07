@@ -6,15 +6,9 @@ import {
   Label,
   Input,
   Textarea,
-  Select,
   Divider,
 } from '../../EventsPage.styles.js';
 
-const PRIZE_TYPE_OPTIONS = [
-  { value: 'fichas', label: 'Fichas' },
-  { value: 'bono_200', label: 'Bono 200%' },
-  { value: 'otro', label: 'Otro' },
-];
 
 const SorteoForm = ({ form, onChange }) => {
   const cfg = form.config_json || {};
@@ -117,19 +111,19 @@ const SorteoForm = ({ form, onChange }) => {
           />
         </Label>
 
-        {/* Prize type */}
+        {/* Prize type — sorteo only supports fichas */}
         <Label>
           Tipo de premio
-          <Select
-            value={form.prize_type || 'fichas'}
-            onChange={(e) => set({ prize_type: e.target.value })}
-          >
-            {PRIZE_TYPE_OPTIONS.map((o) => (
-              <option key={o.value} value={o.value}>
-                {o.label}
-              </option>
-            ))}
-          </Select>
+          <div style={{
+            padding: '10px 14px',
+            borderRadius: 10,
+            background: 'rgba(255,255,255,0.04)',
+            border: '1px solid rgba(255,255,255,0.08)',
+            color: '#94a3b8',
+            fontSize: 13,
+          }}>
+            🏆 Fichas
+          </div>
         </Label>
 
         {/* Prize amount */}

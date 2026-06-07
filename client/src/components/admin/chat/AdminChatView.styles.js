@@ -676,6 +676,159 @@ export const LogAiBtn = styled.button`
   }
 `
 
+export const EventReceiptCard = styled.div`
+  margin-top: 8px;
+  padding: 12px 12px 11px;
+  border-radius: 14px;
+  border: 1px solid rgba(59, 130, 246, 0.16);
+  background: linear-gradient(180deg, rgba(59, 130, 246, 0.08), rgba(15, 23, 42, 0.92));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.03);
+`
+
+export const EventReceiptHead = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+`
+
+export const EventReceiptTitle = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  strong {
+    font-size: 12.5px;
+    font-weight: 800;
+    color: #eff6ff;
+    line-height: 1.2;
+  }
+  span {
+    font-size: 11px;
+    color: rgba(255,255,255,0.62);
+    line-height: 1.35;
+  }
+`
+
+export const EventReceiptBadges = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 8px;
+`
+
+export const EventReceiptBadge = styled.span`
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  border: 1px solid ${({ $tone }) => (
+    $tone === 'good' ? 'rgba(16,185,129,0.32)'
+    : $tone === 'warn' ? 'rgba(245,158,11,0.35)'
+    : $tone === 'bad' ? 'rgba(239,68,68,0.32)'
+    : 'rgba(148,163,184,0.28)'
+  )};
+  background: ${({ $tone }) => (
+    $tone === 'good' ? 'rgba(16,185,129,0.12)'
+    : $tone === 'warn' ? 'rgba(245,158,11,0.12)'
+    : $tone === 'bad' ? 'rgba(239,68,68,0.12)'
+    : 'rgba(148,163,184,0.10)'
+  )};
+  color: ${({ $tone }) => (
+    $tone === 'good' ? '#86efac'
+    : $tone === 'warn' ? '#fbbf24'
+    : $tone === 'bad' ? '#fca5a5'
+    : '#cbd5e1'
+  )};
+`
+
+export const EventReceiptActions = styled.div`
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+`
+
+export const EventReceiptAlertBlock = styled.div`
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: ${({ $tone }) =>
+    $tone === 'good' ? 'rgba(34,197,94,0.09)' :
+    $tone === 'warn' ? 'rgba(245,158,11,0.09)' :
+    $tone === 'bad'  ? 'rgba(239,68,68,0.09)'  :
+    'rgba(148,163,184,0.07)'};
+  border: 1px solid ${({ $tone }) =>
+    $tone === 'good' ? 'rgba(34,197,94,0.22)'   :
+    $tone === 'warn' ? 'rgba(245,158,11,0.25)'  :
+    $tone === 'bad'  ? 'rgba(239,68,68,0.22)'   :
+    'rgba(148,163,184,0.15)'};
+  svg {
+    font-size: 15px;
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: ${({ $tone }) =>
+      $tone === 'good' ? '#6ee7b7' :
+      $tone === 'warn' ? '#fbbf24' :
+      $tone === 'bad'  ? '#f87171' :
+      'rgba(255,255,255,0.45)'};
+  }
+`
+
+export const EventReceiptAlertText = styled.div`
+  flex: 1;
+  min-width: 0;
+  strong {
+    display: block;
+    font-size: 11.5px;
+    font-weight: 800;
+    line-height: 1.3;
+    margin-bottom: 2px;
+    color: ${({ $tone }) =>
+      $tone === 'good' ? '#a7f3d0' :
+      $tone === 'warn' ? '#fcd34d' :
+      $tone === 'bad'  ? '#fca5a5' :
+      'rgba(255,255,255,0.72)'};
+  }
+  p {
+    margin: 0;
+    font-size: 11px;
+    line-height: 1.4;
+    color: rgba(255,255,255,0.48);
+  }
+`
+
+export const EventReceiptBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-radius: 10px;
+  border: 1px solid rgba(59, 130, 246, 0.28);
+  background: rgba(59, 130, 246, 0.12);
+  color: #dbeafe;
+  font-size: 11px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease;
+  &:hover:not(:disabled) {
+    transform: translateY(-1px);
+    background: rgba(59, 130, 246, 0.18);
+    border-color: rgba(96, 165, 250, 0.42);
+  }
+  &:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+`
+
 /* ── bottom: attach panel + footer ── */
 export const BottomArea = styled.div`
   position: relative;

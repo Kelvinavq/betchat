@@ -1,7 +1,8 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { useContext } from 'react'
 import { AuthProvider } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
-import { ChatProvider } from './context/ChatContext'
+import { ChatContext, ChatProvider } from './context/ChatContext'
 import { SystemConfigProvider } from './context/SystemConfigContext'
 import { TourProvider } from './context/TourContext'
 import { BroadcastNotifProvider } from './context/BroadcastNotifContext'
@@ -11,6 +12,23 @@ import DashboardPage from './pages/admin/DashboardPage'
 import ProtectedRoute from './components/common/ProtectedRoute'
 import NotFoundPage from './pages/NotFoundPage'
 import ThemeRuntime from './components/common/ThemeRuntime'
+import GameModal from './components/client/events/GameModal'
+
+function ClientEventModalHost() {
+  const location = useLocation()
+  const { activeClientEvent, clientSession, setActiveClientEvent } = useContext(ChatContext)
+
+  if (location.pathname !== '/') return null
+  if (!activeClientEvent) return null
+
+  return (
+    <GameModal
+      event={activeClientEvent}
+      clientId={clientSession?.id ?? null}
+      onClose={() => setActiveClientEvent(null)}
+    />
+  )
+}
 
 const App = () => {
   return (
@@ -22,6 +40,7 @@ const App = () => {
             <TourProvider>
               <ThemeRuntime>
                 <BroadcastNotifProvider>
+                <ClientEventModalHost />
                 <Routes>
                   <Route path="/" element={<ClientPage />} />
                   <Route path="/admin/login" element={<LoginPage />} />

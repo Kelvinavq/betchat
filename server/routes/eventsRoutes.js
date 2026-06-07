@@ -11,7 +11,11 @@ import {
   cancelEvent,
   participateEvent,
   getParticipants,
+  getEventDetail,
+  resetParticipation,
+  payBriefcaseWinners,
   getEventRewards,
+  sendVoteReminder,
   listTemplates,
   createTemplate,
   deleteTemplate,
@@ -54,6 +58,10 @@ router.post('/:id/finish', finishEvent);
 router.post('/:id/cancel', cancelEvent);
 router.post('/:id/participate', participateEvent);
 router.get('/:id/participants', getParticipants);
+router.get('/:id/detail', getEventDetail);
+router.delete('/:id/participants/:participantId', resetParticipation);
+router.post('/:id/pay-briefcase-winners', payBriefcaseWinners);
+router.post('/:id/send-vote-reminder', sendVoteReminder);
 router.get('/:id/rewards', getEventRewards);
 
 export default router;

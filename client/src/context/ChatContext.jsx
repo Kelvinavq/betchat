@@ -3,6 +3,7 @@ import { createContext, useEffect, useState } from 'react'
 export const ChatContext = createContext(null)
 
 const IFRAME_LOGIN_STORAGE_KEY = 'betchat_iframe_login_data'
+const ACTIVE_EVENT_STORAGE_KEY = 'betchat_active_client_event'
 
 function readIframeLoginData() {
   try {
@@ -18,12 +19,24 @@ function readIframeLoginData() {
   }
 }
 
+function readActiveClientEvent() {
+  try {
+    const raw = sessionStorage.getItem(ACTIVE_EVENT_STORAGE_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw)
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
+}
+
 export const ChatProvider = ({ children }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [messages, setMessages] = useState([])
   const [clientSession, setClientSession] = useState(null)
   const [clientAuthLoading, setClientAuthLoading] = useState(false)
   const [iframeLoginData, setIframeLoginData] = useState(() => readIframeLoginData())
+  const [activeClientEvent, setActiveClientEvent] = useState(() => readActiveClientEvent())
 
   useEffect(() => {
     try {
@@ -37,6 +50,18 @@ export const ChatProvider = ({ children }) => {
     }
   }, [iframeLoginData])
 
+  useEffect(() => {
+    try {
+      if (activeClientEvent) {
+        sessionStorage.setItem(ACTIVE_EVENT_STORAGE_KEY, JSON.stringify(activeClientEvent))
+      } else {
+        sessionStorage.removeItem(ACTIVE_EVENT_STORAGE_KEY)
+      }
+    } catch {
+      // ignore storage failures
+    }
+  }, [activeClientEvent])
+
   return (
     <ChatContext.Provider value={{
       isOpen,
@@ -49,6 +74,8 @@ export const ChatProvider = ({ children }) => {
       setClientAuthLoading,
       iframeLoginData,
       setIframeLoginData,
+      activeClientEvent,
+      setActiveClientEvent,
     }}>
       {children}
     </ChatContext.Provider>

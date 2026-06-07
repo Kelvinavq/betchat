@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from 'react'
-import styled, { keyframes } from 'styled-components'
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef } from 'react'
+import styled, { keyframes, css } from 'styled-components'
 import { api } from '../../../../utils/api.js'
 
 /* ── Tokens ── */
@@ -15,10 +15,10 @@ const T = {
 }
 
 /* ── Animations ── */
-const fadeIn = keyframes`from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}`
-const pulse = keyframes`0%,100%{transform:scale(1)}50%{transform:scale(1.04)}`
-const popIn = keyframes`0%{transform:scale(0.8);opacity:0}100%{transform:scale(1);opacity:1}`
-const shimmer = keyframes`0%{opacity:0.6}50%{opacity:1}100%{opacity:0.6}`
+const fadeIn   = keyframes`from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}`
+const pulse    = keyframes`0%,100%{transform:scale(1)}50%{transform:scale(1.04)}`
+const popIn    = keyframes`0%{transform:scale(0.8);opacity:0}100%{transform:scale(1);opacity:1}`
+const winPulse = keyframes`0%,100%{box-shadow:0 0 0 2px rgba(245,158,11,0.4)}50%{box-shadow:0 0 0 6px rgba(245,158,11,0.15)}`
 
 /* ── Styled ── */
 const Wrap = styled.div`
@@ -46,11 +46,13 @@ const CardWrap = styled.div`
   border-radius: 14px;
   overflow: hidden;
   background: ${T.card};
-  border: 1.5px solid ${({ $won }) =>
-    $won === true ? 'rgba(245,158,11,0.55)' : T.border};
+  border: 1.5px solid ${({ $win }) =>
+    $win === 'winner' ? 'rgba(245,158,11,0.7)'
+    : T.border};
   transition: border-color 0.3s;
   animation: ${({ $visible }) => $visible ? popIn : 'none'} 0.35s ease both;
   animation-delay: ${({ $delay }) => $delay}ms;
+  ${({ $win }) => $win === 'winner' ? css`animation: ${winPulse} 1.5s ease-in-out infinite;` : ''}
 `
 
 const PrizeFace = styled.div`
@@ -80,6 +82,14 @@ const PrizeLabel = styled.div`
   padding: 0 2px;
 `
 
+const LockedCover = styled.div`
+  position: absolute;
+  inset: 0;
+  border-radius: 13px;
+  background: linear-gradient(135deg, #374151, #4b5563, #374151);
+  opacity: 0.85;
+`
+
 const BigBtn = styled.button`
   width: 100%;
   max-width: 320px;
@@ -102,15 +112,6 @@ const BigBtn = styled.button`
   &:hover:not(:disabled) { transform: translateY(-2px); }
 `
 
-const HintRow = styled.div`
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  color: ${T.t2};
-  animation: ${shimmer} 2s ease-in-out infinite;
-`
-
 const ResultBox = styled.div`
   width: 100%;
   max-width: 320px;
@@ -125,36 +126,49 @@ const ResultBox = styled.div`
   animation: ${popIn} 0.4s ease both;
 `
 
+const HintRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: ${T.t2};
+`
+
+/* ── Signature helper (must match server logic) ── */
+const signatureOf = (card) => {
+  if (!card) return ''
+  return [
+    String(card.icon  || '').trim(),
+    String(card.label || '').trim(),
+    String(card.prize_type || '').trim(),
+  ].join('|')
+}
+
 /* ── ScratchCanvas ── */
 const CARD_SIZE = 96
 
 function ScratchCanvas({ onFullyRevealed }) {
   const canvasRef = useRef(null)
-  const drawing = useRef(false)
-  const revealed = useRef(false)
+  const drawing   = useRef(false)
+  const revealed  = useRef(false)
 
   useLayoutEffect(() => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
-    // Silver-grey scratch surface
     const grad = ctx.createLinearGradient(0, 0, CARD_SIZE, CARD_SIZE)
     grad.addColorStop(0, '#475569')
     grad.addColorStop(0.5, '#64748b')
     grad.addColorStop(1, '#475569')
     ctx.fillStyle = grad
     ctx.fillRect(0, 0, CARD_SIZE, CARD_SIZE)
-    // Sparkle texture
     ctx.fillStyle = 'rgba(255,255,255,0.12)'
     for (let i = 0; i < 40; i++) {
       ctx.fillRect(
-        Math.random() * CARD_SIZE,
-        Math.random() * CARD_SIZE,
-        Math.random() * 3 + 1,
-        Math.random() * 3 + 1
+        Math.random() * CARD_SIZE, Math.random() * CARD_SIZE,
+        Math.random() * 3 + 1, Math.random() * 3 + 1
       )
     }
-    // Hint text
     ctx.font = `bold 11px sans-serif`
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
@@ -167,10 +181,7 @@ function ScratchCanvas({ onFullyRevealed }) {
     const sx = canvas.width / rect.width
     const sy = canvas.height / rect.height
     const src = e.touches ? e.touches[0] : e
-    return {
-      x: (src.clientX - rect.left) * sx,
-      y: (src.clientY - rect.top) * sy,
-    }
+    return { x: (src.clientX - rect.left) * sx, y: (src.clientY - rect.top) * sy }
   }
 
   const scratch = useCallback((e) => {
@@ -183,8 +194,6 @@ function ScratchCanvas({ onFullyRevealed }) {
     ctx.beginPath()
     ctx.arc(x, y, 20, 0, Math.PI * 2)
     ctx.fill()
-
-    // Sample alpha channel to calculate revealed %
     const data = ctx.getImageData(0, 0, CARD_SIZE, CARD_SIZE).data
     let transparent = 0
     for (let i = 3; i < data.length; i += 16) {
@@ -202,10 +211,8 @@ function ScratchCanvas({ onFullyRevealed }) {
       width={CARD_SIZE}
       height={CARD_SIZE}
       style={{
-        position: 'absolute',
-        inset: 0,
-        width: '100%',
-        height: '100%',
+        position: 'absolute', inset: 0,
+        width: '100%', height: '100%',
         borderRadius: 13,
         cursor: 'crosshair',
         touchAction: 'none',
@@ -224,11 +231,29 @@ function ScratchCanvas({ onFullyRevealed }) {
 
 /* ── Main component ── */
 export default function ScratchGame({ event, onResult }) {
-  const [phase, setPhase] = useState('ready') // ready | fetching | scratching | done
-  const [cards, setCards] = useState(Array(9).fill(null))
+  const [phase, setPhase]               = useState('ready') // ready | fetching | scratching | done
+  const [cards, setCards]               = useState(Array(9).fill(null))
   const [revealedIndices, setRevealedIndices] = useState([])
-  const [apiResult, setApiResult] = useState(null)
-  const [error, setError] = useState('')
+  const [apiResult, setApiResult]       = useState(null)
+  const [error, setError]               = useState('')
+
+  const linePatterns = useMemo(() => ([
+    { key: 'row_top', label: 'fila superior', positions: [0, 1, 2] },
+    { key: 'row_mid', label: 'fila central', positions: [3, 4, 5] },
+    { key: 'row_bot', label: 'fila inferior', positions: [6, 7, 8] },
+    { key: 'col_left', label: 'columna izquierda', positions: [0, 3, 6] },
+    { key: 'col_mid', label: 'columna central', positions: [1, 4, 7] },
+    { key: 'col_right', label: 'columna derecha', positions: [2, 5, 8] },
+    { key: 'diag_main', label: 'diagonal principal', positions: [0, 4, 8] },
+    { key: 'diag_anti', label: 'diagonal secundaria', positions: [2, 4, 6] },
+  ]), [])
+
+  useEffect(() => {
+    console.log('[ScratchGame] mount', { eventId: event?.id })
+    return () => {
+      console.log('[ScratchGame] unmount', { eventId: event?.id, phase })
+    }
+  }, [])
 
   const handleStart = async () => {
     if (phase !== 'ready') return
@@ -236,7 +261,7 @@ export default function ScratchGame({ event, onResult }) {
     setError('')
     try {
       const res = await api.post(`/api/client/events/${event.id}/play`, {})
-      const revealed = res.result?.data?.revealed || Array.from({ length: 9 }, () => ({ icon: '⭐', label: 'Premio' }))
+      const revealed = res.result?.data?.revealed || Array.from({ length: 9 }, () => ({ icon: '⭐', label: 'Premio', prize_type: 'none', amount: 0 }))
       setCards(revealed)
       setRevealedIndices([])
       setApiResult(res.result)
@@ -248,39 +273,71 @@ export default function ScratchGame({ event, onResult }) {
   }
 
   const handleCardRevealed = useCallback((index) => {
-    setRevealedIndices((current) => {
-      if (current.includes(index)) return current
-      return [...current, index]
+    setRevealedIndices((prev) => {
+      if (prev.includes(index)) return prev
+      return [...prev, index]
     })
   }, [])
 
-  const allScratched = revealedIndices.length >= 9
+  const winningLine = useMemo(() => {
+    if (!apiResult?.won) return null
+    for (const pattern of linePatterns) {
+      const lineCards = pattern.positions.map((index) => cards[index]).filter(Boolean)
+      if (lineCards.length !== 3) continue
+      if (lineCards.some((card) => !card || card.prize_type === 'none')) continue
+      const sig = signatureOf(lineCards[0])
+      if (!sig) continue
+      if (lineCards.every((card) => signatureOf(card) === sig)) return pattern
+    }
+    return null
+  }, [apiResult?.won, cards, linePatterns])
+  const winningPositions = winningLine?.positions || []
 
-  const handleRevealAll = () => {
-    setRevealedIndices(cards.map((_, index) => index))
-    setPhase('done')
-  }
-
+  // Real-time win detection: stop as soon as the winning line is fully revealed
   useEffect(() => {
-    if (revealedIndices.length >= 9 && phase === 'scratching') {
+    if (phase !== 'scratching' || !apiResult) return
+    if (revealedIndices.length === 0) return
+
+    if (apiResult.won && winningPositions.length > 0) {
+      const hasLine = winningPositions.every(i => revealedIndices.includes(i))
+      if (hasLine) {
+        setPhase('done')
+        // Auto-credit fichas as soon as the winning line is fully revealed
+        api.post(`/api/client/events/${event.id}/settle-reward`, {}).catch(() => {})
+        return
+      }
+    }
+
+    // Loss path: all 9 revealed
+    if (revealedIndices.length >= 9) {
       setPhase('done')
     }
-  }, [revealedIndices.length, phase])
+  }, [revealedIndices, phase, apiResult, winningPositions, event.id])
 
   const prizeText = () => {
     const p = apiResult?.prize
     if (!p) return ''
     if (p.prize_type === 'fichas') return `${Number(p.amount).toLocaleString('es-AR')} fichas`
-    if (p.prize_type === 'bono_200') return 'Bono 200%'
     return p.label || 'Premio especial'
   }
 
   const headerPrizeText = () => {
+    const rules = event?.config_json?.win_rules || []
+    const bestRule = rules.filter(r => r.enabled !== false).sort((a, b) => Number(b.match_count) - Number(a.match_count))[0]
+    if (bestRule) {
+      const n = Number(bestRule.match_count)
+      const amt = Number(bestRule.amount)
+      if (amt > 0) return `¡Formá ${n} iguales en línea y ganá ${amt.toLocaleString('es-AR', { minimumFractionDigits: 0 })} fichas!`
+      return `¡Formá ${n} iguales en línea y ganá!`
+    }
     const amount = Number(event?.prize_amount)
-    if (!Number.isFinite(amount) || amount <= 0) return '¡Encontrá 3 iguales y ganá!'
-    const typeLabel = event?.prize_type === 'fichas' ? 'fichas' : 'de premio'
-    return `¡Encontrá 3 iguales y ganá ${amount.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} ${typeLabel}!`
+    if (Number.isFinite(amount) && amount > 0) {
+      return `¡Formá 3 iguales en línea y ganá ${amount.toLocaleString('es-AR', { minimumFractionDigits: 0 })} fichas!`
+    }
+    return '¡Formá 3 iguales en línea y ganá!'
   }
+
+  const scratching = phase === 'scratching'
 
   return (
     <Wrap>
@@ -294,16 +351,31 @@ export default function ScratchGame({ event, onResult }) {
       {(phase === 'scratching' || phase === 'done') && (
         <Grid>
           {cards.map((card, i) => {
-            const isScratched = phase === 'done' || revealedIndices.includes(i)
-            const isWin = apiResult?.won && card?.prize_type !== 'none' && Number(card?.amount) > 0
+            const isScratched = revealedIndices.includes(i)
+            const isWinner    = isScratched && (
+              winningPositions.length > 0 && winningPositions.includes(i)
+            )
+
             return (
-              <CardWrap key={i} $won={isWin && isScratched ? true : undefined} $visible $delay={i * 40}>
+              <CardWrap
+                key={i}
+                $win={isWinner ? 'winner' : undefined}
+                $visible
+                $delay={i * 40}
+              >
                 <PrizeFace>
                   <PrizeIcon>{card?.icon || '⭐'}</PrizeIcon>
                   <PrizeLabel>{card?.label || ''}</PrizeLabel>
                 </PrizeFace>
-                {!isScratched && (
+
+                {/* Active scratch canvas */}
+                {!isScratched && scratching && (
                   <ScratchCanvas onFullyRevealed={() => handleCardRevealed(i)} />
+                )}
+
+                {/* Locked (game ended, card not yet revealed) */}
+                {!isScratched && !scratching && (
+                  <LockedCover />
                 )}
               </CardWrap>
             )
@@ -325,13 +397,8 @@ export default function ScratchGame({ event, onResult }) {
         <BigBtn type="button" disabled>Cargando tarjeta...</BigBtn>
       )}
 
-      {phase === 'scratching' && !allScratched && (
-        <>
-          <HintRow>✦ Deslizá el dedo sobre cada casilla para revelar</HintRow>
-          <BigBtn type="button" $secondary onClick={handleRevealAll}>
-            Revelar todo
-          </BigBtn>
-        </>
+      {phase === 'scratching' && (
+        <HintRow>✦ Buscá 3 iguales en línea horizontal, vertical o diagonal</HintRow>
       )}
 
       {phase === 'done' && apiResult && (

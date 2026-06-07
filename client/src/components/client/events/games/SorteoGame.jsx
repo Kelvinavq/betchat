@@ -1,7 +1,8 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useDateFormat } from '../../../../hooks/useDateFormat'
 import styled, { keyframes } from 'styled-components'
 import { api, resolveApiAsset } from '../../../../utils/api.js'
+import { parseDateValue } from '../../../../utils/dateUtils'
 
 /* ── Animations ── */
 const fadeIn = keyframes`from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}`
@@ -122,29 +123,31 @@ function prizeLabel(prize_type) {
   return 'premio especial'
 }
 
-const formatDate = (dateStr, tz) => {
-  if (!dateStr) return null
-  try {
-    return new Date(dateStr).toLocaleDateString('es', {
-      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
-      ...(tz && { timeZone: tz }),
-    })
-  } catch { return null }
-}
+const RECEIPT_RETRYABLE = new Set(['duplicate', 'error', 'invalid', 'amount_low'])
 
 export default function SorteoGame({ event, clientId, onResult, onClose }) {
-  const { timezone } = useDateFormat()
+  const { formatDateTime } = useDateFormat()
   const cfg = event?.config_json || {}
   const requiresDeposit = Number(event?.min_deposit_amount) > 0
 
-  const [phase, setPhase] = useState('intro') // 'intro' | 'uploading' | 'done'
+  const isRetryable = Boolean(event?.receipt_retryable || RECEIPT_RETRYABLE.has(String(event?.receipt_status || '').toLowerCase()))
+  const [phase, setPhase] = useState((event?.receipt_status && !isRetryable) ? 'done' : 'intro') // 'intro' | 'uploading' | 'done'
   const [file, setFile] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [receiptStatus, setReceiptStatus] = useState(event?.receipt_status || '')
   const fileRef = useRef(null)
 
   const bannerSrc = cfg.image_url ? resolveApiAsset(cfg.image_url) : null
-  const endDate = formatDate(event?.ends_at, timezone)
+  const endDate = event?.ends_at ? formatDateTime(parseDateValue(event.ends_at) || event.ends_at) : null
+
+  useEffect(() => {
+    const retryable = event?.receipt_retryable || RECEIPT_RETRYABLE.has(String(event?.receipt_status || '').toLowerCase())
+    setReceiptStatus(event?.receipt_status || '')
+    setPhase((event?.receipt_status && !retryable) ? 'done' : 'intro')
+    setFile(null)
+    setError('')
+  }, [event?.id, event?.receipt_status, event?.receipt_retryable])
 
   /* ── Handlers ── */
   const handleFileChange = (e) => {
@@ -170,22 +173,34 @@ export default function SorteoGame({ event, clientId, onResult, onClose }) {
 
   const handleSendReceipt = async () => {
     if (!file) { setError('Seleccioná un archivo primero'); return }
+    if (loading) return
+    if (receiptStatus && !RECEIPT_RETRYABLE.has(receiptStatus)) {
+      setError('Este sorteo ya fue registrado para tu usuario.')
+      setPhase('done')
+      return
+    }
     setLoading(true)
     setError('')
     try {
-      // Register participation
-      await api.post(`/api/client/events/${event.id}/play`, {})
+      if (!event?.has_played) {
+        // Register participation only on first submission
+        await api.post(`/api/client/events/${event.id}/play`, {})
+      }
       // Upload receipt
       const fd = new FormData()
       fd.append('receipt', file)
-      await api.post(`/api/client/events/${event.id}/receipt`, fd)
+      const res = await api.post(`/api/client/events/${event.id}/receipt`, fd)
+      const status = res?.receipt_status || res?.data?.receipt_status || 'pending'
+      setReceiptStatus(status)
       setPhase('done')
+      setFile(null)
       onResult({
         won: null,
         prize: null,
         data: {},
         requiresReceipt: true,
-        message: '¡Participaste! Revisamos tu comprobante pronto.',
+        message: 'Tu comprobante fue recibido. Lo revisaremos pronto.',
+        receipt_status: status,
       })
     } catch (err) {
       setError(err.message || 'Error al enviar comprobante')
@@ -235,6 +250,24 @@ export default function SorteoGame({ event, clientId, onResult, onClose }) {
         <p style={{ fontSize: 13, color: T.t2, margin: 0, lineHeight: 1.55 }}>
           {event.description}
         </p>
+      )}
+
+      {isRetryable && receiptStatus && (
+        <div style={{
+          padding: '10px 14px',
+          borderRadius: 10,
+          background: 'rgba(245,158,11,0.08)',
+          border: '1px solid rgba(245,158,11,0.28)',
+          color: '#fbbf24',
+          fontSize: 13,
+          lineHeight: 1.5,
+        }}>
+          {receiptStatus === 'duplicate'
+            ? '⚠️ Tu comprobante anterior fue detectado como duplicado. Podés enviar uno nuevo.'
+            : receiptStatus === 'amount_low'
+              ? `⚠️ El monto del comprobante es inferior al mínimo requerido ($${event.min_deposit_amount}). Subí un nuevo comprobante.`
+              : '⚠️ Hubo un problema con tu comprobante anterior. Podés enviar uno nuevo.'}
+        </div>
       )}
 
       {error && <ErrorText>{error}</ErrorText>}
