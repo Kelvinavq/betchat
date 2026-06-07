@@ -68,7 +68,9 @@ export const SettingsNav = styled.nav`
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
-  &::-webkit-scrollbar { display: none; }
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
 
   @media (max-width: 768px) {
     width: 100%;

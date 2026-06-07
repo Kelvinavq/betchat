@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { api } from '../../../../utils/api.js'
 
@@ -95,7 +95,7 @@ const ProgressWrap = styled.div`
 `
 
 const ProgressBar = styled.div`
-  height: 8px;
+  height: 10px;
   background: rgba(255,255,255,0.06);
   border-radius: 6px;
   overflow: hidden;
@@ -103,10 +103,13 @@ const ProgressBar = styled.div`
 
 const ProgressFill = styled.div`
   height: 100%;
-  width: 0%;
-  background: linear-gradient(90deg, ${T.accent}, ${T.success});
+  width: ${({ pct }) => pct}%;
+  background: ${({ pct }) =>
+    pct >= 100
+      ? `linear-gradient(90deg, ${T.success}, #34d399)`
+      : `linear-gradient(90deg, ${T.accent}, ${T.success})`};
   border-radius: 6px;
-  animation: ${progressGrow} 0.8s ease-out forwards;
+  transition: width 0.8s ease;
 `
 
 const ProgressLabel = styled.div`
@@ -114,6 +117,34 @@ const ProgressLabel = styled.div`
   justify-content: space-between;
   font-size: 12px;
   color: ${T.t2};
+`
+
+const EnrolledBanner = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: rgba(16,185,129,0.08);
+  border: 1px solid rgba(16,185,129,0.22);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: ${T.success};
+  animation: ${popIn} 0.4s ease both;
+`
+
+const RefreshBtn = styled.button`
+  align-self: center;
+  background: none;
+  border: 1px solid ${T.border};
+  border-radius: 20px;
+  padding: 6px 16px;
+  font-size: 12px;
+  color: ${T.t2};
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  &:hover { border-color: ${T.accent}; color: ${T.accent}; }
 `
 
 const EnrollBtn = styled.button`
@@ -135,33 +166,22 @@ const EnrollBtn = styled.button`
   &:hover:not(:disabled) { transform: translateY(-2px); opacity: 0.9; }
 `
 
-const SuccessBox = styled.div`
-  text-align: center;
-  padding: 22px 16px;
-  background: rgba(16,185,129,0.08);
-  border: 1px solid rgba(16,185,129,0.25);
-  border-radius: 12px;
-  color: ${T.success};
-  font-size: 15px;
-  font-weight: 600;
-  line-height: 1.6;
-  animation: ${popIn} 0.4s ease both;
-`
-
 const PERIOD_LABELS = {
   daily: 'Diario',
   weekly: 'Semanal',
   monthly: 'Mensual',
   all_time: 'Total',
+  custom: 'Personalizado',
 }
 
-function goalText(cfg) {
+function goalText(cfg, progress) {
   const goal = cfg.goal_amount ?? '?'
+  const cur = progress ?? 0
   switch (cfg.mission_type) {
-    case 'deposit_count':  return `Meta: ${goal} depósitos`
-    case 'deposit_amount': return `Meta: $${goal} depositados`
-    case 'charge_count':   return `Meta: ${goal} cargas`
-    default:               return `Meta: ${goal}`
+    case 'deposit_count':  return { label: `Meta: ${goal} depósitos`, cur, goal }
+    case 'deposit_amount': return { label: `Meta: $${goal} depositados`, cur: `$${cur}`, goal: `$${goal}` }
+    case 'charge_count':   return { label: `Meta: ${goal} cargas`, cur, goal }
+    default:               return { label: `Meta: ${goal}`, cur, goal }
   }
 }
 
@@ -176,42 +196,94 @@ export default function RankingGame({ event, clientId, onResult, onClose }) {
   const emoji = cfg.emoji || '🏆'
   const periodLabel = PERIOD_LABELS[cfg.period_type] || cfg.period_type || 'Período'
 
-  const [phase, setPhase] = useState('info') // 'info' | 'enrolled'
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  // If already enrolled, start at progress phase
+  const [phase, setPhase] = useState(event?.has_played ? 'progress' : 'info')
+  const [enrolling, setEnrolling] = useState(false)
+  const [enrollError, setEnrollError] = useState('')
+  const [progressData, setProgressData] = useState(null)
+  const [loadingProgress, setLoadingProgress] = useState(false)
+
+  const fetchProgress = useCallback(async () => {
+    setLoadingProgress(true)
+    try {
+      const data = await api.get(`/api/client/events/${event.id}/ranking-progress`)
+      setProgressData(data)
+    } catch {
+      // silently ignore — keep stale data
+    } finally {
+      setLoadingProgress(false)
+    }
+  }, [event.id])
+
+  useEffect(() => {
+    if (phase === 'progress') {
+      fetchProgress()
+    }
+  }, [phase, fetchProgress])
 
   const handleEnroll = async () => {
-    if (loading) return
-    setLoading(true)
-    setError('')
+    if (enrolling) return
+    setEnrolling(true)
+    setEnrollError('')
     try {
-      const res = await api.post(`/api/client/events/${event.id}/play`, {})
-      setPhase('enrolled')
-      onResult({
-        won: null,
-        prize: null,
-        data: {},
-        requiresReceipt: false,
-        message: '¡Te inscribiste! Cumplí la misión para ganar el premio.',
-        ...(res.result || {}),
-      })
+      await api.post(`/api/client/events/${event.id}/play`, {})
+      setPhase('progress')
     } catch (err) {
-      setError(err.message || 'Error al inscribirse')
+      setEnrollError(err.message || 'Error al inscribirse')
     } finally {
-      setLoading(false)
+      setEnrolling(false)
     }
   }
 
-  if (phase === 'enrolled') {
+  const gt = goalText(cfg, progressData?.progress)
+  const pct = progressData?.pct ?? 0
+  const completed = pct >= 100
+
+  if (phase === 'progress') {
     return (
       <Wrap>
-        <SuccessBox>
-          <div style={{ fontSize: 42, marginBottom: 10 }}>{emoji}</div>
-          <div>¡Te inscribiste!</div>
-          <div style={{ marginTop: 8, fontSize: 13, color: T.t2 }}>
-            Cumplí la misión para ganar el premio.
-          </div>
-        </SuccessBox>
+        <BigEmoji>{emoji}</BigEmoji>
+
+        <MissionTitle>{event?.title || 'Misión de Ranking'}</MissionTitle>
+
+        {event?.description && (
+          <MissionDesc>{event.description}</MissionDesc>
+        )}
+
+        <EnrolledBanner>
+          <span>✅</span>
+          <span>¡Estás inscripto! Cumplí la misión para ganar.</span>
+        </EnrolledBanner>
+
+        <GoalBadge>
+          <span>🎯</span>
+          <span>{gt.label}</span>
+        </GoalBadge>
+
+        <PrizeLine>
+          🏆 {event?.prize_amount} {prizeLabel(event?.prize_type)}
+        </PrizeLine>
+
+        <ProgressWrap>
+          <ProgressLabel>
+            <span>Tu progreso</span>
+            <span style={{ color: completed ? T.success : T.t1, fontWeight: 700 }}>
+              {loadingProgress ? '...' : `${gt.cur} / ${gt.goal}`}
+            </span>
+          </ProgressLabel>
+          <ProgressBar>
+            <ProgressFill pct={loadingProgress ? 0 : pct} />
+          </ProgressBar>
+          {completed && (
+            <div style={{ textAlign: 'center', fontSize: 13, color: T.success, fontWeight: 700 }}>
+              ¡Meta alcanzada! 🎉
+            </div>
+          )}
+        </ProgressWrap>
+
+        <RefreshBtn type="button" onClick={fetchProgress} disabled={loadingProgress}>
+          {loadingProgress ? 'Actualizando...' : '↻ Actualizar progreso'}
+        </RefreshBtn>
       </Wrap>
     )
   }
@@ -228,7 +300,7 @@ export default function RankingGame({ event, clientId, onResult, onClose }) {
 
       <GoalBadge>
         <span>🎯</span>
-        <span>{goalText(cfg)}</span>
+        <span>{gt.label}</span>
       </GoalBadge>
 
       <PeriodBadge>
@@ -245,16 +317,16 @@ export default function RankingGame({ event, clientId, onResult, onClose }) {
           <span>0 / {cfg.goal_amount ?? '?'}</span>
         </ProgressLabel>
         <ProgressBar>
-          <ProgressFill style={{ '--pct': '0%' }} />
+          <ProgressFill pct={0} />
         </ProgressBar>
       </ProgressWrap>
 
-      {error && (
-        <p style={{ color: T.danger, fontSize: 13, textAlign: 'center', margin: 0 }}>{error}</p>
+      {enrollError && (
+        <p style={{ color: T.danger, fontSize: 13, textAlign: 'center', margin: 0 }}>{enrollError}</p>
       )}
 
-      <EnrollBtn type="button" disabled={loading} onClick={handleEnroll}>
-        {loading ? '...' : '⚡ Inscribirme'}
+      <EnrollBtn type="button" disabled={enrolling} onClick={handleEnroll}>
+        {enrolling ? '...' : '⚡ Inscribirme'}
       </EnrollBtn>
     </Wrap>
   )

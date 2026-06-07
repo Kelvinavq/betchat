@@ -582,6 +582,12 @@ export default function EventsOverlay() {
     return () => ro.disconnect()
   }, [bubbleStyle, chatIsOpen])
 
+  useEffect(() => {
+    const handler = () => setPanelOpen(true)
+    window.addEventListener('client:open-events', handler)
+    return () => window.removeEventListener('client:open-events', handler)
+  }, [])
+
   const isEventExpired = useCallback((ev, now = Date.now()) => {
     if (!ev) return false
 

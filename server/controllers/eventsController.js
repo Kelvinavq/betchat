@@ -6,6 +6,7 @@ import { io } from '../app.js';
 import { persistMessage } from './chatController.js';
 import { creditPanelBalance } from './mercadoPagoController.js';
 import { getAutoMessage } from './autoMessagesController.js';
+import { settleEventRewardPaid } from '../utils/eventRewardSettlement.js';
 
 const EVENT_TYPES = ['sorteo','quiz','scratch','roulette','slots','red_black','briefcase','treasure_chest','ranking'];
 const EVENT_STATUSES = ['draft','scheduled','active','finished','cancelled'];
@@ -429,6 +430,97 @@ async function settleBriefcaseWinnersForKeys(event, voteKeys) {
   return settled
 }
 
+async function settleRankingWinners(event) {
+  const cfg = jsonParse(event.config_json, {})
+  const missionType = cfg.mission_type || 'deposit_count'
+  const goal = Number(cfg.goal_amount) || 0
+  if (goal <= 0) return
+
+  const { rows: partRows } = await query(
+    `SELECT ep.client_id, ep.username,
+            (SELECT id FROM chats WHERE client_id = ep.client_id ORDER BY created_at DESC LIMIT 1) AS chat_id
+       FROM event_participants ep
+      WHERE ep.event_id = ?`,
+    [event.id]
+  )
+
+  const startsAt = event.starts_at
+    ? String(event.starts_at).slice(0, 19).replace('T', ' ')
+    : null
+  const endsAt = event.ends_at
+    ? String(event.ends_at).slice(0, 19).replace('T', ' ')
+    : null
+
+  const dateClause = [
+    startsAt ? 'AND created_at >= ?' : null,
+    endsAt   ? 'AND created_at <= ?' : null,
+  ].filter(Boolean).join(' ')
+
+  for (const p of (partRows || [])) {
+    const cid = Number(p.client_id)
+    const dateParams = [
+      ...(startsAt ? [startsAt] : []),
+      ...(endsAt   ? [endsAt]   : []),
+    ]
+
+    const allDepositsSubquery = `(
+      SELECT amount FROM manual_payment_movements WHERE client_id = ? AND LOWER(status) = 'paid' ${dateClause}
+      UNION ALL
+      SELECT amount FROM hgcash_movements WHERE client_id = ? AND LOWER(status) = 'paid' ${dateClause}
+      UNION ALL
+      SELECT amount FROM mercadopago_movements WHERE client_id = ? AND LOWER(status) = 'paid' ${dateClause}
+      UNION ALL
+      SELECT amount FROM telepagos_movements WHERE client_id = ? AND LOWER(status) = 'paid' ${dateClause}
+    ) AS _deps`
+    const unionParams = [cid, ...dateParams, cid, ...dateParams, cid, ...dateParams, cid, ...dateParams]
+
+    let progress = 0
+    if (missionType === 'deposit_amount') {
+      const { rows } = await query(`SELECT COALESCE(SUM(amount), 0) AS total FROM ${allDepositsSubquery}`, unionParams)
+      progress = Number(rows?.[0]?.total || 0)
+    } else {
+      const { rows } = await query(`SELECT COUNT(*) AS cnt FROM ${allDepositsSubquery}`, unionParams)
+      progress = Number(rows?.[0]?.cnt || 0)
+    }
+
+    if (progress < goal) continue
+
+    await query(
+      'UPDATE event_participants SET is_winner = 1 WHERE event_id = ? AND client_id = ?',
+      [event.id, cid]
+    ).catch(() => {})
+
+    // Pass chatId: null so settleEventRewardPaid doesn't send its hardcoded message;
+    // we send the configurable auto-message below instead.
+    const rewardResult = await settleEventRewardPaid({
+      clientId: cid,
+      eventId: Number(event.id),
+      eventType: 'ranking',
+      username: p.username || '',
+      chatId: null,
+      creditPanelBalance,
+    }).catch(e => ({ status: 'error', error: e?.message }))
+
+    console.log('[finishEvent] ranking winner settled:', { clientId: cid, rewardResult })
+
+    if (p.chat_id && rewardResult?.status === 'paid') {
+      const msg = await getAutoMessage('ranking_goal_achieved', {
+        amount: Number(event.prize_amount || 0),
+        vars: { evento: event.title || 'Ranking' },
+      }).catch(() => null)
+      if (msg) {
+        persistMessage({
+          chatId: Number(p.chat_id),
+          senderType: 'system',
+          content: msg,
+          extra: { eventRewardPaid: true, rewardId: rewardResult.rewardId, eventId: Number(event.id), depositEvent: 'fichas_credited', depositAmount: Number(event.prize_amount || 0) },
+        }).catch(() => {})
+      }
+      io?.emit('event:reward_paid', { rewardId: rewardResult.rewardId, eventId: Number(event.id), clientId: cid, status: 'paid' })
+    }
+  }
+}
+
 export async function finishEvent(req, res, next) {
   try {
     const existing = await fetchEventById(req.params.id)
@@ -448,6 +540,11 @@ export async function finishEvent(req, res, next) {
           }
         })
         .catch(e => console.error('[finishEvent] briefcase auto-settle error:', e?.message))
+    }
+
+    if (String(existing.type || '').toLowerCase() === 'ranking') {
+      settleRankingWinners(event)
+        .catch(e => console.error('[finishEvent] ranking auto-settle error:', e?.message))
     }
 
     res.json({ event })
@@ -1014,4 +1111,99 @@ export async function creditEventReward(reward) {
     [reward.error_code || 'NO_EXTERNAL_API', reward.error_message || 'Pendiente de acreditación externa', reward.id]
   );
   return { success: false };
+}
+
+/**
+ * GET /api/events/:id/ranking-participants
+ * Returns per-participant progress for a ranking event (admin only).
+ */
+export async function getRankingParticipantProgress(req, res, next) {
+  try {
+    const eventId = Number(req.params.id)
+    if (!eventId) return res.status(400).json({ error: 'ID de evento requerido' })
+
+    const { rows: eventRows, error: evErr } = await query(
+      'SELECT id, type, config_json, starts_at, ends_at FROM events WHERE id = ? LIMIT 1',
+      [eventId]
+    )
+    if (evErr) throw evErr
+    const event = eventRows?.[0]
+    if (!event) return res.status(404).json({ error: 'Evento no encontrado' })
+    if (String(event.type || '').toLowerCase() !== 'ranking') {
+      return res.status(400).json({ error: 'Este endpoint es solo para eventos de tipo ranking' })
+    }
+
+    const cfg = jsonParse(event.config_json, {})
+    const missionType = cfg.mission_type || 'deposit_count'
+    const goal = Number(cfg.goal_amount) || 0
+
+    const { rows: partRows, error: partErr } = await query(
+      'SELECT client_id, username, created_at FROM event_participants WHERE event_id = ? ORDER BY created_at ASC',
+      [eventId]
+    )
+    if (partErr) throw partErr
+
+    const startsAt = event.starts_at
+      ? String(event.starts_at).slice(0, 19).replace('T', ' ')
+      : null
+    const endsAt = event.ends_at
+      ? String(event.ends_at).slice(0, 19).replace('T', ' ')
+      : null
+
+    const dateClause = [
+      startsAt ? 'AND created_at >= ?' : null,
+      endsAt   ? 'AND created_at <= ?' : null,
+    ].filter(Boolean).join(' ')
+
+    const participants = await Promise.all((partRows || []).map(async (p) => {
+      const dateParams = [
+        ...(startsAt ? [startsAt] : []),
+        ...(endsAt   ? [endsAt]   : []),
+      ]
+
+      const cid = Number(p.client_id)
+      // Union all deposit tables so auto-processed (HGCash/MercadoPago/Telepagos) deposits are counted too
+      const allDepositsSubquery = `(
+        SELECT amount FROM manual_payment_movements WHERE client_id = ? AND LOWER(status) = 'paid' ${dateClause}
+        UNION ALL
+        SELECT amount FROM hgcash_movements WHERE client_id = ? AND LOWER(status) = 'paid' ${dateClause}
+        UNION ALL
+        SELECT amount FROM mercadopago_movements WHERE client_id = ? AND LOWER(status) = 'paid' ${dateClause}
+        UNION ALL
+        SELECT amount FROM telepagos_movements WHERE client_id = ? AND LOWER(status) = 'paid' ${dateClause}
+      ) AS _deps`
+      const unionParams = [cid, ...dateParams, cid, ...dateParams, cid, ...dateParams, cid, ...dateParams]
+
+      let progress = 0
+      if (missionType === 'deposit_amount') {
+        const { rows } = await query(
+          `SELECT COALESCE(SUM(amount), 0) AS total FROM ${allDepositsSubquery}`,
+          unionParams
+        )
+        progress = Number(rows?.[0]?.total || 0)
+      } else {
+        const { rows } = await query(
+          `SELECT COUNT(*) AS cnt FROM ${allDepositsSubquery}`,
+          unionParams
+        )
+        progress = Number(rows?.[0]?.cnt || 0)
+      }
+
+      const pct = goal > 0 ? Math.min(100, Math.round((progress / goal) * 100)) : 0
+      return {
+        clientId:  Number(p.client_id),
+        username:  p.username || `Cliente #${p.client_id}`,
+        progress,
+        goal,
+        pct,
+        enrolled_at: p.created_at,
+      }
+    }))
+
+    participants.sort((a, b) => b.progress - a.progress)
+
+    return res.json({ participants, missionType, goal })
+  } catch (err) {
+    next(err)
+  }
 }

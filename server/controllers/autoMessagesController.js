@@ -15,6 +15,7 @@ const EVENTS = [
   'withdrawal_rejected',
   'event_vote_prompt',
   'event_vote_reminder',
+  'ranking_goal_achieved',
 ]
 
 const DEFAULTS = {
@@ -32,6 +33,7 @@ const DEFAULTS = {
   withdrawal_rejected:      'Tu solicitud de retiro fue rechazada. Contactá a soporte para más información.',
   event_vote_prompt:        '🗳️ ¡Tu comprobante fue acreditado! Ahora podés ingresar al evento "{{evento}}" y elegir tu número. ¡No te quedes afuera — el tiempo corre!',
   event_vote_reminder:      '⏰ {{nombre}}, todavía no elegiste tu número en el evento "{{evento}}". ¡No te quedes afuera! Ingresá ahora y hacé tu elección antes de que termine.',
+  ranking_goal_achieved:    '🏆 ¡Cumpliste la meta del evento "{{evento}}"! Te acreditamos {{amount}} en fichas. ¡Felicitaciones!',
 }
 
 export async function getAutoMessages(req, res, next) {

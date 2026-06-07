@@ -33,6 +33,7 @@ import { api } from '../../../utils/api'
 import TicketsSection from './TicketsSection'
 import ThemesSection from './ThemesSection'
 import AutoMessagesSection from './AutoMessagesSection'
+import FaqSection from './FaqSection'
 import AdvancedSection from './AdvancedSection'
 import SoundsSection from './SoundsSection'
 import ReferralSection from './ReferralSection'
@@ -130,6 +131,12 @@ const TABS = [
     label: 'Temas',
     icon: <PaletteOutlinedIcon />,
     sub: 'Apariencia del sistema',
+  },
+  {
+    id: 'faq',
+    label: 'FAQ',
+    icon: <InfoOutlinedIcon />,
+    sub: 'Preguntas frecuentes',
   },
 ]
 
@@ -2314,6 +2321,13 @@ const SettingsPage = ({ onMenuOpen }) => {
                 themeConfig={themeConfig}
                 onThemeChange={setThemeConfig}
               />
+            </Section>
+          )}
+
+          {/* ════════════════ FAQ ════════════════ */}
+          {activeTab === 'faq' && (
+            <Section>
+              <FaqSection />
             </Section>
           )}
 

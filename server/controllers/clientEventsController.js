@@ -1149,6 +1149,91 @@ export async function playEvent(req, res, next) {
 }
 
 /**
+ * GET /api/client/events/:id/ranking-progress
+ * Returns the client's real progress for a ranking event.
+ */
+export async function getRankingProgress(req, res, next) {
+  try {
+    const client = await getClientFromCookie(req)
+    if (!client) {
+      return res.status(401).json({ error: 'Sesión requerida', code: 'AUTH_REQUIRED' })
+    }
+    const eventId = Number(req.params.id)
+    if (!eventId) return res.status(400).json({ error: 'ID de evento requerido', code: 'EVENT_ID_REQUIRED' })
+
+    const { rows: eventRows, error: eventErr } = await query(
+      'SELECT id, type, config_json, starts_at, ends_at FROM events WHERE id = ? LIMIT 1',
+      [eventId]
+    )
+    if (eventErr) return next(eventErr)
+    if (!eventRows?.length) return res.status(404).json({ error: 'Evento no encontrado.' })
+    const event = eventRows[0]
+    if (String(event.type || '').toLowerCase() !== 'ranking') {
+      return res.status(400).json({ error: 'Este endpoint es solo para eventos de ranking.' })
+    }
+
+    const cfg = parseJsonSafe(event.config_json)
+    const missionType = cfg.mission_type || 'deposit_count'
+    const goalAmount = Number(cfg.goal_amount) || 0
+
+    const { rows: participantRows } = await query(
+      'SELECT id FROM event_participants WHERE event_id = ? AND client_id = ? LIMIT 1',
+      [eventId, client.clientId]
+    )
+    const enrolled = Boolean(participantRows?.length)
+
+    let progress = 0
+
+    if (enrolled && missionType !== 'other') {
+      const dateParams = []
+      let dateClause = ''
+      const startsAt = event.starts_at
+        ? String(event.starts_at).slice(0, 19).replace('T', ' ')
+        : null
+      const endsAt = event.ends_at
+        ? String(event.ends_at).slice(0, 19).replace('T', ' ')
+        : null
+      if (startsAt) { dateClause += ' AND created_at >= ?'; dateParams.push(startsAt) }
+      if (endsAt)   { dateClause += ' AND created_at <= ?'; dateParams.push(endsAt)   }
+
+      const cid = client.clientId
+      // Union all deposit tables so auto-processed (HGCash/MercadoPago/Telepagos) deposits are counted too
+      const allDepositsSubquery = `(
+        SELECT amount, created_at FROM manual_payment_movements WHERE client_id = ? AND LOWER(status) = 'paid'${dateClause}
+        UNION ALL
+        SELECT amount, created_at FROM hgcash_movements WHERE client_id = ? AND LOWER(status) = 'paid'${dateClause}
+        UNION ALL
+        SELECT amount, created_at FROM mercadopago_movements WHERE client_id = ? AND LOWER(status) = 'paid'${dateClause}
+        UNION ALL
+        SELECT amount, created_at FROM telepagos_movements WHERE client_id = ? AND LOWER(status) = 'paid'${dateClause}
+      ) AS _deps`
+      const unionParams = [cid, ...dateParams, cid, ...dateParams, cid, ...dateParams, cid, ...dateParams]
+
+      if (missionType === 'deposit_amount') {
+        const { rows } = await query(
+          `SELECT COALESCE(SUM(amount), 0) AS total FROM ${allDepositsSubquery}`,
+          unionParams
+        )
+        progress = Number(rows?.[0]?.total || 0)
+      } else {
+        // deposit_count, charge_count — count paid movements across all providers
+        const { rows } = await query(
+          `SELECT COUNT(*) AS cnt FROM ${allDepositsSubquery}`,
+          unionParams
+        )
+        progress = Number(rows?.[0]?.cnt || 0)
+      }
+    }
+
+    const pct = goalAmount > 0 ? Math.min(100, Math.round((progress / goalAmount) * 100)) : 0
+
+    return res.json({ enrolled, progress, goal: goalAmount, pct, missionType })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
  * POST /api/client/events/:id/settle-reward
  * Called by the client after the user finishes revealing a scratch card.
  * Settles the pending reward (credits fichas, sends chat message) without

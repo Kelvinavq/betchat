@@ -106,6 +106,13 @@ const MESSAGE_DEFS = [
     icon: '⏰',
     bg: 'rgba(59,130,246,0.13)',
   },
+  {
+    event: 'ranking_goal_achieved',
+    label: 'Meta de Ranking cumplida',
+    desc: 'Se envía automáticamente al finalizar un evento Ranking a los clientes que cumplieron la meta. Variables: {{evento}}, {{amount}}',
+    icon: '🏆',
+    bg: 'rgba(234,179,8,0.13)',
+  },
 ]
 
 export default function AutoMessagesSection() {

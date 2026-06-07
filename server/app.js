@@ -37,6 +37,8 @@ import clientEventsRoutes from './routes/clientEventsRoutes.js'
 import supportProxyRoutes from './routes/supportProxyRoutes.js'
 import broadcastRoutes from './routes/broadcastRoutes.js'
 import notificationSoundsRoutes from './routes/notificationSoundsRoutes.js'
+import faqRoutes from './routes/faqRoutes.js'
+import clientHistoryRoutes from './routes/clientHistoryRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { startEventScheduler, stopEventScheduler } from './utils/eventScheduler.js'
@@ -123,6 +125,8 @@ app.use('/api/mercadopago', mercadoPagoRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/client/popups', clientPopupRoutes);
 app.use('/api/client/events', clientEventsRoutes);
+app.use('/api/client/history', clientHistoryRoutes);
+app.use('/api/faq', faqRoutes);
 app.use('/api/support', supportProxyRoutes);
 app.use('/api/internal/broadcast', broadcastRoutes);
 app.use('/event-receipts', express.static(path.join(process.cwd(), 'public', 'event-receipts')));

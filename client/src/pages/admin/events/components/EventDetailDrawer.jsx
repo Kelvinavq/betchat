@@ -988,6 +988,170 @@ function ParticipantRow({ p, eventType, onPay, onReset, onChat, paying, resettin
   )
 }
 
+/* ── ranking progress styled pieces ─────────────────────── */
+const RankCard = styled.div`
+  background: #0e1525;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 14px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  animation: ${fadeUp} 0.22s ease both;
+  transition: border-color 0.2s;
+  &:hover { border-color: rgba(255,255,255,0.12); }
+`
+
+const RankRow = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`
+
+const RankPos = styled.div`
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: ${({ $top }) => $top === 1 ? 'rgba(245,158,11,0.2)' : $top === 2 ? 'rgba(148,163,184,0.15)' : $top === 3 ? 'rgba(249,115,22,0.15)' : 'rgba(255,255,255,0.06)'};
+  color: ${({ $top }) => $top === 1 ? '#f59e0b' : $top === 2 ? '#94a3b8' : $top === 3 ? '#f97316' : '#4b5563'};
+  font-size: 12px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+`
+
+const RankName = styled.span`
+  font-size: 14px;
+  font-weight: 700;
+  color: #f1f5f9;
+  min-width: 100px;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+`
+
+const RankDate = styled.span`
+  font-size: 11px;
+  color: #4b5563;
+  white-space: nowrap;
+`
+
+const RankBarTrack = styled.div`
+  flex: 1;
+  height: 8px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 4px;
+  overflow: hidden;
+`
+
+const RankBarFill = styled.div`
+  height: 100%;
+  border-radius: 4px;
+  background: ${({ $pct }) => $pct >= 100 ? 'linear-gradient(90deg,#10b981,#34d399)' : 'linear-gradient(90deg,#3b82f6,#60a5fa)'};
+  width: ${({ $pct }) => Math.min($pct, 100)}%;
+  transition: width 0.5s ease;
+  min-width: ${({ $pct }) => $pct > 0 ? '4px' : '0'};
+`
+
+const RankValue = styled.div`
+  font-size: 13px;
+  font-weight: 700;
+  color: ${({ $done }) => $done ? '#10b981' : '#60a5fa'};
+  white-space: nowrap;
+  min-width: 90px;
+  text-align: right;
+`
+
+const MISSION_LABEL = {
+  deposit_amount: 'Monto depositado',
+  deposit_count:  'Depósitos realizados',
+  charge_count:   'Cargas realizadas',
+  other:          'Progreso',
+}
+
+/* ═══════════════════════════════════════════════════════════
+   RANKING PROGRESS TAB
+═══════════════════════════════════════════════════════════ */
+function RankingProgressTab({ eventId }) {
+  const [data, setData]       = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError]     = useState('')
+
+  const load = useCallback(async () => {
+    setError('')
+    try {
+      const res = await eventsApi.rankingParticipants(eventId)
+      setData(res)
+    } catch (e) {
+      setError(e.message || 'Error al cargar el progreso')
+    } finally {
+      setLoading(false)
+    }
+  }, [eventId])
+
+  useEffect(() => { load() }, [load])
+
+  if (loading) return <Spinner />
+  if (error) return (
+    <div style={{ padding: '10px 14px', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: 10, color: '#ef4444', fontSize: 13 }}>
+      {error}
+    </div>
+  )
+
+  const participants = data?.participants || []
+  const missionType = data?.missionType || 'deposit_amount'
+  const goal = Number(data?.goal || 0)
+  const isAmount = missionType === 'deposit_amount'
+  const missionLabel = MISSION_LABEL[missionType] || 'Progreso'
+
+  const fmt = (val) => isAmount
+    ? `$${Number(val).toLocaleString('es-AR')}`
+    : String(Math.round(val))
+
+  return (
+    <DistSection>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <DistTitle>Clasificación — {missionLabel}</DistTitle>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 12, color: '#4b5563' }}>Meta: <strong style={{ color: '#f8fafc' }}>{fmt(goal)}</strong></span>
+          <RefreshBtn type="button" title="Actualizar" onClick={load}>↻</RefreshBtn>
+        </div>
+      </div>
+
+      {participants.length === 0 && (
+        <EmptyState>Aún no hay participantes inscritos en este ranking.</EmptyState>
+      )}
+
+      {participants.map((p, idx) => {
+        const pct = goal > 0 ? Math.min(Math.round((p.progress / goal) * 100), 100) : 0
+        const done = pct >= 100
+        const pos = idx + 1
+        return (
+          <RankCard key={p.clientId}>
+            <RankRow>
+              <RankPos $top={pos}>{pos <= 3 ? ['🥇','🥈','🥉'][pos - 1] : pos}</RankPos>
+              <Avatar $bg={avatarBg(p.username)}>{initials(p.username)}</Avatar>
+              <RankName title={p.username}>{p.username || `#${p.clientId}`}</RankName>
+              <RankDate>desde {fmtTime(p.enrolled_at)}</RankDate>
+              <span style={{ flex: 1 }} />
+              {done && <Chip $bg="rgba(16,185,129,0.15)" $color="#10b981" $border="rgba(16,185,129,0.3)">✓ Meta cumplida</Chip>}
+            </RankRow>
+            <RankRow>
+              <RankBarTrack>
+                <RankBarFill $pct={pct} />
+              </RankBarTrack>
+              <RankValue $done={done}>{fmt(p.progress)} / {fmt(goal)} ({pct}%)</RankValue>
+            </RankRow>
+          </RankCard>
+        )
+      })}
+    </DistSection>
+  )
+}
+
 /* ═══════════════════════════════════════════════════════════
    MAIN DRAWER
 ═══════════════════════════════════════════════════════════ */
@@ -1053,7 +1217,8 @@ export default function EventDetailDrawer({ eventId, onClose, onFinish, onCancel
     ? allParticipants.filter(p => p.receipt_status === 'paid' && !p.vote_key).length
     : 0
 
-  const showDistTab = DISTRIBUTION_GAMES.has(String(event?.type || '').toLowerCase())
+  const showDistTab    = DISTRIBUTION_GAMES.has(String(event?.type || '').toLowerCase())
+  const showRankingTab = String(event?.type || '').toLowerCase() === 'ranking'
 
   const handlePay = async (rewardId) => {
     setPaying(s => new Set(s).add(rewardId))
@@ -1251,6 +1416,11 @@ export default function EventDetailDrawer({ eventId, onClose, onFinish, onCancel
               📊 {['briefcase','treasure_chest'].includes(type) ? 'Distribución de votos' : type === 'quiz' ? 'Respuestas' : 'Estadísticas'}
             </Tab>
           )}
+          {showRankingTab && (
+            <Tab $active={tab === 'ranking'} onClick={() => setTab('ranking')}>
+              📈 Progreso
+            </Tab>
+          )}
         </TabsRow>
 
         {/* ── BODY ── */}
@@ -1310,6 +1480,11 @@ export default function EventDetailDrawer({ eventId, onClose, onFinish, onCancel
               onPayWinners={handlePayWinners}
               payingWinners={payingWinners}
             />
+          )}
+
+          {/* Ranking progress tab */}
+          {!loading && tab === 'ranking' && (
+            <RankingProgressTab eventId={eventId} />
           )}
         </Body>
       </Panel>

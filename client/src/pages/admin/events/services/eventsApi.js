@@ -47,4 +47,5 @@ export const eventsApi = {
   resetParticipation: (eventId, participantId) => api.delete(`${BASE}/${eventId}/participants/${participantId}`),
   payBriefcaseWinners: (eventId, voteKeys) => api.post(`${BASE}/${eventId}/pay-briefcase-winners`, { vote_keys: voteKeys }),
   sendVoteReminder: (eventId) => api.post(`${BASE}/${eventId}/send-vote-reminder`),
+  rankingParticipants: (eventId) => api.get(`${BASE}/${eventId}/ranking-participants`),
 }

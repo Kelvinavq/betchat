@@ -28,6 +28,7 @@ import {
   listRewards,
   payReward,
   discardReward,
+  getRankingParticipantProgress,
 } from '../controllers/eventsController.js';
 
 const router = Router();
@@ -63,5 +64,6 @@ router.delete('/:id/participants/:participantId', resetParticipation);
 router.post('/:id/pay-briefcase-winners', payBriefcaseWinners);
 router.post('/:id/send-vote-reminder', sendVoteReminder);
 router.get('/:id/rewards', getEventRewards);
+router.get('/:id/ranking-participants', getRankingParticipantProgress);
 
 export default router;

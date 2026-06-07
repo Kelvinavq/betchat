@@ -17,6 +17,8 @@ import ReplyIcon from '@mui/icons-material/Reply'
 import PlayArrowIcon from '@mui/icons-material/PlayArrow'
 import PauseIcon from '@mui/icons-material/Pause'
 import LogoutIcon from '@mui/icons-material/Logout'
+import AccountCircleOutlinedIcon from '@mui/icons-material/AccountCircleOutlined'
+import ClientMenu from '../client/menu/ClientMenu'
 import RefreshIcon from '@mui/icons-material/Refresh'
 import WarningAmberIcon from '@mui/icons-material/WarningAmber'
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
@@ -1624,6 +1626,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
   const [botProcessing, setBotProcessing] = useState(null)
   const [replyingTo, setReplyingTo] = useState(null)
   const [messageMenu, setMessageMenu] = useState(null)
+  const [menuOpen, setMenuOpen] = useState(false)
   const [swipeReply, setSwipeReply] = useState(null)
   const [receiptRequest, setReceiptRequest] = useState(null)
   const lastReceiptRequestRef = useRef(null)
@@ -2856,6 +2859,14 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
               <LogoutIcon />
             </ChatHeaderBtn>
           )}
+          <ChatHeaderBtn
+            type="button"
+            onClick={() => setMenuOpen(true)}
+            aria-label="Menú"
+            title="Mi cuenta"
+          >
+            <AccountCircleOutlinedIcon />
+          </ChatHeaderBtn>
         </ChatHeaderSide>
 
         <ChatHeaderCenter>
@@ -3179,6 +3190,8 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
         style={{ display: 'none' }}
         onChange={handleReceiptFileSelect}
       />
+
+      {menuOpen && <ClientMenu onClose={() => setMenuOpen(false)} />}
 
     </ChatViewContainer>
   )

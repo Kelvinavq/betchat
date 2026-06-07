@@ -4,6 +4,7 @@ import {
   getActiveEvents,
   playEvent,
   settleReward,
+  getRankingProgress,
   uploadReceipt,
   uploadReceiptMiddleware,
 } from '../controllers/clientEventsController.js'
@@ -15,6 +16,9 @@ router.get('/active', getActiveEvents)
 
 // GET /api/client/events/history — requires client auth
 router.get('/history', getEventHistory)
+
+// GET /api/client/events/:id/ranking-progress — requires client auth
+router.get('/:id/ranking-progress', getRankingProgress)
 
 // POST /api/client/events/:id/play — requires client JWT cookie
 router.post('/:id/play', playEvent)
