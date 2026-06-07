@@ -1,6 +1,7 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { api } from '../../../../utils/api.js'
+import ReceiptUpload from '../ReceiptUpload.jsx'
 
 /* ── Animations ── */
 const fadeIn = keyframes`from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}`
@@ -147,14 +148,31 @@ export default function TreasureChestGame({ event, clientId, onResult, onClose }
   const cfg = event?.config_json || {}
   const options = cfg.options?.length ? cfg.options : DEFAULT_OPTIONS
   const requiresDeposit = Number(event?.min_deposit_amount) > 0
+  const initialReceiptStatus = String(event?.receipt_status || '').toLowerCase()
 
-  const [phase, setPhase] = useState('choosing') // 'choosing' | 'voted'
+  const [phase, setPhase] = useState(
+    requiresDeposit && initialReceiptStatus !== 'paid' ? 'awaiting_receipt' : 'choosing'
+  )
   const [selected, setSelected] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [receiptStatus, setReceiptStatus] = useState(initialReceiptStatus)
+
+  useEffect(() => {
+    const nextReceiptStatus = String(event?.receipt_status || '').toLowerCase()
+    setReceiptStatus(nextReceiptStatus)
+    setPhase(requiresDeposit && nextReceiptStatus !== 'paid' ? 'awaiting_receipt' : 'choosing')
+    setSelected(null)
+    setError('')
+  }, [event?.id, event?.receipt_status, requiresDeposit])
 
   const handleConfirm = async () => {
     if (!selected || loading) return
+    if (requiresDeposit && receiptStatus !== 'paid') {
+      setError('Primero tenés que acreditar tu depósito para poder votar.')
+      setPhase('awaiting_receipt')
+      return
+    }
     setLoading(true)
     setError('')
     try {
@@ -177,12 +195,41 @@ export default function TreasureChestGame({ event, clientId, onResult, onClose }
     }
   }
 
+  const handleReceiptUploaded = (res) => {
+    const status = String(res?.receipt_status || res?.data?.receipt_status || 'pending').toLowerCase()
+    setReceiptStatus(status)
+    if (status === 'paid') {
+      setPhase('choosing')
+    }
+  }
+
+  if (requiresDeposit && receiptStatus !== 'paid') {
+    return (
+      <Wrap>
+        <div style={{ textAlign: 'center', fontSize: 28, marginBottom: -6 }}>💎</div>
+
+        <RuleBox>
+          Primero subí tu comprobante de depósito.
+          <br />
+          Cuando quede acreditado, vas a poder elegir tu cofre.
+        </RuleBox>
+
+        <ReceiptUpload
+          eventId={event.id}
+          clientId={clientId}
+          onUploaded={handleReceiptUploaded}
+          initialStatus={receiptStatus}
+        />
+      </Wrap>
+    )
+  }
+
   if (phase === 'voted') {
     return (
       <Wrap>
         <SuccessBox>
           <div style={{ fontSize: 42, marginBottom: 10 }}>
-            {selected?.icon || '🎁'}
+            {selected?.icon || '💎'}
           </div>
           <div>¡Elegiste <strong>{selected?.label}</strong>!</div>
           <div style={{ marginTop: 8, fontSize: 13, color: T.t2 }}>
@@ -195,19 +242,17 @@ export default function TreasureChestGame({ event, clientId, onResult, onClose }
 
   return (
     <Wrap>
-      <div style={{ textAlign: 'center', fontSize: 28, marginBottom: -6 }}>🏆</div>
+      <div style={{ textAlign: 'center', fontSize: 28, marginBottom: -6 }}>💎</div>
 
       <RuleBox>
         La opción con <strong style={{ color: T.t1 }}>MENOS votos</strong> al finalizar gana.
         <br />Pensá bien antes de elegir.
       </RuleBox>
 
-      {requiresDeposit && (
-        <DepositInfo>
-          <span>💰</span>
-          <span>Depósito mínimo: <strong style={{ color: T.t1 }}>${event.min_deposit_amount}</strong></span>
-        </DepositInfo>
-      )}
+      <DepositInfo>
+        <span>💰</span>
+        <span>Depósito mínimo requerido: <strong style={{ color: T.t1 }}>${event.min_deposit_amount}</strong></span>
+      </DepositInfo>
 
       <div style={{ fontSize: 13, color: T.t2, textAlign: 'center' }}>
         Seleccioná una opción:
