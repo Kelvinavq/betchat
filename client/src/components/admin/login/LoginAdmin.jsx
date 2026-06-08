@@ -49,7 +49,26 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
-  const [cooldown, setCooldown] = useState(0);
+  const [cooldown, setCooldown] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('admin_login_cooldown_until');
+      const until = raw ? Number(raw) : 0;
+      return Math.max(0, Math.ceil((until - Date.now()) / 1000));
+    } catch {
+      return 0;
+    }
+  });
+  const [loginNotice, setLoginNotice] = useState(() => {
+    try {
+      const raw = sessionStorage.getItem('admin_login_cooldown_until');
+      const until = raw ? Number(raw) : 0;
+      return until > Date.now()
+        ? 'Demasiados intentos de inicio de sesión. Esperá antes de volver a intentarlo.'
+        : '';
+    } catch {
+      return '';
+    }
+  });
   const [fieldErrors, setFieldErrors] = useState({});
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [biometricNotice, setBiometricNotice] = useState('');
@@ -70,6 +89,16 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
     if (!cooldown) return;
     const timer = window.setInterval(() => setCooldown((current) => Math.max(0, current - 1)), 1000);
     return () => window.clearInterval(timer);
+  }, [cooldown]);
+
+  useEffect(() => {
+    if (cooldown > 0) return;
+    setLoginNotice('');
+    try {
+      sessionStorage.removeItem('admin_login_cooldown_until');
+    } catch {
+      // ignore
+    }
   }, [cooldown]);
 
   useEffect(() => {
@@ -141,6 +170,7 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
       return;
     }
     setFieldErrors({});
+    setLoginNotice('');
     setLoading(true);
     try {
       const response = await onSubmit({ username: trimmedUsername, password });
@@ -149,10 +179,34 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
         setShowEnrollModal(true);
       }
       setAttempts(0);
-    } catch {
+    } catch (error) {
+      const code = String(error?.payload?.code || error?.code || '').toUpperCase();
+      if (code === 'TOO_MANY_REQUESTS') {
+        setAttempts(0);
+        const retryAfterSeconds = Math.max(1, Number(error?.retryAfter || error?.payload?.retryAfter || error?.payload?.retry_after || 15 * 60));
+        const until = Date.now() + (retryAfterSeconds * 1000);
+        setCooldown(retryAfterSeconds);
+        setLoginNotice(`Demasiados intentos de inicio de sesión. Por seguridad, el acceso quedó bloqueado temporalmente (${Math.max(1, Math.ceil(retryAfterSeconds / 60))} min).`);
+        try {
+          sessionStorage.setItem('admin_login_cooldown_until', String(until));
+        } catch {
+          // ignore
+        }
+        return;
+      }
       const nextAttempts = attempts + 1;
       setAttempts(nextAttempts);
-      if (nextAttempts >= 5) setCooldown(30);
+      if (nextAttempts >= 5) {
+        const retryAfterSeconds = 15 * 60;
+        const until = Date.now() + (retryAfterSeconds * 1000);
+        setCooldown(retryAfterSeconds);
+        setLoginNotice('Demasiados intentos de inicio de sesión. Por seguridad, el acceso quedó bloqueado temporalmente (15 min).');
+        try {
+          sessionStorage.setItem('admin_login_cooldown_until', String(until));
+        } catch {
+          // ignore
+        }
+      }
     } finally {
       setLoading(false);
     }
@@ -199,7 +253,9 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
     }
   };
 
-  const busyText = cooldown > 0 ? `Intenta nuevamente en ${cooldown}s` : 'Ingresar';
+  const busyText = cooldown > 0
+    ? `Intenta nuevamente en ${cooldown >= 60 ? `${Math.ceil(cooldown / 60)} min` : `${cooldown}s`}`
+    : 'Ingresar';
 
   const handleCloseEnroll = () => {
     setShowEnrollModal(false);
@@ -254,6 +310,7 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
         <Logo src={systemConfig.logoUrl || logo} alt={systemConfig.appName} />
         <Subtitle>{systemConfig.appName}</Subtitle>
         {status?.message && <AlertBox $type={status.type}>{status.message}</AlertBox>}
+        {loginNotice && <AlertBox $type="warning">{loginNotice}</AlertBox>}
         <Form onSubmit={handleSubmit}>
           <Socials>
             <SsoBtn

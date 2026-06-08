@@ -1,4 +1,5 @@
 import { query, transaction } from '../config/database.js'
+import { io } from '../app.js'
 import { hashPassword } from '../utils/password.js'
 import { fetchPermissions, normalizePermissions, replacePermissions, rowsToPermissions } from '../utils/userPermissions.js'
 import { parseGeoSnapshot } from '../services/ipGuideService.js'
@@ -300,6 +301,11 @@ export async function logoutUserSessions(req, res, next) {
       [numericId]
     )
     if (error) return next(error)
+
+    io.to(`user:${numericId}`).emit('session:force-logout', {
+      reason: 'admin_force_logout',
+      scope: 'user_session',
+    })
 
     res.json({ success: true })
   } catch (err) {

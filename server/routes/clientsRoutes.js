@@ -8,6 +8,7 @@ import {
   deleteClient,
   updateClientPassword,
   adjustClientBalance,
+  forceLogoutClient,
 } from '../controllers/clientsController.js'
 import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js'
 
@@ -25,5 +26,6 @@ router.put('/:id', updateClient)
 router.delete('/:id', deleteClient)
 router.put('/:id/password', updateClientPassword)
 router.post('/:id/balance', adjustClientBalance)
+router.post('/:id/logout', forceLogoutClient)
 
 export default router

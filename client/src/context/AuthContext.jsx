@@ -1,5 +1,6 @@
 import { createContext, useEffect, useState } from 'react'
 import { api } from '../utils/api'
+import { getSocket } from '../utils/socket'
 
 export const AuthContext = createContext(null)
 
@@ -37,6 +38,19 @@ export const AuthProvider = ({ children }) => {
     }
     window.addEventListener('auth:session-expired', handleExpired)
     return () => window.removeEventListener('auth:session-expired', handleExpired)
+  }, [])
+
+  useEffect(() => {
+    const socket = getSocket('admin')
+    const onForceLogout = (payload = {}) => {
+      sessionStorage.setItem('login_force_logout_alert', JSON.stringify({
+        reason: payload?.reason || 'admin_force_logout',
+      }))
+      setUser(null)
+    }
+
+    socket.on('session:force-logout', onForceLogout)
+    return () => socket.off('session:force-logout', onForceLogout)
   }, [])
 
   const login = (userData) => {

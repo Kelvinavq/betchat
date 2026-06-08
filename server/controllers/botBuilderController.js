@@ -1,8 +1,6 @@
-import jwt from 'jsonwebtoken'
 import { query, transaction } from '../config/database.js'
-import { config } from '../config/config.js'
-import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { persistMessage, emitChatRefresh } from './chatController.js'
+import { getValidatedClientPayload } from '../utils/clientSession.js'
 
 const ITEM_TYPES = ['message', 'button', 'form']
 const BUTTON_TYPES = ['navigate', 'receipt_request', 'messages_only']
@@ -350,14 +348,9 @@ function validateFlow(body) {
   return { errors, screens: normalizedScreens }
 }
 
-function getClientPayload(req) {
-  const token = getCookieValue(req, config.clientJwtCookieName)
-  if (!token) return null
+async function getClientPayload(req) {
   try {
-    const payload = jwt.verify(token, config.jwtSecret, {
-      algorithms: ['HS256'],
-      issuer: config.jwtIssuer,
-    })
+    const payload = await getValidatedClientPayload(req)
     return payload?.type === 'client' ? payload : null
   } catch {
     return null
@@ -436,7 +429,7 @@ export async function getBotFlow(req, res, next) {
 export async function getClientBotFlow(req, res, next) {
   try {
     const data = await loadBotFlow()
-    const client = getClientPayload(req)
+    const client = await getClientPayload(req)
     let state = null
 
     if (client?.sub) {
@@ -469,7 +462,7 @@ export async function getClientBotFlow(req, res, next) {
 
 export async function updateClientBotState(req, res, next) {
   try {
-    const client = getClientPayload(req)
+    const client = await getClientPayload(req)
     if (!client?.sub) {
       return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
     }
@@ -516,7 +509,7 @@ export async function updateClientBotState(req, res, next) {
 
 export async function selectClientBotOption(req, res, next) {
   try {
-    const client = getClientPayload(req)
+    const client = await getClientPayload(req)
     if (!client?.sub) {
       return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
     }
@@ -653,7 +646,7 @@ export async function selectClientBotOption(req, res, next) {
 
 export async function submitClientBotForm(req, res, next) {
   try {
-    const client = getClientPayload(req)
+    const client = await getClientPayload(req)
     if (!client?.sub) {
       return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
     }

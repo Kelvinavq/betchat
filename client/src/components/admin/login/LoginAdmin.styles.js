@@ -220,14 +220,17 @@ export const AlertBox = styled.div`
   border: 1px solid ${({ $type }) =>
     $type === 'success'  ? '#1ec07e' :
     $type === 'schedule' ? 'rgba(245,158,11,0.55)' :
+    $type === 'warning'  ? 'rgba(245,158,11,0.55)' :
     '#f87171'};
   background: ${({ $type }) =>
     $type === 'success'  ? 'rgba(41,194,136,0.12)' :
     $type === 'schedule' ? 'rgba(245,158,11,0.10)' :
+    $type === 'warning'  ? 'rgba(245,158,11,0.10)' :
     'rgba(248,113,113,0.12)'};
   color: ${({ $type }) =>
     $type === 'success'  ? '#0f766e' :
     $type === 'schedule' ? '#fbbf24' :
+    $type === 'warning'  ? '#fbbf24' :
     '#b91c1c'};
   font-size: 13px;
   line-height: 1.5;

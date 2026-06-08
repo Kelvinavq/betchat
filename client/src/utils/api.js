@@ -30,6 +30,13 @@ const request = async (endpoint, options = {}) => {
     const error = new Error(message)
     error.status = res.status
     error.payload = payload
+    const retryAfterHeader = res.headers.get('retry-after')
+    if (retryAfterHeader) {
+      const retryAfter = Number(retryAfterHeader)
+      if (Number.isFinite(retryAfter) && retryAfter > 0) {
+        error.retryAfter = retryAfter
+      }
+    }
 
     if (res.status === 401) {
       window.dispatchEvent(new CustomEvent('auth:session-expired', {

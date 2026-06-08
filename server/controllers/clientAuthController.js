@@ -2,10 +2,10 @@ import jwt from 'jsonwebtoken'
 import { randomUUID } from 'crypto'
 import { query, transaction } from '../config/database.js'
 import { config } from '../config/config.js'
-import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { io } from '../app.js'
 import { getSystemConfig } from './settingsController.js'
 import { logClientSession } from './profileController.js'
+import { getValidatedClientPayload } from '../utils/clientSession.js'
 
 const normalizeUsername = (value) => String(value || '').trim()
 const hasWhitespace = (value) => /\s/.test(value)
@@ -109,13 +109,14 @@ async function enrichClientTaxId(client) {
   return { ...client, cuil: rows?.[0]?.tax_id || client.cuil || null }
 }
 
-function signClientToken(clientId, username) {
+function signClientToken(clientId, username, sessionVersion = 0) {
   return jwt.sign(
     {
       sub: clientId,
       username,
       role: 'client',
       type: 'client',
+      sv: Number(sessionVersion || 0),
       jti: randomUUID(),
     },
     config.jwtSecret,
@@ -322,7 +323,7 @@ async function resolveReferredBy(code, selfUsername) {
 async function ensureClientAndChat({ username, password, externalId, phone = null, referredBy = null }) {
   return transaction(async (connection) => {
     const [clientRows] = await connection.execute(
-      `SELECT id, username, full_name, phone, password, external_id, is_active, is_online, referred_by
+      `SELECT id, username, full_name, phone, password, external_id, is_active, is_online, referred_by, COALESCE(session_version, 0) AS session_version
        FROM clients
        WHERE LOWER(username) = LOWER(?)
        LIMIT 1`,
@@ -338,18 +339,19 @@ async function ensureClientAndChat({ username, password, externalId, phone = nul
         [username, username, phone || null, password, externalId || null, referredBy || null]
       )
 
-      client = {
-        id: clientResult.insertId,
-        username,
-        full_name: username,
-        phone: phone || null,
-        password: password,
-        cuil: null,
-        external_id: externalId || null,
-        is_active: 1,
-        is_online: 1,
-        referred_by: referredBy || null,
-      }
+        client = {
+          id: clientResult.insertId,
+          username,
+          full_name: username,
+          phone: phone || null,
+          password: password,
+          cuil: null,
+          external_id: externalId || null,
+          is_active: 1,
+          is_online: 1,
+          referred_by: referredBy || null,
+          session_version: 0,
+        }
     } else {
       // Only set referred_by if it hasn't been set yet (one-time, immutable)
       const setReferredBy = !client.referred_by && referredBy ? referredBy : undefined
@@ -394,7 +396,7 @@ async function ensureClientAndChat({ username, password, externalId, phone = nul
 }
 
 async function startClientSession(res, client, chatId, req = null) {
-  const token = signClientToken(client.id, client.username)
+  const token = signClientToken(client.id, client.username, client.session_version || 0)
   setClientCookie(res, token)
 
   await query(
@@ -465,16 +467,17 @@ export async function createHelpSession(req, res, next) {
       )
 
       return {
-        client: {
-          id: clientId,
-          username,
-          full_name: fullName,
-          external_id: null,
-          is_active: 1,
-          is_online: 1,
-          is_temporary: 1,
-          temp_session_active: 1,
-        },
+      client: {
+        id: clientId,
+        username,
+        full_name: fullName,
+        external_id: null,
+        is_active: 1,
+        is_online: 1,
+        is_temporary: 1,
+        temp_session_active: 1,
+        session_version: 0,
+      },
         chatId,
       }
     })
@@ -677,30 +680,23 @@ export async function validateReferralCode(req, res) {
 
 export async function logoutClient(req, res, next) {
   try {
-    const token = getCookieValue(req, config.clientJwtCookieName)
+    const payload = await getValidatedClientPayload(req, res)
 
-    if (token) {
-      try {
-        const payload = jwt.verify(token, config.jwtSecret, {
-          algorithms: ['HS256'],
-          issuer: config.jwtIssuer,
-        })
+    if (payload?.sub) {
+      await query(
+        `UPDATE clients
+         SET session_version = COALESCE(session_version, 0) + 1,
+             is_online = 0,
+             last_seen_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [payload.sub]
+      )
 
-        if (payload?.type === 'client' && payload?.sub) {
-          await query(
-            'UPDATE clients SET is_online = 0, last_seen_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [payload.sub]
-          )
-
-          io.emit('client:online-status', {
-            clientId: payload.sub,
-            username: payload.username,
-            online: false,
-          })
-        }
-      } catch {
-        // Clear the cookie even if it is already invalid.
-      }
+      io.emit('client:online-status', {
+        clientId: payload.sub,
+        username: payload.username,
+        online: false,
+      })
     }
 
     clearClientCookie(res)
@@ -712,22 +708,13 @@ export async function logoutClient(req, res, next) {
 
 export async function meClient(req, res, next) {
   try {
-    const token = getCookieValue(req, config.clientJwtCookieName)
-    if (!token) {
+    const payload = await getValidatedClientPayload(req, res)
+    if (!payload?.sub) {
       return res.status(401).json({ error: 'Sesion de cliente requerida.', code: 'CLIENT_AUTH_REQUIRED' })
     }
 
-    const payload = jwt.verify(token, config.jwtSecret, {
-      algorithms: ['HS256'],
-      issuer: config.jwtIssuer,
-    })
-
-    if (payload?.type !== 'client' || !payload?.sub) {
-      return res.status(401).json({ error: 'Sesion de cliente invalida.', code: 'INVALID_CLIENT_TOKEN' })
-    }
-
     const { rows, error } = await query(
-      `SELECT id, username, full_name, phone, external_id, is_active, is_online, is_temporary, temp_session_active
+      `SELECT id, username, full_name, phone, external_id, is_active, is_online, is_temporary, temp_session_active, COALESCE(session_version, 0) AS session_version
        FROM clients
        WHERE id = ?
        LIMIT 1`,
@@ -742,6 +729,10 @@ export async function meClient(req, res, next) {
     if (client.is_temporary && !client.temp_session_active) {
       clearClientCookie(res)
       return res.status(401).json({ error: 'La sesion temporal fue cerrada.', code: 'TEMP_CLIENT_SESSION_CLOSED' })
+    }
+    if (Number(payload?.sv || 0) !== Number(client.session_version || 0)) {
+      clearClientCookie(res)
+      return res.status(401).json({ error: 'La sesion fue cerrada.', code: 'CLIENT_SESSION_REVOKED' })
     }
 
     const { rows: chatRows, error: chatError } = await query(

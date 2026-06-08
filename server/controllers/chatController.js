@@ -1,18 +1,17 @@
 import { randomUUID } from 'crypto'
 import { mkdir, writeFile } from 'fs/promises'
 import path from 'path'
-import jwt from 'jsonwebtoken'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import moment from 'moment-timezone'
 import { query, transaction } from '../config/database.js'
 import { config } from '../config/config.js'
-import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { io } from '../app.js'
 import { deleteCache, deleteCachePattern, getCacheJson, setCacheJson } from '../utils/redisCache.js'
 import { extractReceiptData } from '../services/receiptExtractor.js'
 import { getAutoMessage } from '../controllers/autoMessagesController.js'
 import { insertReceiptLog, finalizeReceiptLog } from '../controllers/receiptLogController.js'
+import { getValidatedClientPayload } from '../utils/clientSession.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -474,13 +473,8 @@ function sanitizeChat(row) {
 }
 
 export async function getClientFromRequest(req) {
-  const token = getCookieValue(req, config.clientJwtCookieName)
-  if (!token) return null
-  const payload = jwt.verify(token, config.jwtSecret, {
-    algorithms: ['HS256'],
-    issuer: config.jwtIssuer,
-  })
-  if (payload?.type !== 'client' || !payload?.sub) return null
+  const payload = await getValidatedClientPayload(req)
+  if (!payload?.sub) return null
   const { rows, error } = await query(
     'SELECT is_temporary, temp_session_active FROM clients WHERE id = ? LIMIT 1',
     [payload.sub]

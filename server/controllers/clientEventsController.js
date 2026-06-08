@@ -1,11 +1,9 @@
-import jwt from 'jsonwebtoken'
 import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
 import { query, transaction } from '../config/database.js'
-import { config } from '../config/config.js'
-import { getCookieValue } from '../middlewares/authMiddleware.js'
 import { parseMysqlUtc as parseMysqlDate, toTimezoneIso } from '../utils/eventTime.js'
+import { getValidatedClientPayload } from '../utils/clientSession.js'
 import {
   findClientEventParticipant,
   hasClientEventPaidParticipation,
@@ -48,13 +46,8 @@ export const uploadReceiptMiddleware = multer({
 
 async function getClientFromCookie(req) {
   try {
-    const token = getCookieValue(req, config.clientJwtCookieName)
-    if (!token) return null
-    const payload = jwt.verify(token, config.jwtSecret, {
-      algorithms: ['HS256'],
-      issuer: config.jwtIssuer,
-    })
-    if (payload?.type !== 'client' || !payload?.sub) return null
+    const payload = await getValidatedClientPayload(req)
+    if (!payload?.sub) return null
     return { clientId: Number(payload.sub), username: payload.username || '' }
   } catch {
     return null

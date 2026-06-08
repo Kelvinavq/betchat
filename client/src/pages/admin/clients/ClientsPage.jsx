@@ -691,6 +691,26 @@ const ClientsPage = ({ onMenuOpen }) => {
     }
   }
 
+  const handleForceLogout = async (client) => {
+    const ok = await confirm({
+      title: 'Cerrar sesión del cliente',
+      body: `Esto cerrará la sesión activa de ${client.username} en su navegador/chat y lo obligará a volver a iniciar sesión.`,
+      confirmLabel: 'Cerrar sesión',
+      danger: true,
+    })
+    if (!ok) return
+
+    try {
+      await api.post(`/api/clients/${client.id}/logout`)
+      notify(`Sesión cerrada para ${client.username}.`, 'success')
+      loadClients()
+      loadStats()
+    } catch (error) {
+      console.error('Error al cerrar sesión del cliente:', error)
+      notify(error.payload?.error || error.message || 'Error al cerrar la sesión del cliente', 'danger')
+    }
+  }
+
   const handlePwdSave = async (newPwd) => {
     try {
       const validationError = validateClientCredentials({
@@ -859,8 +879,7 @@ const ClientsPage = ({ onMenuOpen }) => {
                         <ActionBtn
                           $v="warn"
                           title="Cerrar sesión"
-                          disabled={!c.online}
-                          onClick={() => {}}
+                          onClick={() => handleForceLogout(c)}
                         >
                           <LogoutIcon />
                         </ActionBtn>

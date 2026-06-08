@@ -1,17 +1,10 @@
-import jwt from 'jsonwebtoken'
 import { query } from '../config/database.js'
-import { config } from '../config/config.js'
-import { getCookieValue } from '../middlewares/authMiddleware.js'
+import { getValidatedClientPayload } from '../utils/clientSession.js'
 
 async function getClientFromCookie(req) {
   try {
-    const token = getCookieValue(req, config.clientJwtCookieName)
-    if (!token) return null
-    const payload = jwt.verify(token, config.jwtSecret, {
-      algorithms: ['HS256'],
-      issuer: config.jwtIssuer,
-    })
-    if (payload?.type !== 'client' || !payload?.sub) return null
+    const payload = await getValidatedClientPayload(req)
+    if (!payload?.sub) return null
     return { clientId: Number(payload.sub), username: payload.username || '' }
   } catch {
     return null

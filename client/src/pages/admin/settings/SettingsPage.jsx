@@ -827,6 +827,11 @@ const SettingsPage = ({ onMenuOpen }) => {
     supportText: '',
     clientRegistrationEnabled: true,
     clientLogoutEnabled: true,
+    clientMenuVisible:    true,
+    clientMenuEvents:     true,
+    clientMenuHistory:    true,
+    clientMenuFaq:        true,
+    clientBalanceVisible: true,
     botMode: 'manual',
     botAiModel: '',
     botAiTemperature: 0.1,
@@ -960,7 +965,12 @@ const SettingsPage = ({ onMenuOpen }) => {
         supportValue: system.supportValue || '',
         supportText: system.supportText || '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
-        clientLogoutEnabled: system.clientLogoutEnabled !== false,
+        clientLogoutEnabled:       system.clientLogoutEnabled !== false,
+        clientMenuVisible:         system.clientMenuVisible    !== false,
+        clientMenuEvents:          system.clientMenuEvents     !== false,
+        clientMenuHistory:         system.clientMenuHistory    !== false,
+        clientMenuFaq:             system.clientMenuFaq        !== false,
+        clientBalanceVisible:      system.clientBalanceVisible !== false,
         botMode: system.botMode === 'hybrid_ai' ? 'hybrid_ai' : 'manual',
         botAiModel: system.botAiModel || '',
         botAiTemperature: Number(system.botAiTemperature ?? 0.1),
@@ -1110,7 +1120,12 @@ const SettingsPage = ({ onMenuOpen }) => {
         supportValue: system.supportValue || '',
         supportText: system.supportText || '',
         clientRegistrationEnabled: system.clientRegistrationEnabled !== false,
-        clientLogoutEnabled: system.clientLogoutEnabled !== false,
+        clientLogoutEnabled:       system.clientLogoutEnabled !== false,
+        clientMenuVisible:         system.clientMenuVisible    !== false,
+        clientMenuEvents:          system.clientMenuEvents     !== false,
+        clientMenuHistory:         system.clientMenuHistory    !== false,
+        clientMenuFaq:             system.clientMenuFaq        !== false,
+        clientBalanceVisible:      system.clientBalanceVisible !== false,
         botMode: system.botMode === 'hybrid_ai' ? 'hybrid_ai' : 'manual',
         botAiModel: system.botAiModel || '',
         botAiTemperature: Number(system.botAiTemperature ?? 0.1),
@@ -1552,6 +1567,71 @@ const SettingsPage = ({ onMenuOpen }) => {
                       $active={systemForm.clientLogoutEnabled}
                       onClick={() => setSystemForm(f => ({ ...f, clientLogoutEnabled: !f.clientLogoutEnabled }))}
                       aria-pressed={systemForm.clientLogoutEnabled}
+                    />
+                  </ToggleRow>
+
+                  <ToggleRow>
+                    <ToggleText>
+                      <ToggleTitle>Saldo del cliente</ToggleTitle>
+                      <ToggleSub>Muestra u oculta el saldo en el encabezado del chat del cliente.</ToggleSub>
+                    </ToggleText>
+                    <ToggleSwitch
+                      type="button"
+                      $active={systemForm.clientBalanceVisible}
+                      onClick={() => setSystemForm(f => ({ ...f, clientBalanceVisible: !f.clientBalanceVisible }))}
+                      aria-pressed={systemForm.clientBalanceVisible}
+                    />
+                  </ToggleRow>
+
+                  <ToggleRow>
+                    <ToggleText>
+                      <ToggleTitle>Botón de menú del cliente</ToggleTitle>
+                      <ToggleSub>Muestra u oculta el botón de "Mi cuenta" en el encabezado del chat.</ToggleSub>
+                    </ToggleText>
+                    <ToggleSwitch
+                      type="button"
+                      $active={systemForm.clientMenuVisible}
+                      onClick={() => setSystemForm(f => ({ ...f, clientMenuVisible: !f.clientMenuVisible }))}
+                      aria-pressed={systemForm.clientMenuVisible}
+                    />
+                  </ToggleRow>
+
+                  <ToggleRow>
+                    <ToggleText>
+                      <ToggleTitle>Menú — Eventos activos</ToggleTitle>
+                      <ToggleSub>Muestra u oculta la opción de eventos en el menú del cliente.</ToggleSub>
+                    </ToggleText>
+                    <ToggleSwitch
+                      type="button"
+                      $active={systemForm.clientMenuEvents}
+                      onClick={() => setSystemForm(f => ({ ...f, clientMenuEvents: !f.clientMenuEvents }))}
+                      aria-pressed={systemForm.clientMenuEvents}
+                    />
+                  </ToggleRow>
+
+                  <ToggleRow>
+                    <ToggleText>
+                      <ToggleTitle>Menú — Cargas y retiros</ToggleTitle>
+                      <ToggleSub>Muestra u oculta el historial de movimientos en el menú del cliente.</ToggleSub>
+                    </ToggleText>
+                    <ToggleSwitch
+                      type="button"
+                      $active={systemForm.clientMenuHistory}
+                      onClick={() => setSystemForm(f => ({ ...f, clientMenuHistory: !f.clientMenuHistory }))}
+                      aria-pressed={systemForm.clientMenuHistory}
+                    />
+                  </ToggleRow>
+
+                  <ToggleRow>
+                    <ToggleText>
+                      <ToggleTitle>Menú — Preguntas frecuentes</ToggleTitle>
+                      <ToggleSub>Muestra u oculta la sección de FAQ en el menú del cliente.</ToggleSub>
+                    </ToggleText>
+                    <ToggleSwitch
+                      type="button"
+                      $active={systemForm.clientMenuFaq}
+                      onClick={() => setSystemForm(f => ({ ...f, clientMenuFaq: !f.clientMenuFaq }))}
+                      aria-pressed={systemForm.clientMenuFaq}
                     />
                   </ToggleRow>
 

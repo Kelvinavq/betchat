@@ -188,7 +188,7 @@ async function removeBrandingFile(url) {
 
 export async function getSystemConfig() {
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_balance_visible FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -204,6 +204,11 @@ export async function getSystemConfig() {
     supportText: row.support_text || '',
     clientRegistrationEnabled: row.client_registration_enabled !== 0,
     clientLogoutEnabled: row.client_logout_enabled !== 0,
+    clientMenuVisible:   row.client_menu_visible   !== 0,
+    clientMenuEvents:    row.client_menu_events     !== 0,
+    clientMenuHistory:   row.client_menu_history    !== 0,
+    clientMenuFaq:       row.client_menu_faq        !== 0,
+    clientBalanceVisible:row.client_balance_visible !== 0,
     botMode: normalizeBotMode(row.bot_mode),
     botAiModel: normalizeBotModel(row.bot_ai_model),
     botAiTemperature: normalizeBotTemperature(row.bot_ai_temperature),
@@ -567,11 +572,18 @@ export async function updateSystemConfig(req, res, next) {
     const referralEnabled = (referralEnabledRaw === false || referralEnabledRaw === 0 || referralEnabledRaw === '0') ? 0 : 1
     const referralFichas  = Math.max(0, Math.min(99999, parseInt(req.body.referralFichas ?? req.body.referral_fichas ?? current.referralFichas ?? 0, 10) || 0))
 
+    const boolField = (val, cur) => (val === false || val === 0 || val === '0') ? 0 : (val === true || val === 1 || val === '1') ? 1 : (cur ? 1 : 0)
+    const clientMenuVisible    = boolField(req.body.clientMenuVisible,    current.clientMenuVisible)
+    const clientMenuEvents     = boolField(req.body.clientMenuEvents,     current.clientMenuEvents)
+    const clientMenuHistory    = boolField(req.body.clientMenuHistory,    current.clientMenuHistory)
+    const clientMenuFaq        = boolField(req.body.clientMenuFaq,        current.clientMenuFaq)
+    const clientBalanceVisible = boolField(req.body.clientBalanceVisible, current.clientBalanceVisible)
+
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bubble_config = VALUES(bubble_config), referral_enabled = VALUES(referral_enabled), referral_fichas = VALUES(referral_fichas)`,
-      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, JSON.stringify(bubbleConfig), referralEnabled, referralFichas]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_balance_visible)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bubble_config = VALUES(bubble_config), referral_enabled = VALUES(referral_enabled), referral_fichas = VALUES(referral_fichas), client_menu_visible = VALUES(client_menu_visible), client_menu_events = VALUES(client_menu_events), client_menu_history = VALUES(client_menu_history), client_menu_faq = VALUES(client_menu_faq), client_balance_visible = VALUES(client_balance_visible)`,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, JSON.stringify(bubbleConfig), referralEnabled, referralFichas, clientMenuVisible, clientMenuEvents, clientMenuHistory, clientMenuFaq, clientBalanceVisible]
     )
     if (error) return next(error)
 

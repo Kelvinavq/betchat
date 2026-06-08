@@ -1,4 +1,5 @@
 import { query } from '../config/database.js'
+import { io } from '../app.js'
 import { getReferralDetails } from './referralController.js'
 
 const hasWhitespace = (value) => /\s/.test(value)
@@ -457,6 +458,53 @@ export async function adjustClientBalance(req, res, next) {
       success: true,
       message: data.successMessage,
       balance: data.currencies?.ARS ?? null,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+export async function forceLogoutClient(req, res, next) {
+  try {
+    const id = Number(req.params.id)
+    if (!id) return res.status(400).json({ error: 'ID de cliente invalido.' })
+
+    const { rows, error } = await query(
+      `SELECT id, username, is_temporary
+       FROM clients
+       WHERE id = ?
+       LIMIT 1`,
+      [id]
+    )
+    if (error) return next(error)
+
+    const client = rows?.[0]
+    if (!client) {
+      return res.status(404).json({ error: 'Cliente no encontrado.' })
+    }
+
+    await query(
+      `UPDATE clients
+       SET session_version = COALESCE(session_version, 0) + 1,
+           is_online = 0,
+           last_seen_at = CURRENT_TIMESTAMP
+           ${client.is_temporary ? ', temp_session_active = 0' : ''}
+       WHERE id = ?`,
+      [id]
+    )
+
+    io.to(`client:${id}`).emit('session:force-logout', {
+      reason: 'admin_force_logout',
+    })
+    io.emit('client:online-status', {
+      clientId: id,
+      username: client.username,
+      online: false,
+    })
+
+    res.json({
+      success: true,
+      message: 'La sesion del cliente fue cerrada correctamente.',
     })
   } catch (error) {
     next(error)

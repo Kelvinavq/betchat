@@ -2344,7 +2344,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
       clientMessageId: sendingId,
       messageType: type,
       content: mediaReceiptRequest
-        ? `Comprobante (${mediaReceiptRequest.processing === 'auto' ? 'procesamiento automatico por banco activo' : 'procesamiento manual'})`
+        ? 'Comprobante'
         : '',
       dataUrl,
       fileName: name,
@@ -2859,14 +2859,16 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
               <LogoutIcon />
             </ChatHeaderBtn>
           )}
-          <ChatHeaderBtn
-            type="button"
-            onClick={() => setMenuOpen(true)}
-            aria-label="Menú"
-            title="Mi cuenta"
-          >
-            <AccountCircleOutlinedIcon />
-          </ChatHeaderBtn>
+          {systemConfig.clientMenuVisible && (
+            <ChatHeaderBtn
+              type="button"
+              onClick={() => setMenuOpen(true)}
+              aria-label="Menú"
+              title="Mi cuenta"
+            >
+              <AccountCircleOutlinedIcon />
+            </ChatHeaderBtn>
+          )}
         </ChatHeaderSide>
 
         <ChatHeaderCenter>
@@ -2874,20 +2876,22 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
             <HeaderPillText>{username}</HeaderPillText>
             <HeaderPillBadge>{onlineLabel}</HeaderPillBadge>
           </HeaderPill>
-          <HeaderBalanceRow>
-            <HeaderBalanceLabel>Saldo</HeaderBalanceLabel>
-            <HeaderBalanceValue>
-              {balanceLoading ? '···' : formatWithdrawable(withdrawableBalance)}
-            </HeaderBalanceValue>
-            <HeaderBalanceBtn
-              type="button"
-              onClick={fetchWithdrawableBalance}
-              aria-label="Actualizar saldo retirable"
-              disabled={balanceLoading || !chatId}
-            >
-              <RefreshIcon />
-            </HeaderBalanceBtn>
-          </HeaderBalanceRow>
+          {systemConfig.clientBalanceVisible && (
+            <HeaderBalanceRow>
+              <HeaderBalanceLabel>Saldo</HeaderBalanceLabel>
+              <HeaderBalanceValue>
+                {balanceLoading ? '···' : formatWithdrawable(withdrawableBalance)}
+              </HeaderBalanceValue>
+              <HeaderBalanceBtn
+                type="button"
+                onClick={fetchWithdrawableBalance}
+                aria-label="Actualizar saldo retirable"
+                disabled={balanceLoading || !chatId}
+              >
+                <RefreshIcon />
+              </HeaderBalanceBtn>
+            </HeaderBalanceRow>
+          )}
           <ConnectionBanner
             $visible={showConnectionBanner}
             $tone={connectionStatus === 'connected' ? 'ok' : connectionStatus === 'reconnecting' ? 'warn' : 'danger'}

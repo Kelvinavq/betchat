@@ -75,6 +75,7 @@ export function setupChatSockets(io) {
 
     if (payload?.role === 'admin' || payload?.role === 'cashier') {
       socket.join('admins')
+      socket.join(`user:${payload.sub}`)
       const activeBroadcasts = getActiveBroadcasts()
       if (activeBroadcasts.length) {
         socket.emit('broadcast:active', activeBroadcasts)

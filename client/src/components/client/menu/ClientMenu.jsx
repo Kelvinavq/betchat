@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import styled, { keyframes } from 'styled-components'
 import { api } from '../../../utils/api.js'
+import { useSystemConfig } from '../../../context/SystemConfigContext.jsx'
 
 /* ── animations ── */
 const fadeIn   = keyframes`from{opacity:0}to{opacity:1}`
@@ -951,6 +952,7 @@ const MENU_ITEMS = [
 ]
 
 export default function ClientMenu({ onClose }) {
+  const { systemConfig } = useSystemConfig()
   const [view, setView] = useState('menu')
   const sheetRef = useRef(null)
 
@@ -988,7 +990,12 @@ export default function ClientMenu({ onClose }) {
             </SheetHeader>
             <SheetBody>
               <MenuGroup>
-                {MENU_ITEMS.map(item => (
+                {MENU_ITEMS.filter(item => {
+                  if (item.id === 'events'  && !systemConfig.clientMenuEvents)  return false
+                  if (item.id === 'history' && !systemConfig.clientMenuHistory) return false
+                  if (item.id === 'faq'     && !systemConfig.clientMenuFaq)     return false
+                  return true
+                }).map(item => (
                   <MenuItem
                     key={item.id}
                     type="button"

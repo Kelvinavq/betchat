@@ -507,7 +507,7 @@ const ClientPage = () => {
         setIsOpen(true)
         return
       } catch {
-        const fallbackUsername = String(iframeLoginData?.username || localStorage.getItem('clientUsername') || '').trim()
+        const fallbackUsername = String(iframeLoginData?.username || '').trim()
 
         if (fallbackUsername) {
           try {

@@ -19,6 +19,16 @@ const LoginPage = () => {
         };
       }
     } catch { /* ignore */ }
+    try {
+      const raw = sessionStorage.getItem('login_force_logout_alert');
+      if (raw) {
+        sessionStorage.removeItem('login_force_logout_alert');
+        return {
+          message: 'Tu sesión fue cerrada por un administrador. Iniciá sesión nuevamente para continuar.',
+          type: 'warning',
+        };
+      }
+    } catch { /* ignore */ }
     return { message: '', type: '' };
   });
   const [googleClientId, setGoogleClientId] = useState(null);
@@ -28,6 +38,25 @@ const LoginPage = () => {
       .then((data) => setGoogleClientId(data.clientId || null))
       .catch(() => setGoogleClientId(null));
   }, []);
+
+  const formatAuthError = (error) => {
+    const code = String(error?.payload?.code || error?.code || '').toUpperCase();
+    const message = String(error?.payload?.error || error?.message || 'No se pudo iniciar sesión.').trim();
+
+    if (code === 'TOO_MANY_REQUESTS') {
+      const retryAfterSeconds = Number(error?.retryAfter || error?.payload?.retryAfter || error?.payload?.retry_after || 0);
+      const minutes = retryAfterSeconds > 0 ? Math.max(1, Math.ceil(retryAfterSeconds / 60)) : 15;
+      return {
+        type: 'warning',
+        message: `Demasiados intentos de inicio de sesión. Por seguridad, el acceso quedó bloqueado temporalmente (${minutes} min).`,
+      };
+    }
+
+    return {
+      type: 'error',
+      message,
+    };
+  };
 
   const handleSubmit = async ({ username, password, webauthnIntent, credential, googleCredential }) => {
     setStatus({ message: '', type: '' });
@@ -60,10 +89,17 @@ const LoginPage = () => {
       return api.post('/api/auth/webauthn/register-verify', { credential });
     }
 
-    const response = await api.post('/api/auth/login', { username, password });
-    login(response.user);
-    setStatus({ message: 'Bienvenido de nuevo', type: 'success' });
-    return response;
+    try {
+      const response = await api.post('/api/auth/login', { username, password });
+      login(response.user);
+      setStatus({ message: 'Bienvenido de nuevo', type: 'success' });
+      navigate('/admin');
+      return response;
+    } catch (error) {
+      const nextStatus = formatAuthError(error);
+      setStatus(nextStatus);
+      throw error;
+    }
   };
 
   return <LoginAdmin onSubmit={handleSubmit} status={status} googleClientId={googleClientId} />;
