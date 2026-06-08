@@ -61,8 +61,8 @@ const normalizeSystemConfig = (config = {}) => ({
   botAiMaxTokens: Number.isFinite(Number(config.botAiMaxTokens ?? config.bot_ai_max_tokens))
     ? Math.max(1, Math.min(2000, Math.floor(Number(config.botAiMaxTokens ?? config.bot_ai_max_tokens))))
     : DEFAULT_SYSTEM_CONFIG.botAiMaxTokens,
-  bubbleConfig: config.bubbleConfig
-    ? { ...DEFAULT_BUBBLE_CONFIG, ...config.bubbleConfig }
+  bubbleConfig: (config.bubbleConfig || config.bubble_config)
+    ? { ...DEFAULT_BUBBLE_CONFIG, ...(config.bubbleConfig || config.bubble_config) }
     : DEFAULT_BUBBLE_CONFIG,
 })
 

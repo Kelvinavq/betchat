@@ -14,7 +14,7 @@ const slideUp = keyframes`
 export const PageWrap = styled.div`
   flex: 1; min-width: 0;
   height: var(--app-height, 100dvh);
-  background: #0b0b18;
+  background: var(--bc-admin-sidebar-bg, #0b0b18);
   display: flex; flex-direction: column;
   overflow: hidden;
 `

@@ -367,7 +367,7 @@ const ToolbarLock = styled.span`
   flex-shrink: 0;
 `
 const BrowserPage = styled.div`
-  background: #0a0a17;
+  background: var(--bc-admin-sidebar-bg, #0a0a17);
   padding: 16px 20px;
   display: flex;
   flex-direction: column;
@@ -650,7 +650,7 @@ const IframeViewport = styled.div`
   height: 200px;
   overflow: hidden;
   position: relative;
-  background: #0a0a14;
+  background: var(--bc-admin-sidebar-bg, #0a0a14);
 `
 const IframeScaled = styled.iframe`
   width: 320%;
@@ -975,6 +975,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         botAiModel: system.botAiModel || '',
         botAiTemperature: Number(system.botAiTemperature ?? 0.1),
         botAiMaxTokens: Number(system.botAiMaxTokens ?? 250),
+        bubbleConfig: system.bubbleConfig || system.bubble_config || null,
         clearLogo: false,
         clearFavicon: false,
       }
@@ -1130,6 +1131,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         botAiModel: system.botAiModel || '',
         botAiTemperature: Number(system.botAiTemperature ?? 0.1),
         botAiMaxTokens: Number(system.botAiMaxTokens ?? 250),
+        bubbleConfig: system.bubbleConfig || system.bubble_config || null,
         clearLogo: false,
         clearFavicon: false,
       }

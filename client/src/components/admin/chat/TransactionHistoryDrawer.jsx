@@ -75,7 +75,7 @@ const Panel = styled.div`
   position: fixed;
   top: 0; right: 0; bottom: 0;
   width: min(460px, 100vw);
-  background: #0a0a16;
+  background: var(--bc-admin-sidebar-bg, #0a0a16);
   border-left: 1px solid rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
@@ -141,7 +141,7 @@ const StatsRow = styled.div`
 
 const StatCell = styled.div`
   padding: 12px 16px;
-  background: #0a0a16;
+  background: var(--bc-admin-sidebar-bg, #0a0a16);
   display: flex; align-items: center; gap: 10px;
 `
 

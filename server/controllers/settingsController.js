@@ -564,9 +564,16 @@ export async function updateSystemConfig(req, res, next) {
     const botAiTemperature = normalizeBotTemperature(req.body.botAiTemperature ?? req.body.bot_ai_temperature ?? current.botAiTemperature ?? 0.1)
     const botAiMaxTokens = normalizeBotMaxTokens(req.body.botAiMaxTokens ?? req.body.bot_ai_max_tokens ?? current.botAiMaxTokens ?? 250)
 
-    const bubbleConfig = normalizeBubbleConfig(
-      req.body.bubbleConfig ?? req.body.bubble_config ?? current.bubbleConfig ?? {}
-    )
+    const bubblePayload =
+      req.body.bubbleConfig ??
+      req.body.bubble_config ??
+      req.body.systemConfig?.bubbleConfig ??
+      req.body.systemConfig?.bubble_config ??
+      {}
+    const bubbleConfig = normalizeBubbleConfig({
+      ...(current.bubbleConfig ?? {}),
+      ...(bubblePayload && typeof bubblePayload === 'object' ? bubblePayload : {}),
+    })
 
     const referralEnabledRaw = req.body.referralEnabled ?? req.body.referral_enabled ?? current.referralEnabled
     const referralEnabled = (referralEnabledRaw === false || referralEnabledRaw === 0 || referralEnabledRaw === '0') ? 0 : 1

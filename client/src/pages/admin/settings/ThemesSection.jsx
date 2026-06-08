@@ -33,6 +33,7 @@ import {
   BubbleStyleGrid, BubbleStylePreview,
   BubbleConfigSection, BubbleConfigTitle, BubbleConfigRow, BubbleConfigLabel,
   BubbleTextInput, IconPickerGrid, IconPickerBtn,
+  ToggleRow, ToggleLabel, ToggleTrack, ToggleThumb, GradientPreview,
 } from './ThemesSection.styles'
 
 /* ─────────────────────────────
@@ -57,6 +58,9 @@ const MiniBubblePreview = ({ styleId, styleConfig }) => {
   const label = (styleConfig && styleConfig.text) || BUBBLE_TEXT_PLACEHOLDERS[styleId] || ''
   const IconComp = ICON_MAP[icon] || ICON_MAP.ChatOutlined
 
+  const bg   = 'linear-gradient(135deg,#0b3361,#1250f0)'
+  const text = '#fff'
+
   const wrap = {
     width: '100%', height: '100%', position: 'relative',
     display: 'flex', alignItems: 'flex-end', justifyContent: 'flex-end',
@@ -67,12 +71,12 @@ const MiniBubblePreview = ({ styleId, styleConfig }) => {
     <div style={wrap}>
       <div style={{
         height: 38, borderRadius: 19, padding: '0 14px 0 10px',
-        background: 'linear-gradient(135deg,#0b3361,#1250f0)',
+        background: bg,
         display: 'flex', alignItems: 'center', gap: 7,
         boxShadow: '0 4px 14px rgba(40,140,255,0.35)',
       }}>
-        <IconComp style={{ color: '#fff', fontSize: '1rem' }} />
-        <span style={{ color: '#fff', fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>
+        <IconComp style={{ color: text, fontSize: '1rem' }} />
+        <span style={{ color: text, fontSize: 11, fontWeight: 600, whiteSpace: 'nowrap' }}>
           {label || 'Chatear'}
         </span>
       </div>
@@ -83,7 +87,7 @@ const MiniBubblePreview = ({ styleId, styleConfig }) => {
     <div style={wrap}>
       <div style={{
         height: 44, width: 158, borderRadius: 14,
-        background: 'linear-gradient(135deg,#0b3361,#1250f0)',
+        background: bg,
         display: 'flex', alignItems: 'center', gap: 9, padding: '0 12px',
         boxShadow: '0 4px 14px rgba(40,140,255,0.35)', boxSizing: 'border-box',
       }}>
@@ -92,10 +96,10 @@ const MiniBubblePreview = ({ styleId, styleConfig }) => {
           background: 'rgba(255,255,255,0.15)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
         }}>
-          <IconComp style={{ color: '#fff', fontSize: '0.85rem' }} />
+          <IconComp style={{ color: text, fontSize: '0.85rem' }} />
         </div>
         <span style={{
-          color: '#fff', fontSize: 10.5, fontWeight: 600,
+          color: text, fontSize: 10.5, fontWeight: 600,
           whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
         }}>
           {label || '¿Necesitas ayuda?'}
@@ -122,11 +126,11 @@ const MiniBubblePreview = ({ styleId, styleConfig }) => {
     <div style={wrap}>
       <div style={{
         width: 44, height: 44, borderRadius: '50%',
-        background: 'linear-gradient(135deg,#0b3361,#1250f0)',
+        background: bg,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
         boxShadow: '0 4px 14px rgba(40,140,255,0.35)',
       }}>
-        <IconComp style={{ color: '#fff', fontSize: '1.15rem' }} />
+        <IconComp style={{ color: text, fontSize: '1.15rem' }} />
       </div>
     </div>
   )
@@ -260,6 +264,9 @@ const DEFAULT_CLIENT_FORM = {
   bodyBg: '#08080f', sentBubble: '#1e40af', sentText: '#dbeafe',
   recvBubble: '#1a1a2e', recvText: '#e2e8f0', inputBg: '#111124', accent: '#2563eb',
   waTheme: false,
+  surface: '#111124', textPrimary: '#f8fafc', textSecondary: '#94a3b8',
+  onAccent: '#ffffff', buttonFrom: '#0d1d6e', buttonTo: '#2563eb',
+  isDark: true,
 }
 
 const DEFAULT_ADMIN_FORM = {
@@ -300,7 +307,11 @@ const MiniChatPreview = ({ theme }) => {
       </MiniBody>
       <MiniInputBar style={{ background: theme.inputBg }}>
         <MiniInputField style={{ background: theme.recvText, opacity: 0.12 }} />
-        <MiniSendBtn style={{ background: theme.accent }} />
+        <MiniSendBtn style={{
+          background: (theme.buttonFrom && theme.buttonTo)
+            ? `linear-gradient(135deg, ${theme.buttonFrom} 0%, ${theme.buttonTo} 100%)`
+            : theme.accent,
+        }} />
       </MiniInputBar>
     </MiniPhone>
   )
@@ -337,15 +348,16 @@ const MiniAdminPreview = ({ theme }) => (
 ───────────────────────────── */
 const ColorField = ({ label, value, onChange }) => {
   const ref = useRef(null)
+  const safeVal = (value && value.startsWith('#')) ? value : '#000000'
   return (
     <ColorFieldRow onClick={() => ref.current?.click()}>
-      <ColorDot style={{ background: value }} />
+      <ColorDot style={{ background: safeVal }} />
       <ColorFieldLabel>{label}</ColorFieldLabel>
-      <ColorHexValue>{value.toUpperCase()}</ColorHexValue>
+      <ColorHexValue>{safeVal.toUpperCase()}</ColorHexValue>
       <input
         ref={ref}
         type="color"
-        value={value}
+        value={safeVal}
         onChange={e => onChange(e.target.value)}
         style={{ position: 'absolute', opacity: 0, width: 1, height: 1, left: 0, top: 0, pointerEvents: 'none' }}
       />
@@ -403,9 +415,9 @@ const CustomThemeModal = ({ type, form, setField, onClose, onSave, isEditing }) 
               <ColorGroupWrap>
                 <ColorGroupLabel>Header</ColorGroupLabel>
                 <ColorFieldGrid>
-                  <ColorField label="Fondo"          value={form.headerBg}    onChange={v => setField('headerBg', v)} />
-                  <ColorField label="Texto / íconos" value={form.headerColor} onChange={v => setField('headerColor', v)} />
-                  <ColorField label="Color de acento" value={form.accent}     onChange={v => setField('accent', v)} />
+                  <ColorField label="Fondo"           value={form.headerBg}    onChange={v => setField('headerBg', v)} />
+                  <ColorField label="Texto / íconos"  value={form.headerColor} onChange={v => setField('headerColor', v)} />
+                  <ColorField label="Acento principal" value={form.accent}     onChange={v => setField('accent', v)} />
                 </ColorFieldGrid>
               </ColorGroupWrap>
 
@@ -420,11 +432,43 @@ const CustomThemeModal = ({ type, form, setField, onClose, onSave, isEditing }) 
               </ColorGroupWrap>
 
               <ColorGroupWrap>
-                <ColorGroupLabel>Cuerpo y entrada</ColorGroupLabel>
+                <ColorGroupLabel>Fondo y entrada</ColorGroupLabel>
                 <ColorFieldGrid>
-                  <ColorField label="Fondo principal"  value={form.bodyBg}  onChange={v => setField('bodyBg', v)} />
-                  <ColorField label="Barra de entrada" value={form.inputBg} onChange={v => setField('inputBg', v)} />
+                  <ColorField label="Fondo principal"   value={form.bodyBg}   onChange={v => setField('bodyBg', v)} />
+                  <ColorField label="Barra de entrada"  value={form.inputBg}  onChange={v => setField('inputBg', v)} />
+                  <ColorField label="Paneles / tarjetas" value={form.surface || form.bodyBg} onChange={v => setField('surface', v)} />
                 </ColorFieldGrid>
+              </ColorGroupWrap>
+
+              <ColorGroupWrap>
+                <ColorGroupLabel>Botones y burbuja de chat</ColorGroupLabel>
+                <ColorFieldGrid>
+                  <ColorField label="Gradiente — inicio" value={form.buttonFrom || form.sentBubble} onChange={v => setField('buttonFrom', v)} />
+                  <ColorField label="Gradiente — fin"    value={form.buttonTo   || form.accent}     onChange={v => setField('buttonTo', v)} />
+                  <ColorField label="Texto en botones"   value={form.onAccent   || '#ffffff'}        onChange={v => setField('onAccent', v)} />
+                </ColorFieldGrid>
+                <GradientPreview
+                  $from={form.buttonFrom || form.sentBubble}
+                  $to={form.buttonTo || form.accent}
+                />
+              </ColorGroupWrap>
+
+              <ColorGroupWrap>
+                <ColorGroupLabel>Textos</ColorGroupLabel>
+                <ColorFieldGrid>
+                  <ColorField label="Texto principal"   value={form.textPrimary   || '#f8fafc'} onChange={v => setField('textPrimary', v)} />
+                  <ColorField label="Texto secundario"  value={form.textSecondary || '#94a3b8'} onChange={v => setField('textSecondary', v)} />
+                </ColorFieldGrid>
+              </ColorGroupWrap>
+
+              <ColorGroupWrap>
+                <ColorGroupLabel>Opciones generales</ColorGroupLabel>
+                <ToggleRow onClick={() => setField('isDark', !form.isDark)}>
+                  <ToggleLabel>Tema oscuro (afecta los fondos por defecto)</ToggleLabel>
+                  <ToggleTrack $on={form.isDark !== false}>
+                    <ToggleThumb $on={form.isDark !== false} />
+                  </ToggleTrack>
+                </ToggleRow>
               </ColorGroupWrap>
             </>
           )}
@@ -477,7 +521,7 @@ const loadCustom = (key) => {
    Main component
 ───────────────────────────── */
 const ThemesSection = ({ themeConfig, onThemeChange }) => {
-  const { systemConfig, setSystemConfig } = useSystemConfig()
+  const { systemConfig, configLoading, setSystemConfig } = useSystemConfig()
   const [subTab, setSubTab] = useState('cliente')
 
   /* active / pending selection */
@@ -514,13 +558,12 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
 
   /* ── init bubble from context once it loads ── */
   useEffect(() => {
-    if (!bubbleInitRef.current && systemConfig?.bubbleConfig) {
-      bubbleInitRef.current = true
-      const cfg = { ...DEFAULT_BUBBLE_CONFIG, ...systemConfig.bubbleConfig }
-      setPendingBubble(cfg)
-      setActiveBubble(cfg)
-    }
-  }, [systemConfig?.bubbleConfig])
+    if (configLoading || !systemConfig?.bubbleConfig) return
+    const cfg = { ...DEFAULT_BUBBLE_CONFIG, ...systemConfig.bubbleConfig }
+    bubbleInitRef.current = true
+    setPendingBubble(cfg)
+    setActiveBubble(cfg)
+  }, [configLoading, systemConfig?.bubbleConfig])
 
   /* ── computed ── */
   const allClientThemes = [...CLIENT_THEMES, ...customClientThemes]
@@ -596,7 +639,10 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
   /* ── apply bubble style ── */
   const handleApplyBubble = async () => {
     try {
-      const data = await api.put('/api/settings/system', { bubbleConfig: pendingBubble })
+      const payload = {
+        bubbleConfig: pendingBubble,
+      }
+      const data = await api.put('/api/settings/system', payload)
       setActiveBubble({ ...pendingBubble })
       if (data.systemConfig) setSystemConfig(data.systemConfig)
       setBubbleSaved(true)
@@ -656,8 +702,8 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
 
   const openEdit = (theme) => {
     setEditingId(theme.id)
-    if (isClient) setClientForm({ ...theme })
-    else          setAdminForm({ ...theme })
+    if (isClient) setClientForm({ ...DEFAULT_CLIENT_FORM, ...theme })
+    else          setAdminForm({ ...DEFAULT_ADMIN_FORM, ...theme })
     setModalOpen(true)
   }
 
@@ -828,7 +874,10 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
                   onClick={() => setPendingBubble(prev => ({ ...prev, style: bs.id }))}
                 >
                   <BubbleStylePreview>
-                    <MiniBubblePreview styleId={bs.id} styleConfig={pendingBubble[bs.id]} />
+                    <MiniBubblePreview
+                      styleId={bs.id}
+                      styleConfig={pendingBubble[bs.id]}
+                    />
                     {isPending && <CheckOverlay><CheckIcon /></CheckOverlay>}
                   </BubbleStylePreview>
                   <ThemeCardInfo>
@@ -889,6 +938,7 @@ const ThemesSection = ({ themeConfig, onThemeChange }) => {
                 })}
               </IconPickerGrid>
             </BubbleConfigRow>
+
           </BubbleConfigSection>
         </>
       )}

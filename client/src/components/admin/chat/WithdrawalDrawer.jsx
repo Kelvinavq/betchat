@@ -335,7 +335,7 @@ const Overlay = styled.div`
 `
 const Panel = styled.aside`
   width:min(580px,100vw);height:var(--app-height,100dvh);display:flex;flex-direction:column;
-  background:#0b1020;border-left:1px solid rgba(255,255,255,.10);
+  background:var(--bc-admin-sidebar-bg,#0b1020);border-left:1px solid rgba(255,255,255,.10);
   box-shadow:-22px 0 70px rgba(0,0,0,.45);animation:${slideIn} .22s cubic-bezier(.16,1,.3,1) both;
   position:relative;overflow:hidden;
 `
@@ -398,7 +398,7 @@ const StatusBadge = styled.span`
 /* ─── Detail Sheet ──────────────────────────────────────────── */
 const DetailSheet = styled.div`
   position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;
-  background:#0b1020;animation:${detailIn} .22s cubic-bezier(.16,1,.3,1) both;
+  background:var(--bc-admin-sidebar-bg,#0b1020);animation:${detailIn} .22s cubic-bezier(.16,1,.3,1) both;
 `
 const DetailHead = styled.header`
   display:flex;align-items:center;gap:12px;padding:14px 18px;

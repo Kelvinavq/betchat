@@ -10,7 +10,7 @@ export const Wrap = styled.div`
   width: ${({ $width, $fullWidth }) => $fullWidth ? '100%' : $width ? `${$width}px` : '320px'};
   min-width: ${({ $width, $fullWidth }) => $fullWidth ? 0 : $width ? `${$width}px` : '320px'};
   height: var(--app-height, 100dvh);
-  background: #0a0a16;
+  background: var(--bc-admin-sidebar-bg, #0a0a16);
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -74,7 +74,7 @@ export const PanelOnlineDot = styled.span`
   height: 12px;
   border-radius: 50%;
   background: ${({ $online }) => $online ? '#22c55e' : 'rgba(255,255,255,0.20)'};
-  border: 2px solid #0a0a16;
+  border: 2px solid var(--bc-admin-sidebar-bg, #0a0a16);
 `
 
 export const PanelUsername = styled.h3`

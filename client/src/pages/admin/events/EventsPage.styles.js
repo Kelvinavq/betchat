@@ -31,7 +31,7 @@ export const PageWrap = styled.div`
   height: 100vh;
   display: flex;
   flex-direction: column;
-  background: #06091a;
+  background: var(--bc-admin-content-bg, #06091a);
   color: #f1f5f9;
   overflow: hidden;
 `
@@ -129,7 +129,7 @@ export const TabBtn = styled.button`
   ${({ $active }) =>
     $active &&
     css`
-      background: #0c1424;
+      background: var(--bc-admin-card-bg, #0c1424);
       color: #f1f5f9;
       box-shadow: inset 0 -2px 0 #3b82f6;
     `}
@@ -213,7 +213,7 @@ export const PreviewSide = styled.div`
 // ─── Cards ────────────────────────────────────────────────────────────────────
 
 export const Card = styled.div`
-  background: #0c1424;
+  background: var(--bc-admin-card-bg, #0c1424);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 16px;
   padding: 20px;
@@ -261,7 +261,7 @@ export const Label = styled.label`
 `
 
 const inputBase = css`
-  background: #080f1e;
+  background: var(--bc-admin-content-bg, #080f1e);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 10px;
   color: #f1f5f9;
@@ -310,7 +310,7 @@ export const ColorInput = styled.input.attrs({ type: 'color' })`
   border: 1px solid rgba(255, 255, 255, 0.07);
   padding: 2px;
   cursor: pointer;
-  background: #080f1e;
+  background: var(--bc-admin-content-bg, #080f1e);
   box-sizing: border-box;
 `
 
@@ -403,7 +403,7 @@ export const ProbLabel = styled.span`
 // ─── Preview ──────────────────────────────────────────────────────────────────
 
 export const PreviewFrame = styled.div`
-  background: radial-gradient(circle at 30% 20%, rgba(59, 130, 246, 0.1), transparent 50%), #080f1e;
+  background: radial-gradient(circle at 30% 20%, rgba(var(--bc-admin-accent-rgb, 59, 130, 246), 0.1), transparent 50%), var(--bc-admin-content-bg, #080f1e);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 16px;
   padding: 20px;
@@ -643,7 +643,7 @@ export const StatGrid = styled.div`
 `
 
 export const StatCard = styled.div`
-  background: #0c1424;
+  background: var(--bc-admin-card-bg, #0c1424);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 14px;
   padding: 18px;

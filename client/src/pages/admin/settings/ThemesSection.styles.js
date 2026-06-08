@@ -542,7 +542,7 @@ export const CModalCard = styled.div`
   width: 100%;
   max-width: 560px;
   max-height: 90dvh;
-  background: #11111e;
+  background: var(--bc-admin-card-bg, #11111e);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 20px;
   display: flex;
@@ -885,4 +885,57 @@ export const IconPickerBtn = styled.button`
     color: ${({ $active }) => $active ? '#93c5fd' : 'rgba(255,255,255,0.75)'};
     background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'rgba(255,255,255,0.06)'};
   }
+`
+
+/* ── isDark toggle ── */
+export const ToggleRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 9px 11px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 10px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.14s;
+  &:hover { background: rgba(255,255,255,0.055); }
+`
+
+export const ToggleLabel = styled.span`
+  font-size: 12px;
+  color: rgba(255,255,255,0.70);
+  font-weight: 500;
+`
+
+export const ToggleTrack = styled.div`
+  width: 34px;
+  height: 18px;
+  border-radius: 9px;
+  background: ${({ $on }) => $on ? '#3b82f6' : 'rgba(255,255,255,0.12)'};
+  position: relative;
+  transition: background 0.2s;
+  flex-shrink: 0;
+`
+
+export const ToggleThumb = styled.div`
+  position: absolute;
+  top: 2px;
+  left: ${({ $on }) => $on ? '16px' : '2px'};
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  transition: left 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.35);
+`
+
+/* ── gradient preview strip ── */
+export const GradientPreview = styled.div`
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: ${({ $from, $to }) => `linear-gradient(135deg, ${$from || '#000'} 0%, ${$to || '#fff'} 100%)`};
+  margin-top: 2px;
+  flex-shrink: 0;
 `

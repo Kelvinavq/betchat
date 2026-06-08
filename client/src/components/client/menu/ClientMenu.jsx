@@ -11,13 +11,13 @@ const spin     = keyframes`to{transform:rotate(360deg)}`
 
 /* ── tokens ── */
 const T = {
-  bg:      '#0a0f1a',
-  surface: '#0e1525',
-  border:  'rgba(255,255,255,0.08)',
-  t1:      '#f8fafc',
-  t2:      '#94a3b8',
-  t3:      '#4b5563',
-  accent:  '#3b82f6',
+  bg:      'var(--bc-client-body-bg, #0a0f1a)',
+  surface: 'var(--bc-client-surface, #0e1525)',
+  border:  'var(--bc-client-border, rgba(255,255,255,0.08))',
+  t1:      'var(--bc-client-text, #f8fafc)',
+  t2:      'var(--bc-client-text-2, #94a3b8)',
+  t3:      'var(--bc-client-text-muted, rgba(255,255,255,0.28))',
+  accent:  'var(--bc-client-accent, #3b82f6)',
   success: '#10b981',
   danger:  '#ef4444',
   gold:    '#f59e0b',
@@ -293,7 +293,7 @@ const FaqList = styled.div`
 const FaqItem = styled.div`
   background: ${T.surface};
   border-radius: 14px;
-  border: 1px solid ${({ $open }) => $open ? 'rgba(59,130,246,0.3)' : T.border};
+  border: 1px solid ${({ $open }) => $open ? 'rgba(var(--bc-client-accent-rgb, 59,130,246), 0.35)' : T.border};
   overflow: hidden;
   transition: border-color 0.2s;
 `
@@ -358,7 +358,7 @@ const EventTypeIcon = styled.div`
   width: 42px;
   height: 42px;
   border-radius: 12px;
-  background: ${({ $bg }) => $bg || 'rgba(59,130,246,0.15)'};
+  background: ${({ $bg }) => $bg || 'rgba(var(--bc-client-accent-rgb, 59,130,246), 0.15)'};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -412,7 +412,7 @@ const ProgressFill = styled.div`
   border-radius: 4px;
   background: ${({ $done }) => $done
     ? 'linear-gradient(90deg,#10b981,#34d399)'
-    : 'linear-gradient(90deg,#3b82f6,#60a5fa)'};
+    : 'linear-gradient(90deg, var(--bc-client-accent, #3b82f6), rgba(var(--bc-client-accent-rgb, 59,130,246), 0.65))'};
   width: ${({ $pct }) => Math.min($pct, 100)}%;
   transition: width 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
   min-width: ${({ $pct }) => $pct > 0 ? '4px' : '0'};
@@ -428,16 +428,16 @@ const ProgressMeta = styled.div`
 const PlayBtn = styled.button`
   padding: 7px 14px;
   border-radius: 9px;
-  border: 1px solid rgba(59,130,246,0.35);
-  background: rgba(59,130,246,0.13);
-  color: #60a5fa;
+  border: 1px solid rgba(var(--bc-client-accent-rgb, 59,130,246), 0.35);
+  background: rgba(var(--bc-client-accent-rgb, 59,130,246), 0.13);
+  color: var(--bc-client-accent, #60a5fa);
   font-size: 12px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   flex-shrink: 0;
   transition: background 0.15s;
-  &:hover { background: rgba(59,130,246,0.22); }
+  &:hover { background: rgba(var(--bc-client-accent-rgb, 59,130,246), 0.22); }
 `
 
 const LoadMoreBtn = styled.button`
@@ -461,9 +461,9 @@ const ViewAllBtn = styled.button`
   width: 100%;
   padding: 12px;
   border-radius: 12px;
-  border: 1px dashed rgba(59,130,246,0.3);
-  background: rgba(59,130,246,0.06);
-  color: #60a5fa;
+  border: 1px dashed rgba(var(--bc-client-accent-rgb, 59,130,246), 0.32);
+  background: rgba(var(--bc-client-accent-rgb, 59,130,246), 0.07);
+  color: var(--bc-client-accent, #60a5fa);
   font-size: 13px;
   font-weight: 700;
   font-family: inherit;
@@ -473,7 +473,7 @@ const ViewAllBtn = styled.button`
   justify-content: center;
   gap: 8px;
   transition: background 0.15s;
-  &:hover { background: rgba(59,130,246,0.12); }
+  &:hover { background: rgba(var(--bc-client-accent-rgb, 59,130,246), 0.14); }
 `
 
 /* ── helpers ── */

@@ -15,7 +15,7 @@ export const PageWrap = styled.div`
   flex: 1;
   min-width: 0;
   height: var(--app-height, 100dvh);
-  background: #080814;
+  background: var(--bc-admin-content-bg, #080814);
   display: flex;
   flex-direction: column;
   overflow: hidden;

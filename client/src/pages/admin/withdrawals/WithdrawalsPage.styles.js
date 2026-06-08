@@ -23,7 +23,7 @@ export const PageWrap = styled.div`
   flex: 1;
   min-width: 0;
   height: var(--app-height, 100dvh);
-  background: #0b0b18;
+  background: var(--bc-admin-sidebar-bg, #0b0b18);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -83,7 +83,7 @@ export const StickyTopBar = styled.div`
   position: sticky;
   top: 0;
   z-index: 10;
-  background: #0b0b18;
+  background: var(--bc-admin-sidebar-bg, #0b0b18);
   padding: 14px 28px 0;
   margin: 0 -28px;
   display: flex;

@@ -176,11 +176,11 @@ const BubbleIcon = styled.span`
   justify-content: center;
   flex-shrink: 0;
   animation: ${popIn} 0.22s cubic-bezier(0.16, 1, 0.3, 1) both;
-  svg { color: #ffffff; font-size: 1.5rem; }
+  svg { color: var(--bc-client-on-accent, #ffffff); font-size: 1.5rem; }
 `
 
 const BubbleText = styled.span`
-  color: #ffffff;
+  color: var(--bc-client-on-accent, #ffffff);
   font-weight: 600;
   font-size: 0.88rem;
   letter-spacing: 0.03em;
@@ -211,12 +211,15 @@ const BubbleOpen = styled.button`
   border: 1px solid rgba(var(--bc-client-accent-rgb, 40, 140, 255), 0.28);
   animation: ${({ $hasUnread }) => $hasUnread ? css`${glowUnread} 2.4s ease-in-out infinite` : css`${glow} 3s ease-in-out infinite`};
   transition: background 0.3s, transform 0.15s;
-  &:hover { background: var(--bc-client-button-gradient, linear-gradient(135deg, #184a8a 0%, #1a62f8 100%)); }
+  &:hover {
+    background: var(--bc-client-button-gradient, linear-gradient(135deg, #184a8a 0%, #1a62f8 100%));
+    filter: brightness(1.08);
+  }
   &:active { transform: scale(0.97); }
 `
 
 const OpenLabel = styled.span`
-  color: #ffffff;
+  color: var(--bc-client-on-accent, #ffffff);
   font-weight: 600;
   font-size: 0.88rem;
   letter-spacing: 0.02em;
@@ -240,6 +243,7 @@ const BubbleWide = styled.button`
   transition: background 0.3s, transform 0.15s;
   &:hover {
     background: var(--bc-client-button-gradient, linear-gradient(135deg, #184a8a 0%, #1a62f8 100%));
+    filter: brightness(1.08);
     transform: translateY(-1px);
   }
   &:active { transform: scale(0.97); }
@@ -252,13 +256,13 @@ const WideIconCircle = styled.span`
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.16);
   flex-shrink: 0;
-  svg { color: #ffffff; font-size: 1.2rem; }
+  svg { color: var(--bc-client-on-accent, #ffffff); font-size: 1.2rem; }
 `
 
 const WideLabel = styled.span`
-  color: #ffffff;
+  color: var(--bc-client-on-accent, #ffffff);
   font-weight: 600;
   font-size: 0.85rem;
   letter-spacing: 0.01em;
@@ -449,6 +453,7 @@ const ChatBubble = () => {
   const styleConf   = bubbleConfig[activeStyle] || {}
   const ActiveIcon  = ICON_MAP[styleConf.icon] || ICON_MAP.ChatOutlined
   const bubbleLabel = styleConf.text || appName
+
   const [notif, setNotif]     = useState(null)
   const [notifKey, setNotifKey] = useState(0)
   const [unread, setUnread]   = useState(0)

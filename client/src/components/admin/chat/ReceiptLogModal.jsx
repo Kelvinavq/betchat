@@ -34,7 +34,7 @@ const Drawer = styled.div`
   height: auto;
   max-height: calc(100vh - 24px);
   margin: 12px 0;
-  background: #0f0f1e;
+  background: var(--bc-admin-sidebar-bg, #0f0f1e);
   border-left: 1px solid rgba(255, 255, 255, 0.07);
   display: flex;
   flex-direction: column;
@@ -54,7 +54,7 @@ const Head = styled.div`
   padding: 14px 16px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
   flex-shrink: 0;
-  background: #0d0d1b;
+  background: var(--bc-admin-topbar-bg, #0d0d1b);
   position: sticky;
   top: 0;
   z-index: 2;

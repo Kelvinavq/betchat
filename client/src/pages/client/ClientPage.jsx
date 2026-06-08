@@ -26,10 +26,6 @@ const ringExpand = keyframes`
   0%   { transform: scale(1);   opacity: 0.55; }
   100% { transform: scale(2.2); opacity: 0;    }
 `
-const shimmer = keyframes`
-  0%   { background-position: -200% center; }
-  100% { background-position:  200% center; }
-`
 const slideUp = keyframes`
   from { opacity: 0; transform: translateY(10px); }
   to   { opacity: 1; transform: translateY(0);    }
@@ -56,7 +52,7 @@ const Overlay = styled.div`
   position: fixed;
   inset: 0;
   z-index: 9999;
-  background: #000;
+  background: var(--bc-client-body-bg, #000);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -74,12 +70,8 @@ const BackGlow = styled.div`
   width: 320px;
   height: 320px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle,
-    rgba(30, 110, 255, 0.12) 0%,
-    rgba(80, 60, 255, 0.06) 50%,
-    transparent 70%
-  );
+  background: rgba(var(--bc-client-accent-rgb, 30,110,255), 0.06);
+  box-shadow: 0 0 0 48px rgba(var(--bc-client-accent-rgb, 30,110,255), 0.02);
   pointer-events: none;
 `
 
@@ -98,7 +90,7 @@ const Ring = styled.span`
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  border: 1.5px solid rgba(50, 130, 255, 0.45);
+  border: 1.5px solid rgba(var(--bc-client-accent-rgb, 50,130,255), 0.45);
   animation: ${ringExpand} 2.4s ease-out infinite;
   animation-delay: ${({ $delay }) => $delay || '0s'};
 `
@@ -107,23 +99,17 @@ const Orb = styled.div`
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 35% 35%,
-    rgba(80, 160, 255, 0.95) 0%,
-    rgba(30, 80, 230, 0.85) 45%,
-    rgba(15, 40, 180, 0.6) 100%
-  );
+  background: var(--bc-client-accent, #2563eb);
   box-shadow:
-    0 0 0 1px rgba(80, 150, 255, 0.25),
-    0 0 24px rgba(40, 110, 255, 0.5),
-    0 0 60px rgba(40, 90, 255, 0.2);
+    0 0 0 1px rgba(var(--bc-client-accent-rgb, 80,150,255), 0.25),
+    0 0 24px rgba(var(--bc-client-accent-rgb, 40,110,255), 0.35);
   animation: ${orbPulse} 2.4s ease-in-out infinite;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 20px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.9);
+  color: var(--bc-client-on-accent, rgba(255,255,255,0.9));
   letter-spacing: -0.02em;
   user-select: none;
   flex-shrink: 0;
@@ -132,7 +118,7 @@ const Orb = styled.div`
 const AppName = styled.div`
   font-size: 22px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--bc-client-text, #ffffff);
   letter-spacing: -0.03em;
   animation: ${slideUp} 0.5s 0.15s cubic-bezier(0.16, 1, 0.3, 1) both;
 `
@@ -143,19 +129,8 @@ const LoadingText = styled.div`
   letter-spacing: 0.18em;
   text-transform: uppercase;
   font-weight: 500;
-  background: linear-gradient(
-    90deg,
-    rgba(255,255,255,0.18) 0%,
-    rgba(255,255,255,0.55) 40%,
-    rgba(255,255,255,0.18) 80%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation:
-    ${slideUp}  0.5s 0.3s  cubic-bezier(0.16, 1, 0.3, 1) both,
-    ${shimmer}  2.2s 0.8s  linear infinite;
+  color: var(--bc-client-text-2, rgba(255,255,255,0.7));
+  animation: ${slideUp} 0.5s 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
 `
 
 const ProgressBar = styled.div`
@@ -164,12 +139,12 @@ const ProgressBar = styled.div`
   left: 0;
   right: 0;
   height: 2px;
-  background: rgba(255,255,255,0.05);
+  background: rgba(var(--bc-client-accent-rgb, 30,110,255), 0.10);
   overflow: hidden;
 `
 const ProgressFill = styled.div`
   height: 100%;
-  background: linear-gradient(90deg, rgba(30,110,255,0.8) 0%, rgba(100,180,255,0.9) 100%);
+  background: var(--bc-client-accent, #2563eb);
   width: ${({ $pct }) => $pct}%;
   transition: width 0.6s ease;
 `
@@ -179,7 +154,7 @@ const AuthOverlay = styled.div`
   position: fixed;
   inset: 0;
   z-index: 9998;
-  background: radial-gradient(ellipse at 50% 42%, #0d0c22 0%, #07070f 58%, #000 100%);
+  background: var(--bc-client-body-bg, #000);
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -192,7 +167,8 @@ const AuthAmbient = styled.div`
   width: 520px;
   height: 520px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(90,70,255,0.07) 0%, rgba(50,40,200,0.04) 45%, transparent 70%);
+  background: rgba(var(--bc-client-accent-rgb, 90,70,255), 0.05);
+  box-shadow: 0 0 0 80px rgba(var(--bc-client-accent-rgb, 90,70,255), 0.02);
   pointer-events: none;
 `
 const AuthAmbient2 = styled.div`
@@ -200,7 +176,7 @@ const AuthAmbient2 = styled.div`
   width: 220px;
   height: 220px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(60,180,255,0.05) 0%, transparent 70%);
+  background: rgba(var(--bc-client-accent-rgb, 60,180,255), 0.04);
   transform: translate(120px, -80px);
   pointer-events: none;
 `
@@ -217,16 +193,9 @@ const AuthSpinner = styled.div`
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0%,
-    rgba(140, 110, 255, 0.9) 22%,
-    rgba(100, 190, 255, 0.75) 48%,
-    transparent 68%
-  );
+  border: 3px solid rgba(var(--bc-client-accent-rgb, 140,110,255), 0.20);
+  border-top-color: var(--bc-client-accent, #f59e0b);
   animation: ${spinRing} 1.5s linear infinite;
-  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #fff calc(100% - 2.5px));
-  mask: radial-gradient(farthest-side, transparent calc(100% - 3.5px), #fff calc(100% - 2.5px));
 `
 const AuthOrb = styled.div`
   position: relative;
@@ -234,29 +203,23 @@ const AuthOrb = styled.div`
   width: 78px;
   height: 78px;
   border-radius: 50%;
-  background: radial-gradient(
-    circle at 35% 35%,
-    rgba(165, 155, 255, 0.95) 0%,
-    rgba(95, 82, 235, 0.9) 45%,
-    rgba(52, 42, 195, 0.75) 100%
-  );
+  background: var(--bc-client-accent, #2563eb);
   box-shadow:
-    0 0 0 1px rgba(145, 130, 255, 0.18),
-    0 0 34px rgba(115, 100, 255, 0.52),
-    0 0 90px rgba(92, 80, 255, 0.18);
+    0 0 0 1px rgba(var(--bc-client-accent-rgb, 145,130,255), 0.20),
+    0 0 34px rgba(var(--bc-client-accent-rgb, 115,100,255), 0.26);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 26px;
   font-weight: 800;
-  color: rgba(255,255,255,0.95);
+  color: var(--bc-client-on-accent, rgba(255,255,255,0.95));
   letter-spacing: -0.02em;
   user-select: none;
 `
 const AuthTitle = styled.div`
   font-size: 22px;
   font-weight: 700;
-  color: #ffffff;
+  color: var(--bc-client-text, #ffffff);
   letter-spacing: -0.025em;
   animation: ${slideUp} 0.45s 0.05s cubic-bezier(0.16,1,0.3,1) both;
 `
@@ -266,19 +229,8 @@ const AuthSub = styled.div`
   font-weight: 500;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  background: linear-gradient(
-    90deg,
-    rgba(160,148,255,0.4) 0%,
-    rgba(200,214,255,0.78) 50%,
-    rgba(160,148,255,0.4) 100%
-  );
-  background-size: 200% auto;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
-  animation:
-    ${slideUp}  0.45s 0.2s  cubic-bezier(0.16,1,0.3,1) both,
-    ${shimmer}  2.6s  0.65s linear infinite;
+  color: var(--bc-client-text-2, rgba(255,255,255,0.62));
+  animation: ${slideUp} 0.45s 0.2s cubic-bezier(0.16,1,0.3,1) both;
 `
 const AuthDots = styled.div`
   display: flex;
@@ -289,7 +241,7 @@ const AuthDot = styled.span`
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: rgba(140,128,255,0.62);
+  background: rgba(var(--bc-client-accent-rgb, 140,128,255), 0.62);
   animation: ${dotBounce} 1.45s ease-in-out infinite;
   animation-delay: ${({ $d }) => $d};
 `
@@ -299,14 +251,14 @@ const AuthBarWrap = styled.div`
   left: 0;
   right: 0;
   height: 2px;
-  background: rgba(255,255,255,0.04);
+  background: rgba(var(--bc-client-accent-rgb, 30,110,255), 0.08);
   overflow: hidden;
 `
 const AuthBarFill = styled.div`
   position: absolute;
   height: 100%;
   width: 46%;
-  background: linear-gradient(90deg, transparent, rgba(125,105,255,0.9), rgba(165,205,255,0.85), transparent);
+  background: var(--bc-client-accent, #f59e0b);
   animation: ${indeterminate} 2.3s ease-in-out infinite;
 `
 

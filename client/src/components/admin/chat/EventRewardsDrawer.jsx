@@ -363,7 +363,7 @@ const Overlay = styled.div`
 `
 const Panel = styled.aside`
   width:min(680px,100vw);height:var(--app-height,100dvh);display:flex;flex-direction:column;
-  background:#0b1020;border-left:1px solid rgba(255,255,255,.10);
+  background:var(--bc-admin-sidebar-bg,#0b1020);border-left:1px solid rgba(255,255,255,.10);
   box-shadow:-22px 0 70px rgba(0,0,0,.45);animation:${slideIn} .22s cubic-bezier(.16,1,.3,1) both;
   overflow:hidden;
 `
@@ -421,7 +421,7 @@ const EventSelect = styled.select`
   background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.11);border-radius:9px;
   color:rgba(255,255,255,.78);padding:6px 10px;font-size:12px;font-family:inherit;
   cursor:pointer;outline:none;min-width:150px;max-width:220px;
-  option{background:#1a1f2e;color:#f1f5f9;}
+  option{background:var(--bc-admin-card-bg,#1a1f2e);color:#f1f5f9;}
   &:focus{border-color:rgba(251,191,36,.4);}
   &:disabled{opacity:.5;cursor:default;}
 `

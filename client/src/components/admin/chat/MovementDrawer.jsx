@@ -899,7 +899,7 @@ const Overlay = styled.div`
 `
 const Panel = styled.aside`
   width:min(860px,100vw);height:var(--app-height,100dvh);display:flex;flex-direction:column;
-  background:#0b1020;border-left:1px solid rgba(255,255,255,.10);
+  background:var(--bc-admin-sidebar-bg,#0b1020);border-left:1px solid rgba(255,255,255,.10);
   box-shadow:-22px 0 70px rgba(0,0,0,.45);animation:${slideIn} .22s cubic-bezier(.16,1,.3,1) both;
   position:relative;overflow:hidden;
 `
@@ -962,7 +962,7 @@ const SearchInput = styled.input`
   font:inherit;font-size:13px;&::placeholder{color:rgba(255,255,255,.28);}
 `
 const AccountSelect = styled.select`
-  height:38px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:#11182b;
+  height:38px;border-radius:8px;border:1px solid rgba(255,255,255,.08);background:var(--bc-admin-card-bg,#11182b);
   color:rgba(255,255,255,.82);padding:0 10px;font:inherit;font-size:12.5px;outline:0;
 `
 
@@ -1047,7 +1047,7 @@ const PageBtn = styled.button`
 /* ─── Detail Sheet ──────────────────────────────────────────────────── */
 const DetailSheet = styled.div`
   position:absolute;inset:0;z-index:10;display:flex;flex-direction:column;
-  background:#0b1020;animation:${detailIn} .22s cubic-bezier(.16,1,.3,1) both;
+  background:var(--bc-admin-sidebar-bg,#0b1020);animation:${detailIn} .22s cubic-bezier(.16,1,.3,1) both;
 `
 const DetailHead = styled.header`
   display:flex;align-items:center;gap:12px;padding:14px 18px;

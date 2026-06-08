@@ -54,7 +54,7 @@ const Backdrop = styled.div`
 const Panel = styled.div`
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 4001;
   width: min(820px, 100vw);
-  background: #0a0f1a;
+  background: var(--bc-admin-sidebar-bg, #0a0f1a);
   border-left: 1px solid rgba(255,255,255,0.08);
   display: flex;
   flex-direction: column;

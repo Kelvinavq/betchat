@@ -12,10 +12,11 @@ precision highp float;
 
 uniform float time;
 uniform vec2 resolution;
+uniform vec3 accentColor;
 
 void main() {
   vec4 abyssColor = vec4(0.0, 0.0, 0.0, 0.5);
-  vec4 tunnelColor = vec4(0.04, 0.52, 1.0, 0.5);
+  vec4 tunnelColor = vec4(accentColor, 0.5);
 
   vec2 uv = (gl_FragCoord.xy - 0.5 * resolution.xy) / resolution.y * 0.6;
 
@@ -64,7 +65,14 @@ export const useWebGLBackground = (canvasRef) => {
     gl.vertexAttribPointer(posAttr, 2, gl.FLOAT, false, 0, 0);
 
     const timeLoc = gl.getUniformLocation(program, "time");
-    const resLoc = gl.getUniformLocation(program, "resolution");
+    const resLoc  = gl.getUniformLocation(program, "resolution");
+    const accentLoc = gl.getUniformLocation(program, "accentColor");
+
+    // Read accent color from CSS variable set by applyAdminTheme
+    const rgbStr = getComputedStyle(document.documentElement)
+      .getPropertyValue("--bc-admin-accent-rgb").trim() || "30, 133, 255";
+    const [r, g, b] = rgbStr.split(",").map((v) => parseFloat(v.trim()) / 255);
+    gl.uniform3f(accentLoc, r, g, b);
 
     const resize = () => {
       canvas.width = window.innerWidth;

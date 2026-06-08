@@ -24,7 +24,7 @@ export const PageWrap = styled.div`
   flex-direction: column;
   height: var(--app-height, 100dvh);
   overflow: hidden;
-  background: #08080f;
+  background: var(--bc-admin-content-bg, #08080f);
   color: #e2e8f0;
 `
 
@@ -914,7 +914,7 @@ export const PreviewCtrlBtn = styled.button`
 export const PhoneFrame = styled.div`
   width: 360px;
   height: 600px;
-  background: #080810;
+  background: var(--bc-admin-content-bg, #080810);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 28px;
   overflow: hidden;

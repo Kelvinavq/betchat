@@ -3411,7 +3411,7 @@ const ChatWindow = ({ onClose }) => {
             <LogoutNoticeIcon>
               <WavingHandOutlinedIcon />
             </LogoutNoticeIcon>
-            <LogoutNoticeTitle>Sesion cerrada</LogoutNoticeTitle>
+            <LogoutNoticeTitle>Sesión cerrada</LogoutNoticeTitle>
             <LogoutNoticeText>
               Gracias por visitarnos, {logoutNotice.name}. Te esperamos pronto.
             </LogoutNoticeText>
