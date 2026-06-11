@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import styled, { keyframes } from 'styled-components'
+import styled, { css, keyframes } from 'styled-components'
 import { api } from '../../../utils/api.js'
 import { useSystemConfig } from '../../../context/SystemConfigContext.jsx'
 
@@ -457,6 +457,20 @@ const LoadMoreBtn = styled.button`
   &:disabled { opacity: 0.5; cursor: default; }
 `
 
+const RefreshBtn = styled.button`
+  background: none;
+  border: none;
+  color: ${T.t2};
+  font-size: 20px;
+  line-height: 1;
+  padding: 4px 6px;
+  cursor: pointer;
+  transition: color 0.15s;
+  &:hover { color: ${T.t1}; }
+  &:disabled { color: ${T.t3}; cursor: default; }
+  ${({ $spinning }) => $spinning && css`animation: ${spin} 0.7s linear infinite;`}
+`
+
 const ViewAllBtn = styled.button`
   width: 100%;
   padding: 12px;
@@ -897,19 +911,147 @@ function FaqView({ onBack }) {
   )
 }
 
-function GamesPlaceholder({ onBack }) {
+function fmtMoney(n) {
+  return new Intl.NumberFormat('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Math.abs(n))
+}
+
+function GameRoundItem({ item }) {
+  const bet = item.bet
+  const win = item.win
+  const net = win - bet
+  const noActivity = bet === 0 && win === 0
+  const won  = !noActivity && net > 0
+  const lost = !noActivity && net < 0
+
+  return (
+    <HistItem>
+      <HistIcon $bg={won ? 'rgba(16,185,129,0.15)' : lost ? 'rgba(239,68,68,0.1)' : 'rgba(255,255,255,0.06)'}>
+        🎮
+      </HistIcon>
+      <HistInfo>
+        <HistTitle>{item.game || 'Juego'}</HistTitle>
+        <HistSub>
+          {item.label || item.provider}
+          {item.datetime_close
+            ? ` · ${fmtDate(item.datetime_close)}`
+            : item.datetime_open ? ` · ${fmtDate(item.datetime_open)}` : ''}
+        </HistSub>
+      </HistInfo>
+      <HistRight>
+        {noActivity ? (
+          <HistAmount style={{ color: T.t3 }}>—</HistAmount>
+        ) : (
+          <HistAmount $positive={won}>
+            {won ? `+$${fmtMoney(net)}` : `-$${fmtMoney(net)}`}
+          </HistAmount>
+        )}
+        <div style={{ marginTop: 4 }}>
+          {!item.round_finished ? (
+            <StatusBadge $bg="rgba(245,158,11,0.1)" $color={T.gold} $border="rgba(245,158,11,0.25)">
+              En curso
+            </StatusBadge>
+          ) : noActivity ? (
+            <StatusBadge $bg="rgba(255,255,255,0.05)" $color={T.t3} $border={T.border}>
+              Sin apuesta
+            </StatusBadge>
+          ) : won ? (
+            <StatusBadge $bg="rgba(16,185,129,0.12)" $color={T.success} $border="rgba(16,185,129,0.3)">
+              ✓ Ganaste
+            </StatusBadge>
+          ) : (
+            <StatusBadge $bg="rgba(239,68,68,0.1)" $color={T.danger} $border="rgba(239,68,68,0.25)">
+              ✗ Perdiste
+            </StatusBadge>
+          )}
+        </div>
+      </HistRight>
+    </HistItem>
+  )
+}
+
+function GamesHistory({ onBack }) {
+  const [items, setItems]             = useState([])
+  const [page, setPage]               = useState(1)
+  const [pageCount, setPageCount]     = useState(0)
+  const [loading, setLoading]         = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [error, setError]             = useState('')
+
+  const fetchGames = useCallback(async (p, append = false) => {
+    if (p === 1) setLoading(true); else setLoadingMore(true)
+    setError('')
+    try {
+      const res = await api.get(`/api/client/history/games?page=${p}&limit=20`)
+      setItems(prev => append ? [...prev, ...(res.items || [])] : (res.items || []))
+      setPageCount(res.pageCount || 0)
+      setPage(p)
+    } catch (e) {
+      setError(e.message || 'Error al cargar el historial')
+      if (!append) setItems([])
+    } finally {
+      setLoading(false)
+      setLoadingMore(false)
+    }
+  }, [])
+
+  useEffect(() => { fetchGames(1) }, [fetchGames])
+
+  useEffect(() => {
+    const onRefresh = () => fetchGames(1)
+    window.addEventListener('client:games-refresh', onRefresh)
+    return () => window.removeEventListener('client:games-refresh', onRefresh)
+  }, [fetchGames])
+
+  const hasMore = page < pageCount
+
   return (
     <>
       <SheetHeader>
         <BackBtn type="button" onClick={onBack}>←</BackBtn>
         <SheetTitle>Historial de juegos</SheetTitle>
+        <RefreshBtn
+          type="button"
+          onClick={() => fetchGames(1)}
+          disabled={loading}
+          $spinning={loading}
+          title="Actualizar"
+        >
+          ↻
+        </RefreshBtn>
+        <span style={{ fontSize: 11, color: T.t3 }}>Últimos 7 días</span>
       </SheetHeader>
+
       <SheetBody>
-        <EmptyBox>
-          <div style={{ fontSize: 36, marginBottom: 12 }}>🎯</div>
-          <div style={{ color: T.t2, fontWeight: 600, marginBottom: 6 }}>Próximamente</div>
-          <div>El historial de juegos estará disponible en una próxima actualización.</div>
-        </EmptyBox>
+        {loading ? (
+          <LoaderWrap><Spinner /></LoaderWrap>
+        ) : error ? (
+          <EmptyBox>
+            <div style={{ fontSize: 30, marginBottom: 10 }}>⚠️</div>
+            <div>{error}</div>
+          </EmptyBox>
+        ) : items.length === 0 ? (
+          <EmptyBox>
+            <div style={{ fontSize: 36, marginBottom: 12 }}>🎯</div>
+            <div style={{ color: T.t2, fontWeight: 600, marginBottom: 6 }}>Sin historial</div>
+            <div>No se registraron partidas en los últimos 90 días.</div>
+          </EmptyBox>
+        ) : (
+          <HistSection>
+            <HistGroup>
+              {items.map(item => <GameRoundItem key={item.id} item={item} />)}
+            </HistGroup>
+            {hasMore && (
+              <LoadMoreBtn
+                type="button"
+                disabled={loadingMore}
+                onClick={() => fetchGames(page + 1, true)}
+              >
+                {loadingMore ? 'Cargando...' : `Cargar más · pág. ${page + 1} de ${pageCount}`}
+              </LoadMoreBtn>
+            )}
+          </HistSection>
+        )}
+        <div style={{ height: 20 }} />
       </SheetBody>
     </>
   )
@@ -940,7 +1082,6 @@ const MENU_ITEMS = [
     iconBg: 'rgba(245,158,11,0.15)',
     label: 'Historial de juegos',
     sub: 'Tus partidas y resultados',
-    soon: true,
   },
   {
     id: 'faq',
@@ -1022,7 +1163,7 @@ export default function ClientMenu({ onClose }) {
         {view === 'events'  && <EventsView   onBack={() => setView('menu')} onOpenOverlay={openOverlay} />}
         {view === 'history' && <MovementHistory onBack={() => setView('menu')} />}
         {view === 'faq'     && <FaqView         onBack={() => setView('menu')} />}
-        {view === 'games'   && <GamesPlaceholder onBack={() => setView('menu')} />}
+        {view === 'games'   && <GamesHistory onBack={() => setView('menu')} />}
       </Sheet>
     </Backdrop>
   )

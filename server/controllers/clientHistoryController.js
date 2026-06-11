@@ -1,6 +1,36 @@
 import { query } from '../config/database.js'
 import { getValidatedClientPayload } from '../utils/clientSession.js'
 
+const GAME_HISTORY_LIMIT = 20
+
+const ARGENTINA_OFFSET_MS = -3 * 60 * 60 * 1000  // UTC-3
+
+function toArgentinaDate(utcMs) {
+  return new Date(utcMs + ARGENTINA_OFFSET_MS)
+}
+
+function buildDateRange() {
+  const nowArg  = toArgentinaDate(Date.now())
+  const fromArg = toArgentinaDate(Date.now())
+  fromArg.setUTCDate(fromArg.getUTCDate() - 7)
+  const pad = (n) => String(n).padStart(2, '0')
+  const fmt = (d) => `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`
+  return { from: `${fmt(fromArg)} 00:00:00`, to: `${fmt(nowArg)} 23:59:59` }
+}
+
+async function getCasinoApiConfig() {
+  const { rows, error } = await query('SELECT api_url, api_key FROM config_casino WHERE id = 1 LIMIT 1')
+  if (error) throw error
+  const cfg = rows?.[0]
+  if (!cfg?.api_url || !cfg?.api_key) {
+    const err = new Error('Casino API no configurada')
+    err.status = 503
+    throw err
+  }
+  const url = String(cfg.api_url).trim()
+  return { apiUrl: url.endsWith('/') ? url : `${url}/`, apiKey: cfg.api_key }
+}
+
 async function getClientFromCookie(req) {
   try {
     const payload = await getValidatedClientPayload(req)
@@ -139,6 +169,99 @@ export async function getClientMovements(req, res, next) {
     })
 
     return res.json({ items, total, page, limit, hasMore: offset + items.length < total })
+  } catch (err) {
+    next(err)
+  }
+}
+
+/**
+ * GET /api/client/history/games?page=1&limit=20
+ * Returns paginated casino game rounds for the authenticated client.
+ * Proxies to the external casino API using the client's external_id.
+ * Response: { items, pageCount, page, limit, hasMore }
+ */
+export async function getClientGameHistory(req, res, next) {
+  try {
+    const client = await getClientFromCookie(req)
+    if (!client) return res.status(401).json({ error: 'Sesión requerida', code: 'AUTH_REQUIRED' })
+
+    const page  = Math.max(1, parseInt(req.query.page  || '1',  10) || 1)
+    const limit = Math.max(1, Math.min(100, parseInt(req.query.limit || String(GAME_HISTORY_LIMIT), 10) || GAME_HISTORY_LIMIT))
+
+    const [clientRow, casinoConfig] = await Promise.all([
+      query('SELECT external_id FROM clients WHERE id = ? LIMIT 1', [client.clientId]),
+      getCasinoApiConfig(),
+    ])
+    if (clientRow.error) throw clientRow.error
+
+    const externalId = clientRow.rows?.[0]?.external_id
+    if (!externalId) {
+      return res.json({ items: [], pageCount: 0, page, limit, hasMore: false })
+    }
+
+    const { from, to } = buildDateRange()
+    const form = new URLSearchParams()
+    form.append('api_token', casinoConfig.apiKey)
+    form.append('from',   from)
+    form.append('to',     to)
+    form.append('limit',  String(limit))
+    form.append('offset', String(page))
+
+    const casinoUrl = `${casinoConfig.apiUrl}index.php?act=admin&area=history&response=js&id=${externalId}`
+    const casinoRes = await fetch(casinoUrl, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    form.toString(),
+    })
+
+    const rawText = await casinoRes.text()
+
+    if (!casinoRes.ok) {
+      const err = new Error(`Casino API respondió ${casinoRes.status}`)
+      err.status = 502
+      throw err
+    }
+
+    let data
+    try {
+      data = JSON.parse(rawText)
+    } catch {
+      console.error('[GameHistory] respuesta no-JSON del casino:', rawText.slice(0, 200))
+      const err = new Error('Respuesta inválida del casino')
+      err.status = 502
+      throw err
+    }
+
+    if (data.error || data.errorMessage) {
+      const msg = data.errorMessage || data.error || 'Error del casino'
+      const err = new Error(String(msg))
+      err.status = 502
+      throw err
+    }
+
+    const pageCount = Number(data.pageCount || 0)
+
+    const parseAmount = (v) => {
+      const n = Number(String(v ?? '0').replace(/,/g, ''))
+      return isNaN(n) ? 0 : n
+    }
+
+    const items = (data.history || []).map(h => ({
+      id:             String(h.id),
+      game:           h.game     || '',
+      game_id:        h.game_id  || '',
+      provider:       h.provider || '',
+      label:          h.label    || '',
+      bet:            parseAmount(h.bet),
+      win:            parseAmount(h.win),
+      profit:         parseAmount(h.profit),
+      currency:       h.currency || '',
+      round_finished: h.round_finished === '1',
+      datetime_open:  h.datetime_open  || null,
+      datetime_close: h.datetime_close || null,
+    }))
+
+    return res.json({ items, pageCount, page, limit, hasMore: page < pageCount })
   } catch (err) {
     next(err)
   }

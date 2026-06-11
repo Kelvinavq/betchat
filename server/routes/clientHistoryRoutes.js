@@ -1,9 +1,9 @@
 import { Router } from 'express'
-import { getClientMovements } from '../controllers/clientHistoryController.js'
+import { getClientMovements, getClientGameHistory } from '../controllers/clientHistoryController.js'
 
 const router = Router()
 
-// GET /api/client/history/movements — requires client JWT cookie
 router.get('/movements', getClientMovements)
+router.get('/games',     getClientGameHistory)
 
 export default router

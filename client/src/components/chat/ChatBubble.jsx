@@ -518,6 +518,7 @@ const ChatBubble = () => {
       } else if (gameEvent === 'game_closed') {
         setGameAnim('showing')
         setTimeout(() => setGameAnim(''), 420)
+        window.dispatchEvent(new CustomEvent('client:games-refresh'))
       }
     }
     window.addEventListener('message', onGameEvent)
