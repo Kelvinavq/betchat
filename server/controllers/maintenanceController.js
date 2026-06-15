@@ -126,7 +126,7 @@ async function runMaintenanceInternal({ clearMessages, clearFiles }) {
     const { rows: fileRows, error: selErr } = await query(
       `SELECT id, file_url FROM messages
        WHERE file_url IS NOT NULL
-         AND message_type IN ('image', 'pdf', 'audio')
+         AND message_type IN ('image', 'pdf', 'audio', 'file')
          AND DATE(created_at) BETWEEN ? AND ?`,
       [clearFiles.fromDate, clearFiles.toDate]
     )
@@ -266,8 +266,11 @@ export async function purgeAllChats(req, res, next) {
     if (filesErr) throw filesErr
 
     let deletedFiles = 0
+    let skippedFiles = 0
     for (const row of files || []) {
-      if (row.file_url && await deletePhysicalFile(row.file_url)) deletedFiles++
+      if (!row.file_url) continue
+      const ok = await deletePhysicalFile(row.file_url)
+      ok ? deletedFiles++ : skippedFiles++
     }
 
     const { error: deleteMessagesErr } = await query('DELETE FROM messages')
@@ -277,10 +280,10 @@ export async function purgeAllChats(req, res, next) {
 
     await query(
       `UPDATE maintenance_config SET last_run_at = CURRENT_TIMESTAMP, last_run_stats = ? WHERE id = 1`,
-      [JSON.stringify({ messagesDeleted: 'all', filesDeleted: deletedFiles, chatsDeleted: 'all' })]
+      [JSON.stringify({ messagesDeleted: 'all', filesDeleted: deletedFiles, filesSkipped: skippedFiles, chatsDeleted: 'all' })]
     )
 
-    res.json({ success: true, deletedFiles })
+    res.json({ success: true, deletedFiles, filesDeleted: deletedFiles, filesSkipped: skippedFiles })
   } catch (error) {
     next(error)
   }

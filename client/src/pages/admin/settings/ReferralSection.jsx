@@ -266,6 +266,11 @@ export default function ReferralSection() {
           <InfoBanner>
             <InfoOutlinedIcon />
             <span>
+              Las fichas se acreditan automaticamente al usuario referente cuando el referido realiza
+              su primer deposito valido. El referente tambien recibe una notificacion en el chat
+              con el detalle de la recompensa.
+            </span>
+            <span style={{ display: 'none' }}>
               Las fichas <strong>no se acreditan automáticamente</strong> en la plataforma de casino.
               El usuario referente recibirá una notificación en el chat. Un agente deberá verificar
               y acreditar las fichas manualmente o a través de la integración de la plataforma.

@@ -446,6 +446,12 @@ const FaviconHint = styled.p`
   color: rgba(255,255,255,0.20);
   margin: 2px 0 0;
 `
+const AiFieldHint = styled.p`
+  margin: -1px 0 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: rgba(255,255,255,0.34);
+`
 
 function BrowserTabPreview({ favicon, appName }) {
   const displayFavicon = favicon || null
@@ -2027,6 +2033,9 @@ const SettingsPage = ({ onMenuOpen }) => {
                             <option value="hybrid_ai">Híbrido IA</option>
                           </FieldSelect>
                         </InputWrap>
+                        <AiFieldHint>
+                          Manual usa solo el flujo configurado. Hibrido IA interpreta lo que escribe el cliente y lo conecta con pantallas, botones y formularios existentes.
+                        </AiFieldHint>
                       </Field>
                       <Field>
                         <FieldLabel>Modelo IA del bot</FieldLabel>
@@ -2042,6 +2051,9 @@ const SettingsPage = ({ onMenuOpen }) => {
                             ))}
                           </FieldSelect>
                         </InputWrap>
+                        <AiFieldHint>
+                          Define calidad, velocidad y costo. Si queda vacio, se usa el modelo guardado en OpenRouter.
+                        </AiFieldHint>
                       </Field>
                       <Field>
                         <FieldLabel>Temperatura</FieldLabel>
@@ -2057,6 +2069,9 @@ const SettingsPage = ({ onMenuOpen }) => {
                             spellCheck={false}
                           />
                         </InputWrap>
+                        <AiFieldHint>
+                          Controla variacion y creatividad. Para soporte, pagos y respuestas consistentes conviene 0.1 a 0.2; valores altos pueden improvisar mas.
+                        </AiFieldHint>
                       </Field>
                       <Field>
                         <FieldLabel>Máx. tokens</FieldLabel>
@@ -2071,8 +2086,14 @@ const SettingsPage = ({ onMenuOpen }) => {
                             spellCheck={false}
                           />
                         </InputWrap>
+                        <AiFieldHint>
+                          Limite maximo de salida del modelo. Mas tokens permiten respuestas largas, pero aumentan costo y latencia; para chat guiado suele alcanzar 150 a 300.
+                        </AiFieldHint>
                       </Field>
                     </FormGrid>
+                    <ModelCostNote style={{ marginTop: 14 }}>
+                      Tokens son fragmentos de texto que la IA lee o escribe. Recomendado para este bot: temperatura 0.1, max. tokens 250 y respuestas apoyadas en el flujo manual.
+                    </ModelCostNote>
                     <ModelCostNote style={{ marginTop: 14 }}>
                       Si el modelo queda vacío, el bot usará el modelo guardado en OpenRouter. Guardá estos cambios desde este bloque para actualizar el runtime.
                     </ModelCostNote>

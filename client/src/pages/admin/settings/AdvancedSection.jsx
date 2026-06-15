@@ -156,9 +156,16 @@ export default function AdvancedSection() {
 
     setPanicBusy(true)
     try {
-      await api.post('/api/maintenance/purge-chats', { confirm: wipeConfirm })
-      setMsgResult({ ok: true, stats: { messagesDeleted: 'all', filesDeleted: 0 } })
-      setFileResult({ ok: true, stats: { filesDeleted: 0, filesSkipped: 0 } })
+      const data = await api.post('/api/maintenance/purge-chats', { confirm: wipeConfirm })
+      const filesDeleted = Number(data?.filesDeleted ?? data?.deletedFiles ?? 0)
+      const filesSkipped = Number(data?.filesSkipped ?? 0)
+      setConfig(prev => ({
+        ...prev,
+        lastRunAt: new Date().toISOString(),
+        lastRunStats: { messagesDeleted: 'all', filesDeleted, filesSkipped, chatsDeleted: 'all' },
+      }))
+      setMsgResult({ ok: true, stats: { messagesDeleted: 'all', filesDeleted } })
+      setFileResult({ ok: true, stats: { filesDeleted, filesSkipped } })
     } catch (err) {
       setMsgResult({ ok: false, error: err?.message || 'No se pudo vaciar chats' })
     } finally {
@@ -378,7 +385,7 @@ export default function AdvancedSection() {
           Eliminar archivos de medios
         </SubTitle>
         <SubDesc>
-          Elimina PDFs, imágenes y audios del disco sin borrar el historial de texto de los mensajes.
+          Elimina PDFs, imágenes, audios y otros archivos compartidos del disco sin borrar el historial de texto de los mensajes.
         </SubDesc>
 
         <DateRow>
