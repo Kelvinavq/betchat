@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { api, resolveApiAsset } from '../utils/api'
-import { DEFAULT_BUBBLE_CONFIG } from '../utils/bubbleIcons'
+import { DEFAULT_BUBBLE_CONFIG } from '../utils/bubbleConfig'
 
 const DEFAULT_SYSTEM_CONFIG = {
   appName: 'BetChat',
@@ -25,8 +25,15 @@ const DEFAULT_SYSTEM_CONFIG = {
   bubbleConfig: DEFAULT_BUBBLE_CONFIG,
 }
 
+const DEFAULT_THEME_CONFIG = {
+  clientTheme: 'betchat-dark',
+  adminTheme: 'dark-blue',
+  customThemes: { client: [], admin: [] },
+}
+
 const SystemConfigContext = createContext({
   systemConfig: DEFAULT_SYSTEM_CONFIG,
+  themeConfig: DEFAULT_THEME_CONFIG,
   configLoading: true,
   refreshSystemConfig: async () => DEFAULT_SYSTEM_CONFIG,
   setSystemConfig: () => {},
@@ -68,6 +75,7 @@ const normalizeSystemConfig = (config = {}) => ({
 
 export const SystemConfigProvider = ({ children }) => {
   const [systemConfig, setSystemConfigState] = useState(DEFAULT_SYSTEM_CONFIG)
+  const [themeConfig, setThemeConfig] = useState(DEFAULT_THEME_CONFIG)
   const [configLoading, setConfigLoading] = useState(true)
 
   const setSystemConfig = useCallback((config) => {
@@ -77,6 +85,14 @@ export const SystemConfigProvider = ({ children }) => {
   const refreshSystemConfig = useCallback(async () => {
     const data = await api.get('/api/settings/public')
     const next = normalizeSystemConfig(data.system || data.systemConfig || {})
+    setThemeConfig({
+      ...DEFAULT_THEME_CONFIG,
+      ...(data.themeConfig || data.theme_config || {}),
+      customThemes: {
+        ...DEFAULT_THEME_CONFIG.customThemes,
+        ...((data.themeConfig || data.theme_config || {}).customThemes || {}),
+      },
+    })
     setSystemConfigState(next)
     return next
   }, [])
@@ -106,10 +122,11 @@ export const SystemConfigProvider = ({ children }) => {
 
   const value = useMemo(() => ({
     systemConfig,
+    themeConfig,
     configLoading,
     refreshSystemConfig,
     setSystemConfig,
-  }), [refreshSystemConfig, setSystemConfig, systemConfig, configLoading])
+  }), [refreshSystemConfig, setSystemConfig, systemConfig, themeConfig, configLoading])
 
   return (
     <SystemConfigContext.Provider value={value}>

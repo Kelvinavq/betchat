@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import styled, { css, keyframes } from 'styled-components'
 import ChatBubble from '../../components/chat/ChatBubble'
 import { ChatContext } from '../../context/ChatContext'
@@ -6,9 +6,10 @@ import { useSystemConfig } from '../../context/SystemConfigContext'
 import { api } from '../../utils/api'
 import { getSocket } from '../../utils/socket'
 import { usePushNotification } from '../../hooks/usePushNotification'
-import PushPrompt from '../../components/chat/PushPrompt'
-import CasinoPopup from '../../components/client/CasinoPopup'
-import EventsOverlay from '../../components/client/events/EventsOverlay'
+
+const PushPrompt = lazy(() => import('../../components/chat/PushPrompt'))
+const CasinoPopup = lazy(() => import('../../components/client/CasinoPopup'))
+const EventsOverlay = lazy(() => import('../../components/client/events/EventsOverlay'))
 
 const POPUP_POLL_MS = 120_000
 const MAX_LOAD_MS   = 10_000   // safety: never block longer than 10s
@@ -271,6 +272,7 @@ const ClientPage = () => {
     setClientAuthLoading,
     iframeLoginData,
     setIframeLoginData,
+    activeClientEvent,
   } = useContext(ChatContext)
   const { systemConfig, configLoading } = useSystemConfig()
   const iframeUrl = systemConfig?.iframeUrl || ''
@@ -326,7 +328,7 @@ const ClientPage = () => {
     clearTimeout(authDismissRef.current)
     setAuthOverlayOut(false)
     setAuthOverlayGone(false)
-  }, [iframeLoginData, gone, iframeUrl]) // eslint-disable-line
+  }, [iframeLoginData, gone, iframeUrl])
 
   /* advance progress bar gradually while waiting */
   useEffect(() => {
@@ -487,6 +489,7 @@ const ClientPage = () => {
   }, [handleHostMessage])
 
   useEffect(() => {
+    if (!gone) return
     let cancelled = false
     const fetchPopups = async () => {
       try {
@@ -509,7 +512,7 @@ const ClientPage = () => {
       clearInterval(id)
       socket.off('popup:new', handleNewPopup)
     }
-  }, [])
+  }, [gone])
 
   const handlePopupCta = useCallback((popup) => {
     const action = popup.ctaAction
@@ -537,9 +540,17 @@ const ClientPage = () => {
         />
       )}
       <ChatBubble />
-      <PushPrompt clientId={clientSession?.id ?? null} onActivate={triggerPush} />
-      <CasinoPopup popups={popups} onCtaClick={handlePopupCta} />
-      <EventsOverlay />
+      <Suspense fallback={null}>
+        {clientSession?.id && (
+          <PushPrompt clientId={clientSession.id} onActivate={triggerPush} />
+        )}
+        {popups.length > 0 && (
+          <CasinoPopup popups={popups} onCtaClick={handlePopupCta} />
+        )}
+        {(clientSession?.id || activeClientEvent) && systemConfig?.clientMenuEvents && (
+          <EventsOverlay />
+        )}
+      </Suspense>
 
       {!gone && (
         <Overlay $out={loadingOut}>

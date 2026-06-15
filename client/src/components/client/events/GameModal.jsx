@@ -1,18 +1,7 @@
-import { useEffect, useState } from 'react'
+import { Suspense, lazy, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import styled, { keyframes } from 'styled-components'
 import ResultScreen from './ResultScreen'
-
-// Game components
-import SorteoGame from './games/SorteoGame'
-import QuizGame from './games/QuizGame'
-import ScratchGame from './games/ScratchGame'
-import RouletteGame from './games/RouletteGame'
-import SlotsGame from './games/SlotsGame'
-import RedBlackGame from './games/RedBlackGame'
-import BriefcaseGame from './games/BriefcaseGame'
-import TreasureChestGame from './games/TreasureChestGame'
-import RankingGame from './games/RankingGame'
 
 // ─── Animations ──────────────────────────────────────────────────────────────
 const fadeIn = keyframes`
@@ -96,15 +85,15 @@ const CloseBtn = styled.button`
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 const GAME_COMPONENTS = {
-  sorteo: SorteoGame,
-  quiz: QuizGame,
-  scratch: ScratchGame,
-  roulette: RouletteGame,
-  slots: SlotsGame,
-  red_black: RedBlackGame,
-  briefcase: BriefcaseGame,
-  treasure_chest: TreasureChestGame,
-  ranking: RankingGame,
+  sorteo: lazy(() => import('./games/SorteoGame')),
+  quiz: lazy(() => import('./games/QuizGame')),
+  scratch: lazy(() => import('./games/ScratchGame')),
+  roulette: lazy(() => import('./games/RouletteGame')),
+  slots: lazy(() => import('./games/SlotsGame')),
+  red_black: lazy(() => import('./games/RedBlackGame')),
+  briefcase: lazy(() => import('./games/BriefcaseGame')),
+  treasure_chest: lazy(() => import('./games/TreasureChestGame')),
+  ranking: lazy(() => import('./games/RankingGame')),
 }
 
 const GAME_EMOJI = {
@@ -160,12 +149,14 @@ export default function GameModal({ event, clientId, onClose }) {
 
         <div style={{ padding: '20px' }}>
           {phase === 'game' && GameComponent && (
-            <GameComponent
-              event={event}
-              clientId={clientId}
-              onResult={handleResult}
-              onClose={onClose}
-            />
+            <Suspense fallback={<div style={{ color: '#94a3b8', textAlign: 'center', padding: 40 }}>Cargando juego...</div>}>
+              <GameComponent
+                event={event}
+                clientId={clientId}
+                onResult={handleResult}
+                onClose={onClose}
+              />
+            </Suspense>
           )}
 
           {phase === 'result' && (

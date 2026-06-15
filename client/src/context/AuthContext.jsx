@@ -41,6 +41,8 @@ export const AuthProvider = ({ children }) => {
   }, [])
 
   useEffect(() => {
+    if (!user) return
+
     const socket = getSocket('admin')
     const onForceLogout = (payload = {}) => {
       sessionStorage.setItem('login_force_logout_alert', JSON.stringify({
@@ -51,7 +53,7 @@ export const AuthProvider = ({ children }) => {
 
     socket.on('session:force-logout', onForceLogout)
     return () => socket.off('session:force-logout', onForceLogout)
-  }, [])
+  }, [user])
 
   const login = (userData) => {
     setUser(userData)

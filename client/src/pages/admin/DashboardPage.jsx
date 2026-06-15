@@ -1,26 +1,26 @@
-import { useState, useEffect } from 'react'
+import { lazy, useState, useEffect } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import styled, { keyframes } from 'styled-components'
 import Sidebar from '../../components/admin/sidebar/Sidebar'
-import AdminTour from '../../components/common/AdminTour'
 import ChatList from '../../components/admin/chat/ChatList'
 import AdminChatView from '../../components/admin/chat/AdminChatView'
 import ClientPanel from '../../components/admin/client-panel/ClientPanel'
-import UsersPage from './users/UsersPage'
-import ClientsPage from './clients/ClientsPage'
-import CommandsPage from './commands/CommandsPage'
-import SettingsPage       from './settings/SettingsPage'
-import BanksPage          from './banks/BanksPage'
-import NotificationsPage  from './notifications/NotificationsPage'
-import PushPage           from './push/PushPage'
-import ModalsPage      from './modal/ModalsPage'
-import BotBuilderPage    from './botbuilder/BotBuilderPage'
-import EventsPage        from './events/EventsPage'
-import MetricsPage       from './metrics/MetricsPage'
-import WithdrawalsPage   from './withdrawals/WithdrawalsPage'
 import useAuth from '../../hooks/useAuth'
 import { SECTION_MODULES, canViewSection } from '../../utils/adminPermissions'
 import BroadcastNotifBubble from '../../components/admin/BroadcastNotifBubble'
+
+const AdminTour = lazy(() => import('../../components/common/AdminTour'))
+const UsersPage = lazy(() => import('./users/UsersPage'))
+const ClientsPage = lazy(() => import('./clients/ClientsPage'))
+const CommandsPage = lazy(() => import('./commands/CommandsPage'))
+const SettingsPage = lazy(() => import('./settings/SettingsPage'))
+const BanksPage = lazy(() => import('./banks/BanksPage'))
+const PushPage = lazy(() => import('./push/PushPage'))
+const ModalsPage = lazy(() => import('./modal/ModalsPage'))
+const BotBuilderPage = lazy(() => import('./botbuilder/BotBuilderPage'))
+const EventsPage = lazy(() => import('./events/EventsPage'))
+const MetricsPage = lazy(() => import('./metrics/MetricsPage'))
+const WithdrawalsPage = lazy(() => import('./withdrawals/WithdrawalsPage'))
 
 const MIN_W     = 240
 const MAX_W     = 560

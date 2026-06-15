@@ -421,7 +421,11 @@ export async function getPublicThemeConfig(req, res, next) {
 export async function getPublicSystemConfig(req, res, next) {
   try {
     await ensureSystemConfig()
-    res.json({ system: await getSystemConfig() })
+    const [system, themeConfig] = await Promise.all([
+      getSystemConfig(),
+      getThemeConfig(),
+    ])
+    res.json({ system, themeConfig })
   } catch (err) {
     next(err)
   }
