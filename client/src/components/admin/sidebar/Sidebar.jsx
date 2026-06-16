@@ -9,6 +9,7 @@ import NotificationsOutlinedIcon         from '@mui/icons-material/Notifications
 import VideoLabelOutlinedIcon            from '@mui/icons-material/VideoLabelOutlined'
 import SmartToyOutlinedIcon              from '@mui/icons-material/SmartToyOutlined'
 import BarChartOutlinedIcon              from '@mui/icons-material/BarChartOutlined'
+import InsightsOutlinedIcon              from '@mui/icons-material/InsightsOutlined'
 import AccountBalanceWalletOutlinedIcon  from '@mui/icons-material/AccountBalanceWalletOutlined'
 import SportsEsportsOutlinedIcon         from '@mui/icons-material/SportsEsportsOutlined'
 import MenuIcon                          from '@mui/icons-material/Menu'
@@ -87,6 +88,12 @@ const NAV_ITEMS = [
     id: 'metricas',
     label: 'Métricas',
     icon: <BarChartOutlinedIcon />,
+    children: [],
+  },
+  {
+    id: 'analytics',
+    label: 'Analíticas',
+    icon: <InsightsOutlinedIcon />,
     children: [],
   },
   {

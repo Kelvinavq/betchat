@@ -18,6 +18,7 @@ const EVENTS = [
   'ranking_goal_achieved',
   'balance_added',
   'balance_removed',
+  'waiting_reply',
 ]
 
 const DEFAULTS = {
@@ -38,6 +39,7 @@ const DEFAULTS = {
   ranking_goal_achieved:    '🏆 ¡Cumpliste la meta del evento "{{evento}}"! Te acreditamos {{amount}} en fichas. ¡Felicitaciones!',
   balance_added:            '✅ Se acreditaron {{amount}} en fichas a tu cuenta.',
   balance_removed:          '⚠️ Se descontaron {{amount}} de tu cuenta.',
+  waiting_reply:            'Ya recibimos tu mensaje, en breve uno de nuestros agentes te atenderá. ⏳',
 }
 
 export async function getAutoMessages(req, res, next) {

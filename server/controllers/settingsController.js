@@ -4,6 +4,7 @@ import { join } from 'path'
 import { fileURLToPath } from 'url'
 import { dirname } from 'path'
 import { query, transaction } from '../config/database.js'
+import { config } from '../config/config.js'
 import { hashPassword, verifyPassword } from '../utils/password.js'
 import { getIo } from '../socket/socketServer.js'
 
@@ -72,10 +73,16 @@ function normalizeReceiptModel(value) {
 }
 
 const BOT_MODES = new Set(['manual', 'hybrid_ai'])
+const INTEGRATION_MODES = new Set(['iframe', 'script'])
 
 function normalizeBotMode(value) {
   const mode = normalizeText(value).toLowerCase()
   return BOT_MODES.has(mode) ? mode : 'manual'
+}
+
+function normalizeIntegrationMode(value) {
+  const mode = normalizeText(value).toLowerCase()
+  return INTEGRATION_MODES.has(mode) ? mode : 'iframe'
 }
 
 function normalizeBotModel(value) {
@@ -186,9 +193,43 @@ async function removeBrandingFile(url) {
   }
 }
 
-export async function getSystemConfig() {
+let systemConfigSchemaChecked = false
+
+async function ensureSystemConfigSchema() {
+  if (systemConfigSchemaChecked) return
+
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_balance_visible FROM system_config WHERE id = 1 LIMIT 1',
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'system_config'
+       AND COLUMN_NAME = 'integration_mode'
+     LIMIT 1`,
+    [config.db.database]
+  )
+  if (error) throw error
+
+  if (!rows?.length) {
+    const { error: alterError } = await query(
+      `ALTER TABLE system_config
+       ADD COLUMN integration_mode ENUM('iframe','script') NOT NULL DEFAULT 'iframe' AFTER logo_url`
+    )
+    if (alterError && !/duplicate column/i.test(String(alterError.message || ''))) throw alterError
+  }
+
+  systemConfigSchemaChecked = true
+}
+
+async function ensureSystemConfig() {
+  const { error } = await query('INSERT IGNORE INTO system_config (id) VALUES (1)', [])
+  if (error) throw error
+  await ensureSystemConfigSchema()
+}
+
+export async function getSystemConfig() {
+  await ensureSystemConfig()
+  const { rows, error } = await query(
+    'SELECT app_name, logo_url, favicon_url, iframe_url, integration_mode, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_balance_visible FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
@@ -198,6 +239,7 @@ export async function getSystemConfig() {
     logoUrl: row.logo_url || '',
     faviconUrl: row.favicon_url || '',
     iframeUrl: row.iframe_url || '',
+    integrationMode: normalizeIntegrationMode(row.integration_mode),
     timezone: row.timezone || 'America/Bogota',
     supportType: row.support_type || 'phone',
     supportValue: row.support_value || '',
@@ -217,11 +259,6 @@ export async function getSystemConfig() {
     referralEnabled: row.referral_enabled !== 0,
     referralFichas:  Number(row.referral_fichas) || 0,
   }
-}
-
-async function ensureSystemConfig() {
-  const { error } = await query('INSERT IGNORE INTO system_config (id) VALUES (1)', [])
-  if (error) throw error
 }
 
 async function getProfile(userId) {
@@ -563,6 +600,7 @@ export async function updateSystemConfig(req, res, next) {
     const supportValue = normalizeText(req.body.supportValue ?? req.body.support_value ?? current.supportValue ?? '').slice(0, 500)
     const supportText  = normalizeText(req.body.supportText  ?? req.body.support_text  ?? current.supportText  ?? '').slice(0, 200)
     const iframeUrl = normalizeText(req.body.iframeUrl ?? req.body.iframe_url ?? current.iframeUrl ?? '').slice(0, 2048)
+    const integrationMode = normalizeIntegrationMode(req.body.integrationMode ?? req.body.integration_mode ?? current.integrationMode ?? 'iframe')
     const botMode = normalizeBotMode(req.body.botMode ?? req.body.bot_mode ?? current.botMode ?? 'manual')
     const botAiModel = normalizeBotModel(req.body.botAiModel ?? req.body.bot_ai_model ?? current.botAiModel ?? '')
     const botAiTemperature = normalizeBotTemperature(req.body.botAiTemperature ?? req.body.bot_ai_temperature ?? current.botAiTemperature ?? 0.1)
@@ -591,10 +629,10 @@ export async function updateSystemConfig(req, res, next) {
     const clientBalanceVisible = boolField(req.body.clientBalanceVisible, current.clientBalanceVisible)
 
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_balance_visible)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bubble_config = VALUES(bubble_config), referral_enabled = VALUES(referral_enabled), referral_fichas = VALUES(referral_fichas), client_menu_visible = VALUES(client_menu_visible), client_menu_events = VALUES(client_menu_events), client_menu_history = VALUES(client_menu_history), client_menu_faq = VALUES(client_menu_faq), client_balance_visible = VALUES(client_balance_visible)`,
-      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, JSON.stringify(bubbleConfig), referralEnabled, referralFichas, clientMenuVisible, clientMenuEvents, clientMenuHistory, clientMenuFaq, clientBalanceVisible]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, integration_mode, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_balance_visible)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), integration_mode = VALUES(integration_mode), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bubble_config = VALUES(bubble_config), referral_enabled = VALUES(referral_enabled), referral_fichas = VALUES(referral_fichas), client_menu_visible = VALUES(client_menu_visible), client_menu_events = VALUES(client_menu_events), client_menu_history = VALUES(client_menu_history), client_menu_faq = VALUES(client_menu_faq), client_balance_visible = VALUES(client_balance_visible)`,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, integrationMode, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, JSON.stringify(bubbleConfig), referralEnabled, referralFichas, clientMenuVisible, clientMenuEvents, clientMenuHistory, clientMenuFaq, clientBalanceVisible]
     )
     if (error) return next(error)
 

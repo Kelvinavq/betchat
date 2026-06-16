@@ -444,7 +444,7 @@ function getNotifIcon(messageType) {
 }
 
 /* ── component ── */
-const ChatBubble = () => {
+const ChatBubble = ({ embedded = false }) => {
   const { isOpen, setIsOpen, clientSession } = useContext(ChatContext)
   const { systemConfig } = useSystemConfig()
   const appName = systemConfig?.appName || 'Soporte'
@@ -461,15 +461,17 @@ const ChatBubble = () => {
   const dismissTimer          = useRef(null)
   const isOpenRef             = useRef(isOpen)
 
-  useEffect(() => { isOpenRef.current = isOpen }, [isOpen])
+  const effectiveOpen = embedded || isOpen
+
+  useEffect(() => { isOpenRef.current = effectiveOpen }, [effectiveOpen])
 
   useEffect(() => {
-    if (isOpen) {
+    if (effectiveOpen) {
       setNotif(null)
       setUnread(0)
       window.clearTimeout(dismissTimer.current)
     }
-  }, [isOpen])
+  }, [effectiveOpen])
 
   const dismiss = useCallback(() => {
     window.clearTimeout(dismissTimer.current)
@@ -530,13 +532,25 @@ const ChatBubble = () => {
     dismiss()
   }
 
+  const closeChat = () => {
+    if (embedded && window.parent && window.parent !== window) {
+      window.parent.postMessage({ type: 'betchat:close' }, '*')
+      return
+    }
+    setIsOpen(false)
+  }
+
   const hasUnread = unread > 0
 
   const isHidden = gameAnim === 'hidden'
 
+  if (embedded) {
+    return <ChatWindow onClose={closeChat} client={clientSession} embedded />
+  }
+
   return (
     <>
-      {isOpen && <ChatWindow onClose={() => setIsOpen(false)} client={clientSession} />}
+      {isOpen && <ChatWindow onClose={closeChat} client={clientSession} />}
 
       {!isOpen && notif && (
         <NotifToast key={notifKey} onClick={openChat}>

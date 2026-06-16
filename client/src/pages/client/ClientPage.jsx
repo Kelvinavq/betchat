@@ -275,12 +275,21 @@ const ClientPage = () => {
     activeClientEvent,
   } = useContext(ChatContext)
   const { systemConfig, configLoading } = useSystemConfig()
-  const iframeUrl = systemConfig?.iframeUrl || ''
-  const appName   = systemConfig?.appName   || 'BetChat'
-  const logoUrl   = systemConfig?.logoUrl   || ''
+  const iframeUrl       = systemConfig?.iframeUrl       || ''
+  const appName         = systemConfig?.appName         || 'BetChat'
+  const logoUrl         = systemConfig?.logoUrl         || ''
+  const integrationMode = systemConfig?.integrationMode || 'iframe'
   const { triggerPush } = usePushNotification(clientSession?.id ?? null)
   const loggingInRef = useRef(null)
   const [popups, setPopups] = useState([])
+  const isWidgetEmbed = (() => {
+    try {
+      const params = new URLSearchParams(window.location.search)
+      return params.get('widget') === '1' || params.get('embed') === 'widget'
+    } catch {
+      return false
+    }
+  })()
 
   /* ── initial loading screen state ── */
   const [loadingOut, setLoadingOut]   = useState(false)
@@ -349,11 +358,15 @@ const ClientPage = () => {
   /* once config is loaded, decide next trigger */
   useEffect(() => {
     if (configLoading) return
+    if (isWidgetEmbed) {
+      setTimeout(markReady, 150)
+      return
+    }
     // if no iframe to wait for → we're done
     if (!iframeUrl) {
       setTimeout(markReady, 150)
     }
-  }, [configLoading, iframeUrl, markReady])
+  }, [configLoading, iframeUrl, isWidgetEmbed, markReady])
 
   const handleIframeLoad = useCallback(() => {
     iframeLoadedAtRef.current = Date.now()
@@ -489,7 +502,7 @@ const ClientPage = () => {
   }, [handleHostMessage])
 
   useEffect(() => {
-    if (!gone) return
+    if (!gone || isWidgetEmbed) return
     let cancelled = false
     const fetchPopups = async () => {
       try {
@@ -512,7 +525,7 @@ const ClientPage = () => {
       clearInterval(id)
       socket.off('popup:new', handleNewPopup)
     }
-  }, [gone])
+  }, [gone, isWidgetEmbed])
 
   const handlePopupCta = useCallback((popup) => {
     const action = popup.ctaAction
@@ -528,8 +541,8 @@ const ClientPage = () => {
   const orbLabel = appName.slice(0, 2).toUpperCase()
 
   return (
-    <div className="client-page" style={{ background: '#000' }}>
-      {iframeUrl && (
+    <div className={`client-page${isWidgetEmbed ? ' client-page--widget' : ''}`} style={{ background: isWidgetEmbed ? 'transparent' : '#000' }}>
+      {!isWidgetEmbed && integrationMode === 'iframe' && iframeUrl && (
         <iframe
           ref={iframeRef}
           className="slots-iframe"
@@ -539,7 +552,8 @@ const ClientPage = () => {
           onLoad={handleIframeLoad}
         />
       )}
-      <ChatBubble />
+      <ChatBubble embedded={isWidgetEmbed} />
+      {!isWidgetEmbed && (
       <Suspense fallback={null}>
         {clientSession?.id && (
           <PushPrompt clientId={clientSession.id} onActivate={triggerPush} />
@@ -551,6 +565,7 @@ const ClientPage = () => {
           <EventsOverlay />
         )}
       </Suspense>
+      )}
 
       {!gone && (
         <Overlay $out={loadingOut}>

@@ -26,6 +26,7 @@ import eventsRoutes from './routes/eventsRoutes.js';
 import autoMessagesRoutes from './routes/autoMessagesRoutes.js'
 import maintenanceRoutes from './routes/maintenanceRoutes.js'
 import metricsRoutes from './routes/metricsRoutes.js'
+import analyticsRoutes from './routes/analyticsRoutes.js'
 import withdrawalRoutes from './routes/withdrawalRoutes.js'
 import cashGatewayRoutes from './routes/cashGatewayRoutes.js'
 import providerWebhookRoutes from './routes/providerWebhookRoutes.js'
@@ -119,6 +120,7 @@ app.use('/api/events', eventsRoutes);
 app.use('/api/settings/auto-messages', autoMessagesRoutes)
 app.use('/api/maintenance', maintenanceRoutes)
 app.use('/api/metrics', metricsRoutes);
+app.use('/api/analytics', analyticsRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
 app.use('/api/hgcash', hgCashRoutes);
 app.use('/api/mercadopago', mercadoPagoRoutes);

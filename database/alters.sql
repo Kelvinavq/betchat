@@ -66,6 +66,9 @@ INSERT IGNORE INTO `system_config` (`id`) VALUES (1);
 ALTER TABLE `system_config`
   ADD COLUMN `client_logout_enabled` TINYINT(1) NOT NULL DEFAULT 1 AFTER `client_registration_enabled`;
 
+ALTER TABLE `system_config`
+  ADD COLUMN `integration_mode` ENUM('iframe','script') NOT NULL DEFAULT 'iframe' AFTER `logo_url`;
+
 ALTER TABLE `bot_items`
   MODIFY COLUMN `type` ENUM('message','button','form') NOT NULL,
   ADD COLUMN `form_config` TEXT DEFAULT NULL AFTER `label`;

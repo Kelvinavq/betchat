@@ -3,6 +3,9 @@ import { config } from '../config/config.js'
 import { query } from '../config/database.js'
 import { assignChatIfUnassigned, emitChatRefresh, persistMessage, processReceiptAsync, setClientOnlineStatus, triggerHybridAiBotRouting } from '../controllers/chatController.js'
 import { getActiveBroadcasts } from '../broadcast/broadcastManager.js'
+import { getAutoMessage } from '../controllers/autoMessagesController.js'
+import { scheduleWaitReply, cancelWaitReply } from '../utils/waitTimers.js'
+import { getIo } from './socketServer.js'
 
 const recentMessages = new Map()
 const RECENT_TTL_MS = 60_000
@@ -232,6 +235,27 @@ export function setupChatSockets(io) {
             clientMessageId,
             content: String(payloadData.content || '').trim(),
           })
+          scheduleWaitReply(chatId, async () => {
+            try {
+              const { rows } = await query(
+                `SELECT id FROM messages
+                 WHERE chat_id = ? AND sender_type != 'client'
+                 ORDER BY created_at DESC LIMIT 1`,
+                [chatId]
+              )
+              if (rows?.length) return
+              const msg = await getAutoMessage('waiting_reply')
+              if (!msg) return
+              const saved = await persistMessage({ chatId, senderType: 'system', content: msg, messageType: 'text' })
+              getIo()?.to(`chat:${chatId}`).emit('message:new', saved.message)
+            } catch (err) {
+              console.error('[WaitTimer] Error enviando mensaje de espera:', err.message)
+            }
+          })
+        }
+
+        if ((senderType === 'admin' || senderType === 'cashier') && messageType === 'text') {
+          cancelWaitReply(chatId)
         }
 
         // Procesamiento de comprobante cuando el cliente sube imagen o PDF

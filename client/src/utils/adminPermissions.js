@@ -11,6 +11,7 @@ export const SECTION_MODULES = {
   cuentas: 'settings',
   ajustes: 'settings',
   metricas: 'settings',
+  analytics: 'settings',
 }
 
 export const DEFAULT_ADMIN_SECTION = 'chat'

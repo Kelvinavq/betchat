@@ -12,6 +12,7 @@ import { extractReceiptData } from '../services/receiptExtractor.js'
 import { getAutoMessage } from '../controllers/autoMessagesController.js'
 import { insertReceiptLog, finalizeReceiptLog } from '../controllers/receiptLogController.js'
 import { getValidatedClientPayload } from '../utils/clientSession.js'
+import { cancelWaitReply } from '../utils/waitTimers.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -1349,6 +1350,7 @@ export async function sendClientMessage(req, res, next) {
 
 export async function sendAdminMessage(req, res, next) {
   try {
+    cancelWaitReply(Number(req.params.chatId))
     const result = await persistMessage({
       chatId: Number(req.params.chatId),
       senderType: req.user?.role === 'cashier' ? 'cashier' : 'admin',

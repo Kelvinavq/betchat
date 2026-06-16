@@ -38,6 +38,17 @@ export const Window = styled.div`
   box-shadow: ${shadows.glassCard};
   animation: ${({ $closing }) => $closing ? css`${slideDownDesktop} 0.28s cubic-bezier(0.4, 0, 1, 1) both` : css`${slideUpDesktop} 0.35s cubic-bezier(0.16, 1, 0.3, 1) both`};
 
+  ${({ $embedded }) => $embedded && css`
+    inset: 0;
+    right: auto;
+    bottom: auto;
+    width: 100%;
+    height: 100%;
+    border-radius: 24px;
+    z-index: 1;
+    animation: none;
+  `}
+
   ${MOBILE} {
     inset: 0;
     width: 100%;
@@ -45,6 +56,11 @@ export const Window = styled.div`
     border-radius: 0;
     z-index: 1001;
     animation: ${({ $closing }) => $closing ? css`${slideDownMobile} 0.28s cubic-bezier(0.4, 0, 1, 1) both` : css`${slideUpMobile} 0.4s cubic-bezier(0.16, 1, 0.3, 1) both`};
+
+    ${({ $embedded }) => $embedded && css`
+      z-index: 1;
+      animation: none;
+    `}
   }
 `
 

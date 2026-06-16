@@ -24,6 +24,8 @@ import PhotoCameraOutlinedIcon from '@mui/icons-material/PhotoCameraOutlined'
 import HighlightOffOutlinedIcon from '@mui/icons-material/HighlightOffOutlined'
 import BrandingWatermarkOutlinedIcon from '@mui/icons-material/BrandingWatermarkOutlined'
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined'
+import CodeOutlinedIcon from '@mui/icons-material/CodeOutlined'
+import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import { useParams, useNavigate } from 'react-router-dom'
 import useAuth from '../../../hooks/useAuth'
@@ -164,6 +166,13 @@ const CHAT_ACCOUNTS = {
 }
 
 const API_ORIGIN = (import.meta.env.VITE_API_URL || 'http://localhost:3000').replace(/\/+$/, '')
+const CHAT_ORIGIN = (import.meta.env.VITE_CHAT_URL || window.location.origin).replace(/\/+$/, '')
+
+const escapeHtmlAttr = (value) => String(value ?? '')
+  .replace(/&/g, '&amp;')
+  .replace(/"/g, '&quot;')
+  .replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;')
 
 const resolveAssetUrl = (url) => {
   if (!url) return ''
@@ -576,6 +585,10 @@ const TypeSegment = styled.div`
 const TypeBtn = styled.button`
   padding: 6px 16px;
   border-radius: 7px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'transparent'};
   border: 1px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.32)' : 'transparent'};
   color: ${({ $active }) => $active ? 'rgba(90,170,255,0.95)' : 'rgba(255,255,255,0.34)'};
@@ -584,6 +597,7 @@ const TypeBtn = styled.button`
   cursor: pointer;
   transition: all 0.18s;
   font-family: inherit;
+  svg { font-size: 15px; }
   &:hover { color: rgba(255,255,255,0.65); }
 `
 
@@ -684,6 +698,64 @@ const IframePlaceholderIcon = styled.div`
   border: 1px solid rgba(255,255,255,0.07);
   display: flex; align-items: center; justify-content: center;
   svg { font-size: 22px; opacity: 0.4; }
+`
+const EmbedCodeWrap = styled.div`
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: rgba(0,0,0,0.20);
+  overflow: hidden;
+`
+const EmbedCodeHead = styled.div`
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px 8px 12px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  background: rgba(255,255,255,0.035);
+`
+const EmbedCodeTitle = styled.div`
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.62);
+  svg { font-size: 15px; opacity: 0.72; }
+`
+const CopyEmbedBtn = styled.button`
+  min-width: 92px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid ${({ $copied }) => $copied ? 'rgba(34,197,94,0.32)' : 'rgba(255,255,255,0.09)'};
+  background: ${({ $copied }) => $copied ? 'rgba(34,197,94,0.14)' : 'rgba(255,255,255,0.055)'};
+  color: ${({ $copied }) => $copied ? 'rgba(134,239,172,0.95)' : 'rgba(255,255,255,0.62)'};
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-family: inherit;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  svg { font-size: 14px; }
+  &:hover {
+    background: rgba(255,255,255,0.09);
+    color: rgba(255,255,255,0.86);
+  }
+`
+const EmbedCodePre = styled.pre`
+  margin: 0;
+  padding: 12px;
+  max-height: 170px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgba(226,232,240,0.88);
+  font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
 `
 
 function IframeLivePreview({ url }) {
@@ -827,6 +899,7 @@ const SettingsPage = ({ onMenuOpen }) => {
     faviconUrl: '',
     faviconDataUrl: '',
     iframeUrl: '',
+    integrationMode: 'iframe',
     timezone: 'America/Bogota',
     supportType: 'phone',
     supportValue: '',
@@ -848,6 +921,7 @@ const SettingsPage = ({ onMenuOpen }) => {
   const [logoPreview, setLogoPreview]       = useState('')
   const [faviconPreview, setFaviconPreview] = useState('')
   const [systemSaved, setSystemSaved]       = useState(false)
+  const [embedCopied, setEmbedCopied]       = useState(false)
 
   /* ── montos form ── */
   const [montos, setMontos] = useState({
@@ -966,6 +1040,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         faviconUrl: system.faviconUrl || '',
         faviconDataUrl: '',
         iframeUrl: system.iframeUrl || '',
+        integrationMode: system.integrationMode === 'script' ? 'script' : 'iframe',
         timezone: system.timezone || 'America/Bogota',
         supportType: system.supportType || 'phone',
         supportValue: system.supportValue || '',
@@ -1122,6 +1197,7 @@ const SettingsPage = ({ onMenuOpen }) => {
         faviconUrl: system.faviconUrl || '',
         faviconDataUrl: '',
         iframeUrl: system.iframeUrl || '',
+        integrationMode: system.integrationMode === 'script' ? 'script' : 'iframe',
         timezone: system.timezone || 'America/Bogota',
         supportType: system.supportType || 'phone',
         supportValue: system.supportValue || '',
@@ -1151,6 +1227,16 @@ const SettingsPage = ({ onMenuOpen }) => {
     }
   }
 
+  const copyEmbedCode = async (code) => {
+    try {
+      await navigator.clipboard.writeText(code)
+      setEmbedCopied(true)
+      setTimeout(() => setEmbedCopied(false), 1800)
+    } catch {
+      toast.error('No se pudo copiar el codigo.')
+    }
+  }
+
   const triggerSaved = (setter) => {
     setter(true)
     setTimeout(() => setter(false), 2200)
@@ -1163,6 +1249,12 @@ const SettingsPage = ({ onMenuOpen }) => {
     setMontos(m => ({ ...m, [key]: { ...m[key], [field]: val } }))
 
   const initials = (profileForm.full_name || profileForm.username || user?.username || '?')[0].toUpperCase()
+  const integrationMode = systemForm.integrationMode === 'script' ? 'script' : 'iframe'
+  const embedTitle = escapeHtmlAttr(`${systemForm.appName || 'BetChat'} chat`)
+  const embedLabel = escapeHtmlAttr(systemForm.appName || '')
+  const iframeEmbedCode = `<iframe src="${CHAT_ORIGIN}" title="${embedTitle}" loading="lazy" style="width:100%;height:720px;border:0;border-radius:24px;overflow:hidden;" allow="clipboard-write; fullscreen; microphone; camera; autoplay"></iframe>`
+  const scriptEmbedCode = `<script async src="${CHAT_ORIGIN}/widget.js" data-label="${embedLabel}"></script>`
+  const activeEmbedCode = integrationMode === 'script' ? scriptEmbedCode : iframeEmbedCode
 
   return (
     <PageWrap data-tour="settings-page">
@@ -1656,15 +1748,65 @@ const SettingsPage = ({ onMenuOpen }) => {
                 <CardHead>
                   <CardIcon><LanguageOutlinedIcon /></CardIcon>
                   <CardHeadText>
-                    <CardTitle>Página del cliente</CardTitle>
-                    <CardSub>Sitio web que se muestra como fondo en la página de clientes</CardSub>
+                    <CardTitle>Integración del chat</CardTitle>
+                    <CardSub>Elige si vas a incrustar el chat como iframe directo o como burbuja por script</CardSub>
                   </CardHeadText>
                 </CardHead>
                 <CardBody>
                   <IframeSection>
                     <IframeLabel>
+                      <CodeOutlinedIcon style={{ fontSize: 15, opacity: 0.6 }} />
+                      Modo de integración
+                    </IframeLabel>
+                    <IframeDesc>
+                      <strong>Iframe</strong>: el cliente accede a esta app directamente y ve el sitio de apuestas embebido detrás del chat.&nbsp;
+                      <strong>Script</strong>: el chat se integra en otra página (la del casino) mediante un script; el cliente accede al casino y el chat aparece como burbuja flotante.
+                    </IframeDesc>
+                    <TypeSegment>
+                      <TypeBtn
+                        type="button"
+                        $active={integrationMode === 'iframe'}
+                        onClick={() => { setSystemForm(f => ({ ...f, integrationMode: 'iframe' })); setEmbedCopied(false) }}
+                      >
+                        <LanguageOutlinedIcon />
+                        Iframe
+                      </TypeBtn>
+                      <TypeBtn
+                        type="button"
+                        $active={integrationMode === 'script'}
+                        onClick={() => { setSystemForm(f => ({ ...f, integrationMode: 'script' })); setEmbedCopied(false) }}
+                      >
+                        <CodeOutlinedIcon />
+                        Script
+                      </TypeBtn>
+                    </TypeSegment>
+                  </IframeSection>
+
+                  {integrationMode === 'script' && (
+                  <EmbedCodeWrap>
+                    <EmbedCodeHead>
+                      <EmbedCodeTitle>
+                        <CodeOutlinedIcon />
+                        Código script
+                      </EmbedCodeTitle>
+                      <CopyEmbedBtn
+                        type="button"
+                        $copied={embedCopied}
+                        onClick={() => copyEmbedCode(activeEmbedCode)}
+                      >
+                        {embedCopied ? <CheckIcon /> : <ContentCopyOutlinedIcon />}
+                        {embedCopied ? 'Copiado' : 'Copiar'}
+                      </CopyEmbedBtn>
+                    </EmbedCodeHead>
+                    <EmbedCodePre>{activeEmbedCode}</EmbedCodePre>
+                  </EmbedCodeWrap>
+                  )}
+
+                  {integrationMode === 'iframe' && (
+                  <IframeSection>
+                    <IframeLabel>
                       <LanguageOutlinedIcon style={{ fontSize: 15, opacity: 0.6 }} />
-                      URL del iframe
+                      URL del sitio embebido
                     </IframeLabel>
                     <IframeDesc>
                       Ingresa la dirección del sitio que se mostrará embebido detrás del chat.
@@ -1684,6 +1826,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                     </FormGrid>
                     <IframeLivePreview url={systemForm.iframeUrl} />
                   </IframeSection>
+                  )}
                   <SaveFooter>
                     <SaveBtn type="button" $saved={systemSaved} onClick={saveSystem}>
                       {systemSaved ? <><CheckIcon />Guardado</> : 'Guardar ajustes'}

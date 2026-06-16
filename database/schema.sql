@@ -220,6 +220,7 @@ CREATE TABLE IF NOT EXISTS `system_config` (
   `id`                            INT UNSIGNED NOT NULL DEFAULT 1,
   `app_name`                      VARCHAR(120) NOT NULL DEFAULT 'BetChat',
   `logo_url`                      VARCHAR(512) DEFAULT NULL,
+  `integration_mode`              ENUM('iframe','script') NOT NULL DEFAULT 'iframe',
   `client_registration_enabled`   TINYINT(1)   NOT NULL DEFAULT 1,
   `client_logout_enabled`         TINYINT(1)   NOT NULL DEFAULT 1,
   `updated_at`                    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

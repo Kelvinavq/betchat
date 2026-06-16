@@ -3203,7 +3203,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
 
 /* ── main window ── */
 
-const ChatWindow = ({ onClose }) => {
+const ChatWindow = ({ onClose, embedded = false }) => {
   const { timezone } = useDateFormat()
   const { systemConfig }  = useSystemConfig()
   useEffect(() => { _chatTz = timezone; return () => { _chatTz = undefined } }, [timezone])
@@ -3231,9 +3231,13 @@ const ChatWindow = ({ onClose }) => {
   })
 
   const handleClose = useCallback(() => {
+    if (embedded) {
+      onClose?.()
+      return
+    }
     setIsClosing(true)
     setTimeout(onClose, 260)
-  }, [onClose])
+  }, [embedded, onClose])
   const isAuthLoading = loading || clientAuthLoading
   const activeView = clientSession ? 'chat' : view
   const isChat = activeView === 'chat' || isAuthLoading
@@ -3404,7 +3408,7 @@ const ChatWindow = ({ onClose }) => {
   }
 
   return (
-    <Window $closing={isClosing}>
+    <Window $closing={isClosing} $embedded={embedded}>
       {logoutNotice && (
         <LogoutNoticeOverlay>
           <LogoutNoticeCard role="status" aria-live="polite">

@@ -20,6 +20,7 @@ const ModalsPage = lazy(() => import('./modal/ModalsPage'))
 const BotBuilderPage = lazy(() => import('./botbuilder/BotBuilderPage'))
 const EventsPage = lazy(() => import('./events/EventsPage'))
 const MetricsPage = lazy(() => import('./metrics/MetricsPage'))
+const AnalyticsPage = lazy(() => import('./analytics/AnalyticsPage'))
 const WithdrawalsPage = lazy(() => import('./withdrawals/WithdrawalsPage'))
 
 const MIN_W     = 240
@@ -263,6 +264,10 @@ const DashboardPage = () => {
           <MetricsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
+        {canViewCurrentSection && section === 'analytics' && (
+          <AnalyticsPage onMenuOpen={() => setMobileSidebar(true)} />
+        )}
+
         {canViewCurrentSection && section === 'retiros' && (
           <WithdrawalsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
@@ -327,6 +332,7 @@ const DashboardPage = () => {
       {canViewCurrentSection && section === 'bot'            && <BotBuilderPage />}
       {canViewCurrentSection && currentSection === 'events'         && <EventsPage activeSubsection={eventsSubsection} />}
       {canViewCurrentSection && section === 'metricas'       && <MetricsPage />}
+      {canViewCurrentSection && section === 'analytics'      && <AnalyticsPage />}
       {canViewCurrentSection && section === 'retiros'        && <WithdrawalsPage />}
 
       {canViewCurrentSection && section === 'chat' && (
