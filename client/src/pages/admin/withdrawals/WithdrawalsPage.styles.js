@@ -807,6 +807,60 @@ export const RejectBtn = styled.button`
   &:disabled { opacity: 0.45; cursor: not-allowed; }
 `
 
+export const RefreshBtn = styled.button`
+  margin-top: 10px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid rgba(56,189,248,0.35);
+  background: rgba(56,189,248,0.10);
+  color: #38bdf8;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 0.15s;
+  &:hover { background: rgba(56,189,248,0.20); }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+`
+
+export const ReconcileBtn = styled.button`
+  height: 28px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(251,191,36,0.35);
+  background: rgba(251,191,36,0.09);
+  color: #fbbf24;
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.15s;
+  &:hover { background: rgba(251,191,36,0.18); }
+  &:disabled { opacity: 0.45; cursor: not-allowed; }
+`
+
+export const StatusFilterSelect = styled.select`
+  height: 30px;
+  padding: 0 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 8px;
+  color: rgba(255,255,255,0.65);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  outline: none;
+  color-scheme: dark;
+  &:focus { border-color: rgba(255,255,255,0.20); }
+`
+
 export const RejectTextarea = styled.textarea`
   width: 100%;
   margin-top: 8px;

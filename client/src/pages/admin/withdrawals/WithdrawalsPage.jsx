@@ -8,11 +8,11 @@ import KeyboardArrowUpIcon        from '@mui/icons-material/KeyboardArrowUp'
 import CheckCircleOutlinedIcon    from '@mui/icons-material/CheckCircleOutlined'
 import ShieldOutlinedIcon         from '@mui/icons-material/ShieldOutlined'
 import InsertDriveFileOutlinedIcon from '@mui/icons-material/InsertDriveFileOutlined'
-import ManageAccountsOutlinedIcon  from '@mui/icons-material/ManageAccountsOutlined'
 import WarningAmberOutlinedIcon    from '@mui/icons-material/WarningAmberOutlined'
 import FilterListIcon              from '@mui/icons-material/FilterList'
+import AutorenewIcon               from '@mui/icons-material/Autorenew'
+import SyncIcon                    from '@mui/icons-material/Sync'
 import MenuIcon                    from '@mui/icons-material/Menu'
-import CloseIcon                   from '@mui/icons-material/Close'
 import ChevronLeftIcon             from '@mui/icons-material/ChevronLeft'
 import ChevronRightIcon            from '@mui/icons-material/ChevronRight'
 import { api } from '../../../utils/api'
@@ -35,7 +35,7 @@ import {
   FraudBanner, RiskRow, RiskLabel, RiskValue, RiskBar, RiskFill,
   AlertsHeader, AlertsList, AlertBadge, NoAlerts, FraudFooter,
   ResolveSection, ResolveLabel, ResolveBtns, ApproveBtn, RejectBtn,
-  RejectTextarea, ConfirmRow, ConfirmBtn,
+  RejectTextarea, ConfirmRow, ConfirmBtn, RefreshBtn, ReconcileBtn, StatusFilterSelect,
   LoadingWrap, Spinner, SkeletonRow,
   EmptyRow, EmptyCell,
   Pagination, PaginInfo, PaginBtns, PaginBtn,
@@ -68,49 +68,25 @@ const truncCbu = (s, max = 22) => {
 /* ────────────────────────────────────────────────
    Status badge
 ──────────────────────────────────────────────── */
+const STATUS_META = {
+  pending:        { label: 'Pendiente',      sub: 'Revisión manual', variant: 'pending',    subVariant: 'manual' },
+  review_pending: { label: 'En revisión',    sub: 'Motor de riesgo',  variant: 'pending',    subVariant: 'blocked' },
+  approved:       { label: 'Aprobado',       sub: null,              variant: 'approved',   subVariant: null },
+  initiated:      { label: 'Iniciado',       sub: 'Enviando a HG',   variant: 'approved',   subVariant: 'sent' },
+  processing:     { label: 'Procesando',     sub: 'HG Cash',         variant: 'approved',   subVariant: 'sent' },
+  done:           { label: 'Completado',     sub: 'HG Cash OK',      variant: 'approved',   subVariant: 'sent' },
+  failed:         { label: 'Fallido',        sub: 'HG Cash error',   variant: 'rejected',   subVariant: 'blocked' },
+  rejected:       { label: 'Rechazado',      sub: null,              variant: 'rejected',   subVariant: null },
+  cancelled:      { label: 'Cancelado',      sub: null,              variant: 'rejected',   subVariant: null },
+}
+
 function StatusBadge({ w }) {
-  const { status, reviewMode, riskScore } = w
-
-  if (status === 'pending') {
-    return (
-      <StatusCell>
-        <StatusLine1 $variant="pending">Pendiente</StatusLine1>
-      </StatusCell>
-    )
-  }
-
-  if (status === 'rejected') {
-    return (
-      <StatusCell>
-        <StatusLine1 $variant="rejected">Rechazado</StatusLine1>
-      </StatusCell>
-    )
-  }
-
-  if (status === 'approved') {
-    if (reviewMode === 'auto') {
-      return (
-        <StatusCell>
-          <StatusLine1 $variant="approved">Aprobado</StatusLine1>
-          <StatusLine2 $variant="sent">Enviado</StatusLine2>
-        </StatusCell>
-      )
-    }
-    // manual
-    const isBlocked = riskScore != null && riskScore >= 40
-    return (
-      <StatusCell>
-        <StatusLine1 $variant="approved">Aprobado</StatusLine1>
-        <StatusLine2 $variant={isBlocked ? 'blocked' : 'manual'}>
-          {isBlocked ? 'Bloqueado' : 'Manual'}
-        </StatusLine2>
-      </StatusCell>
-    )
-  }
-
+  const { status } = w
+  const meta = STATUS_META[status] || { label: status, sub: null, variant: 'pending', subVariant: null }
   return (
     <StatusCell>
-      <StatusLine1>{status}</StatusLine1>
+      <StatusLine1 $variant={meta.variant}>{meta.label}</StatusLine1>
+      {meta.sub && <StatusLine2 $variant={meta.subVariant}>{meta.sub}</StatusLine2>}
     </StatusCell>
   )
 }
@@ -119,12 +95,14 @@ function StatusBadge({ w }) {
    Progress pipeline
 ──────────────────────────────────────────────── */
 function ProgressPipeline({ w }) {
-  const { status, riskScore, reviewMode } = w
-
-  const s1 = true // always active
-  const s2 = riskScore != null
-  const s3 = reviewMode === 'manual' || status !== 'pending'
-  const s4 = status !== 'pending'
+  const { status, riskScore } = w
+  const DISPATCHED = new Set(['initiated', 'processing', 'done', 'failed'])
+  const REVIEWED   = new Set(['approved', 'initiated', 'processing', 'done', 'failed', 'rejected'])
+  const s1 = true
+  const s2 = riskScore != null || REVIEWED.has(status)
+  const s3 = DISPATCHED.has(status)
+  const s4 = status === 'done'
+  const endColor = status === 'failed' || status === 'rejected' ? '#f87171' : '#4ade80'
 
   return (
     <Pipeline>
@@ -132,15 +110,15 @@ function ProgressPipeline({ w }) {
         <InsertDriveFileOutlinedIcon />
       </PipeStage>
       <PipeConnector $active={s2} />
-      <PipeStage $active={s2} $color="#a78bfa" title="Anti-Fraude">
+      <PipeStage $active={s2} $color="#a78bfa" title="Evaluado">
         <ShieldOutlinedIcon />
       </PipeStage>
       <PipeConnector $active={s3} />
-      <PipeStage $active={s3} $color="#fb923c" title="Revisión">
-        <ManageAccountsOutlinedIcon />
+      <PipeStage $active={s3} $color="#fb923c" title="HG Cash">
+        <BoltIcon />
       </PipeStage>
       <PipeConnector $active={s4} />
-      <PipeStage $active={s4} $color="#4ade80" title="Listo">
+      <PipeStage $active={s4} $color={endColor} title="Completado">
         <CheckCircleOutlinedIcon />
       </PipeStage>
     </Pipeline>
@@ -152,8 +130,17 @@ function ProgressPipeline({ w }) {
 ──────────────────────────────────────────────── */
 function AntiFraudCard({ w, analysisData, analysisLoading }) {
   const riskScore  = analysisData?.riskScore  ?? w.riskScore
-  const alerts     = analysisData?.alerts     ?? w.fraudAlerts
+  const riskReason = analysisData?.riskReason ?? w.riskReason
   const reviewMode = analysisData?.reviewMode ?? w.reviewMode
+
+  // Normalize: new system returns riskFlags [{code,label,severity}], legacy returns alerts string[]
+  const rawFlags  = analysisData?.riskFlags ?? w.riskFlags
+  const rawAlerts = analysisData?.alerts    ?? null
+  const flags = Array.isArray(rawFlags) && rawFlags.length > 0
+    ? rawFlags
+    : Array.isArray(rawAlerts) && rawAlerts.length > 0
+      ? rawAlerts.map(a => ({ code: a, label: a, severity: 'medium' }))
+      : []
 
   const isLoading = analysisLoading && riskScore == null
 
@@ -161,14 +148,19 @@ function AntiFraudCard({ w, analysisData, analysisLoading }) {
   let bannerText    = 'Analizando...'
 
   if (!isLoading && riskScore != null) {
-    if (reviewMode === 'auto' && riskScore < 40) {
+    if (reviewMode === 'auto' && riskScore < 35) {
       bannerVariant = 'ok'
       bannerText    = 'Aprobado automáticamente'
+    } else if (riskScore >= 80) {
+      bannerVariant = 'warn'
+      bannerText    = 'Rechazado por riesgo alto'
     } else {
       bannerVariant = 'warn'
       bannerText    = 'Enviado a revisión manual'
     }
   }
+
+  const severityColor = (s) => s === 'high' ? '#f87171' : s === 'low' ? '#facc15' : '#fb923c'
 
   return (
     <DetailCard>
@@ -196,7 +188,7 @@ function AntiFraudCard({ w, analysisData, analysisLoading }) {
       {riskScore != null && (
         <>
           <RiskRow>
-            <RiskLabel>Riesgo</RiskLabel>
+            <RiskLabel>Puntaje de riesgo</RiskLabel>
             <RiskValue $score={riskScore}>{riskScore}/100</RiskValue>
           </RiskRow>
           <RiskBar>
@@ -205,21 +197,27 @@ function AntiFraudCard({ w, analysisData, analysisLoading }) {
         </>
       )}
 
-      {alerts && alerts.length > 0 && (
+      {riskReason && (
+        <div style={{ fontSize: 11.5, color: 'rgba(255,255,255,0.45)', marginTop: 8 }}>
+          {riskReason}
+        </div>
+      )}
+
+      {flags.length > 0 && (
         <>
           <AlertsHeader>Alertas detectadas:</AlertsHeader>
           <AlertsList>
-            {alerts.map((a, i) => (
-              <AlertBadge key={i}>
-                <WarningAmberOutlinedIcon />
-                {a}
+            {flags.map((f, i) => (
+              <AlertBadge key={i} style={{ borderColor: `${severityColor(f.severity)}40`, color: severityColor(f.severity) }}>
+                <WarningAmberOutlinedIcon style={{ fontSize: 13 }} />
+                {f.label || f.code}
               </AlertBadge>
             ))}
           </AlertsList>
         </>
       )}
 
-      {riskScore != null && (!alerts || alerts.length === 0) && (
+      {riskScore != null && flags.length === 0 && (
         <NoAlerts>Sin alertas — jugador limpio</NoAlerts>
       )}
 
@@ -239,11 +237,12 @@ function ExpandedDetail({
   w, colCount,
   analysisData, analysisLoading,
   onResolve, resolving,
+  onRefresh, refreshing,
 }) {
-  const { timezone }             = useDateFormat()
-  const [action,      setAction] = useState(null)   // 'approve' | 'reject' | null
-  const [rejectMsg,   setRejectMsg]   = useState('')
-  const [submitting,  setSubmitting]  = useState(false)
+  const { timezone }           = useDateFormat()
+  const [action,    setAction]   = useState(null)
+  const [rejectMsg, setRejectMsg] = useState('')
+  const [submitting, setSubmitting] = useState(false)
 
   const handleApprove = () => setAction('approve')
   const handleReject  = () => setAction('reject')
@@ -253,12 +252,13 @@ function ExpandedDetail({
     setSubmitting(true)
     try {
       await onResolve(w.id, action === 'approve' ? 'approved' : 'rejected', rejectMsg || undefined)
-      setAction(null)
-      setRejectMsg('')
-    } finally {
-      setSubmitting(false)
-    }
+      setAction(null); setRejectMsg('')
+    } finally { setSubmitting(false) }
   }
+
+  const canResolve   = w.status === 'pending' || w.status === 'review_pending'
+  const canRefresh   = w.status === 'initiated' || w.status === 'processing'
+  const hasHgDetails = w.bankTransactionId || w.correlationId || w.dispatchedAt
 
   return (
     <DetailRow>
@@ -280,39 +280,48 @@ function ExpandedDetail({
 
             <DetailRow2>
               <DetailKey>CBU / Alias</DetailKey>
-              <DetailValBlue>{w.cbuAlias || '—'}</DetailValBlue>
+              <DetailValBlue>{w.cbu || w.alias || '—'}</DetailValBlue>
             </DetailRow2>
 
             <DetailRow2>
               <DetailKey>Titular</DetailKey>
-              <DetailVal>{w.accountHolder || '—'}</DetailVal>
+              <DetailVal>{w.holderName || '—'}</DetailVal>
             </DetailRow2>
 
-            <DetailRow2>
-              <DetailKey>WhatsApp</DetailKey>
-              <DetailVal>{w.whatsapp || '—'}</DetailVal>
-            </DetailRow2>
+            {w.method && (
+              <DetailRow2>
+                <DetailKey>Método</DetailKey>
+                <DetailVal>{w.method}</DetailVal>
+              </DetailRow2>
+            )}
+
+            {w.requestCountry && (
+              <DetailRow2>
+                <DetailKey>Origen</DetailKey>
+                <DetailVal>{[w.requestCity, w.requestCountry].filter(Boolean).join(', ')}</DetailVal>
+              </DetailRow2>
+            )}
 
             <DetailRow2>
-              <DetailKey>CUIL Check</DetailKey>
-              <CuilBadge $ok={w.cuilCheck === 'ok'}>
-                {w.cuilCheck || 'unknown'}
-              </CuilBadge>
+              <DetailKey>Creado</DetailKey>
+              <DetailVal>{fmtDate(w.createdAt, timezone)}</DetailVal>
             </DetailRow2>
 
-            <DetailRow2>
-              <DetailKey>Procesado</DetailKey>
-              <DetailVal>{fmtDate(w.processedAt, timezone)}</DetailVal>
-            </DetailRow2>
+            {w.reviewedByUsername && (
+              <DetailRow2>
+                <DetailKey>Revisado por</DetailKey>
+                <DetailVal>
+                  <strong style={{ color: 'rgba(255,255,255,0.80)' }}>{w.reviewedByUsername}</strong>
+                </DetailVal>
+              </DetailRow2>
+            )}
 
-            <DetailRow2>
-              <DetailKey>Por</DetailKey>
-              <DetailVal>
-                {w.processedBy
-                  ? <strong style={{ color: 'rgba(255,255,255,0.80)' }}>{w.processedBy}</strong>
-                  : '—'}
-              </DetailVal>
-            </DetailRow2>
+            {w.reviewNote && (
+              <DetailRow2>
+                <DetailKey>Nota</DetailKey>
+                <DetailVal>{w.reviewNote}</DetailVal>
+              </DetailRow2>
+            )}
 
             {w.rejectionMessage && (
               <DetailRow2>
@@ -321,15 +330,52 @@ function ExpandedDetail({
               </DetailRow2>
             )}
 
-            {/* resolve section for pending */}
-            {w.status === 'pending' && (
+            {/* HG Cash transaction details */}
+            {hasHgDetails && (
+              <>
+                <DetailCardTitle style={{ marginTop: 14 }}>HG Cash</DetailCardTitle>
+
+                {w.bankTransactionId && (
+                  <DetailRow2>
+                    <DetailKey>TX ID</DetailKey>
+                    <DetailValBlue style={{ fontFamily: 'monospace', fontSize: 11 }}>{w.bankTransactionId}</DetailValBlue>
+                  </DetailRow2>
+                )}
+
+                {w.correlationId && (
+                  <DetailRow2>
+                    <DetailKey>Correlation</DetailKey>
+                    <DetailVal style={{ fontFamily: 'monospace', fontSize: 11 }}>{w.correlationId}</DetailVal>
+                  </DetailRow2>
+                )}
+
+                {w.dispatchedAt && (
+                  <DetailRow2>
+                    <DetailKey>Enviado</DetailKey>
+                    <DetailVal>{fmtDate(w.dispatchedAt, timezone)}</DetailVal>
+                  </DetailRow2>
+                )}
+
+                {canRefresh && (
+                  <RefreshBtn onClick={() => onRefresh(w.id)} disabled={refreshing}>
+                    {refreshing ? <Spinner $sm /> : <AutorenewIcon style={{ fontSize: 14 }} />}
+                    Refrescar estado
+                  </RefreshBtn>
+                )}
+              </>
+            )}
+
+            {/* resolve section for pending / review_pending */}
+            {canResolve && (
               <ResolveSection>
-                <ResolveLabel>Acción</ResolveLabel>
+                <ResolveLabel>
+                  {w.status === 'review_pending' ? 'Decisión de revisión' : 'Acción'}
+                </ResolveLabel>
 
                 {action === null && (
                   <ResolveBtns>
                     <ApproveBtn onClick={handleApprove} disabled={resolving}>
-                      Aprobar
+                      {w.status === 'review_pending' ? 'Aprobar y despachar' : 'Aprobar'}
                     </ApproveBtn>
                     <RejectBtn onClick={handleReject} disabled={resolving}>
                       Rechazar
@@ -340,19 +386,15 @@ function ExpandedDetail({
                 {action === 'approve' && (
                   <>
                     <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.45)', marginBottom: 8 }}>
-                      ¿Confirmar aprobación?
+                      {w.status === 'review_pending'
+                        ? '¿Confirmar aprobación? Se despachará a HG Cash.'
+                        : '¿Confirmar aprobación?'}
                     </p>
                     <ConfirmRow>
-                      <ConfirmBtn
-                        $variant="confirm"
-                        onClick={handleConfirm}
-                        disabled={submitting}
-                      >
+                      <ConfirmBtn $variant="confirm" onClick={handleConfirm} disabled={submitting}>
                         {submitting ? <Spinner $sm /> : 'Confirmar'}
                       </ConfirmBtn>
-                      <ConfirmBtn onClick={handleCancel} disabled={submitting}>
-                        Cancelar
-                      </ConfirmBtn>
+                      <ConfirmBtn onClick={handleCancel} disabled={submitting}>Cancelar</ConfirmBtn>
                     </ConfirmRow>
                   </>
                 )}
@@ -373,9 +415,7 @@ function ExpandedDetail({
                       >
                         {submitting ? <Spinner $sm /> : 'Confirmar rechazo'}
                       </ConfirmBtn>
-                      <ConfirmBtn onClick={handleCancel} disabled={submitting}>
-                        Cancelar
-                      </ConfirmBtn>
+                      <ConfirmBtn onClick={handleCancel} disabled={submitting}>Cancelar</ConfirmBtn>
                     </ConfirmRow>
                   </>
                 )}
@@ -413,7 +453,7 @@ export default function WithdrawalsPage({ onMenuOpen }) {
   const [pagination,  setPagination]  = useState({ page: 1, total: 0, totalPages: 1 })
   const [loading,     setLoading]     = useState(true)
   const [search,      setSearch]      = useState('')
-  const [statusFilter] = useState('all')
+  const [statusFilter, setStatusFilter] = useState('all')
   const [dateFrom,    setDateFrom]    = useState(todayStr())
   const [dateTo,      setDateTo]      = useState(todayStr())
   const [page,        setPage]        = useState(1)
@@ -427,6 +467,8 @@ export default function WithdrawalsPage({ onMenuOpen }) {
   const [analysis,        setAnalysis]        = useState({})   // { [id]: { riskScore, alerts, reviewMode } }
   const [analysisLoading, setAnalysisLoading] = useState({})  // { [id]: bool }
   const [resolving,       setResolving]       = useState({})  // { [id]: bool }
+  const [refreshing,      setRefreshing]      = useState({})  // { [id]: bool }
+  const [reconciling,     setReconciling]     = useState(false)
 
   /* ── toast ── */
   const [toast, setToast] = useState(null)
@@ -626,6 +668,34 @@ export default function WithdrawalsPage({ onMenuOpen }) {
     }
   }
 
+  /* ── refresh HG Cash status ── */
+  const handleRefreshStatus = async (id) => {
+    setRefreshing(prev => ({ ...prev, [id]: true }))
+    try {
+      const res = await api.post(`/api/withdrawals/${id}/refresh`, {})
+      setWithdrawals(prev => prev.map(w => w.id === id ? { ...w, ...res.withdrawal } : w))
+      showToast(res.message || 'Estado actualizado')
+    } catch (err) {
+      showToast(err.message || 'Error al refrescar estado', 'error')
+    } finally {
+      setRefreshing(prev => ({ ...prev, [id]: false }))
+    }
+  }
+
+  /* ── reconcile HG Cash log ── */
+  const handleReconcile = async () => {
+    setReconciling(true)
+    try {
+      const res = await api.post('/api/withdrawals/reconcile-log', {})
+      showToast(res.message || `Reconciliados: ${res.processed ?? 0}`)
+      fetchWithdrawals({ page: 1 })
+    } catch (err) {
+      showToast(err.message || 'Error al reconciliar', 'error')
+    } finally {
+      setReconciling(false)
+    }
+  }
+
   /* ── column count ── */
   const COL_COUNT = 10
 
@@ -754,6 +824,15 @@ export default function WithdrawalsPage({ onMenuOpen }) {
                 </ConfigSaveBtn>
                 <ConfigHint>(máx {config.maxPerDay} por día)</ConfigHint>
               </ConfigGroup>
+
+              <ConfigDivider />
+
+              <ConfigGroup>
+                <ReconcileBtn onClick={handleReconcile} disabled={reconciling} title="Sincronizar estados pendientes con HG Cash">
+                  {reconciling ? <Spinner $sm /> : <SyncIcon style={{ fontSize: 13 }} />}
+                  Reconciliar HG
+                </ReconcileBtn>
+              </ConfigGroup>
             </ConfigStrip>
 
             {/* ── filter bar ── */}
@@ -796,11 +875,26 @@ export default function WithdrawalsPage({ onMenuOpen }) {
                   <SearchIcon />
                 </SrchIcon>
                 <SearchInput
-                  placeholder="Buscar por usuario o nombre..."
+                  placeholder="Buscar por usuario, nombre o CBU..."
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                 />
               </SearchBox>
+              <StatusFilterSelect
+                value={statusFilter}
+                onChange={e => { setStatusFilter(e.target.value); setPage(1); fetchWithdrawals({ statusFilter: e.target.value, page: 1 }) }}
+              >
+                <option value="all">Todos los estados</option>
+                <option value="pending">Pendiente</option>
+                <option value="review_pending">En revisión</option>
+                <option value="approved">Aprobado</option>
+                <option value="initiated">Iniciado</option>
+                <option value="processing">Procesando</option>
+                <option value="done">Completado</option>
+                <option value="failed">Fallido</option>
+                <option value="rejected">Rechazado</option>
+                <option value="cancelled">Cancelado</option>
+              </StatusFilterSelect>
               <ResultCount>{pagination.total} retiros</ResultCount>
             </SearchRow>
 
@@ -849,11 +943,11 @@ export default function WithdrawalsPage({ onMenuOpen }) {
                           <Td><ClientLink>{w.clientUsername || '—'}</ClientLink></Td>
                           <Td><AmountText>{fmtAmount(w.amount)}</AmountText></Td>
                           <Td>
-                            <CbuText title={w.cbuAlias || ''}>
-                              {truncCbu(w.cbuAlias)}
+                            <CbuText title={w.cbu || w.alias || ''}>
+                              {truncCbu(w.cbu || w.alias)}
                             </CbuText>
                           </Td>
-                          <Td><HolderText>{w.accountHolder || '—'}</HolderText></Td>
+                          <Td><HolderText>{w.holderName || '—'}</HolderText></Td>
                           <Td><StatusBadge w={w} /></Td>
                           <Td><ProgressPipeline w={w} /></Td>
                           <Td>
@@ -881,6 +975,8 @@ export default function WithdrawalsPage({ onMenuOpen }) {
                             analysisLoading={!!analysisLoading[w.id]}
                             onResolve={handleResolve}
                             resolving={!!resolving[w.id]}
+                            onRefresh={handleRefreshStatus}
+                            refreshing={!!refreshing[w.id]}
                           />
                         )}
                       </>

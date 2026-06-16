@@ -1,6 +1,8 @@
 import { query, transaction } from '../config/database.js'
 import { persistMessage, emitChatRefresh } from './chatController.js'
 import { getValidatedClientPayload } from '../utils/clientSession.js'
+import { buildRequestContext, evaluateWithdrawalRisk, checkBlacklist, normalizeCbuCvu } from '../utils/withdrawalRiskEngine.js'
+import { processAutoWithdrawal } from '../services/withdrawalAutoService.js'
 
 const ITEM_TYPES = ['message', 'button', 'form']
 const BUTTON_TYPES = ['navigate', 'receipt_request', 'messages_only']
@@ -692,6 +694,8 @@ export async function submitClientBotForm(req, res, next) {
       return res.status(400).json({ error: 'Formulario incompleto.', details: validationErrors, code: 'INVALID_BOT_FORM_VALUES' })
     }
 
+    // ── Validaciones de retiro ────────────────────────────────────────────────────
+    let withdrawalContext = null
     if (formConfig.isWithdrawal) {
       const amountFieldDef = (formConfig.fields || []).find(f =>
         f.type === 'number' && /monto|amount|importe|retiro/i.test(`${f.key} ${f.label}`)
@@ -707,12 +711,8 @@ export async function submitClientBotForm(req, res, next) {
         return invalidErr(`Ingresá el ${label} que querés retirar.`)
       }
       const requestedAmount = Number(rawAmount)
-      if (Number.isNaN(requestedAmount)) {
-        return invalidErr('El monto ingresado no es un número válido.')
-      }
-      if (requestedAmount <= 0) {
-        return invalidErr('El monto del retiro debe ser mayor a cero.')
-      }
+      if (Number.isNaN(requestedAmount)) return invalidErr('El monto ingresado no es un número válido.')
+      if (requestedAmount <= 0) return invalidErr('El monto del retiro debe ser mayor a cero.')
 
       const minConfig = Number.isFinite(Number(formConfig.withdrawalMinAmount))
         ? { amount: Number(formConfig.withdrawalMinAmount), currency: null }
@@ -731,11 +731,59 @@ export async function submitClientBotForm(req, res, next) {
         const errMsg = Number.isFinite(withdrawable)
           ? `Tu saldo retirable es de ${withdrawable.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ARS. No es suficiente para ese retiro.`
           : 'No tenés saldo cobrable suficiente para ese retiro.'
-        return res.status(400).json({
-          error: errMsg,
-          details: [errMsg],
-          code: 'INSUFFICIENT_WITHDRAWABLE_BALANCE',
+        return res.status(400).json({ error: errMsg, details: [errMsg], code: 'INSUFFICIENT_WITHDRAWABLE_BALANCE' })
+      }
+
+      // Límite de retiros por día (max_per_day)
+      const { rows: cfgRows } = await query('SELECT max_per_day, manual_threshold FROM withdrawal_config WHERE id = 1')
+      const cfg = cfgRows?.[0] || { max_per_day: 5, manual_threshold: 80000 }
+      const maxPerDay = Number(cfg.max_per_day || 5)
+      const manualThreshold = Number(cfg.manual_threshold || 80000)
+
+      const { rows: dayRows } = await query(
+        `SELECT COUNT(*) AS cnt FROM withdrawal_requests WHERE client_id = ? AND DATE(created_at) = CURDATE() AND status NOT IN ('rejected','cancelled','failed')`,
+        [client.sub]
+      )
+      if (Number(dayRows?.[0]?.cnt || 0) >= maxPerDay) {
+        return res.status(429).json({
+          error: `Alcanzaste el límite de ${maxPerDay} retiros por día.`,
+          code: 'WITHDRAWAL_DAILY_LIMIT',
         })
+      }
+
+      // Extraer campos estructurados del formulario
+      const findVal = (...keys) => {
+        for (const k of keys) { const v = values?.[k]; if (v !== undefined && v !== null && String(v).trim() !== '') return String(v).trim() }
+        return null
+      }
+      const rawCbu       = findVal('cbu', 'cbu_alias', 'alias', 'cuenta', 'cbu_cvu', 'CBU', 'CBU/CVU')
+      const holderName   = findVal('titular', 'account_holder', 'nombre_titular', 'holder', 'nombre_cuenta') || ''
+      const rawDni       = findVal('dni', 'document', 'DNI') || ''
+      const dni          = String(rawDni).replace(/\D/g, '').slice(0, 8) || null
+
+      // Determinar método: 22 dígitos = CBU, CVU común empieza con 0000003, resto alias
+      let cbu = rawCbu || ''
+      let method = 'alias'
+      const digits = cbu.replace(/\D/g, '')
+      if (digits.length === 22) {
+        cbu = digits
+        method = digits.startsWith('0000003') ? 'cvu' : 'cbu'
+      }
+
+      // Verificar blacklist
+      const { rows: clientRows } = await query('SELECT id, username, full_name, cuil, cbu_cvu FROM clients WHERE id = ? LIMIT 1', [client.sub])
+      const clientRow = clientRows?.[0] || null
+      const cuit = clientRow?.cuil ? String(clientRow.cuil).replace(/\D/g, '') : null
+      const dniFromCuit = cuit && cuit.length === 11 ? cuit.slice(2, 10) : null
+
+      const blacklistHit = await checkBlacklist(digits.length === 22 ? cbu : null, cuit, dni || dniFromCuit)
+      if (blacklistHit) {
+        return res.status(403).json({ error: 'Tu solicitud no pudo ser procesada.', code: 'WITHDRAWAL_BLOCKED' })
+      }
+
+      withdrawalContext = {
+        requestedAmount, withdrawable, manualThreshold,
+        cbu, method, holderName, dni, clientRow,
       }
     }
 
@@ -750,15 +798,59 @@ export async function submitClientBotForm(req, res, next) {
     })
     created.push(submitted.message)
 
-    if (formConfig.isWithdrawal) {
-      const { error: wrErr } = await query(
-        `INSERT INTO withdrawal_requests (chat_id, client_id, form_id, message_id, status, form_data)
-         VALUES (?, ?, ?, ?, 'pending', ?)`,
-        [chatId, client.sub, String(formId), submitted.message.id, formText]
-      )
-      if (wrErr) {
-        console.error('[withdrawal_requests] insert error:', wrErr.message)
-        return next(wrErr)
+    if (formConfig.isWithdrawal && withdrawalContext) {
+      const { requestedAmount, withdrawable, manualThreshold, cbu, method, holderName, dni, clientRow } = withdrawalContext
+
+      if (requestedAmount >= manualThreshold) {
+        // Flujo manual: el admin revisará y aprobará/rechazará
+        const { error: wrErr } = await query(
+          `INSERT INTO withdrawal_requests
+             (chat_id, client_id, form_id, message_id, status, form_data, holder_name, method, cbu, dni,
+              amount, withdrawable_balance, review_mode, created_at, updated_at)
+           VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, 'manual', NOW(), NOW())`,
+          [chatId, client.sub, String(formId), submitted.message.id, formText,
+           holderName || null, method, cbu || null, dni || null,
+           requestedAmount, withdrawable]
+        )
+        if (wrErr) { console.error('[withdrawal_requests] insert error:', wrErr.message); return next(wrErr) }
+      } else {
+        // Flujo auto: motor de riesgo decide
+        const requestContext = await buildRequestContext(req)
+        const riskResult = await evaluateWithdrawalRisk({
+          clientId: client.sub, clientRow,
+          destinationCbu: cbu, holderName, amount: requestedAmount, requestContext,
+        })
+
+        const autoResult = await processAutoWithdrawal({
+          chatId, clientId: client.sub, clientRow, holderName, dni, method, cbu,
+          amount: requestedAmount, withdrawableBalance: withdrawable,
+          riskResult, requestContext,
+          formId: String(formId), messageId: submitted.message.id, formData: values,
+        })
+
+        // Si fue auto-aprobado y ya procesado, no enviar mensajes del formulario
+        if (autoResult.status === 'done' || autoResult.status === 'initiated' || autoResult.status === 'processing') {
+          // El servicio auto ya envió el mensaje de confirmación y reseteó el bot
+          return res.status(201).json({
+            success: true,
+            messages: created,
+            withdrawal: { status: autoResult.status, withdrawalId: autoResult.withdrawalId, bankTransactionId: autoResult.bankTransactionId },
+            form: { id: form.id, responseMessages: [] },
+            state: { chatId, currentScreenId: chat.bot_screen_id, lastButtonId: formId },
+          })
+        }
+        // Para review_pending y rejected, continuar con los mensajes del formulario
+        // (el servicio ya envió el mensaje específico para review)
+        if (autoResult.status === 'rejected') {
+          return res.status(201).json({
+            success: true,
+            messages: created,
+            withdrawal: { status: 'rejected', withdrawalId: autoResult.withdrawalId },
+            form: { id: form.id, responseMessages: [] },
+            state: { chatId, currentScreenId: chat.bot_screen_id, lastButtonId: formId },
+          })
+        }
+        // review_pending: el cliente verá los mensajes de respuesta del formulario si los hay
       }
     }
 
