@@ -1,4 +1,5 @@
 import styled, { css, keyframes } from 'styled-components'
+import { gradients } from '../../../styles/theme'
 
 /* ── animations ── */
 export const fadeUp = keyframes`
@@ -23,7 +24,7 @@ export const PageWrap = styled.div`
   flex: 1;
   min-width: 0;
   height: var(--app-height, 100dvh);
-  background: var(--bc-admin-sidebar-bg, #0b0b18);
+  background: var(--bc-admin-content-bg, #08080f);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -83,7 +84,7 @@ export const StickyTopBar = styled.div`
   position: sticky;
   top: 0;
   z-index: 10;
-  background: var(--bc-admin-sidebar-bg, #0b0b18);
+  background: var(--bc-admin-content-bg, #08080f);
   padding: 14px 28px 0;
   margin: 0 -28px;
   display: flex;
@@ -105,7 +106,7 @@ export const TabBtn = styled.button`
   gap: 7px;
   padding: 8px 16px 10px;
   border: none;
-  border-bottom: 2px solid ${({ $active }) => $active ? '#3b82f6' : 'transparent'};
+  border-bottom: 2px solid ${({ $active }) => $active ? 'var(--bc-admin-accent, #3b82f6)' : 'transparent'};
   background: transparent;
   color: ${({ $active }) => $active ? '#fff' : 'rgba(255,255,255,0.38)'};
   font-size: 12.5px;
@@ -128,8 +129,8 @@ export const TabCount = styled.span`
   border-radius: 10px;
   font-size: 10.5px;
   font-weight: 700;
-  background: ${({ $active }) => $active ? 'rgba(59,130,246,0.25)' : 'rgba(255,255,255,0.08)'};
-  color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.35)'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 59,130,246),0.25)' : 'rgba(255,255,255,0.08)'};
+  color: ${({ $active }) => $active ? 'var(--bc-admin-accent, #60a5fa)' : 'rgba(255,255,255,0.35)'};
 `
 
 export const TabSpacer = styled.div`
@@ -234,7 +235,7 @@ export const ConfigInput = styled.input`
   text-align: center;
   outline: none;
   color-scheme: dark;
-  &:focus { border-color: rgba(30,133,255,0.45); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); }
 `
 
 export const StepBtn = styled.button`
@@ -257,16 +258,16 @@ export const ConfigSaveBtn = styled.button`
   height: 30px;
   padding: 0 12px;
   border-radius: 8px;
-  border: 1px solid rgba(30,133,255,0.35);
-  background: rgba(30,133,255,0.15);
-  color: #60a5fa;
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.35);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.15);
+  color: var(--bc-admin-accent, #60a5fa);
   font-size: 11.5px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
   transition: background 0.15s;
   white-space: nowrap;
-  &:hover { background: rgba(30,133,255,0.25); }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.25); }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
 `
 
@@ -291,7 +292,7 @@ export const DateInput = styled.input`
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 9px; color: #fff; font-size: 12.5px; font-family: inherit;
   outline: none; color-scheme: dark;
-  &:focus { border-color: rgba(30,133,255,0.45); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); }
 `
 
 export const FilterLabel = styled.span`
@@ -313,7 +314,7 @@ export const PresetSelect = styled.select`
   cursor: pointer;
   color-scheme: dark;
   option { background: #1a1a2e; }
-  &:focus { border-color: rgba(30,133,255,0.45); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); }
 `
 
 export const FilterBtn = styled.button`
@@ -321,7 +322,7 @@ export const FilterBtn = styled.button`
   padding: 0 16px;
   border-radius: 9px;
   border: none;
-  background: linear-gradient(135deg, #1d5aff 0%, #0d3acc 100%);
+  background: ${gradients.btn};
   color: #fff;
   font-size: 12.5px;
   font-weight: 700;
@@ -372,7 +373,7 @@ export const SearchInput = styled.input`
   font-family: inherit;
   outline: none;
   &::placeholder { color: rgba(255,255,255,0.25); }
-  &:focus { border-color: rgba(30,133,255,0.40); background: rgba(255,255,255,0.07); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); background: rgba(255,255,255,0.07); }
 `
 
 export const ResultCount = styled.span`
@@ -876,7 +877,7 @@ export const RejectTextarea = styled.textarea`
   outline: none;
   color-scheme: dark;
   &::placeholder { color: rgba(255,255,255,0.22); }
-  &:focus { border-color: rgba(30,133,255,0.40); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
 `
 
 export const ConfirmRow = styled.div`
@@ -926,7 +927,7 @@ export const Spinner = styled.span`
   width: ${({ $sm }) => $sm ? '16px' : '26px'};
   height: ${({ $sm }) => $sm ? '16px' : '26px'};
   border: ${({ $sm }) => $sm ? '2px' : '3px'} solid rgba(255,255,255,0.08);
-  border-top-color: #3b82f6;
+  border-top-color: var(--bc-admin-accent, #3b82f6);
   border-radius: 50%;
   animation: ${spin} 0.8s linear infinite;
   flex-shrink: 0;

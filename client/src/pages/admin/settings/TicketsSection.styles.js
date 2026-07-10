@@ -1,4 +1,5 @@
 import styled, { css, keyframes } from 'styled-components'
+import { gradients } from '../../../styles/theme'
 
 const fadeUp = keyframes`
   from { opacity: 0; transform: translateY(7px); }
@@ -50,7 +51,7 @@ export const NewTicketBtn = styled.button`
   padding: 0 16px;
   border-radius: 10px;
   border: none;
-  background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+  background: ${gradients.btn};
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -79,9 +80,9 @@ export const FilterTab = styled.button`
   height: 30px;
   padding: 0 13px;
   border-radius: 8px;
-  border: 1px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.30)' : 'rgba(255,255,255,0.07)'};
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.10)' : 'transparent'};
-  color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.36)'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.30)' : 'rgba(255,255,255,0.07)'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10)' : 'transparent'};
+  color: ${({ $active }) => $active ? 'var(--bc-admin-accent, #60a5fa)' : 'rgba(255,255,255,0.36)'};
   font-size: 12px;
   font-weight: ${({ $active }) => $active ? 600 : 400};
   font-family: inherit;
@@ -157,7 +158,7 @@ export const TkIconWrap = styled.div`
   font-size: 11px;
   font-weight: 800;
   background: ${({ $status }) =>
-    $status === 'open'        ? 'rgba(30,133,255,0.12)'  :
+    $status === 'open'        ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12)'  :
     $status === 'in_progress' ? 'rgba(245,158,11,0.12)'  :
     $status === 'resolved'    ? 'rgba(16,185,129,0.12)'  :
     'rgba(100,116,139,0.10)'};
@@ -202,7 +203,7 @@ export const TkStatusBadge = styled.span`
   flex-shrink: 0;
 
   ${({ $status }) => {
-    if ($status === 'open')        return css`background: rgba(30,133,255,0.12); color: #3b9eff; border: 1px solid rgba(30,133,255,0.22);`
+    if ($status === 'open')        return css`background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12); color: #3b9eff; border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22);`
     if ($status === 'in_progress') return css`background: rgba(245,158,11,0.12); color: #f59e0b; border: 1px solid rgba(245,158,11,0.22);`
     if ($status === 'resolved')    return css`background: rgba(16,185,129,0.12); color: #10b981; border: 1px solid rgba(16,185,129,0.22);`
     return css`background: rgba(100,116,139,0.10); color: #64748b; border: 1px solid rgba(100,116,139,0.18);`
@@ -387,12 +388,12 @@ export const DetailStatusSelect = styled.select`
   background-position: right 9px center;
 
   ${({ $status }) => {
-    if ($status === 'open')        return css`background-color: rgba(30,133,255,0.12); border: 1px solid rgba(30,133,255,0.28); color: #3b9eff;`
+    if ($status === 'open')        return css`background-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12); border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28); color: #3b9eff;`
     if ($status === 'in_progress') return css`background-color: rgba(245,158,11,0.12); border: 1px solid rgba(245,158,11,0.28); color: #f59e0b;`
     if ($status === 'resolved')    return css`background-color: rgba(16,185,129,0.12); border: 1px solid rgba(16,185,129,0.28); color: #10b981;`
     return css`background-color: rgba(100,116,139,0.10); border: 1px solid rgba(100,116,139,0.22); color: #64748b;`
   }}
-  option { background: #0d0d20; color: #fff; }
+  option { background: var(--bc-admin-card-bg, #0d0d20); color: #fff; }
 `
 
 export const DetailMetaRow = styled.div`
@@ -483,7 +484,7 @@ export const MsgSenderAvatar = styled.div`
   flex-shrink: 0;
 
   ${({ $isStaff }) => $isStaff ? css`
-    background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+    background: ${gradients.btn};
     color: #fff;
   ` : css`
     background: rgba(255,255,255,0.08);
@@ -511,8 +512,8 @@ export const MsgBody = styled.div`
   word-break: break-word;
 
   ${({ $isStaff }) => $isStaff ? css`
-    background: rgba(30,133,255,0.15);
-    border: 1px solid rgba(30,133,255,0.25);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.15);
+    border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.25);
     color: rgba(255,255,255,0.90);
   ` : css`
     background: rgba(255,255,255,0.06);
@@ -684,7 +685,7 @@ export const ReplySendBtn = styled.button`
   padding: 0 16px;
   border-radius: 9px;
   border: none;
-  background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+  background: ${gradients.btn};
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -713,7 +714,7 @@ export const ModalOverlay = styled.div`
 `
 
 export const ModalCard = styled.div`
-  background: #0d0e1e;
+  background: var(--bc-admin-card-bg, #0d0e1e);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 18px;
   width: 100%;
@@ -811,7 +812,7 @@ export const ModalInput = styled.input`
   transition: border-color 0.18s, background 0.18s;
   box-sizing: border-box;
   &::placeholder { color: rgba(255,255,255,0.18); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.04); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04); }
 `
 
 export const ModalTextarea = styled.textarea`
@@ -830,7 +831,7 @@ export const ModalTextarea = styled.textarea`
   transition: border-color 0.18s, background 0.18s;
   box-sizing: border-box;
   &::placeholder { color: rgba(255,255,255,0.18); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.04); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04); }
 `
 
 export const ModalSelect = styled.select`
@@ -852,8 +853,8 @@ export const ModalSelect = styled.select`
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
-  &:focus { border-color: rgba(30,133,255,0.45); }
-  option { background: #0d0d20; color: #fff; }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); }
+  option { background: var(--bc-admin-card-bg, #0d0d20); color: #fff; }
 `
 
 export const AttachZone = styled.div`
@@ -870,8 +871,8 @@ export const AttachZone = styled.div`
   background: rgba(255,255,255,0.02);
 
   &:hover {
-    border-color: rgba(30,133,255,0.35);
-    background: rgba(30,133,255,0.04);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.35);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04);
   }
 `
 
@@ -933,7 +934,7 @@ export const ModalSubmitBtn = styled.button`
   padding: 0 18px;
   border-radius: 10px;
   border: none;
-  background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+  background: ${gradients.btn};
   color: #fff;
   font-size: 13px;
   font-weight: 600;
@@ -1001,8 +1002,8 @@ export const CPickerTrigger = styled.button`
   width: 100%;
   height: 40px;
   padding: 0 36px 0 ${({ $filled }) => $filled ? '9px' : '13px'};
-  background: ${({ $open }) => $open ? 'rgba(30,133,255,0.05)' : 'rgba(255,255,255,0.04)'};
-  border: 1px solid ${({ $open }) => $open ? 'rgba(30,133,255,0.45)' : 'rgba(255,255,255,0.08)'};
+  background: ${({ $open }) => $open ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05)' : 'rgba(255,255,255,0.04)'};
+  border: 1px solid ${({ $open }) => $open ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45)' : 'rgba(255,255,255,0.08)'};
   border-radius: 10px;
   color: #fff;
   font-size: 13.5px;
@@ -1019,8 +1020,8 @@ export const CPickerTrigger = styled.button`
   overflow: hidden;
 
   &:hover {
-    border-color: ${({ $open }) => $open ? 'rgba(30,133,255,0.45)' : 'rgba(255,255,255,0.16)'};
-    background: ${({ $open }) => $open ? 'rgba(30,133,255,0.05)' : 'rgba(255,255,255,0.06)'};
+    border-color: ${({ $open }) => $open ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45)' : 'rgba(255,255,255,0.16)'};
+    background: ${({ $open }) => $open ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05)' : 'rgba(255,255,255,0.06)'};
   }
 `
 
@@ -1076,7 +1077,7 @@ export const CPickerDropdown = styled.div`
   top: calc(100% + 5px);
   left: 0;
   right: 0;
-  background: #0c0d1d;
+  background: var(--bc-admin-card-bg, #0c0d1d);
   border: 1px solid rgba(255,255,255,0.10);
   border-radius: 12px;
   box-shadow: 0 16px 48px rgba(0,0,0,0.60), inset 0 1px 0 rgba(255,255,255,0.04);
@@ -1124,11 +1125,11 @@ export const CPickerItem = styled.div`
   padding: 9px 12px;
   cursor: pointer;
   transition: background 0.12s;
-  border-left: 2px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.55)' : 'transparent'};
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.10)' : 'transparent'};
+  border-left: 2px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.55)' : 'transparent'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10)' : 'transparent'};
 
   &:hover {
-    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.14)' : 'rgba(255,255,255,0.04)'};
+    background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.14)' : 'rgba(255,255,255,0.04)'};
   }
 `
 
@@ -1136,7 +1137,7 @@ export const CPickerAvatar = styled.div`
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+  background: ${gradients.btn};
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -1205,7 +1206,7 @@ export const CPickerLoadMore = styled.button`
   background: transparent;
   border: none;
   border-top: 1px solid rgba(255,255,255,0.05);
-  color: rgba(30,133,255,0.60);
+  color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.60);
   font-size: 12px;
   font-weight: 500;
   font-family: inherit;
@@ -1217,7 +1218,7 @@ export const CPickerLoadMore = styled.button`
   gap: 5px;
   svg { font-size: 14px; }
 
-  &:hover { background: rgba(30,133,255,0.06); color: rgba(30,133,255,0.85); }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.06); color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.85); }
 `
 
 export const CPickerEmpty = styled.div`

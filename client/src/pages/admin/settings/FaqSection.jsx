@@ -19,7 +19,7 @@ const S = {
     display: 'flex', flexDirection: 'column', gap: 10,
   },
   card: {
-    background: '#0e1525',
+    background: 'rgba(255,255,255,0.025)',
     border: '1px solid rgba(255,255,255,0.07)',
     borderRadius: 14,
     padding: '16px 18px',
@@ -30,8 +30,8 @@ const S = {
   },
   num: {
     width: 24, height: 24, borderRadius: 8,
-    background: 'rgba(59,130,246,0.15)',
-    color: '#60a5fa', fontSize: 11, fontWeight: 800,
+    background: 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.15)',
+    color: 'var(--bc-admin-accent, #1e85ff)', fontSize: 11, fontWeight: 800,
     display: 'flex', alignItems: 'center', justifyContent: 'center',
     flexShrink: 0, marginTop: 2,
   },
@@ -77,9 +77,9 @@ const S = {
   },
   addBtn: {
     padding: '10px 18px', borderRadius: 10,
-    border: '1px dashed rgba(59,130,246,0.3)',
-    background: 'rgba(59,130,246,0.06)',
-    color: '#60a5fa', fontSize: 13, fontWeight: 700,
+    border: '1px dashed rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.3)',
+    background: 'rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.06)',
+    color: 'var(--bc-admin-accent, #1e85ff)', fontSize: 13, fontWeight: 700,
     fontFamily: 'inherit', cursor: 'pointer',
     display: 'flex', alignItems: 'center', gap: 8,
     transition: 'background 0.15s, border-color 0.15s',
@@ -89,7 +89,7 @@ const S = {
   },
   saveBtn: (saving) => ({
     padding: '10px 22px', borderRadius: 10, border: 'none',
-    background: saving ? 'rgba(255,255,255,0.06)' : 'linear-gradient(135deg,#3b82f6,#2563eb)',
+    background: saving ? 'rgba(255,255,255,0.06)' : 'var(--bc-admin-button-gradient, linear-gradient(135deg, #0a2e50 0%, #1e85ff 100%))',
     color: saving ? '#64748b' : '#fff',
     fontSize: 14, fontWeight: 700, fontFamily: 'inherit',
     cursor: saving ? 'not-allowed' : 'pointer',

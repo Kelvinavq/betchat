@@ -13,7 +13,7 @@ import { useToast } from '../../../context/ToastContext'
 const Wrap = styled.div`display:flex;flex-direction:column;gap:20px;`
 
 const Card = styled.div`
-  background: var(--bg-card, #1a1a2e);
+  background: rgba(255,255,255,0.025);
   border: 1px solid var(--border, rgba(255,255,255,.08));
   border-radius: 14px;
   overflow: hidden;
@@ -29,8 +29,8 @@ const CardIcon = styled.div`
   width: 38px; height: 38px;
   border-radius: 10px;
   display: flex; align-items: center; justify-content: center;
-  background: ${p => p.$bg || 'rgba(99,102,241,.15)'};
-  color: ${p => p.$color || '#818cf8'};
+  background: ${p => p.$bg || 'rgba(var(--bc-admin-accent-rgb, 30,133,255),.15)'};
+  color: ${p => p.$color || 'var(--bc-admin-accent, #1e85ff)'};
   flex-shrink: 0;
   svg { font-size: 20px; }
 `
@@ -55,7 +55,7 @@ const ToggleSwitch = styled.button`
   border: none;
   cursor: pointer;
   position: relative;
-  background: ${p => p.$on ? 'rgba(99,102,241,.9)' : 'rgba(255,255,255,.15)'};
+  background: ${p => p.$on ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),.9)' : 'rgba(255,255,255,.15)'};
   transition: background .2s;
   &::after {
     content: '';
@@ -82,7 +82,7 @@ const NumberInput = styled.input`
   font-size:.875rem;
   outline: none;
   box-sizing: border-box;
-  &:focus { border-color: rgba(99,102,241,.6); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),.6); }
   &::-webkit-inner-spin-button, &::-webkit-outer-spin-button { opacity: 1; }
 `
 const InputHint = styled.div`font-size:.75rem;color:var(--text-muted,#94a3b8);`
@@ -91,7 +91,7 @@ const InputHint = styled.div`font-size:.75rem;color:var(--text-muted,#94a3b8);`
 const SaveBtn = styled.button`
   padding: 9px 22px;
   border-radius: 8px;
-  background: rgba(99,102,241,.85);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),.85);
   color: #fff;
   border: none;
   cursor: pointer;
@@ -102,7 +102,7 @@ const SaveBtn = styled.button`
   gap: 6px;
   opacity: ${p => p.disabled ? .5 : 1};
   pointer-events: ${p => p.disabled ? 'none' : 'auto'};
-  &:hover { background: rgba(99,102,241,1); }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),1); }
 `
 
 /* Info banner */
@@ -112,12 +112,12 @@ const InfoBanner = styled.div`
   gap: 10px;
   padding: 14px 16px;
   border-radius: 10px;
-  background: rgba(99,102,241,.07);
-  border: 1px solid rgba(99,102,241,.2);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),.07);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),.2);
   font-size: .8rem;
   color: rgba(255,255,255,.65);
   line-height: 1.55;
-  svg { font-size: 17px; color: #818cf8; flex-shrink: 0; margin-top: 1px; }
+  svg { font-size: 17px; color: var(--bc-admin-accent, #1e85ff); flex-shrink: 0; margin-top: 1px; }
 `
 
 /* Link preview */
@@ -133,7 +133,7 @@ const LinkPreview = styled.div`
 const LinkText = styled.div`
   flex: 1;
   font-size: .8rem;
-  color: #818cf8;
+  color: var(--bc-admin-accent, #1e85ff);
   font-family: monospace;
   white-space: nowrap;
   overflow: hidden;
@@ -211,7 +211,7 @@ export default function ReferralSection() {
       {/* ── Enable / disable ── */}
       <Card>
         <CardHead>
-          <CardIcon $bg="rgba(99,102,241,.15)" $color="#818cf8">
+          <CardIcon $bg="rgba(var(--bc-admin-accent-rgb, 30,133,255),.15)" $color="var(--bc-admin-accent, #1e85ff)">
             <PeopleAltOutlinedIcon />
           </CardIcon>
           <div>

@@ -305,8 +305,8 @@ export const UserAvatarWrap = styled.div`
   height: 28px;
   min-width: 28px;
   border-radius: 8px;
-  background: linear-gradient(135deg, rgba(30,133,255,0.28), rgba(30,133,255,0.14));
-  border: 1px solid rgba(30,133,255,0.22);
+  background: linear-gradient(135deg, rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.28), rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.14));
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.22);
   display: flex;
   align-items: center;
   justify-content: center;

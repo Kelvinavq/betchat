@@ -18,7 +18,7 @@ const slideFromRight = keyframes`
 export const PageWrap = styled.div`
   flex: 1; min-width: 0;
   height: var(--app-height, 100dvh);
-  background: var(--bc-admin-sidebar-bg, #0b0b18);
+  background: var(--bc-admin-content-bg, #08080f);
   display: flex; flex-direction: column; overflow: hidden;
 `
 export const PageScroll = styled.div`
@@ -66,8 +66,8 @@ export const MainTabBtn = styled.button`
   gap: 7px;
   padding: 8px 16px;
   border-radius: 10px;
-  border: 1px solid ${({ $active }) => ($active ? 'rgba(30,133,255,0.42)' : 'transparent')};
-  background: ${({ $active }) => ($active ? 'rgba(30,133,255,0.12)' : 'rgba(255,255,255,0.04)')};
+  border: 1px solid ${({ $active }) => ($active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.42)' : 'transparent')};
+  background: ${({ $active }) => ($active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12)' : 'rgba(255,255,255,0.04)')};
   color: ${({ $active }) => ($active ? '#93c5fd' : 'rgba(255,255,255,0.42)')};
   font-size: 13px;
   font-weight: ${({ $active }) => ($active ? 700 : 500)};
@@ -75,7 +75,7 @@ export const MainTabBtn = styled.button`
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   &:hover {
-    background: rgba(30,133,255,0.08);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.08);
     color: rgba(255,255,255,0.78);
   }
 `
@@ -90,8 +90,8 @@ export const SubsSubTabsWrap = styled.div`
 export const SubsSubTabBtn = styled.button`
   padding: 7px 14px;
   border-radius: 9px;
-  border: 1px solid ${({ $active }) => ($active ? 'rgba(30,133,255,0.38)' : 'rgba(255,255,255,0.08)')};
-  background: ${({ $active }) => ($active ? 'rgba(30,133,255,0.10)' : 'transparent')};
+  border: 1px solid ${({ $active }) => ($active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.38)' : 'rgba(255,255,255,0.08)')};
+  background: ${({ $active }) => ($active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10)' : 'transparent')};
   color: ${({ $active }) => ($active ? '#93c5fd' : 'rgba(255,255,255,0.38)')};
   font-size: 12.5px;
   font-weight: ${({ $active }) => ($active ? 700 : 500)};
@@ -99,7 +99,7 @@ export const SubsSubTabBtn = styled.button`
   cursor: pointer;
   transition: all 0.15s;
   &:hover {
-    border-color: rgba(30,133,255,0.28);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28);
     color: rgba(255,255,255,0.72);
   }
 `
@@ -120,7 +120,7 @@ export const AddBtn = styled.button`
   background: ${gradients.btn}; border: none; color: #fff;
   font-size: 13px; font-weight: 600; font-family: inherit;
   cursor: pointer; white-space: nowrap;
-  box-shadow: 0 4px 18px rgba(13,79,232,0.36);
+  box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.36);
   transition: opacity 0.2s, transform 0.15s;
   svg { font-size: 18px; }
   &:hover { opacity: 0.86; }
@@ -177,7 +177,7 @@ export const SearchInput = styled.input`
   border-radius: 10px; color: #fff; font-size: 13px; font-family: inherit; outline: none;
   transition: border-color 0.2s;
   &::placeholder { color: rgba(255,255,255,0.22); }
-  &:focus { border-color: rgba(30,133,255,0.40); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
 `
 export const FilterSelect = styled.select`
   height: 38px; padding: 0 30px 0 11px;
@@ -188,8 +188,8 @@ export const FilterSelect = styled.select`
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 10px center;
   transition: border-color 0.2s;
-  &:focus { border-color: rgba(30,133,255,0.40); }
-  option { background: #0c0c1e; color: #fff; }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
+  option { background: var(--bc-admin-card-bg, #0c0c1e); color: #fff; }
 `
 export const ResultCount = styled.span`
   margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.28); white-space: nowrap;
@@ -241,7 +241,7 @@ export const Tr = styled.tr`
   transition: background 0.15s;
   animation: ${fadeUp} 0.22s ease both;
   &:last-child { border-bottom: none; }
-  &:hover { background: rgba(30,133,255,0.04); }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04); }
 `
 export const Td = styled.td`
   padding: 12px 16px; vertical-align: middle;
@@ -334,7 +334,7 @@ export const ActionBtn = styled.button`
     ` : $v === 'send' ? css`
       background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.28); color: #4ade80;
     ` : css`
-      background: rgba(30,133,255,0.12); border-color: rgba(30,133,255,0.28);
+      background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12); border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28);
       color: ${colors.primaryLighter};
     `}
   }
@@ -374,7 +374,7 @@ export const Toast = styled.div`
   position: fixed; top: 24px; right: 24px; z-index: 9999;
   min-width: 300px; max-width: 400px;
   padding: 14px 16px; border-radius: 16px;
-  background: #12122a;
+  background: var(--bc-admin-card-bg, #12122a);
   border: 1px solid ${({ $type }) => ($type === 'danger'
     ? 'rgba(239,68,68,0.30)' : 'rgba(34,197,94,0.30)')};
   box-shadow: 0 24px 48px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.04);
@@ -417,7 +417,7 @@ export const Overlay = styled.div`
 export const ModalCard = styled.div`
   width: 100%; max-width: 520px;
   max-height: calc(var(--app-height, 100dvh) - 32px);
-  background: #0d0d20;
+  background: var(--bc-admin-card-bg, #0d0d20);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 22px;
   display: flex; flex-direction: column; overflow: hidden;
@@ -432,7 +432,7 @@ export const ModalHead = styled.div`
 export const ModalIconBadge = styled.div`
   width: 36px; height: 36px; border-radius: 10px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(30,133,255,0.12); border: 1px solid rgba(30,133,255,0.22);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12); border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22);
   svg { font-size: 18px; color: ${colors.primaryLighter}; }
 `
 export const ModalHeadText = styled.div`flex: 1; margin-left: 12px;`
@@ -467,7 +467,7 @@ export const ModalBtn = styled.button`
   cursor: pointer; transition: opacity 0.18s, transform 0.15s;
   ${({ $v }) => $v === 'primary' ? css`
     background: ${gradients.btn}; border: none; color: #fff;
-    box-shadow: 0 4px 18px rgba(13,79,232,0.36);
+    box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.36);
   ` : $v === 'danger' ? css`
     background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.24); color: #f87171;
   ` : $v === 'ghost' ? css`
@@ -502,7 +502,7 @@ const inputBase = css`
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 10px; color: #fff; font-size: 13px; font-family: inherit; outline: none;
   transition: border-color 0.2s, background 0.2s;
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
 `
 export const FieldInput = styled.input`
   ${inputBase}
@@ -516,14 +516,14 @@ export const FieldTextarea = styled.textarea`
   resize: vertical; line-height: 1.5;
   transition: border-color 0.2s, background 0.2s;
   &::placeholder { color: rgba(255,255,255,0.18); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
 `
 export const FieldSelect = styled.select`
   ${inputBase}
   cursor: pointer; appearance: none; -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center;
-  option { background: #0d0d20; color: #fff; }
+  option { background: var(--bc-admin-card-bg, #0d0d20); color: #fff; }
 `
 export const CharCount = styled.span`
   font-size: 10.5px; color: rgba(255,255,255,0.20); text-align: right; margin-top: -2px;
@@ -614,23 +614,23 @@ export const ImageUploadZone = styled.button`
   padding: 22px 18px;
   border-radius: 12px;
   border: 1px dashed ${({ $drag, $disabled }) =>
-    $disabled ? 'rgba(255,255,255,0.08)' : $drag ? 'rgba(30,133,255,0.55)' : 'rgba(255,255,255,0.14)'};
+    $disabled ? 'rgba(255,255,255,0.08)' : $drag ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.55)' : 'rgba(255,255,255,0.14)'};
   background: ${({ $drag, $disabled }) =>
-    $disabled ? 'rgba(255,255,255,0.02)' : $drag ? 'rgba(30,133,255,0.10)' : 'rgba(255,255,255,0.03)'};
+    $disabled ? 'rgba(255,255,255,0.02)' : $drag ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10)' : 'rgba(255,255,255,0.03)'};
   cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
   font-family: inherit;
   transition: border-color 0.2s, background 0.2s, transform 0.15s;
   &:hover:not(:disabled) {
-    border-color: rgba(30,133,255,0.42);
-    background: rgba(30,133,255,0.07);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.42);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.07);
   }
   &:active:not(:disabled) { transform: scale(0.992); }
 `
 export const ImageUploadIconWrap = styled.div`
   width: 46px; height: 46px; border-radius: 13px; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  background: rgba(30,133,255,0.12);
-  border: 1px solid rgba(30,133,255,0.24);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.24);
   svg { font-size: 24px; color: #6eb6ff; }
 `
 export const ImageUploadTitle = styled.span`
@@ -643,7 +643,7 @@ export const ImageUploadHint = styled.span`
 export const ImageUploadSpinner = styled.span`
   width: 22px; height: 22px; border-radius: 50%;
   border: 2px solid rgba(255,255,255,0.12);
-  border-top-color: rgba(30,133,255,0.9);
+  border-top-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.9);
   animation: spin 0.75s linear infinite;
   @keyframes spin { to { transform: rotate(360deg); } }
 `
@@ -679,8 +679,8 @@ export const ImageGhostBtn = styled.button`
   flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s, color 0.15s;
   &:hover:not(:disabled) {
-    background: rgba(30,133,255,0.12);
-    border-color: rgba(30,133,255,0.28);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28);
     color: #93c5fd;
   }
   &:disabled { opacity: 0.45; cursor: not-allowed; }
@@ -722,7 +722,7 @@ export const Toggle = styled.button`
   width: 42px; height: 24px; border-radius: 12px; border: none;
   cursor: pointer; position: relative; flex-shrink: 0; transition: background 0.28s;
   background: ${({ $on }) => $on
-    ? 'linear-gradient(90deg,rgba(30,133,255,0.65),rgba(13,79,232,0.65))'
+    ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.70)'
     : 'rgba(255,255,255,0.10)'};
 `
 export const ToggleThumb = styled.span`
@@ -742,7 +742,7 @@ export const ScheduleFields = styled.div`
 export const ConfirmBanner = styled.div`
   display: flex; flex-direction: column; gap: 10px;
   padding: 15px 16px; border-radius: 13px;
-  background: rgba(30,133,255,0.08); border: 1px solid rgba(30,133,255,0.22);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.08); border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22);
   animation: ${fadeUp} 0.18s ease both;
 `
 export const ConfirmTitle = styled.p`

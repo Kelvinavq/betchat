@@ -14,7 +14,7 @@ const slideUp = keyframes`
 export const PageWrap = styled.div`
   flex: 1; min-width: 0;
   height: var(--app-height, 100dvh);
-  background: var(--bc-admin-sidebar-bg, #0b0b18);
+  background: var(--bc-admin-content-bg, #08080f);
   display: flex; flex-direction: column; overflow: hidden;
 `
 export const PageScroll = styled.div`
@@ -46,7 +46,7 @@ export const AddBtn = styled.button`
   display: flex; align-items: center; gap: 7px; padding: 10px 18px;
   border-radius: 12px; background: ${gradients.btn}; border: none; color: #fff;
   font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; white-space: nowrap;
-  box-shadow: 0 4px 18px rgba(13,79,232,0.38); transition: opacity 0.2s, transform 0.15s;
+  box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.38); transition: opacity 0.2s, transform 0.15s;
   svg { font-size: 18px; }
   &:hover { opacity: 0.86; } &:active { transform: scale(0.97); }
 `
@@ -67,7 +67,7 @@ export const SearchInput = styled.input`
   border-radius: 10px; color: #fff; font-size: 13px; font-family: inherit; outline: none;
   transition: border-color 0.2s;
   &::placeholder { color: rgba(255,255,255,0.22); }
-  &:focus { border-color: rgba(30,133,255,0.40); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
 `
 export const FilterSelect = styled.select`
   height: 38px; padding: 0 30px 0 11px;
@@ -77,8 +77,8 @@ export const FilterSelect = styled.select`
   appearance: none; -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 10px center;
-  &:focus { border-color: rgba(30,133,255,0.40); }
-  option { background: #0c0c1e; color: #fff; }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
+  option { background: var(--bc-admin-card-bg, #0c0c1e); color: #fff; }
 `
 export const ResultCount = styled.span`
   margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.28); white-space: nowrap;
@@ -236,7 +236,7 @@ export const Overlay = styled.div`
 export const ModalCard = styled.div`
   width: 100%; max-width: 540px;
   max-height: calc(var(--app-height, 100dvh) - 32px);
-  background: #0d0d20; border: 1px solid rgba(255,255,255,0.09); border-radius: 22px;
+  background: var(--bc-admin-card-bg, #0d0d20); border: 1px solid rgba(255,255,255,0.09); border-radius: 22px;
   display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04);
   animation: ${slideUp} 0.26s cubic-bezier(0.16,1,0.3,1) both;
@@ -281,7 +281,7 @@ export const FieldInput = styled.input`
   border-radius: 10px; color: #fff; font-size: 13px; font-family: inherit; outline: none;
   transition: border-color 0.2s, background 0.2s;
   &::placeholder { color: rgba(255,255,255,0.18); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
 `
 
 /* command input with / prefix */
@@ -289,12 +289,12 @@ export const CommandInputWrap = styled.div`
   display: flex; align-items: stretch; height: 40px;
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 10px; overflow: hidden; transition: border-color 0.2s, background 0.2s;
-  &:focus-within { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+  &:focus-within { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
 `
 export const CommandPrefix = styled.span`
   display: flex; align-items: center; padding: 0 11px;
-  background: rgba(30,133,255,0.10); border-right: 1px solid rgba(30,133,255,0.20);
-  color: #60a5fa; font-size: 18px; font-weight: 700; font-family: 'Courier New', monospace;
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10); border-right: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.20);
+  color: var(--bc-admin-accent, #60a5fa); font-size: 18px; font-weight: 700; font-family: 'Courier New', monospace;
   flex-shrink: 0; user-select: none;
 `
 export const CommandInput = styled.input`
@@ -316,7 +316,7 @@ export const Toggle = styled.button`
   width: 42px; height: 24px; border-radius: 12px; border: none; cursor: pointer;
   position: relative; flex-shrink: 0; transition: background 0.28s;
   background: ${({ $on }) => $on
-    ? 'linear-gradient(90deg, rgba(30,133,255,0.65) 0%, rgba(13,79,232,0.65) 100%)'
+    ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.70)'
     : 'rgba(255,255,255,0.10)'};
 `
 export const ToggleThumb = styled.span`
@@ -339,7 +339,7 @@ export const ModalBtn = styled.button`
   transition: opacity 0.18s, transform 0.15s;
   ${({ $v }) => $v === 'primary' ? css`
     background: ${gradients.btn}; border: none; color: #fff;
-    box-shadow: 0 4px 18px rgba(13,79,232,0.36);
+    box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.36);
   ` : $v === 'danger' ? css`
     background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.24); color: #f87171;
   ` : css`
@@ -354,7 +354,7 @@ export const EditorWrap = styled.div`
   background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 12px; overflow: hidden; position: relative;
   transition: border-color 0.2s;
-  &:focus-within { border-color: rgba(30,133,255,0.40); }
+  &:focus-within { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
 `
 export const EditorToolbar = styled.div`
   display: flex; align-items: center; gap: 2px; padding: 8px 10px;

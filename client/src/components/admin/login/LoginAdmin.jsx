@@ -1,20 +1,29 @@
-import { useRef, useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import logo from '../../../assets/apple.svg';
 import faceid from '../../../assets/faceid.svg';
 import googleIcon from '../../../assets/google.svg';
 import fingerprint from '../../../assets/fingerprint.svg';
 import { useSystemConfig } from '../../../context/SystemConfigContext';
-import { useWebGLBackground } from './useWebGLBackground';
 import {
-  Section, Canvas, Card, Logo, Subtitle, Form, Socials, SsoBtn, Or,
+  Section, LoginLayout,
+  BrandPanel, BrandLogo, BrandTitle, BrandSub, BrandDivider, BrandTagline,
+  FormPanel, FormInner, MobileLogo,
+  Heading, Subtitle, Form, Socials, SsoBtn, Or,
   TextboxWrapper, TextboxInput, TextboxLabel, SubmitBtn, ForgotLink, Footer,
   AlertBox, FieldError, ModalOverlay, ModalCard, ModalTitle, ModalSub, ModalFoot, ModalBtn,
 } from './LoginAdmin.styles';
 
 const Textbox = ({ id, type, label, value, onChange, error }) => (
   <TextboxWrapper>
-    <TextboxInput value={value} onChange={onChange} type={type} id={id} autoComplete={type === 'password' ? 'current-password' : 'username'} $hasError={Boolean(error)} />
+    <TextboxInput
+      value={value}
+      onChange={onChange}
+      type={type}
+      id={id}
+      autoComplete={type === 'password' ? 'current-password' : 'username'}
+      $hasError={Boolean(error)}
+    />
     <TextboxLabel htmlFor={id}>{label}</TextboxLabel>
     {error && <FieldError>{error}</FieldError>}
   </TextboxWrapper>
@@ -41,7 +50,6 @@ const loadGoogleScript = () => new Promise((resolve, reject) => {
 const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
   const { systemConfig } = useSystemConfig();
   const navigate = useNavigate();
-  const canvasRef = useRef(null);
   const googleButtonRef = useRef(null);
   const googleInitializedRef = useRef(false);
   const [deviceType, setDeviceType] = useState('other');
@@ -76,61 +84,44 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
   const [showEnrollModal, setShowEnrollModal] = useState(false);
   const [pendingLoginUser, setPendingLoginUser] = useState(null);
 
-  useWebGLBackground(canvasRef);
-
   useEffect(() => {
-    const userAgent = navigator.userAgent || navigator.vendor || window.opera;
-    if (/iPad|iPhone|iPod/.test(userAgent) && !window.MSStream) setDeviceType('ios');
-    else if (/android/i.test(userAgent)) setDeviceType('android');
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    if (/iPad|iPhone|iPod/.test(ua) && !window.MSStream) setDeviceType('ios');
+    else if (/android/i.test(ua)) setDeviceType('android');
     else setDeviceType('pc');
   }, []);
 
   useEffect(() => {
     if (!cooldown) return;
-    const timer = window.setInterval(() => setCooldown((current) => Math.max(0, current - 1)), 1000);
+    const timer = window.setInterval(() => setCooldown((c) => Math.max(0, c - 1)), 1000);
     return () => window.clearInterval(timer);
   }, [cooldown]);
 
   useEffect(() => {
     if (cooldown > 0) return;
     setLoginNotice('');
-    try {
-      sessionStorage.removeItem('admin_login_cooldown_until');
-    } catch {
-      // ignore
-    }
+    try { sessionStorage.removeItem('admin_login_cooldown_until'); } catch { /* ignore */ }
   }, [cooldown]);
 
   useEffect(() => {
     let cancelled = false;
-
-    const initGoogleButton = async () => {
+    const init = async () => {
       if (!googleClientId || !googleButtonRef.current || googleInitializedRef.current) return;
       try {
         await loadGoogleScript();
         if (cancelled || !window.google?.accounts?.id || !googleButtonRef.current) return;
-
         window.google.accounts.id.initialize({
           client_id: googleClientId,
           callback: async (resp) => {
-            try {
-              await onSubmit({ googleCredential: resp.credential });
-            } catch (error) {
-              setBiometricNotice(error.message || 'No se pudo iniciar con Google.');
-            }
+            try { await onSubmit({ googleCredential: resp.credential }); }
+            catch (err) { setBiometricNotice(err.message || 'No se pudo iniciar con Google.'); }
           },
         });
-
         googleButtonRef.current.innerHTML = '';
-        const buttonWidth = Math.max(140, Math.floor(googleButtonRef.current.getBoundingClientRect().width || 0));
+        const w = Math.max(140, Math.floor(googleButtonRef.current.getBoundingClientRect().width || 0));
         window.google.accounts.id.renderButton(googleButtonRef.current, {
-          type: 'standard',
-          theme: 'outline',
-          size: 'large',
-          text: 'signin_with',
-          shape: 'pill',
-          logo_alignment: 'left',
-          width: buttonWidth,
+          type: 'standard', theme: 'outline', size: 'large',
+          text: 'signin_with', shape: 'pill', logo_alignment: 'left', width: w,
         });
         setGoogleButtonReady(true);
         googleInitializedRef.current = true;
@@ -138,74 +129,55 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
         setBiometricNotice('No se pudo cargar el inicio con Google.');
       }
     };
-
-    initGoogleButton();
-
-    return () => {
-      cancelled = true;
-    };
+    init();
+    return () => { cancelled = true; };
   }, [googleClientId, onSubmit]);
 
   const biometricIcon = deviceType === 'ios' ? faceid : fingerprint;
   const biometricLabel = deviceType === 'ios' ? 'FaceID' : 'Huella';
   const canUseWebAuthn = typeof window !== 'undefined' && Boolean(window.PublicKeyCredential);
 
-  const base64UrlToBuffer = (value) => {
-    const normalized = String(value || '').replace(/-/g, '+').replace(/_/g, '/');
-    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, '=');
-    return Uint8Array.from(atob(padded), (c) => c.charCodeAt(0));
+  const base64UrlToBuffer = (v) => {
+    const n = String(v || '').replace(/-/g, '+').replace(/_/g, '/');
+    return Uint8Array.from(atob(n.padEnd(Math.ceil(n.length / 4) * 4, '=')), (c) => c.charCodeAt(0));
   };
-  const bufferToBase64Url = (value) => btoa(String.fromCharCode(...new Uint8Array(value))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+  const bufferToBase64Url = (v) =>
+    btoa(String.fromCharCode(...new Uint8Array(v))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
 
-  const handleSubmit = async (event) => {
-    event.preventDefault();
+  const handleSubmit = async (e) => {
+    e.preventDefault();
     if (loading || cooldown > 0) return;
     const trimmedUsername = username.trim();
     const errors = {};
     if (!trimmedUsername) errors.username = 'El usuario es obligatorio.';
     if (!password) errors.password = 'La contraseña es obligatoria.';
     if (password && password.length < 8) errors.password = 'La contraseña debe tener al menos 8 caracteres.';
-    if (Object.keys(errors).length) {
-      setFieldErrors(errors);
-      return;
-    }
+    if (Object.keys(errors).length) { setFieldErrors(errors); return; }
     setFieldErrors({});
     setLoginNotice('');
     setLoading(true);
     try {
       const response = await onSubmit({ username: trimmedUsername, password });
-      if (response?.user) {
-        setPendingLoginUser(response.user);
-        setShowEnrollModal(true);
-      }
+      if (response?.user) { setPendingLoginUser(response.user); setShowEnrollModal(true); }
       setAttempts(0);
     } catch (error) {
       const code = String(error?.payload?.code || error?.code || '').toUpperCase();
       if (code === 'TOO_MANY_REQUESTS') {
         setAttempts(0);
-        const retryAfterSeconds = Math.max(1, Number(error?.retryAfter || error?.payload?.retryAfter || error?.payload?.retry_after || 15 * 60));
-        const until = Date.now() + (retryAfterSeconds * 1000);
-        setCooldown(retryAfterSeconds);
-        setLoginNotice(`Demasiados intentos de inicio de sesión. Por seguridad, el acceso quedó bloqueado temporalmente (${Math.max(1, Math.ceil(retryAfterSeconds / 60))} min).`);
-        try {
-          sessionStorage.setItem('admin_login_cooldown_until', String(until));
-        } catch {
-          // ignore
-        }
+        const secs = Math.max(1, Number(error?.retryAfter || error?.payload?.retryAfter || error?.payload?.retry_after || 15 * 60));
+        const until = Date.now() + secs * 1000;
+        setCooldown(secs);
+        setLoginNotice(`Demasiados intentos. Acceso bloqueado temporalmente (${Math.max(1, Math.ceil(secs / 60))} min).`);
+        try { sessionStorage.setItem('admin_login_cooldown_until', String(until)); } catch { /* ignore */ }
         return;
       }
-      const nextAttempts = attempts + 1;
-      setAttempts(nextAttempts);
-      if (nextAttempts >= 5) {
-        const retryAfterSeconds = 15 * 60;
-        const until = Date.now() + (retryAfterSeconds * 1000);
-        setCooldown(retryAfterSeconds);
-        setLoginNotice('Demasiados intentos de inicio de sesión. Por seguridad, el acceso quedó bloqueado temporalmente (15 min).');
-        try {
-          sessionStorage.setItem('admin_login_cooldown_until', String(until));
-        } catch {
-          // ignore
-        }
+      const next = attempts + 1;
+      setAttempts(next);
+      if (next >= 5) {
+        const secs = 15 * 60;
+        setCooldown(secs);
+        setLoginNotice('Demasiados intentos. Acceso bloqueado temporalmente (15 min).');
+        try { sessionStorage.setItem('admin_login_cooldown_until', String(Date.now() + secs * 1000)); } catch { /* ignore */ }
       }
     } finally {
       setLoading(false);
@@ -215,10 +187,7 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
   const handleBiometric = async () => {
     if (!canUseWebAuthn || biometricBusy || cooldown > 0) return;
     const trimmedUsername = username.trim();
-    if (!trimmedUsername) {
-      setFieldErrors({ username: 'Ingresa tu usuario primero para usar biometría.' });
-      return;
-    }
+    if (!trimmedUsername) { setFieldErrors({ username: 'Ingresá tu usuario primero para usar biometría.' }); return; }
     setBiometricNotice('');
     setBiometricBusy(true);
     try {
@@ -254,7 +223,7 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
   };
 
   const busyText = cooldown > 0
-    ? `Intenta nuevamente en ${cooldown >= 60 ? `${Math.ceil(cooldown / 60)} min` : `${cooldown}s`}`
+    ? `Intentá en ${cooldown >= 60 ? `${Math.ceil(cooldown / 60)} min` : `${cooldown}s`}`
     : 'Ingresar';
 
   const handleCloseEnroll = () => {
@@ -265,26 +234,17 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
 
   const handleAcceptEnroll = async () => {
     setShowEnrollModal(false);
-    if (pendingLoginUser) {
-      setPendingLoginUser(null);
-    }
+    if (pendingLoginUser) setPendingLoginUser(null);
     try {
       const options = await onSubmit({ webauthnIntent: 'register-options' });
       const credential = await navigator.credentials.create({
         publicKey: {
           ...options,
           challenge: base64UrlToBuffer(options.challenge),
-          user: {
-            ...options.user,
-            id: base64UrlToBuffer(options.user.id),
-          },
-          excludeCredentials: (options.excludeCredentials || []).map((item) => ({
-            ...item,
-            id: base64UrlToBuffer(item.id),
-          })),
+          user: { ...options.user, id: base64UrlToBuffer(options.user.id) },
+          excludeCredentials: (options.excludeCredentials || []).map((item) => ({ ...item, id: base64UrlToBuffer(item.id) })),
         },
       });
-
       await onSubmit({
         webauthnIntent: 'register-verify',
         credential: {
@@ -303,55 +263,95 @@ const LoginAdmin = ({ onSubmit, status, googleClientId }) => {
     }
   };
 
+  const appName = systemConfig.appName || 'Panel Admin';
+
   return (
     <Section>
-      <Canvas ref={canvasRef} />
-      <Card>
-        <Logo src={systemConfig.logoUrl || logo} alt={systemConfig.appName} />
-        <Subtitle>{systemConfig.appName}</Subtitle>
-        {status?.message && <AlertBox $type={status.type}>{status.message}</AlertBox>}
-        {loginNotice && <AlertBox $type="warning">{loginNotice}</AlertBox>}
-        <Form onSubmit={handleSubmit}>
-          <Socials>
-            <SsoBtn
-              type="button"
-              disabled={!googleClientId || !googleButtonReady}
-              style={{ position: 'relative', overflow: 'hidden' }}
-            >
-              <img src={googleIcon} alt="Google" />
-              <span>{googleClientId ? 'Google' : 'Google no disponible'}</span>
-              <div
-                ref={googleButtonRef}
-                aria-label="Iniciar sesión con Google"
-                style={{
-                  position: 'absolute',
-                  inset: 0,
-                  opacity: 0,
-                  cursor: googleClientId ? 'pointer' : 'not-allowed',
-                  width: '100%',
-                }}
+      <LoginLayout>
+
+        {/* ── Brand panel (desktop only) ── */}
+        <BrandPanel>
+          <BrandLogo src={systemConfig.logoUrl || logo} alt={appName} />
+          <BrandTitle>{appName}</BrandTitle>
+          <BrandSub>Panel de Administración</BrandSub>
+          <BrandDivider />
+          <BrandTagline>
+            Todo el control de tu plataforma,<br />en un solo lugar.
+          </BrandTagline>
+        </BrandPanel>
+
+        {/* ── Form panel ── */}
+        <FormPanel>
+          <FormInner>
+            <MobileLogo src={systemConfig.logoUrl || logo} alt={appName} />
+            <Heading>Bienvenido</Heading>
+            <Subtitle>{appName}</Subtitle>
+
+            {status?.message && <AlertBox $type={status.type}>{status.message}</AlertBox>}
+            {loginNotice && <AlertBox $type="warning">{loginNotice}</AlertBox>}
+
+            <Form onSubmit={handleSubmit}>
+              <Socials>
+                <SsoBtn
+                  type="button"
+                  disabled={!googleClientId || !googleButtonReady}
+                  style={{ position: 'relative', overflow: 'hidden' }}
+                >
+                  <img src={googleIcon} alt="Google" />
+                  <span>{googleClientId ? 'Google' : 'No disponible'}</span>
+                  <div
+                    ref={googleButtonRef}
+                    aria-label="Iniciar sesión con Google"
+                    style={{
+                      position: 'absolute', inset: 0, opacity: 0,
+                      cursor: googleClientId ? 'pointer' : 'not-allowed', width: '100%',
+                    }}
+                  />
+                </SsoBtn>
+                <SsoBtn type="button" invertIcon onClick={handleBiometric} disabled={!canUseWebAuthn || biometricBusy}>
+                  <img src={biometricIcon} alt={biometricLabel} />
+                  <span>{biometricBusy ? 'Verificando...' : biometricLabel}</span>
+                </SsoBtn>
+              </Socials>
+
+              {biometricNotice && <FieldError>{biometricNotice}</FieldError>}
+
+              <Or>o</Or>
+
+              <Textbox
+                id="login-admin-user"
+                type="text"
+                label="Usuario"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                error={fieldErrors.username}
               />
-            </SsoBtn>
-            <SsoBtn type="button" invertIcon onClick={handleBiometric} disabled={!canUseWebAuthn || biometricBusy}>
-              <img src={biometricIcon} alt={biometricLabel} />
-              <span>{biometricBusy ? 'Verificando...' : biometricLabel}</span>
-            </SsoBtn>
-          </Socials>
-          {biometricNotice && <FieldError>{biometricNotice}</FieldError>}
-          <Or>o</Or>
-          <Textbox id="login-6-user" type="text" label="Usuario" value={username} onChange={(e) => setUsername(e.target.value)} error={fieldErrors.username} />
-          <Textbox id="login-6-password" type="password" label="Contraseña" value={password} onChange={(e) => setPassword(e.target.value)} error={fieldErrors.password} />
-          <SubmitBtn type="submit" disabled={loading || cooldown > 0}>{loading ? 'Validando...' : busyText}</SubmitBtn>
-        </Form>
-        <ForgotLink href="#">¿Olvidaste tu contraseña?</ForgotLink>
-        <Footer>{systemConfig.appName} &copy; 2026. Todos los derechos reservados.</Footer>
-      </Card>
+              <Textbox
+                id="login-admin-password"
+                type="password"
+                label="Contraseña"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                error={fieldErrors.password}
+              />
+              <SubmitBtn type="submit" disabled={loading || cooldown > 0}>
+                {loading ? 'Validando...' : busyText}
+              </SubmitBtn>
+            </Form>
+
+            <ForgotLink href="#">¿Olvidaste tu contraseña?</ForgotLink>
+            <Footer>{appName} &copy; 2026. Todos los derechos reservados.</Footer>
+          </FormInner>
+        </FormPanel>
+
+      </LoginLayout>
+
       {showEnrollModal && (
         <ModalOverlay onMouseDown={(e) => e.target === e.currentTarget && handleCloseEnroll()}>
           <ModalCard>
             <ModalTitle>Configurar huella o Face ID</ModalTitle>
             <ModalSub>
-              Puedes guardar este dispositivo para iniciar sesión más rápido y con la misma seguridad.
+              Guardá este dispositivo para ingresar más rápido y con la misma seguridad.
               La contraseña seguirá siendo válida como respaldo.
             </ModalSub>
             <ModalFoot>

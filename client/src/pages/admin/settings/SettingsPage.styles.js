@@ -11,7 +11,7 @@ export const PageWrap = styled.div`
   flex: 1;
   min-width: 0;
   height: var(--app-height, 100dvh);
-  background: var(--bc-admin-sidebar-bg, #0b0b18);
+  background: var(--bc-admin-content-bg, #08080f);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -102,7 +102,7 @@ export const NavBtn = styled.button`
   position: relative; overflow: hidden;
 
   background: ${({ $active, $soon }) =>
-    $active && !$soon ? 'rgba(30,133,255,0.12)' : 'transparent'};
+    $active && !$soon ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12)' : 'transparent'};
   color: ${({ $active, $soon }) => {
     if ($soon) return 'rgba(255,255,255,0.22)'
     if ($active) return '#ffffff'
@@ -206,8 +206,8 @@ export const ProfileAvatar = styled.div`
   border-radius: 18px; background: ${gradients.btn};
   display: flex; align-items: center; justify-content: center;
   font-size: 24px; font-weight: 700; color: #fff;
-  border: 2px solid rgba(40,140,255,0.28);
-  box-shadow: 0 0 28px rgba(30,133,255,0.16);
+  border: 2px solid rgba(var(--bc-admin-accent-rgb, 40,140,255),0.28);
+  box-shadow: 0 0 28px rgba(var(--bc-admin-accent-rgb, 30,133,255),0.16);
   position: relative; overflow: hidden;
 `
 
@@ -224,7 +224,7 @@ export const ProfileAvatarBtn = styled.button`
   display: flex; align-items: center; justify-content: center;
   cursor: pointer; transition: background 0.18s, color 0.18s;
   svg { font-size: 15px; }
-  &:hover { background: rgba(30,133,255,0.86); color: #fff; }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.86); color: #fff; }
 `
 
 export const ProfileInfo = styled.div`min-width: 0;`
@@ -247,8 +247,8 @@ export const ProfileBadge = styled.span`
     background: rgba(139,92,246,0.14); color: #a78bfa;
     border: 1px solid rgba(139,92,246,0.28);
   ` : css`
-    background: rgba(59,130,246,0.14); color: #60a5fa;
-    border: 1px solid rgba(59,130,246,0.28);
+    background: rgba(var(--bc-admin-accent-rgb, 59,130,246),0.14); color: var(--bc-admin-accent, #60a5fa);
+    border: 1px solid rgba(var(--bc-admin-accent-rgb, 59,130,246),0.28);
   `}
 `
 
@@ -289,7 +289,7 @@ export const ToggleSwitch = styled.button`
   cursor: pointer;
   position: relative;
   background: ${({ $active }) => $active ? gradients.btn : 'rgba(255,255,255,0.12)'};
-  box-shadow: ${({ $active }) => $active ? '0 6px 18px rgba(13,79,232,0.24)' : 'none'};
+  box-shadow: ${({ $active }) => $active ? '0 6px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.24)' : 'none'};
   transition: background 0.18s, box-shadow 0.18s;
 
   &::after {
@@ -322,8 +322,8 @@ export const CardHead = styled.div`
 export const CardIcon = styled.div`
   width: 40px; height: 40px; min-width: 40px; border-radius: 12px;
   display: flex; align-items: center; justify-content: center;
-  background: ${({ $bg }) => $bg ?? 'rgba(30,133,255,0.12)'};
-  border: 1px solid ${({ $br }) => $br ?? 'rgba(30,133,255,0.22)'};
+  background: ${({ $bg }) => $bg ?? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12)'};
+  border: 1px solid ${({ $br }) => $br ?? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22)'};
   svg { font-size: 20px; color: ${({ $cl }) => $cl ?? colors.primaryLighter}; }
 `
 
@@ -370,7 +370,7 @@ export const FieldInput = styled.input`
   border-radius: 11px; color: #fff; font-size: 13.5px; font-family: inherit; outline: none;
   transition: border-color 0.2s, background 0.2s;
   &::placeholder { color: rgba(255,255,255,0.18); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.04); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04); }
 `
 
 export const InputSuffix = styled.button`
@@ -399,7 +399,7 @@ export const SaveBtn = styled.button`
     color: #4ade80; pointer-events: none;
   ` : css`
     background: ${gradients.btn}; border: none; color: #fff;
-    box-shadow: 0 4px 18px rgba(13,79,232,0.32);
+    box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.32);
     &:hover { opacity: 0.86; }
     &:active { transform: scale(0.97); }
   `}
@@ -410,7 +410,7 @@ export const SaveBtn = styled.button`
 export const InfoBanner = styled.div`
   display: flex; align-items: flex-start; gap: 12px;
   padding: 13px 16px;
-  background: rgba(30,133,255,0.07); border: 1px solid rgba(30,133,255,0.16);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.07); border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.16);
   border-radius: 13px;
 `
 
@@ -438,7 +438,7 @@ export const MontoCard = styled.div`
   animation: ${fadeUp} 0.26s ease both;
   animation-delay: ${({ $delay }) => $delay ?? '0ms'};
   &:focus-within {
-    border-color: ${({ $focusBr }) => $focusBr ?? 'rgba(30,133,255,0.28)'};
+    border-color: ${({ $focusBr }) => $focusBr ?? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28)'};
   }
 `
 
@@ -497,8 +497,8 @@ export const MontoInput = styled.input`
   &::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
   &[type=number] { -moz-appearance: textfield; }
   &:focus {
-    border-color: ${({ $focusBr }) => $focusBr ?? 'rgba(30,133,255,0.45)'};
-    background: ${({ $focusBg }) => $focusBg ?? 'rgba(30,133,255,0.04)'};
+    border-color: ${({ $focusBr }) => $focusBr ?? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45)'};
+    background: ${({ $focusBg }) => $focusBg ?? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04)'};
   }
 `
 
@@ -513,8 +513,8 @@ export const CurrencySelect = styled.select`
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 10px center;
   transition: border-color 0.2s;
-  &:focus { border-color: rgba(30,133,255,0.40); }
-  option { background: #0d0d20; color: #fff; }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
+  option { background: var(--bc-admin-card-bg, #0d0d20); color: #fff; }
 `
 
 export const MontoNote = styled.p`
@@ -569,13 +569,13 @@ export const ModelGrid = styled.div`
 export const ModelCard = styled.button`
   position: relative; text-align: left; display: flex; flex-direction: column; gap: 7px;
   padding: 14px 14px 12px; border-radius: 14px; cursor: pointer; font-family: inherit;
-  border: 1.5px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.55)' : 'rgba(255,255,255,0.08)'};
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.08)' : 'rgba(255,255,255,0.028)'};
+  border: 1.5px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.55)' : 'rgba(255,255,255,0.08)'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.08)' : 'rgba(255,255,255,0.028)'};
   transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
-  box-shadow: ${({ $active }) => $active ? '0 0 0 3px rgba(30,133,255,0.10)' : 'none'};
+  box-shadow: ${({ $active }) => $active ? '0 0 0 3px rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10)' : 'none'};
   &:hover {
-    border-color: ${({ $active }) => $active ? 'rgba(30,133,255,0.65)' : 'rgba(255,255,255,0.18)'};
-    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.09)' : 'rgba(255,255,255,0.05)'};
+    border-color: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.65)' : 'rgba(255,255,255,0.18)'};
+    background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.09)' : 'rgba(255,255,255,0.05)'};
   }
 `
 
@@ -632,7 +632,7 @@ export const ModelPriceDetail = styled.span`
 export const ModelCheck = styled.span`
   position: absolute; top: 10px; right: 10px;
   width: 16px; height: 16px; border-radius: 50%;
-  background: rgba(30,133,255,0.90);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.90);
   display: flex; align-items: center; justify-content: center;
   opacity: ${({ $show }) => $show ? 1 : 0}; transition: opacity 0.18s;
   svg { font-size: 11px; color: #fff; }
@@ -697,8 +697,8 @@ export const ProviderSub = styled.p`
 
 export const AccountSelectCard = styled.div`
   padding: 16px 20px;
-  background: ${({ $bg }) => $bg ?? 'rgba(30,133,255,0.07)'};
-  border: 1px solid ${({ $br }) => $br ?? 'rgba(30,133,255,0.18)'};
+  background: ${({ $bg }) => $bg ?? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.07)'};
+  border: 1px solid ${({ $br }) => $br ?? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.18)'};
   border-radius: 14px; display: flex; flex-direction: column; gap: 10px;
   animation: ${fadeUp} 0.22s ease both;
 `
@@ -716,8 +716,8 @@ export const FieldSelect = styled.select`
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 13px center;
   transition: border-color 0.2s, background 0.2s;
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.04); }
-  option { background: #0d0d20; color: #fff; }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04); }
+  option { background: var(--bc-admin-card-bg, #0d0d20); color: #fff; }
 `
 
 export const ActiveProviderRow = styled.div`

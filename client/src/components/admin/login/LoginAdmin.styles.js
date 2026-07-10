@@ -1,82 +1,199 @@
 import styled, { css } from "styled-components";
-import { colors, gradients, shadows } from "../../../styles/theme";
 
 export const inputButtonBase = css`
-  height: 56px;
+  height: 50px;
   font-family: inherit;
-  font-size: 15px;
+  font-size: 14.5px;
   padding: 0 16px;
-  border-radius: 12px;
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 10px;
+  transition:
+    background 0.18s ease,
+    border-color 0.18s ease,
+    box-shadow 0.18s ease,
+    filter 0.18s ease,
+    transform 0.12s ease,
+    opacity 0.18s ease;
 `;
 
+/* ── Page shell ─────────────────────────────────────────── */
 export const Section = styled.section`
   display: flex;
-  align-items: center;
-  justify-content: center;
-  margin: 0;
   min-height: 100dvh;
-  background: ${gradients.loginBg};
-  color: ${colors.white};
-  font-family: "Euclid Circular B", "Poppins", sans-serif;
-  padding: 24px 16px;
+  margin: 0;
+  background: var(--bc-admin-content-bg, #08080f);
+  color: #ffffff;
+  font-family: "Inter", "Euclid Circular B", "Poppins", sans-serif;
 `;
 
-export const Canvas = styled.canvas`
-  position: fixed;
-  top: 0;
-  left: 0;
+/* ── Split-screen wrapper ────────────────────────────────── */
+export const LoginLayout = styled.div`
+  display: flex;
   width: 100%;
-  height: 100%;
+  min-height: 100dvh;
+`;
+
+/* ── Brand panel (left, desktop only) ───────────────────── */
+export const BrandPanel = styled.aside`
+  width: 42%;
+  flex-shrink: 0;
+  min-height: 100dvh;
+  background: var(--bc-admin-sidebar-bg, #0b0b18);
+  border-right: 1px solid rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.10);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 60px 52px;
+  position: relative;
+  overflow: hidden;
+
+  /* Large accent glow bottom-right */
+  &::before {
+    content: "";
+    position: absolute;
+    inset: auto -120px -140px auto;
+    width: 500px;
+    height: 500px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.14) 0%,
+      transparent 62%
+    );
+    pointer-events: none;
+  }
+
+  /* Faint glow top-left */
+  &::after {
+    content: "";
+    position: absolute;
+    inset: -80px auto auto -60px;
+    width: 320px;
+    height: 320px;
+    border-radius: 50%;
+    background: radial-gradient(
+      circle,
+      rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.05) 0%,
+      transparent 65%
+    );
+    pointer-events: none;
+  }
+
+  @media (max-width: 860px) {
+    display: none;
+  }
+`;
+
+export const BrandLogo = styled.img`
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  margin-bottom: 28px;
+  position: relative;
   z-index: 1;
 `;
 
-export const Card = styled.div`
+export const BrandTitle = styled.h2`
+  font-size: 23px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  margin: 0 0 8px;
+  line-height: 1.2;
   position: relative;
-  z-index: 2;
-  background: ${gradients.card};
-  border: 1px solid ${colors.glass.border};
-  box-shadow: ${shadows.glassCard};
-  backdrop-filter: blur(28px) saturate(160%);
-  -webkit-backdrop-filter: blur(28px) saturate(160%);
-  border-radius: 48px;
-  padding: 64px 40px 52px;
-  width: 100%;
-  max-width: 520px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
+  z-index: 1;
 `;
 
-export const Logo = styled.img`
-  width: 120px;
-  height: 120px;
-  object-fit: contain;
-  margin: 0 0 40px;
+export const BrandSub = styled.p`
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.36);
+  margin: 0 0 36px;
+  line-height: 1.5;
+  position: relative;
+  z-index: 1;
 `;
 
-export const Subtitle = styled.h3`
-  font-size: 11px;
+export const BrandDivider = styled.div`
+  width: 24px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--bc-admin-accent, #1e85ff);
+  opacity: 0.60;
+  margin-bottom: 36px;
+  position: relative;
+  z-index: 1;
+`;
+
+export const BrandTagline = styled.p`
+  font-size: 17px;
   font-weight: 400;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  color: ${colors.glass.textTitle};
-  margin: 0 0 40px;
+  line-height: 1.6;
+  color: rgba(255, 255, 255, 0.36);
+  margin: 0;
+  position: relative;
+  z-index: 1;
 `;
 
+/* ── Form panel (right) ─────────────────────────────────── */
+export const FormPanel = styled.main`
+  flex: 1;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 40px;
+
+  @media (max-width: 520px) {
+    padding: 32px 20px;
+  }
+`;
+
+export const FormInner = styled.div`
+  width: 100%;
+  max-width: 390px;
+`;
+
+/* Logo visible only on mobile (BrandPanel hidden) */
+export const MobileLogo = styled.img`
+  width: 50px;
+  height: 50px;
+  object-fit: contain;
+  margin: 0 0 20px;
+
+  @media (min-width: 861px) {
+    display: none;
+  }
+`;
+
+/* ── Form headings ──────────────────────────────────────── */
+export const Heading = styled.h1`
+  font-size: 26px;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  color: #ffffff;
+  margin: 0 0 8px;
+  line-height: 1.2;
+`;
+
+export const Subtitle = styled.p`
+  font-size: 13.5px;
+  color: rgba(255, 255, 255, 0.34);
+  margin: 0 0 32px;
+  line-height: 1.5;
+`;
+
+/* ── Form elements ──────────────────────────────────────── */
 export const Form = styled.form`
   display: grid;
-  gap: 14px;
+  gap: 11px;
   width: 100%;
-  margin: 0 0 18px;
+  margin: 0 0 16px;
 `;
 
 export const Socials = styled.div`
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  width: 100%;
+  gap: 8px;
 `;
 
 export const SsoBtn = styled.button`
@@ -84,31 +201,35 @@ export const SsoBtn = styled.button`
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 9px;
+  gap: 8px;
   width: 100%;
-  background: ${colors.glass.bg};
-  border: 1px solid ${colors.glass.border};
-  color: ${colors.glass.textWhite60};
-  font-size: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  color: rgba(255, 255, 255, 0.60);
+  font-size: 13px;
   cursor: pointer;
 
   img {
     display: block;
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     flex-shrink: 0;
-
-    ${({ invertIcon }) => invertIcon && `filter: invert(1);`}
+    ${({ invertIcon }) => invertIcon && "filter: invert(1) opacity(0.70);"}
   }
 
-  &:hover {
-    background: ${colors.glass.bgHover};
-    border-color: ${colors.glass.borderHover};
-    color: ${colors.glass.textWhite85};
+  &:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
+    color: rgba(255, 255, 255, 0.85);
   }
 
-  &:active {
+  &:active:not(:disabled) {
     transform: scale(0.98);
+  }
+
+  &:disabled {
+    opacity: 0.32;
+    cursor: not-allowed;
   }
 `;
 
@@ -117,55 +238,65 @@ export const Or = styled.div`
   align-items: center;
   gap: 12px;
   font-size: 11px;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: ${colors.glass.text};
+  color: rgba(255, 255, 255, 0.20);
 
   &::before,
   &::after {
     content: "";
     flex: 1;
     height: 1px;
-    background: ${colors.glass.divider};
+    background: rgba(255, 255, 255, 0.07);
   }
 `;
 
 export const TextboxLabel = styled.label`
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: scale 0.18s ease, translate 0.18s ease, color 0.18s ease;
   position: absolute;
   top: 50%;
-  left: 16px;
+  left: 14px;
   translate: 0 -50%;
   transform-origin: 0 50%;
   pointer-events: none;
-  color: ${colors.glass.textInput};
-  font-size: 15px;
+  color: rgba(255, 255, 255, 0.32);
+  font-size: 14px;
 `;
 
 export const TextboxInput = styled.input`
   ${inputButtonBase}
   width: 100%;
-  padding-top: 12px;
-  background: ${colors.glass.bg};
-  border: 1px solid ${({ $hasError }) => ($hasError ? '#f87171' : colors.glass.border)};
+  padding-top: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid ${({ $hasError }) =>
+    $hasError ? "rgba(248,113,113,0.55)" : "rgba(255,255,255,0.09)"};
   outline: none;
-  color: ${colors.white};
-  box-shadow: 0 0 0 2px transparent;
+  color: #ffffff;
+  box-shadow: 0 0 0 3px transparent;
 
-  &:hover {
-    background: ${colors.glass.bgHover};
-    border-color: ${({ $hasError }) => ($hasError ? '#f87171' : colors.glass.borderHover)};
+  &:hover:not(:focus) {
+    background: rgba(255, 255, 255, 0.06);
+    border-color: ${({ $hasError }) =>
+      $hasError ? "rgba(248,113,113,0.70)" : "rgba(255,255,255,0.15)"};
   }
 
   &:focus {
-    background: ${colors.glass.bgFocus};
-    border-color: transparent;
-    box-shadow: ${({ $hasError }) => ($hasError ? '0 0 0 2px rgba(248, 113, 113, 0.18)' : shadows.glassFocus)};
+    background: rgba(255, 255, 255, 0.06);
+    border-color: ${({ $hasError }) =>
+      $hasError
+        ? "rgba(248,113,113,0.70)"
+        : "rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.65)"};
+    box-shadow: 0 0 0 3px
+      ${({ $hasError }) =>
+        $hasError
+          ? "rgba(248,113,113,0.10)"
+          : "rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.12)"};
   }
 
   &:is(:focus, :not(:invalid)) ~ ${TextboxLabel} {
-    scale: 0.72;
-    translate: 0 -118%;
+    scale: 0.74;
+    translate: 0 -116%;
+    color: rgba(255, 255, 255, 0.48);
   }
 `;
 
@@ -175,94 +306,96 @@ export const TextboxWrapper = styled.div`
 
 export const SubmitBtn = styled.button`
   ${inputButtonBase}
-  background: ${gradients.btn};
-  color: ${colors.primaryAccent};
+  background: var(
+    --bc-admin-button-gradient,
+    linear-gradient(135deg, #0a2e50 0%, #1e85ff 100%)
+  );
+  color: #ffffff;
   border: none;
-  font-weight: 400;
-  font-size: 14px;
-  letter-spacing: 1px;
-  text-transform: uppercase;
+  font-weight: 500;
+  font-size: 14.5px;
   cursor: pointer;
-  margin-top: 4px;
+  margin-top: 6px;
+  box-shadow: 0 4px 20px rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.22);
 
   &:disabled {
     cursor: not-allowed;
-    opacity: 0.72;
-    filter: saturate(0.9);
+    opacity: 0.42;
+    box-shadow: none;
+    transform: none;
+    filter: none;
   }
 
-  &:hover {
-    background: ${gradients.btnHover};
+  &:hover:not(:disabled) {
+    filter: brightness(1.13);
+    box-shadow: 0 6px 28px rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.36);
+    transform: translateY(-1px);
   }
 
-  &:active {
-    transform: scale(0.98);
-    background: ${gradients.btnActive};
+  &:active:not(:disabled) {
+    transform: translateY(0) scale(0.99);
+    filter: brightness(0.95);
+    box-shadow: 0 2px 10px rgba(var(--bc-admin-accent-rgb, 30, 133, 255), 0.20);
   }
 `;
 
 export const ForgotLink = styled.a`
   font-size: 13px;
-  color: ${colors.glass.textInput};
+  color: rgba(255, 255, 255, 0.28);
   text-decoration: none;
-  transition: color 0.2s;
+  transition: color 0.18s;
   cursor: pointer;
 
   &:hover {
-    color: ${colors.primaryLighter};
+    color: rgba(255, 255, 255, 0.58);
   }
 `;
 
 export const AlertBox = styled.div`
   width: 100%;
-  padding: 16px 18px;
-  border-radius: 18px;
-  border: 1px solid ${({ $type }) =>
-    $type === 'success'  ? '#1ec07e' :
-    $type === 'schedule' ? 'rgba(245,158,11,0.55)' :
-    $type === 'warning'  ? 'rgba(245,158,11,0.55)' :
-    '#f87171'};
+  padding: 12px 14px;
+  border-radius: 9px;
+  border: 1px solid
+    ${({ $type }) =>
+      $type === "success"
+        ? "rgba(34,197,94,0.28)"
+        : $type === "schedule" || $type === "warning"
+        ? "rgba(245,158,11,0.28)"
+        : "rgba(248,113,113,0.28)"};
   background: ${({ $type }) =>
-    $type === 'success'  ? 'rgba(41,194,136,0.12)' :
-    $type === 'schedule' ? 'rgba(245,158,11,0.10)' :
-    $type === 'warning'  ? 'rgba(245,158,11,0.10)' :
-    'rgba(248,113,113,0.12)'};
+    $type === "success"
+      ? "rgba(34,197,94,0.06)"
+      : $type === "schedule" || $type === "warning"
+      ? "rgba(245,158,11,0.06)"
+      : "rgba(248,113,113,0.06)"};
   color: ${({ $type }) =>
-    $type === 'success'  ? '#0f766e' :
-    $type === 'schedule' ? '#fbbf24' :
-    $type === 'warning'  ? '#fbbf24' :
-    '#b91c1c'};
+    $type === "success"
+      ? "#4ade80"
+      : $type === "schedule" || $type === "warning"
+      ? "#fbbf24"
+      : "#f87171"};
   font-size: 13px;
   line-height: 1.5;
   text-align: left;
-  margin-bottom: 14px;
-  box-shadow: 0 12px 24px rgba(0, 0, 0, 0.08);
+  margin-bottom: 12px;
 `;
 
 export const FieldError = styled.span`
   display: block;
-  margin-top: 8px;
+  margin-top: 5px;
   color: #f87171;
   font-size: 12px;
   text-align: left;
 `;
 
 export const Footer = styled.p`
-  margin: 40px 0 0;
-  font-size: 13px;
-  color: ${colors.glass.textSubtle};
-
-  a {
-    color: ${colors.primaryLight};
-    text-decoration: none;
-    transition: color 0.2s;
-
-    &:hover {
-      color: ${colors.primaryLighter};
-    }
-  }
+  margin: 28px 0 0;
+  font-size: 11.5px;
+  color: rgba(255, 255, 255, 0.17);
+  text-align: center;
 `;
 
+/* ── Biometric enroll modal ─────────────────────────────── */
 export const ModalOverlay = styled.div`
   position: fixed;
   inset: 0;
@@ -271,58 +404,72 @@ export const ModalOverlay = styled.div`
   align-items: center;
   justify-content: center;
   padding: 24px 16px;
-  background: rgba(4, 10, 24, 0.62);
-  backdrop-filter: blur(12px);
+  background: rgba(2, 5, 14, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
 `;
 
 export const ModalCard = styled.div`
   width: 100%;
-  max-width: 460px;
-  border-radius: 28px;
-  border: 1px solid ${colors.glass.border};
-  background: rgba(10, 18, 38, 0.92);
-  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
-  padding: 24px;
+  max-width: 420px;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--bc-admin-sidebar-bg, #0b0b18);
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  padding: 28px;
   text-align: left;
 `;
 
 export const ModalTitle = styled.h3`
   margin: 0;
-  font-size: 20px;
-  line-height: 1.2;
-  color: ${colors.white};
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+  color: #ffffff;
 `;
 
 export const ModalSub = styled.p`
-  margin: 10px 0 0;
-  font-size: 14px;
+  margin: 8px 0 0;
+  font-size: 13.5px;
   line-height: 1.55;
-  color: ${colors.glass.textWhite60};
+  color: rgba(255, 255, 255, 0.40);
 `;
 
 export const ModalFoot = styled.div`
   display: flex;
-  gap: 12px;
+  gap: 10px;
   justify-content: flex-end;
   margin-top: 24px;
 
-  @media (max-width: 520px) {
+  @media (max-width: 480px) {
     flex-direction: column-reverse;
   }
 `;
 
 export const ModalBtn = styled.button`
   ${inputButtonBase}
-  min-width: 132px;
-  border: 1px solid ${({ $v }) => ($v === 'primary' ? 'transparent' : colors.glass.border)};
-  background: ${({ $v }) => ($v === 'primary' ? gradients.btn : colors.glass.bg)};
-  color: ${({ $v }) => ($v === 'primary' ? colors.primaryAccent : colors.glass.textWhite85)};
+  min-width: 112px;
+  border: 1px solid
+    ${({ $v }) => ($v === "primary" ? "transparent" : "rgba(255,255,255,0.09)")};
+  background: ${({ $v }) =>
+    $v === "primary"
+      ? "var(--bc-admin-button-gradient, linear-gradient(135deg, #0a2e50 0%, #1e85ff 100%))"
+      : "rgba(255,255,255,0.04)"};
+  color: ${({ $v }) =>
+    $v === "primary" ? "#ffffff" : "rgba(255,255,255,0.62)"};
   cursor: pointer;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-weight: 500;
 
-  &:hover {
-    background: ${({ $v }) => ($v === 'primary' ? gradients.btnHover : colors.glass.bgHover)};
+  &:hover:not(:disabled) {
+    filter: brightness(1.1);
+    ${({ $v }) =>
+      $v !== "primary" &&
+      css`
+        background: rgba(255, 255, 255, 0.08);
+        border-color: rgba(255, 255, 255, 0.15);
+        filter: none;
+      `}
   }
 
   &:active {

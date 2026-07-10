@@ -15,7 +15,7 @@ import { useToast } from '../../../context/ToastContext'
 const SSection = styled.div`display:flex;flex-direction:column;gap:24px;`
 
 const SCard = styled.div`
-  background: var(--bg-card, #1a1a2e);
+  background: rgba(255,255,255,0.025);
   border: 1px solid var(--border, rgba(255,255,255,.08));
   border-radius: 12px;
   overflow: hidden;
@@ -31,8 +31,8 @@ const SCardIcon = styled.div`
   width: 36px; height: 36px;
   display: flex; align-items: center; justify-content: center;
   border-radius: 8px;
-  background: rgba(99,102,241,.15);
-  color: #818cf8;
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),.15);
+  color: var(--bc-admin-accent, #1e85ff);
   flex-shrink: 0;
   svg { font-size: 20px; }
 `
@@ -48,10 +48,10 @@ const SoundRow  = styled.div`
   padding: 10px 14px;
   border-radius: 8px;
   border: 1px solid ${p => p.$selected
-    ? 'rgba(99,102,241,.5)'
+    ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),.5)'
     : 'rgba(255,255,255,.06)'};
   background: ${p => p.$selected
-    ? 'rgba(99,102,241,.1)'
+    ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),.1)'
     : 'transparent'};
   cursor: pointer;
   transition: background .15s, border-color .15s;
@@ -59,7 +59,7 @@ const SoundRow  = styled.div`
 `
 const SoundSelectIcon = styled.div`
   flex-shrink: 0;
-  color: ${p => p.$selected ? '#818cf8' : 'var(--text-muted,#94a3b8)'};
+  color: ${p => p.$selected ? 'var(--bc-admin-accent, #1e85ff)' : 'var(--text-muted,#94a3b8)'};
   display: flex; align-items: center;
   svg { font-size: 20px; }
 `
@@ -92,30 +92,30 @@ const UpInput    = styled.input`
   border:1px solid rgba(255,255,255,.1);
   color:var(--text,#e2e8f0);font-size:.875rem;
   outline:none;box-sizing:border-box;
-  &:focus{border-color:rgba(99,102,241,.6);}
+  &:focus{border-color:rgba(var(--bc-admin-accent-rgb, 30,133,255),.6);}
 `
 const FileDropZone = styled.div`
   display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;
   padding:20px;border-radius:8px;
-  border:2px dashed ${p => p.$hasFile ? 'rgba(99,102,241,.6)' : 'rgba(255,255,255,.12)'};
-  background:${p => p.$hasFile ? 'rgba(99,102,241,.07)' : 'transparent'};
+  border:2px dashed ${p => p.$hasFile ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),.6)' : 'rgba(255,255,255,.12)'};
+  background:${p => p.$hasFile ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),.07)' : 'transparent'};
   cursor:pointer;transition:border-color .15s,background .15s;
-  &:hover{border-color:rgba(99,102,241,.4);}
-  svg{font-size:28px;color:${p => p.$hasFile ? '#818cf8' : 'var(--text-muted,#94a3b8)'};}
+  &:hover{border-color:rgba(var(--bc-admin-accent-rgb, 30,133,255),.4);}
+  svg{font-size:28px;color:${p => p.$hasFile ? 'var(--bc-admin-accent, #1e85ff)' : 'var(--text-muted,#94a3b8)'};}
   grid-column:1/-1;
 `
 const FileDropText  = styled.div`font-size:.825rem;color:var(--text-muted,#94a3b8);`
-const FileDropName  = styled.div`font-size:.825rem;color:#818cf8;font-weight:500;`
+const FileDropName  = styled.div`font-size:.825rem;color:var(--bc-admin-accent, #1e85ff);font-weight:500;`
 const DurationHint  = styled.div`font-size:.75rem;color:var(--text-muted,#94a3b8);`
 const ErrorText     = styled.div`font-size:.78rem;color:#f87171;margin-top:4px;`
 const UploadBtn     = styled.button`
   margin-top:4px;padding:9px 20px;border-radius:8px;
-  background:rgba(99,102,241,.85);color:#fff;
+  background:rgba(var(--bc-admin-accent-rgb, 30,133,255),.85);color:#fff;
   border:none;cursor:pointer;font-size:.875rem;font-weight:500;
   display:flex;align-items:center;gap:6px;
   opacity:${p => p.disabled ? .5 : 1};
   pointer-events:${p => p.disabled ? 'none' : 'auto'};
-  &:hover{background:rgba(99,102,241,1);}
+  &:hover{background:rgba(var(--bc-admin-accent-rgb, 30,133,255),1);}
 `
 const EmptyHint = styled.div`
   padding:24px;text-align:center;
@@ -139,7 +139,7 @@ function fmtSize(bytes) {
 export default function SoundsSection({ userRole }) {
   const { soundEnabled, currentSound, toggleEnabled, selectSound } = useNotificationSound()
   const toast = useToast()
-  const isAdmin = userRole === 'admin'
+  const isAdmin = userRole === 'admin' || userRole === 'superadmin'
 
   const [sounds, setSounds] = useState([])
   const [loading, setLoading] = useState(true)
@@ -413,7 +413,7 @@ export default function SoundsSection({ userRole }) {
 const ToggleSwitch = styled.div`
   width: 44px; height: 24px;
   border-radius: 12px;
-  background: ${p => p.$on ? 'rgba(99,102,241,.9)' : 'rgba(255,255,255,.15)'};
+  background: ${p => p.$on ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),.9)' : 'rgba(255,255,255,.15)'};
   cursor: pointer;
   position: relative;
   transition: background .2s;

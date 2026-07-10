@@ -129,7 +129,7 @@ export const AddBtn = styled.button`
   font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
-  box-shadow: 0 4px 18px rgba(13,79,232,0.32);
+  box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.32);
   transition: opacity .2s, transform .15s;
   flex-shrink: 0;
 
@@ -298,7 +298,7 @@ export const PreviewPlaceholder = styled.div`
   gap: 12px;
   color: rgba(255,255,255,.12);
   font-size: 13px;
-  background: linear-gradient(135deg, #0a0a10, #0d0d18);
+  background: var(--bc-admin-content-bg, #0a0a10);
   border-radius: 20px;
   border: 1px dashed rgba(255,255,255,.06);
   
@@ -357,7 +357,7 @@ const inputBase = css`
   background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.09);
   border-radius: 9px; color: #fff; font-size: 13px; font-family: inherit; outline: none;
   transition: border-color .2s, background .2s;
-  &:focus { border-color: rgba(30,133,255,.45); background: rgba(30,133,255,.05); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),.05); }
   &::placeholder { color: rgba(255,255,255,.18); }
   color-scheme: dark;
 `
@@ -375,7 +375,7 @@ export const FieldSelect = styled.select`
   appearance: none; -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 11px center;
-  option { background: #0d0d20; color: #fff; }
+  option { background: var(--bc-admin-card-bg, #0d0d20); color: #fff; }
 `
 export const FieldRow = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 12px;
@@ -402,7 +402,7 @@ export const ImgPickBtn = styled.button`
   color: rgba(255,255,255,.55); cursor: pointer; transition: all .15s;
   display: flex; align-items: center; justify-content: center;
   svg { font-size: 18px; }
-  &:hover { background: rgba(30,133,255,.12); border-color: rgba(30,133,255,.28); color: #93c5fd; }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),.12); border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),.28); color: #93c5fd; }
   &:disabled { opacity: .35; cursor: default; }
 `
 export const ImgPreview = styled.div`
@@ -453,7 +453,7 @@ export const Toggle = styled.button`
   width: 40px; height: 22px; border-radius: 11px; border: none; flex-shrink: 0;
   cursor: pointer; position: relative; transition: background .26s;
   background: ${({ $on }) => $on
-    ? 'linear-gradient(90deg,rgba(30,133,255,.7),rgba(13,79,232,.7))'
+    ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.70)'
     : 'rgba(255,255,255,.10)'};
 `
 export const ToggleThumb = styled.span`
@@ -590,7 +590,7 @@ export const IconBtn = styled.button`
     &:hover { background: rgba(239,68,68,.16); border-color: rgba(239,68,68,.4); }
   ` : css`
     background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.10); color: rgba(255,255,255,.48);
-    &:hover { background: rgba(30,133,255,.12); border-color: rgba(30,133,255,.28); color: #93c5fd; }
+    &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),.12); border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),.28); color: #93c5fd; }
   `}
 `
 
@@ -615,7 +615,7 @@ export const EmptySeedBtn = styled.button`
   padding: 10px 20px; border-radius: 10px;
   background: ${gradients.btn}; border: none; color: #fff;
   font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
-  box-shadow: 0 4px 16px rgba(13,79,232,.30);
+  box-shadow: 0 4px 16px rgba(var(--bc-admin-accent-rgb, 13,79,232),.30);
   transition: opacity .18s;
   &:hover { opacity: .84; }
   &:disabled { opacity: .4; cursor: default; }
@@ -660,7 +660,7 @@ export const Overlay = styled.div`
 export const DialogCard = styled.div`
   width: 100%; max-width: 620px;
   max-height: calc(var(--app-height, 100dvh) - 32px);
-  background: #0d0d22;
+  background: var(--bc-admin-card-bg, #0d0d22);
   border: 1px solid rgba(255,255,255,.09);
   border-radius: 22px;
   display: flex; flex-direction: column; overflow: hidden;
@@ -715,7 +715,7 @@ export const SaveTplBtn = styled.button`
   background: ${({ $saving }) => $saving ? 'rgba(99,102,241,.30)' : gradients.btn};
   border: none; color: #fff;
   font-size: 13px; font-weight: 700; font-family: inherit; cursor: pointer;
-  box-shadow: ${({ $saving }) => $saving ? 'none' : '0 4px 16px rgba(13,79,232,.32)'};
+  box-shadow: ${({ $saving }) => $saving ? 'none' : '0 4px 16px rgba(var(--bc-admin-accent-rgb, 13,79,232),.32)'};
   transition: opacity .18s;
   &:hover:not(:disabled) { opacity: .86; }
   &:disabled { opacity: .42; cursor: default; }
@@ -750,7 +750,7 @@ export const DlgSelect = styled.select`
   appearance: none; -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 12px center;
-  option { background: #0d0d22; color: #fff; }
+  option { background: var(--bc-admin-card-bg, #0d0d22); color: #fff; }
 `
 
 /* ── design picker ── */

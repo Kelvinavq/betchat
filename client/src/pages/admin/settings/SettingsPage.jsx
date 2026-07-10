@@ -299,7 +299,7 @@ const TabFavPlaceholder = styled.span`
   width: 14px;
   height: 14px;
   border-radius: 3px;
-  background: linear-gradient(135deg, rgba(30,133,255,0.7), rgba(99,102,241,0.7));
+  background: var(--bc-admin-button-gradient, linear-gradient(135deg, #0a2e50 0%, #1e85ff 100%));
   display: flex;
   align-items: center;
   justify-content: center;

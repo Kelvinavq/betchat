@@ -1,4 +1,5 @@
 import styled, { css, keyframes } from 'styled-components'
+import { gradients } from '../../../styles/theme'
 
 const fadeUp = keyframes`
   from { opacity: 0; transform: translateY(8px); }
@@ -52,15 +53,15 @@ export const SubTab = styled.button`
   transition: all 0.18s;
   white-space: nowrap;
 
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.14)' : 'transparent'};
-  color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.38)'};
-  border: 1px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.28)' : 'transparent'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.14)' : 'transparent'};
+  color: ${({ $active }) => $active ? 'var(--bc-admin-accent, #60a5fa)' : 'rgba(255,255,255,0.38)'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28)' : 'transparent'};
 
   svg { font-size: 16px; }
 
   &:hover:not([disabled]) {
-    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'rgba(255,255,255,0.05)'};
-    color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.65)'};
+    background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.18)' : 'rgba(255,255,255,0.05)'};
+    color: ${({ $active }) => $active ? 'var(--bc-admin-accent, #60a5fa)' : 'rgba(255,255,255,0.65)'};
   }
 `
 
@@ -72,8 +73,8 @@ export const SectionBanner = styled.div`
   align-items: flex-start;
   gap: 10px;
   padding: 11px 14px;
-  background: rgba(30,133,255,0.06);
-  border: 1px solid rgba(30,133,255,0.13);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.06);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.13);
   border-radius: 11px;
   margin-bottom: 18px;
   font-size: 12px;
@@ -81,7 +82,7 @@ export const SectionBanner = styled.div`
   line-height: 1.55;
   animation: ${fadeUp} 0.2s ease;
 
-  svg { font-size: 16px; color: rgba(30,133,255,0.60); flex-shrink: 0; margin-top: 1px; }
+  svg { font-size: 16px; color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.60); flex-shrink: 0; margin-top: 1px; }
 `
 
 /* ─────────────────────────────
@@ -99,8 +100,8 @@ export const ThemeGrid = styled.div`
 
 export const ThemeCard = styled.div`
   border-radius: 16px;
-  border: 2px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.55)' : 'rgba(255,255,255,0.07)'};
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.06)' : 'rgba(255,255,255,0.025)'};
+  border: 2px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.55)' : 'rgba(255,255,255,0.07)'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.06)' : 'rgba(255,255,255,0.025)'};
   overflow: hidden;
   cursor: pointer;
   transition: all 0.18s;
@@ -109,7 +110,7 @@ export const ThemeCard = styled.div`
   animation-delay: ${({ $i }) => Math.min($i * 35, 180)}ms;
 
   &:hover {
-    border-color: ${({ $active }) => $active ? 'rgba(30,133,255,0.65)' : 'rgba(255,255,255,0.18)'};
+    border-color: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.65)' : 'rgba(255,255,255,0.18)'};
     transform: translateY(-2px);
     box-shadow: 0 8px 24px rgba(0,0,0,0.30);
   }
@@ -166,9 +167,9 @@ export const ActiveBadge = styled.span`
   letter-spacing: 0.06em;
   padding: 2px 6px;
   border-radius: 5px;
-  background: rgba(30,133,255,0.16);
-  color: #60a5fa;
-  border: 1px solid rgba(30,133,255,0.28);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.16);
+  color: var(--bc-admin-accent, #60a5fa);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28);
 `
 
 export const WhatsAppBadge = styled.span`
@@ -439,9 +440,9 @@ export const ApplyBtn = styled.button`
     color: #4ade80;
     pointer-events: none;
   ` : css`
-    background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+    background: ${gradients.btn};
     color: #fff;
-    box-shadow: 0 4px 18px rgba(13,79,232,0.32);
+    box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.32);
     &:hover { opacity: 0.86; }
     &:active { transform: scale(0.97); }
   `}
@@ -475,9 +476,9 @@ export const AddThemeCard = styled.button`
   font-family: inherit;
 
   &:hover {
-    border-color: rgba(30,133,255,0.38);
-    color: rgba(30,133,255,0.60);
-    background: rgba(30,133,255,0.04);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.38);
+    color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.60);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04);
   }
 
   svg { font-size: 28px; }
@@ -629,14 +630,14 @@ export const CModalSaveBtn = styled.button`
   padding: 0 22px;
   border-radius: 10px;
   border: none;
-  background: linear-gradient(135deg, #0a2e50, #0d4fe8);
+  background: ${gradients.btn};
   color: #fff;
   font-size: 13px;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
-  box-shadow: 0 4px 14px rgba(13,79,232,0.28);
+  box-shadow: 0 4px 14px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.28);
   &:hover { opacity: 0.86; }
   &:disabled { opacity: 0.35; pointer-events: none; }
 `
@@ -723,7 +724,7 @@ export const ThemeNameField = styled.input`
   transition: border-color 0.15s, background 0.15s;
 
   &::placeholder { color: rgba(255,255,255,0.22); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.04); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04); }
 `
 
 /* preview + name row inside modal */
@@ -839,7 +840,7 @@ export const BubbleTextInput = styled.input`
   transition: border-color 0.15s, background 0.15s;
 
   &::placeholder { color: rgba(255,255,255,0.22); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.04); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04); }
 `
 
 /* ─────────────────────────────
@@ -860,9 +861,9 @@ export const IconPickerBtn = styled.button`
   width: 64px;
   height: 64px;
   border-radius: 12px;
-  border: 1.5px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.55)' : 'rgba(255,255,255,0.08)'};
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.12)' : 'rgba(255,255,255,0.03)'};
-  color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.45)'};
+  border: 1.5px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.55)' : 'rgba(255,255,255,0.08)'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12)' : 'rgba(255,255,255,0.03)'};
+  color: ${({ $active }) => $active ? 'var(--bc-admin-accent, #60a5fa)' : 'rgba(255,255,255,0.45)'};
   cursor: pointer;
   transition: all 0.15s;
   font-family: inherit;
@@ -881,9 +882,9 @@ export const IconPickerBtn = styled.button`
   }
 
   &:hover:not([disabled]) {
-    border-color: ${({ $active }) => $active ? 'rgba(30,133,255,0.70)' : 'rgba(255,255,255,0.20)'};
-    color: ${({ $active }) => $active ? '#93c5fd' : 'rgba(255,255,255,0.75)'};
-    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'rgba(255,255,255,0.06)'};
+    border-color: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.70)' : 'rgba(255,255,255,0.20)'};
+    color: ${({ $active }) => $active ? 'var(--bc-admin-accent, #93c5fd)' : 'rgba(255,255,255,0.75)'};
+    background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.18)' : 'rgba(255,255,255,0.06)'};
   }
 `
 
@@ -912,7 +913,7 @@ export const ToggleTrack = styled.div`
   width: 34px;
   height: 18px;
   border-radius: 9px;
-  background: ${({ $on }) => $on ? '#3b82f6' : 'rgba(255,255,255,0.12)'};
+  background: ${({ $on }) => $on ? 'var(--bc-admin-accent, #3b82f6)' : 'rgba(255,255,255,0.12)'};
   position: relative;
   transition: background 0.2s;
   flex-shrink: 0;

@@ -25,7 +25,9 @@
       "Bash(mysql -u root -e \"ALTER TABLE betchat.chats ADD COLUMN IF NOT EXISTS client_unread_count INT UNSIGNED NOT NULL DEFAULT 0;\")",
       "PowerShell(& \"C:\\\\laragon\\\\bin\\\\mysql\\\\mysql-8.0.30-winx64\\\\bin\\\\mysql.exe\" -u root -e \"ALTER TABLE betchat.chats ADD COLUMN IF NOT EXISTS client_unread_count INT UNSIGNED NOT NULL DEFAULT 0;\")",
       "Read(//c/laragon/bin/mysql/**)",
-      "Read(//c/laragon/**)"
+      "Read(//c/laragon/**)",
+      "Bash(Get-ChildItem -Path \"c:\\\\laragon\\\\www\\\\betchat\" -Force)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

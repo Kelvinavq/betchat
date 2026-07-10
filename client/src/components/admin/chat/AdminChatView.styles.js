@@ -67,7 +67,7 @@ export const HeaderAvatar = styled.div`
   font-weight: 700;
   color: #ffffff;
   flex-shrink: 0;
-  border: 1px solid rgba(40, 140, 255, 0.30);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 40,140,255),0.30);
 `
 
 export const OnlineDot = styled.span`
@@ -154,7 +154,7 @@ export const DropdownMenu = styled.div`
   right: 0;
   min-width: 180px;
   background: rgba(12, 12, 26, 0.98);
-  border: 1px solid rgba(40, 140, 255, 0.14);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 40,140,255),0.14);
   border-radius: 12px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.60);
   overflow: hidden;
@@ -916,8 +916,8 @@ export const EmojiCategoryBar = styled.div`
 export const EmojiCategoryBtn = styled.button`
   padding: 4px 8px;
   border-radius: 8px;
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'none'};
-  border: ${({ $active }) => $active ? '1px solid rgba(30,133,255,0.30)' : '1px solid transparent'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.18)' : 'none'};
+  border: ${({ $active }) => $active ? '1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.30)' : '1px solid transparent'};
   font-size: 16px;
   cursor: pointer;
   transition: background 0.15s;
@@ -1478,8 +1478,8 @@ export const PreviewPdfCard = styled.div`
   align-items: center;
   gap: 14px;
   padding: 36px 44px;
-  background: rgba(30,133,255,0.07);
-  border: 1px solid rgba(30,133,255,0.22);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.07);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22);
   border-radius: 22px;
   svg { font-size: 3.2rem; color: ${colors.primaryLighter}; }
   span { font-size: 13px; color: rgba(255,255,255,0.72); text-align: center; word-break: break-all; max-width: 220px; }
@@ -1595,7 +1595,7 @@ export const ViewerBtn = styled.button`
     background: ${gradients.btn};
     border: none;
     color: #ffffff;
-    box-shadow: 0 4px 18px rgba(13,79,232,0.42);
+    box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.42);
   ` : css`
     background: rgba(255,255,255,0.08);
     border: 1px solid rgba(255,255,255,0.14);

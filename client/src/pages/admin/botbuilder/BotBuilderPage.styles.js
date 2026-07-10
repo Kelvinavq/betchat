@@ -1,4 +1,5 @@
 import styled, { keyframes, css } from 'styled-components'
+import { gradients } from '../../../styles/theme'
 
 const fadeUp = keyframes`
   from { opacity: 0; transform: translateY(6px); }
@@ -117,10 +118,10 @@ export const HeaderBtn = styled.button`
   `}
 
   ${({ $v }) => $v === 'primary' && css`
-    background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+    background: ${gradients.btn};
     color: #fff;
-    &:hover { background: linear-gradient(135deg, #16538d 0%, #1a5ef5 100%); }
-    &:active { background: linear-gradient(135deg, #1a8aee 0%, #0840cc 100%); }
+    &:hover { filter: brightness(1.1); }
+    &:active { filter: brightness(0.9); }
   `}
 
   &:disabled {
@@ -207,15 +208,15 @@ export const ScreenCard = styled.button`
   gap: 9px;
   padding: 9px 10px;
   border-radius: 8px;
-  border: 1px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.30)' : 'transparent'};
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.07)' : 'transparent'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.30)' : 'transparent'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.07)' : 'transparent'};
   cursor: pointer;
   text-align: left;
   transition: all 0.14s;
 
   &:hover {
-    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.09)' : 'rgba(255,255,255,0.04)'};
-    border-color: ${({ $active }) => $active ? 'rgba(30,133,255,0.35)' : 'rgba(255,255,255,0.06)'};
+    background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.09)' : 'rgba(255,255,255,0.04)'};
+    border-color: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.35)' : 'rgba(255,255,255,0.06)'};
   }
 `
 
@@ -228,7 +229,7 @@ export const ScreenCardDot = styled.div`
   justify-content: center;
   flex-shrink: 0;
   font-size: 12px;
-  background: ${({ $root }) => $root ? 'rgba(30,133,255,0.14)' : 'rgba(255,255,255,0.05)'};
+  background: ${({ $root }) => $root ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.14)' : 'rgba(255,255,255,0.05)'};
   color: ${({ $root }) => $root ? '#1e85ff' : '#475569'};
 `
 
@@ -259,7 +260,7 @@ export const RootBadge = styled.span`
   letter-spacing: 0.07em;
   padding: 1px 5px;
   border-radius: 4px;
-  background: rgba(30,133,255,0.14);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.14);
   color: #1e85ff;
   flex-shrink: 0;
 `
@@ -285,9 +286,9 @@ export const AddScreenBtn = styled.button`
   margin-top: 4px;
 
   &:hover {
-    border-color: rgba(30,133,255,0.28);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28);
     color: #1e85ff;
-    background: rgba(30,133,255,0.04);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04);
   }
 `
 
@@ -420,23 +421,23 @@ export const ItemCard = styled.div`
   gap: 10px;
   padding: 9px 10px;
   border-radius: 10px;
-  border: 1px solid ${({ $dropTarget }) => $dropTarget ? 'rgba(30,133,255,0.42)' : 'rgba(255,255,255,0.055)'};
+  border: 1px solid ${({ $dropTarget }) => $dropTarget ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.42)' : 'rgba(255,255,255,0.055)'};
   background: ${({ $dragging, $dropTarget }) =>
-    $dragging    ? 'rgba(30,133,255,0.07)' :
-    $dropTarget  ? 'rgba(30,133,255,0.04)' :
+    $dragging    ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.07)' :
+    $dropTarget  ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04)' :
     'rgba(255,255,255,0.025)'};
   opacity: ${({ $dragging }) => $dragging ? 0.45 : 1};
   cursor: grab;
   transition: border-color 0.13s, background 0.13s, opacity 0.13s, transform 0.13s;
   animation: ${fadeUp} 0.18s ease-out;
   transform: ${({ $dropTarget }) => $dropTarget ? 'translateY(-1px)' : 'none'};
-  box-shadow: ${({ $dropTarget }) => $dropTarget ? '0 4px 16px rgba(30,133,255,0.12)' : 'none'};
+  box-shadow: ${({ $dropTarget }) => $dropTarget ? '0 4px 16px rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12)' : 'none'};
 
   &:hover {
-    border-color: ${({ $dropTarget }) => $dropTarget ? 'rgba(30,133,255,0.42)' : 'rgba(255,255,255,0.09)'};
+    border-color: ${({ $dropTarget }) => $dropTarget ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.42)' : 'rgba(255,255,255,0.09)'};
     background: ${({ $dragging, $dropTarget }) =>
-      $dragging    ? 'rgba(30,133,255,0.07)' :
-      $dropTarget  ? 'rgba(30,133,255,0.04)' :
+      $dragging    ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.07)' :
+      $dropTarget  ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04)' :
       'rgba(255,255,255,0.04)'};
   }
   &:active { cursor: grabbing; }
@@ -465,7 +466,7 @@ export const ItemTypeIcon = styled.div`
 
   ${({ $type, $isBack }) => {
     if ($isBack) return css`background: rgba(245,158,11,0.11); color: #f59e0b;`
-    if ($type === 'message') return css`background: rgba(30,133,255,0.10); color: #3b9eff;`
+    if ($type === 'message') return css`background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10); color: #3b9eff;`
     if ($type === 'form') return css`background: rgba(168,85,247,0.11); color: #a855f7;`
     return css`background: rgba(16,185,129,0.10); color: #10b981;`
   }}
@@ -554,10 +555,10 @@ export const AddItemBtn = styled.button`
   padding: 0 13px;
   border-radius: 8px;
   border: 1px dashed ${({ $type }) =>
-    $type === 'message' ? 'rgba(30,133,255,0.25)' : 'rgba(16,185,129,0.25)'};
+    $type === 'message' ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.25)' : 'rgba(16,185,129,0.25)'};
   background: transparent;
   color: ${({ $type }) =>
-    $type === 'message' ? 'rgba(30,133,255,0.65)' : 'rgba(16,185,129,0.65)'};
+    $type === 'message' ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.65)' : 'rgba(16,185,129,0.65)'};
   font-size: 12px;
   font-weight: 500;
   cursor: pointer;
@@ -565,7 +566,7 @@ export const AddItemBtn = styled.button`
 
   &:hover {
     background: ${({ $type }) =>
-      $type === 'message' ? 'rgba(30,133,255,0.06)' : 'rgba(16,185,129,0.06)'};
+      $type === 'message' ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.06)' : 'rgba(16,185,129,0.06)'};
     border-style: solid;
     color: ${({ $type }) =>
       $type === 'message' ? '#1e85ff' : '#10b981'};
@@ -629,7 +630,7 @@ export const Overlay = styled.div`
 `
 
 export const ModalCard = styled.div`
-  background: #0d0e1e;
+  background: var(--bc-admin-card-bg, #0d0e1e);
   border: 1px solid rgba(255,255,255,0.08);
   border-radius: 16px;
   width: 100%;
@@ -724,7 +725,7 @@ export const FieldInput = styled.input`
   outline: none;
   transition: border-color 0.14s;
   box-sizing: border-box;
-  &:focus { border-color: rgba(30,133,255,0.40); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
   &::placeholder { color: #253040; }
 `
 
@@ -743,7 +744,7 @@ export const FieldTextarea = styled.textarea`
   line-height: 1.55;
   transition: border-color 0.14s;
   box-sizing: border-box;
-  &:focus { border-color: rgba(30,133,255,0.40); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
   &::placeholder { color: #253040; }
 `
 
@@ -760,8 +761,8 @@ export const FieldSelect = styled.select`
   cursor: pointer;
   transition: border-color 0.14s;
   box-sizing: border-box;
-  &:focus { border-color: rgba(30,133,255,0.40); }
-  option { background: #0d0e1e; color: #e2e8f0; }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
+  option { background: var(--bc-admin-card-bg, #0d0e1e); color: #e2e8f0; }
 `
 
 export const FieldCheckRow = styled.label`
@@ -838,9 +839,9 @@ export const ModalBtn = styled.button`
   `}
 
   ${({ $v }) => $v === 'primary' && css`
-    background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+    background: ${gradients.btn};
     color: #fff;
-    &:hover { background: linear-gradient(135deg, #16538d 0%, #1a5ef5 100%); }
+    &:hover { filter: brightness(1.1); }
     &:disabled { opacity: 0.4; cursor: not-allowed; }
   `}
 
@@ -940,7 +941,7 @@ export const PhoneChatAvatar = styled.div`
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #0a2e50 0%, #0d4fe8 100%);
+  background: ${gradients.btn};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1053,11 +1054,11 @@ export const PreviewButton = styled.button`
   border: 1px solid ${({ $isBack, $isUpload }) =>
     $isBack   ? 'rgba(245,158,11,0.22)' :
     $isUpload ? 'rgba(16,185,129,0.28)' :
-    'rgba(30,133,255,0.22)'};
+    'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22)'};
   background: ${({ $isBack, $isUpload }) =>
     $isBack   ? 'rgba(245,158,11,0.06)' :
     $isUpload ? 'rgba(16,185,129,0.07)' :
-    'rgba(30,133,255,0.06)'};
+    'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.06)'};
   color: ${({ $isBack, $isUpload }) =>
     $isBack   ? '#d97706' :
     $isUpload ? '#10b981' :
@@ -1072,11 +1073,11 @@ export const PreviewButton = styled.button`
     background: ${({ $isBack, $isUpload }) =>
       $isBack   ? 'rgba(245,158,11,0.13)' :
       $isUpload ? 'rgba(16,185,129,0.12)' :
-      'rgba(30,133,255,0.13)'};
+      'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.13)'};
     border-color: ${({ $isBack, $isUpload }) =>
       $isBack   ? 'rgba(245,158,11,0.38)' :
       $isUpload ? 'rgba(16,185,129,0.45)' :
-      'rgba(30,133,255,0.38)'};
+      'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.38)'};
   }
 `
 
@@ -1110,14 +1111,14 @@ export const ActionTypeCard = styled.button`
   gap: 5px;
   padding: 12px;
   border-radius: 10px;
-  border: 1.5px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.45)' : 'rgba(255,255,255,0.06)'};
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.07)' : 'rgba(255,255,255,0.02)'};
+  border: 1.5px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45)' : 'rgba(255,255,255,0.06)'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.07)' : 'rgba(255,255,255,0.02)'};
   cursor: pointer;
   text-align: left;
   transition: all 0.14s;
   &:hover {
-    border-color: ${({ $active }) => $active ? 'rgba(30,133,255,0.60)' : 'rgba(255,255,255,0.12)'};
-    background: ${({ $active }) => $active ? 'rgba(30,133,255,0.11)' : 'rgba(255,255,255,0.04)'};
+    border-color: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.60)' : 'rgba(255,255,255,0.12)'};
+    background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.11)' : 'rgba(255,255,255,0.04)'};
   }
 `
 
@@ -1128,7 +1129,7 @@ export const ActionTypeCardIcon = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.18)' : 'rgba(255,255,255,0.05)'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.18)' : 'rgba(255,255,255,0.05)'};
   color: ${({ $active }) => $active ? '#1e85ff' : '#475569'};
   font-size: 15px;
 `
@@ -1195,9 +1196,9 @@ export const MsgListAddBtn = styled.button`
   cursor: pointer;
   transition: all 0.14s;
   &:hover {
-    border-color: rgba(30,133,255,0.28);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28);
     color: #1e85ff;
-    background: rgba(30,133,255,0.04);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04);
   }
 `
 
@@ -1239,8 +1240,8 @@ export const BankPickerBtn = styled.button`
   gap: 4px;
   padding: 3px 8px;
   border-radius: 6px;
-  border: 1px solid rgba(30,133,255,0.22);
-  background: rgba(30,133,255,0.06);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.06);
   color: #3b82f6;
   font-size: 11px;
   font-weight: 500;
@@ -1248,8 +1249,8 @@ export const BankPickerBtn = styled.button`
   white-space: nowrap;
   transition: all 0.13s;
   &:hover {
-    background: rgba(30,133,255,0.12);
-    border-color: rgba(30,133,255,0.4);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.4);
     color: #60a5fa;
   }
 `
@@ -1260,7 +1261,7 @@ export const BankPickerDrop = styled.div`
   right: 0;
   z-index: 600;
   min-width: 200px;
-  background: #0f1623;
+  background: var(--bc-admin-card-bg, #0f1623);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(0,0,0,0.55);
@@ -1287,7 +1288,7 @@ export const BankPickerItem = styled.button`
   cursor: pointer;
   text-align: left;
   transition: background 0.12s;
-  &:hover { background: rgba(30,133,255,0.10); }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10); }
 `
 
 export const BankPickerItemLabel = styled.span`
@@ -1303,7 +1304,7 @@ export const BankPickerItemKey = styled.span`
 `
 
 export const BankPlaceholder = styled.mark`
-  background: rgba(30,133,255,0.18);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.18);
   color: #60a5fa;
   border-radius: 3px;
   padding: 0 2px;

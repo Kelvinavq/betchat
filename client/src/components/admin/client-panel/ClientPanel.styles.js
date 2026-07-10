@@ -66,8 +66,8 @@ export const PanelAvatar = styled.div`
   font-size: 22px;
   font-weight: 700;
   color: #ffffff;
-  border: 2px solid rgba(40, 140, 255, 0.35);
-  box-shadow: 0 0 24px rgba(30, 133, 255, 0.20);
+  border: 2px solid rgba(var(--bc-admin-accent-rgb, 40,140,255),0.35);
+  box-shadow: 0 0 24px rgba(var(--bc-admin-accent-rgb, 30,133,255),0.20);
 `
 
 export const PanelOnlineDot = styled.span`
@@ -201,8 +201,8 @@ export const FieldValue = styled.span`
 export const FieldInput = styled.input`
   width: 100%;
   padding: 4px 8px;
-  background: rgba(30, 133, 255, 0.08);
-  border: 1px solid rgba(30, 133, 255, 0.30);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.08);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.30);
   border-radius: 8px;
   color: #ffffff;
   font-size: 13px;
@@ -215,8 +215,8 @@ export const FieldInput = styled.input`
 export const FieldTextarea = styled.textarea`
   width: 100%;
   padding: 6px 8px;
-  background: rgba(30, 133, 255, 0.08);
-  border: 1px solid rgba(30, 133, 255, 0.30);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.08);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.30);
   border-radius: 8px;
   color: #ffffff;
   font-size: 13px;
@@ -232,7 +232,7 @@ export const FieldTextarea = styled.textarea`
 
 export const EditHint = styled.span`
   font-size: 10px;
-  color: ${({ $error }) => $error ? '#f87171' : 'rgba(30, 133, 255, 0.50)'};
+  color: ${({ $error }) => $error ? '#f87171' : 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.50)'};
   margin-top: 1px;
 `
 
@@ -364,12 +364,12 @@ export const FileCard = styled.button`
   cursor: pointer;
   text-align: left;
   transition: border-color 0.2s, background 0.2s;
-  &:hover { border-color: rgba(30,133,255,0.30); background: rgba(30,133,255,0.06); }
+  &:hover { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.30); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.06); }
 `
 
 export const FileThumb = styled.div`
   height: 72px;
-  background: ${({ $bg }) => $bg || 'rgba(30,133,255,0.10)'};
+  background: ${({ $bg }) => $bg || 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10)'};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -531,7 +531,7 @@ export const TransferCard = styled.div`
   height: min(920px, calc(var(--app-height, 100dvh) - 24px));
   max-height: calc(var(--app-height, 100dvh) - 24px);
   min-height: 0;
-  background: #0d0d20;
+  background: var(--bc-admin-card-bg, #0d0d20);
   border: 1px solid rgba(255,255,255,0.09);
   border-radius: 22px;
   display: flex;
@@ -633,8 +633,8 @@ export const TransferPanelSub = styled.p`
 `
 
 export const TransferInfoBox = styled.div`
-  background: linear-gradient(135deg, rgba(30,133,255,0.12), rgba(52,211,153,0.08));
-  border: 1px solid rgba(30,133,255,0.18);
+  background: linear-gradient(135deg, rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12), rgba(52,211,153,0.08));
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.18);
   border-radius: 14px;
   padding: 12px 14px;
 `
@@ -701,7 +701,7 @@ export const TransferSearchInput = styled.input`
   outline: none;
   transition: border-color 0.2s, background 0.2s;
   &::placeholder { color: rgba(255,255,255,0.18); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
 `
 
 export const TransferSearchResults = styled.div`
@@ -724,12 +724,12 @@ export const TransferSearchItem = styled.button`
   gap: 12px;
   padding: 11px 12px;
   border-radius: 12px;
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.12)' : 'rgba(255,255,255,0.035)'};
-  border: 1px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.26)' : 'rgba(255,255,255,0.07)'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12)' : 'rgba(255,255,255,0.035)'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.26)' : 'rgba(255,255,255,0.07)'};
   color: inherit;
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, transform 0.12s;
-  &:hover { transform: translateY(-1px); background: rgba(30,133,255,0.10); border-color: rgba(30,133,255,0.22); }
+  &:hover { transform: translateY(-1px); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10); border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22); }
 `
 
 export const TransferSearchMeta = styled.div`
@@ -840,7 +840,7 @@ export const TransferReason = styled.textarea`
   outline: none;
   transition: border-color 0.2s, background 0.2s;
   &::placeholder { color: rgba(255,255,255,0.18); }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
 `
 
 export const TransferFooter = styled.div`
@@ -888,7 +888,7 @@ export const TransferActionBtn = styled.button`
     background: ${gradients.btn};
     border: none;
     color: #fff;
-    box-shadow: 0 4px 18px rgba(13,79,232,0.36);
+    box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.36);
   ` : $v === 'danger' ? css`
     background: rgba(239,68,68,0.12);
     border: 1px solid rgba(239,68,68,0.24);
@@ -1047,15 +1047,15 @@ export const QuickChip = styled.button`
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s, transform 0.1s;
   ${({ $active }) => $active ? css`
-    background: rgba(30,133,255,0.20);
-    border: 1px solid rgba(30,133,255,0.50);
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.20);
+    border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.50);
     color: #93c5fd;
   ` : css`
     background: rgba(255,255,255,0.04);
     border: 1px solid rgba(255,255,255,0.08);
     color: rgba(255,255,255,0.55);
   `}
-  &:hover { background: rgba(30,133,255,0.14); border-color: rgba(30,133,255,0.35); color: #93c5fd; }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.14); border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.35); color: #93c5fd; }
   &:active { transform: scale(0.97); }
 `
 
@@ -1068,7 +1068,7 @@ export const AmountInputRow = styled.div`
   border-radius: 10px;
   overflow: hidden;
   transition: border-color 0.2s;
-  &:focus-within { border-color: rgba(30,133,255,0.45); }
+  &:focus-within { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); }
 `
 
 export const AmountSign = styled.span`
@@ -1184,8 +1184,8 @@ export const ProfileWrap = styled.div`
 `
 
 export const ReferralCard = styled.div`
-  background: linear-gradient(135deg, rgba(30,133,255,0.12) 0%, rgba(139,92,246,0.08) 100%);
-  border: 1px solid rgba(30,133,255,0.22);
+  background: linear-gradient(135deg, rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12) 0%, rgba(139,92,246,0.08) 100%);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22);
   border-radius: 16px;
   padding: 14px 14px 16px;
   display: flex;
@@ -1210,9 +1210,9 @@ export const ReferralCardLabel = styled.span`
 export const ReferralBadge = styled.span`
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(30,133,255,0.16);
-  border: 1px solid rgba(30,133,255,0.28);
-  color: #60a5fa;
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.16);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28);
+  color: var(--bc-admin-accent, #60a5fa);
   font-size: 9px;
   font-weight: 700;
   letter-spacing: 0.06em;
@@ -1246,9 +1246,9 @@ export const CopyBtn = styled.button`
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1px solid rgba(30,133,255,0.30);
-  background: rgba(30,133,255,0.10);
-  color: #60a5fa;
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.30);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10);
+  color: var(--bc-admin-accent, #60a5fa);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1256,7 +1256,7 @@ export const CopyBtn = styled.button`
   flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s, transform 0.1s;
   svg { font-size: 17px; }
-  &:hover { background: rgba(30,133,255,0.20); border-color: rgba(30,133,255,0.50); }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.20); border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.50); }
   &:active { transform: scale(0.94); }
   ${({ $copied }) => $copied && css`
     background: rgba(34,197,94,0.15);
@@ -1325,17 +1325,17 @@ export const SessionDeviceIcon = styled.div`
   background: ${({ $type }) =>
     $type === 'mobile' ? 'rgba(139,92,246,0.14)' :
     $type === 'tablet' ? 'rgba(245,158,11,0.12)' :
-    'rgba(30,133,255,0.12)'
+    'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12)'
   };
   border: 1px solid ${({ $type }) =>
     $type === 'mobile' ? 'rgba(139,92,246,0.28)' :
     $type === 'tablet' ? 'rgba(245,158,11,0.22)' :
-    'rgba(30,133,255,0.22)'
+    'rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22)'
   };
   color: ${({ $type }) =>
     $type === 'mobile' ? '#a78bfa' :
     $type === 'tablet' ? '#fbbf24' :
-    '#60a5fa'
+    'var(--bc-admin-accent, #60a5fa)'
   };
   display: flex;
   align-items: center;
@@ -1385,7 +1385,7 @@ export const SessionChip = styled.span`
   ${({ $type }) =>
     $type === 'mobile' ? css`background: rgba(139,92,246,0.14); color: #a78bfa;` :
     $type === 'tablet' ? css`background: rgba(245,158,11,0.12); color: #fbbf24;` :
-    css`background: rgba(30,133,255,0.14); color: #60a5fa;`
+    css`background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.14); color: var(--bc-admin-accent, #60a5fa);`
   }
 `
 

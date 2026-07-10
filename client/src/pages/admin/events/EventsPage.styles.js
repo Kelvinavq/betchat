@@ -1,4 +1,5 @@
 import styled, { css, keyframes } from 'styled-components'
+import { gradients } from '../../../styles/theme'
 
 // ─── Design Tokens ───────────────────────────────────────────────────────────
 // Page bg:       #06091a
@@ -131,7 +132,7 @@ export const TabBtn = styled.button`
     css`
       background: var(--bc-admin-card-bg, #0c1424);
       color: #f1f5f9;
-      box-shadow: inset 0 -2px 0 #3b82f6;
+      box-shadow: inset 0 -2px 0 var(--bc-admin-accent, #3b82f6);
     `}
 
   &:hover {
@@ -273,8 +274,8 @@ const inputBase = css`
   transition: border-color 0.15s, box-shadow 0.15s;
 
   &:focus {
-    border: 1px solid rgba(59, 130, 246, 0.5);
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(var(--bc-admin-accent-rgb, 59,130,246), 0.5);
+    box-shadow: 0 0 0 3px rgba(var(--bc-admin-accent-rgb, 59,130,246), 0.1);
   }
 
   &::placeholder {
@@ -316,7 +317,7 @@ export const ColorInput = styled.input.attrs({ type: 'color' })`
 
 export const RangeInput = styled.input.attrs({ type: 'range' })`
   width: 100%;
-  accent-color: #3b82f6;
+  accent-color: var(--bc-admin-accent, #3b82f6);
   height: 4px;
   cursor: pointer;
 `
@@ -337,18 +338,18 @@ export const AddRowBtn = styled.button`
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: rgba(var(--bc-admin-accent-rgb, 59,130,246), 0.08);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 59,130,246), 0.2);
   border-radius: 8px;
-  color: #60a5fa;
+  color: var(--bc-admin-accent, #60a5fa);
   font-size: 13px;
   cursor: pointer;
   width: fit-content;
   transition: background 0.15s, border-color 0.15s;
 
   &:hover {
-    background: rgba(59, 130, 246, 0.14);
-    border-color: rgba(59, 130, 246, 0.35);
+    background: rgba(var(--bc-admin-accent-rgb, 59,130,246), 0.14);
+    border-color: rgba(var(--bc-admin-accent-rgb, 59,130,246), 0.35);
   }
 `
 
@@ -458,14 +459,14 @@ export const Btn = styled.button`
     switch ($v) {
       case 'primary':
         return css`
-          background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+          background: ${gradients.btn};
           color: #fff;
           border: 1px solid transparent;
-          box-shadow: 0 4px 14px rgba(59, 130, 246, 0.3);
+          box-shadow: 0 4px 14px rgba(var(--bc-admin-accent-rgb, 59, 130, 246), 0.3);
 
           &:hover {
-            background: linear-gradient(135deg, #2563eb, #1e40af);
-            box-shadow: 0 6px 18px rgba(59, 130, 246, 0.4);
+            filter: brightness(1.1);
+            box-shadow: 0 6px 18px rgba(var(--bc-admin-accent-rgb, 59, 130, 246), 0.4);
           }
         `
       case 'success':
@@ -751,7 +752,7 @@ export const WinRateRow = styled.div`
 export const WinRateVal = styled.span`
   font-size: 20px;
   font-weight: 700;
-  color: #3b82f6;
+  color: var(--bc-admin-accent, #3b82f6);
   min-width: 48px;
 `
 

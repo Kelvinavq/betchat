@@ -1,7 +1,7 @@
 import styled, { css, keyframes } from 'styled-components'
+import { gradients, colors } from '../../../styles/theme'
 
 const spin = keyframes`from { transform: rotate(0deg); } to { transform: rotate(360deg); }`
-import { gradients, colors } from '../../../styles/theme'
 
 const fadeUp = keyframes`
   from { opacity: 0; transform: translateY(6px); }
@@ -16,7 +16,7 @@ const slideUp = keyframes`
 export const PageWrap = styled.div`
   flex: 1; min-width: 0;
   height: var(--app-height, 100dvh);
-  background: var(--bc-admin-sidebar-bg, #0b0b18);
+  background: var(--bc-admin-content-bg, #08080f);
   display: flex; flex-direction: column; overflow: hidden;
 `
 export const PageScroll = styled.div`
@@ -52,7 +52,7 @@ export const AddBtn = styled.button`
   display: flex; align-items: center; gap: 7px; padding: 10px 18px;
   border-radius: 12px; background: ${gradients.btn}; border: none; color: #fff;
   font-size: 13px; font-weight: 600; font-family: inherit; cursor: pointer; white-space: nowrap;
-  box-shadow: 0 4px 18px rgba(13,79,232,0.38); transition: opacity 0.2s, transform 0.15s;
+  box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.38); transition: opacity 0.2s, transform 0.15s;
   svg { font-size: 18px; }
   &:hover { opacity: 0.86; } &:active { transform: scale(0.97); }
 `
@@ -82,7 +82,7 @@ export const SearchInput = styled.input`
   border-radius: 10px; color: #fff; font-size: 13px; font-family: inherit; outline: none;
   transition: border-color 0.2s;
   &::placeholder { color: rgba(255,255,255,0.22); }
-  &:focus { border-color: rgba(30,133,255,0.40); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
 `
 export const FilterSelect = styled.select`
   height: 38px; padding: 0 30px 0 11px;
@@ -92,8 +92,8 @@ export const FilterSelect = styled.select`
   appearance: none; -webkit-appearance: none;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath fill='rgba(255,255,255,0.35)' d='M5 6L0 0h10z'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 10px center;
-  &:focus { border-color: rgba(30,133,255,0.40); }
-  option { background: #0c0c1e; color: #fff; }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.40); }
+  option { background: var(--bc-admin-card-bg, #0c0c1e); color: #fff; }
 `
 export const ResultCount = styled.span`
   margin-left: auto; font-size: 12px; color: rgba(255,255,255,0.28); white-space: nowrap;
@@ -124,7 +124,7 @@ export const Tr = styled.tr`
   border-bottom: 1px solid rgba(255,255,255,0.04); transition: background 0.15s;
   animation: ${fadeUp} 0.22s ease both;
   &:last-child { border-bottom: none; }
-  &:hover { background: rgba(30,133,255,0.05); }
+  &:hover { background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
 `
 export const Td = styled.td`
   padding: 13px 16px; vertical-align: middle;
@@ -138,7 +138,7 @@ export const ClientAvatar = styled.div`
   background: ${gradients.btn};
   display: flex; align-items: center; justify-content: center;
   font-size: 14px; font-weight: 700; color: #fff;
-  border: 1px solid rgba(40,140,255,0.25);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 40,140,255),0.25);
 `
 export const ClientMeta = styled.div`min-width: 0;`
 export const ClientName = styled.p`
@@ -192,7 +192,7 @@ export const ActionBtn = styled.button`
     ` : $v === 'success' ? css`
       background: rgba(34,197,94,0.14); border-color: rgba(34,197,94,0.28); color: #4ade80;
     ` : css`
-      background: rgba(30,133,255,0.12); border-color: rgba(30,133,255,0.28); color: ${colors.primaryLighter};
+      background: rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.12); border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.28); color: ${colors.primaryLighter};
     `}
   }
   &:disabled { opacity: 0.22; cursor: default; pointer-events: none; }
@@ -233,7 +233,7 @@ export const Overlay = styled.div`
   animation: ${fadeUp} 0.18s ease both;
 `
 const baseCard = css`
-  width: 100%; background: #0d0d20;
+  width: 100%; background: var(--bc-admin-card-bg, #0d0d20);
   border: 1px solid rgba(255,255,255,0.09); border-radius: 22px;
   display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04);
@@ -321,9 +321,9 @@ export const ModalTabPill = styled.span`
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
-  background: rgba(30,133,255,0.12);
-  color: #60a5fa;
-  border: 1px solid rgba(30,133,255,0.22);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.12);
+  color: var(--bc-admin-accent, #60a5fa);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22);
 `
 
 /* avatar */
@@ -332,7 +332,7 @@ export const AvatarBox = styled.div`
   width: 64px; height: 64px; border-radius: 18px; background: ${gradients.btn};
   display: flex; align-items: center; justify-content: center;
   font-size: 26px; font-weight: 700; color: #fff;
-  border: 2px solid rgba(40,140,255,0.30); box-shadow: 0 0 28px rgba(30,133,255,0.22);
+  border: 2px solid rgba(var(--bc-admin-accent-rgb, 40,140,255),0.30); box-shadow: 0 0 28px rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22);
 `
 export const AvatarHint = styled.p`font-size: 11px; color: rgba(255,255,255,0.25);`
 
@@ -358,7 +358,7 @@ const inputBase = css`
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 10px; color: #fff; font-size: 13px; font-family: inherit; outline: none;
   transition: border-color 0.2s, background 0.2s;
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
   &:disabled { opacity: 0.40; cursor: default; }
   &::placeholder { color: rgba(255,255,255,0.18); }
 `
@@ -378,7 +378,7 @@ export const Toggle = styled.button`
   width: 42px; height: 24px; border-radius: 12px; border: none; cursor: pointer;
   position: relative; flex-shrink: 0; transition: background 0.28s;
   background: ${({ $on }) => $on
-    ? 'linear-gradient(90deg, rgba(30,133,255,0.65) 0%, rgba(13,79,232,0.65) 100%)'
+    ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.70)'
     : 'rgba(255,255,255,0.10)'};
 `
 export const ToggleThumb = styled.span`
@@ -401,7 +401,7 @@ export const ModalBtn = styled.button`
   transition: opacity 0.18s, transform 0.15s;
   ${({ $v }) => $v === 'primary' ? css`
     background: ${gradients.btn}; border: none; color: #fff;
-    box-shadow: 0 4px 18px rgba(13,79,232,0.36);
+    box-shadow: 0 4px 18px rgba(var(--bc-admin-accent-rgb, 13,79,232),0.36);
   ` : $v === 'danger' ? css`
     background: rgba(239,68,68,0.12); border: 1px solid rgba(239,68,68,0.24); color: #f87171;
   ` : css`
@@ -472,8 +472,8 @@ export const DetailChip = styled.span`
   font-size: 11px;
   font-weight: 600;
   color: rgba(255,255,255,0.72);
-  background: rgba(30,133,255,0.10);
-  border: 1px solid rgba(30,133,255,0.16);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.10);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.16);
 `
 
 export const DetailList = styled.div`
@@ -537,7 +537,7 @@ export const Toast = styled.div`
   gap: 12px;
   padding: 14px 14px;
   border-radius: 16px;
-  background: #101024;
+  background: var(--bc-admin-card-bg, #101024);
   border: 1px solid rgba(255,255,255,0.10);
   box-shadow: 0 18px 50px rgba(0,0,0,0.45);
   animation: ${fadeUp} 0.2s ease both;
@@ -665,7 +665,7 @@ export const BtnSpinner = styled.span`
 /* ── balance modal ── */
 export const BalanceModalCard = styled.div`
   width: 100%; max-width: 440px;
-  background: #0d0d20;
+  background: var(--bc-admin-card-bg, #0d0d20);
   border: 1px solid rgba(255,255,255,0.09); border-radius: 22px;
   display: flex; flex-direction: column; overflow: hidden;
   box-shadow: 0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04);
@@ -676,10 +676,10 @@ export const BalanceClientRow = styled.div`
 `
 export const BalanceClientAvatar = styled.div`
   width: 40px; height: 40px; min-width: 40px; border-radius: 12px;
-  background: ${({ theme }) => theme?.gradients?.btn || 'linear-gradient(135deg,#1e85ff,#0d4fe8)'};
+  background: ${gradients.btn};
   display: flex; align-items: center; justify-content: center;
   font-size: 16px; font-weight: 700; color: #fff;
-  border: 1px solid rgba(40,140,255,0.30);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 40,140,255),0.30);
 `
 export const BalanceClientMeta = styled.div``
 export const BalanceClientName = styled.p`font-size: 14px; font-weight: 700; color: #fff;`
@@ -699,7 +699,7 @@ export const QuickBtn = styled.button`
   padding: 10px 6px; border-radius: 10px; font-family: inherit;
   font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.15s;
   ${({ $active }) => $active ? css`
-    background: rgba(30,133,255,0.22); border: 1.5px solid rgba(30,133,255,0.55); color: #60a5fa;
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.22); border: 1.5px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.55); color: var(--bc-admin-accent, #60a5fa);
   ` : css`
     background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09); color: rgba(255,255,255,0.65);
     &:hover { background: rgba(255,255,255,0.09); color: #fff; }
@@ -718,7 +718,7 @@ export const BalanceInput = styled.input`
   border-radius: 12px; color: #fff; font-size: 18px; font-weight: 600; font-family: inherit;
   outline: none; transition: border-color 0.2s;
   &::placeholder { color: rgba(255,255,255,0.15); font-weight: 400; font-size: 14px; }
-  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.05); }
 `
 export const BalanceBtnRow = styled.div`
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 22px 22px;

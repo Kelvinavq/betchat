@@ -237,8 +237,8 @@ export const FilterToggleRow = styled.button`
 export const FilterActiveChip = styled.span`
   padding: 1px 7px;
   border-radius: 999px;
-  background: rgba(30,133,255,0.16);
-  border: 1px solid rgba(30,133,255,0.28);
+  background: rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.16);
+  border: 1px solid rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.28);
   color: #60a5fa;
   font-size: 10px;
   font-weight: 700;

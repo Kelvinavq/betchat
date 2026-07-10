@@ -40,8 +40,8 @@ export const Grid = styled.div`
 `
 
 export const Card = styled.div`
-  background: var(--surface-2, rgba(30,41,59,0.7));
-  border: 1px solid var(--border, rgba(148,163,184,0.12));
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.07);
   border-radius: 14px;
   padding: 18px;
   display: flex;
@@ -73,7 +73,7 @@ export const IconBubble = styled.div`
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  background: ${p => p.$bg || 'rgba(99,102,241,0.12)'};
+  background: ${p => p.$bg || 'rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.12)'};
   display: flex;
   align-items: center;
   justify-content: center;
@@ -112,7 +112,7 @@ export const Toggle = styled.button`
   border-radius: 10px;
   border: none;
   cursor: pointer;
-  background: ${p => p.$on ? 'var(--accent, #6366f1)' : 'rgba(148,163,184,0.18)'};
+  background: ${p => p.$on ? 'var(--bc-admin-accent, #1e85ff)' : 'rgba(255,255,255,0.12)'};
   position: relative;
   transition: background 0.2s;
   margin-top: 2px;
@@ -134,8 +134,8 @@ export const Textarea = styled.textarea`
   width: 100%;
   min-height: 74px;
   resize: vertical;
-  background: var(--surface-1, rgba(15,23,42,0.6));
-  border: 1px solid var(--border, rgba(148,163,184,0.14));
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
   border-radius: 9px;
   padding: 10px 12px;
   font-size: 12.5px;
@@ -147,7 +147,7 @@ export const Textarea = styled.textarea`
   transition: border-color 0.18s;
 
   &:focus {
-    border-color: var(--accent, #6366f1);
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.65);
   }
 
   &::placeholder {
@@ -181,7 +181,7 @@ export const SaveBtn = styled.button`
   font-size: 13px;
   font-weight: 600;
   transition: background 0.18s, opacity 0.18s;
-  background: ${p => p.$saved ? 'rgba(16,185,129,0.18)' : 'var(--accent, #6366f1)'};
+  background: ${p => p.$saved ? 'rgba(16,185,129,0.18)' : 'var(--bc-admin-button-gradient, linear-gradient(135deg, #0a2e50 0%, #1e85ff 100%))'};
   color: ${p => p.$saved ? '#34d399' : '#fff'};
 
   &:disabled {

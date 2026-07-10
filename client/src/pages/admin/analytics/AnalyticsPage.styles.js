@@ -89,7 +89,7 @@ export const PresetBtn = styled.button`
   font-family: inherit;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
-  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.22)' : 'transparent'};
+  background: ${({ $active }) => $active ? 'rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.22)' : 'transparent'};
   color: ${({ $active }) => $active ? '#60a5fa' : 'rgba(255,255,255,0.45)'};
   &:hover { color: rgba(255,255,255,0.85); }
 `
@@ -103,7 +103,7 @@ export const DateInput = styled.input`
   background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.09);
   border-radius: 9px; color: #fff; font-size: 12.5px; font-family: inherit;
   outline: none; color-scheme: dark;
-  &:focus { border-color: rgba(30,133,255,0.45); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255), 0.45); }
 `
 
 /* ── loading / error ── */

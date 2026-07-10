@@ -32,10 +32,8 @@ const NAV_ITEMS = [
     id: 'chat',
     label: 'Chat',
     icon: <ChatOutlinedIcon />,
-    children: [
-      { id: 'chat-activos',    label: 'Activos' },
-      { id: 'chat-archivados', label: 'Archivados' },
-    ],
+    children: [],
+
   },
   {
     id: 'clientes',
