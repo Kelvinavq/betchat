@@ -2,6 +2,10 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useDateFormat } from '../../../hooks/useDateFormat'
 import SearchIcon from '@mui/icons-material/Search'
 import AddIcon from '@mui/icons-material/Add'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
+import FolderOutlinedIcon from '@mui/icons-material/FolderOutlined'
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
+import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined'
 import GroupAddOutlinedIcon from '@mui/icons-material/GroupAddOutlined'
 import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
@@ -19,9 +23,9 @@ import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined'
 import CheckCircleIcon from '@mui/icons-material/CheckCircle'
 import CancelIcon from '@mui/icons-material/Cancel'
-import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined'
 import AddCardIcon from '@mui/icons-material/AddCard'
 import RemoveIcon from '@mui/icons-material/Remove'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import { api } from '../../../utils/api'
 import { useConfirm } from '../../../context/ToastContext'
 import { getPaginationItems } from '../../../utils/pagination'
@@ -35,12 +39,15 @@ import {
   MonoText, StatusBadge, OnlineDot,
   ActionBtns, ActionBtn,
   Pagination, PaginInfo, PaginBtns, PaginBtn, EmptyRow, EmptyCell,
-  Overlay, ModalCard, PwdModalCard,
+  Overlay, ModalCard, ModalCardWide, PwdModalCard,
   ModalHead, ModalTitle, ModalSub, ModalClose, ModalBody,
+  ModalTabBar, ModalTab, ModalTabPill,
   AvatarRow, AvatarBox, AvatarHint,
   SecLabel, FormGrid, Field, FieldLabel, FieldInput, FieldInputError, ErrorMsg,
   StatusRow, StatusRowLabel, StatusRowTitle, StatusRowSub, Toggle, ToggleThumb,
   ModalFoot, FootLeft, FootRight, ModalBtn,
+  DetailSection, DetailSectionTitle, DetailStatsGrid, DetailStat, DetailStatLabel, DetailStatValue,
+  DetailChips, DetailChip, DetailList, DetailRow, DetailRowLabel, DetailRowValue, DetailGrid, DetailEmpty,
   Toast, ToastIconBox, ToastBody, ToastTitle, ToastMsg, ToastClose,
   StatsGrid, StatCard, StatIconWrap, StatInfo, StatValue, StatLabel,
   BtnSpinner,
@@ -90,6 +97,47 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
   const avatarChar = form.username.trim() ? form.username.trim()[0].toUpperCase() : '?'
   const isViewMode = mode === 'view'
   const isAddMode = mode === 'add'
+  const isEditMode = mode === 'edit'
+  const [tab, setTab] = useState('info')
+  const [detailData, setDetailData] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+
+  useEffect(() => {
+    setTab('info')
+  }, [client?.id, mode])
+
+  useEffect(() => {
+    if (!isViewMode || !client?.id) {
+      setDetailData(null)
+      setDetailLoading(false)
+      return undefined
+    }
+
+    let active = true
+    setDetailLoading(true)
+    setDetailData(null)
+
+    api.get(`/api/clients/${client.id}/detail`)
+      .then((payload) => {
+        if (active) setDetailData(payload || null)
+      })
+      .catch(() => {
+        if (active) setDetailData(null)
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false)
+      })
+
+    return () => { active = false }
+  }, [client?.id, isViewMode])
+
+  const detailClient = detailData?.client || null
+  const detailWithdrawals = detailData?.withdrawals || []
+  const detailSessions = detailData?.sessions || []
+  const detailCbus = detailData?.cbus || []
+  const detailAdjustments = detailData?.adjustments || []
+  const detailLabels = detailData?.labels || []
+  const CardComponent = isViewMode ? ModalCardWide : ModalCard
 
   const copyToClipboard = (text) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -108,12 +156,15 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
 
   return (
     <Overlay onClick={onClose}>
-      <ModalCard onClick={e => e.stopPropagation()}>
+      <CardComponent
+        onClick={e => e.stopPropagation()}
+        style={isViewMode ? { width: '100%' } : undefined}
+      >
 
         <ModalHead>
           <div>
             <ModalTitle>
-              {isAddMode ? 'Nuevo cliente' : isViewMode ? 'Ver cliente' : 'Editar cliente'}
+              {isAddMode ? 'Nuevo cliente' : isViewMode ? 'Detalle de cliente' : 'Editar cliente'}
             </ModalTitle>
             <ModalSub>
               {isAddMode ? 'Registrar nuevo cliente en el sistema' : `Información de ${client.username}`}
@@ -245,6 +296,127 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
             <div>Modo editar no implementado</div>
           )}
 
+          {isViewMode && (
+            <>
+              <SecLabel>Detalle ampliado</SecLabel>
+              <DetailSection>
+                <DetailSectionTitle>Resumen general</DetailSectionTitle>
+                {detailLoading ? (
+                  <DetailEmpty>Cargando detalles del cliente...</DetailEmpty>
+                ) : (
+                  <>
+                    <DetailStatsGrid>
+                      <DetailStat>
+                        <DetailStatLabel>Chats</DetailStatLabel>
+                        <DetailStatValue>{detailClient?.chatCount ?? 0}</DetailStatValue>
+                      </DetailStat>
+                      <DetailStat>
+                        <DetailStatLabel>Retiros</DetailStatLabel>
+                        <DetailStatValue>{detailClient?.withdrawalCount ?? 0}</DetailStatValue>
+                      </DetailStat>
+                      <DetailStat>
+                        <DetailStatLabel>Pendientes</DetailStatLabel>
+                        <DetailStatValue>{detailClient?.pendingWithdrawalCount ?? 0}</DetailStatValue>
+                      </DetailStat>
+                      <DetailStat>
+                        <DetailStatLabel>Sesiones</DetailStatLabel>
+                        <DetailStatValue>{detailClient?.sessionCount ?? 0}</DetailStatValue>
+                      </DetailStat>
+                      <DetailStat>
+                        <DetailStatLabel>CBUs</DetailStatLabel>
+                        <DetailStatValue>{detailClient?.cbuCount ?? 0}</DetailStatValue>
+                      </DetailStat>
+                      <DetailStat>
+                        <DetailStatLabel>Ajustes</DetailStatLabel>
+                        <DetailStatValue>{detailClient?.balanceAdjustmentCount ?? 0}</DetailStatValue>
+                      </DetailStat>
+                    </DetailStatsGrid>
+
+                    {detailLabels.length > 0 && (
+                      <DetailChips>
+                        {detailLabels.map(label => (
+                          <DetailChip key={label.id || `${label.name}-${label.color}`}>{label.name}</DetailChip>
+                        ))}
+                      </DetailChips>
+                    )}
+                  </>
+                )}
+              </DetailSection>
+
+              <DetailGrid>
+                <DetailSection>
+                  <DetailSectionTitle>Retiros recientes</DetailSectionTitle>
+                  {detailWithdrawals.length > 0 ? (
+                    <DetailList>
+                      {detailWithdrawals.slice(0, 4).map(item => (
+                        <DetailRow key={item.id}>
+                          <DetailRowLabel>#{item.id} · {item.status || 'pending'}</DetailRowLabel>
+                          <DetailRowValue>
+                            {item.amount ?? '0'} {item.method ? `· ${item.method}` : ''}
+                          </DetailRowValue>
+                        </DetailRow>
+                      ))}
+                    </DetailList>
+                  ) : (
+                    <DetailEmpty>Sin retiros registrados.</DetailEmpty>
+                  )}
+                </DetailSection>
+
+                <DetailSection>
+                  <DetailSectionTitle>Sesiones recientes</DetailSectionTitle>
+                  {detailSessions.length > 0 ? (
+                    <DetailList>
+                      {detailSessions.slice(0, 4).map(item => (
+                        <DetailRow key={item.id}>
+                          <DetailRowLabel>{item.deviceType || 'Sesión'}</DetailRowLabel>
+                          <DetailRowValue>
+                            {[item.browser || '', item.country || item.city || ''].filter(Boolean).join(' · ') || 'Sin datos'}
+                          </DetailRowValue>
+                        </DetailRow>
+                      ))}
+                    </DetailList>
+                  ) : (
+                    <DetailEmpty>Sin sesiones registradas.</DetailEmpty>
+                  )}
+                </DetailSection>
+
+                <DetailSection>
+                  <DetailSectionTitle>CBUs / CVUs</DetailSectionTitle>
+                  {detailCbus.length > 0 ? (
+                    <DetailList>
+                      {detailCbus.slice(0, 4).map(item => (
+                        <DetailRow key={item.id}>
+                          <DetailRowLabel>{item.label || 'CBU/CVU'}</DetailRowLabel>
+                          <DetailRowValue>{item.cbu}</DetailRowValue>
+                        </DetailRow>
+                      ))}
+                    </DetailList>
+                  ) : (
+                    <DetailEmpty>Sin CBUs cargados.</DetailEmpty>
+                  )}
+                </DetailSection>
+
+                <DetailSection>
+                  <DetailSectionTitle>Ajustes de saldo</DetailSectionTitle>
+                  {detailAdjustments.length > 0 ? (
+                    <DetailList>
+                      {detailAdjustments.slice(0, 4).map(item => (
+                        <DetailRow key={item.id}>
+                          <DetailRowLabel>{item.operation || 'ajuste'}</DetailRowLabel>
+                          <DetailRowValue>
+                            {item.amount ?? '0'} {item.note ? `· ${item.note}` : ''}
+                          </DetailRowValue>
+                        </DetailRow>
+                      ))}
+                    </DetailList>
+                  ) : (
+                    <DetailEmpty>Sin ajustes de saldo.</DetailEmpty>
+                  )}
+                </DetailSection>
+              </DetailGrid>
+            </>
+          )}
+
         </ModalBody>
 
         <ModalFoot>
@@ -268,12 +440,542 @@ const ClientModal = ({ mode, client, onClose, onSave, onDelete, notify, saving }
           </FootRight>
         </ModalFoot>
 
-      </ModalCard>
+      </CardComponent>
     </Overlay>
   )
 }
 
 /* ── change password modal ── */
+/* ── client detail / form modals v2 ── */
+const ClientDetailModalV2 = ({ client, onClose, onEdit, onDelete, notify }) => {
+  const { timezone } = useDateFormat()
+  const [tab, setTab] = useState('info')
+  const [detailData, setDetailData] = useState(null)
+  const [detailLoading, setDetailLoading] = useState(false)
+  const [referralData, setReferralData] = useState(null)
+  const [referralLoading, setReferralLoading] = useState(false)
+
+  useEffect(() => {
+    setTab('info')
+  }, [client?.id])
+
+  useEffect(() => {
+    if (!client?.id) {
+      setDetailData(null)
+      setDetailLoading(false)
+      return undefined
+    }
+
+    let active = true
+    setDetailLoading(true)
+    setDetailData(null)
+
+    api.get(`/api/clients/${client.id}/detail`)
+      .then((payload) => {
+        if (active) setDetailData(payload || null)
+      })
+      .catch(() => {
+        if (active) setDetailData(null)
+      })
+      .finally(() => {
+        if (active) setDetailLoading(false)
+      })
+
+    return () => { active = false }
+  }, [client?.id])
+
+  useEffect(() => {
+    if (!client?.id) {
+      setReferralData(null)
+      setReferralLoading(false)
+      return undefined
+    }
+
+    let active = true
+    setReferralLoading(true)
+    setReferralData(null)
+
+    api.get(`/api/clients/${client.id}/referral`)
+      .then((payload) => {
+        if (active) setReferralData(payload || null)
+      })
+      .catch(() => {
+        if (active) setReferralData(null)
+      })
+      .finally(() => {
+        if (active) setReferralLoading(false)
+      })
+
+    return () => { active = false }
+  }, [client?.id])
+
+  const detailClient = detailData?.client || client || null
+  const detailWithdrawals = detailData?.withdrawals || []
+  const detailSessions = detailData?.sessions || []
+  const detailCbus = detailData?.cbus || []
+  const detailAdjustments = detailData?.adjustments || []
+  const detailLabels = detailData?.labels || []
+
+  const formatDate = (value, includeTime = true) => {
+    if (!value) return 'Sin datos'
+    return new Date(value).toLocaleString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      ...(includeTime ? { hour: '2-digit', minute: '2-digit' } : {}),
+      ...(timezone && { timeZone: timezone }),
+    })
+  }
+
+  const infoRows = [
+    ['Usuario', detailClient?.username || 'Sin usuario'],
+    ['Nombre completo', detailClient?.fullName || 'No especificado'],
+    ['Correo', detailClient?.email || 'No especificado'],
+    ['CUIT / CUIL', detailClient?.cuil || 'No especificado'],
+    ['ID externo', detailClient?.externalId || 'Sin ID externo'],
+    ['Registro', formatDate(detailClient?.registeredAt, true)],
+  ]
+
+  const accessRows = [
+    ['Estado', detailClient?.active ? 'Activo' : 'Inactivo'],
+    ['Online', detailClient?.online ? 'En linea' : 'Offline'],
+    ['Sesion temporal', detailClient?.tempSessionActive ? 'Activa' : 'Inactiva'],
+    ['Push bloqueado', detailClient?.pushBlocked ? 'Si' : 'No'],
+    ['Ultima actividad', formatDate(detailClient?.lastSeenAt, true)],
+  ]
+
+  const summaryStats = [
+    ['Chats', detailClient?.chatCount ?? 0],
+    ['Retiros', detailClient?.withdrawalCount ?? 0],
+    ['Pendientes', detailClient?.pendingWithdrawalCount ?? 0],
+    ['Sesiones', detailClient?.sessionCount ?? 0],
+    ['CBUs', detailClient?.cbuCount ?? 0],
+    ['Ajustes', detailClient?.balanceAdjustmentCount ?? 0],
+  ]
+
+  return (
+    <Overlay onClick={onClose}>
+      <ModalCardWide onClick={e => e.stopPropagation()}>
+        <ModalHead>
+          <div>
+            <ModalTitle>Detalle de cliente</ModalTitle>
+            <ModalSub>{detailClient?.username || client?.username || 'Cliente'}</ModalSub>
+          </div>
+          <ModalClose onClick={onClose}><CloseIcon /></ModalClose>
+        </ModalHead>
+
+        <ModalTabBar>
+          <ModalTab type="button" $active={tab === 'info'} onClick={() => setTab('info')}>
+            <InfoOutlinedIcon />
+            <span className="tab-label">Info</span>
+            <ModalTabPill>{detailLoading ? '...' : summaryStats[0][1]}</ModalTabPill>
+          </ModalTab>
+          <ModalTab type="button" $active={tab === 'archivo'} onClick={() => setTab('archivo')}>
+            <FolderOutlinedIcon />
+            <span className="tab-label">Archivo</span>
+            <ModalTabPill>{detailLoading || referralLoading ? '...' : detailWithdrawals.length}</ModalTabPill>
+          </ModalTab>
+          <ModalTab type="button" $active={tab === 'saldo'} onClick={() => setTab('saldo')}>
+            <AccountBalanceWalletOutlinedIcon />
+            <span className="tab-label">Saldo</span>
+            <ModalTabPill>{detailAdjustments.length}</ModalTabPill>
+          </ModalTab>
+          <ModalTab type="button" $active={tab === 'perfil'} onClick={() => setTab('perfil')}>
+            <PersonOutlinedIcon />
+            <span className="tab-label">Perfil</span>
+            <ModalTabPill>{detailSessions.length + detailCbus.length}</ModalTabPill>
+          </ModalTab>
+        </ModalTabBar>
+
+        <ModalBody>
+          <AvatarRow>
+            <AvatarBox>{(detailClient?.username || client?.username || '?')[0].toUpperCase()}</AvatarBox>
+            <AvatarHint>Vista de solo lectura</AvatarHint>
+          </AvatarRow>
+
+          {tab === 'info' && (
+            <>
+              <DetailSection>
+                <DetailSectionTitle>Resumen general</DetailSectionTitle>
+                {detailLoading ? (
+                  <DetailEmpty>Cargando detalles del cliente...</DetailEmpty>
+                ) : (
+                  <>
+                    <DetailStatsGrid>
+                      {summaryStats.map(([label, value]) => (
+                        <DetailStat key={label}>
+                          <DetailStatLabel>{label}</DetailStatLabel>
+                          <DetailStatValue>{value}</DetailStatValue>
+                        </DetailStat>
+                      ))}
+                    </DetailStatsGrid>
+                    {detailLabels.length > 0 && (
+                      <DetailChips>
+                        {detailLabels.map(label => (
+                          <DetailChip key={label.id || `${label.name}-${label.color}`}>{label.name}</DetailChip>
+                        ))}
+                      </DetailChips>
+                    )}
+                  </>
+                )}
+              </DetailSection>
+
+              <DetailGrid>
+                <DetailSection>
+                  <DetailSectionTitle>Datos de cuenta</DetailSectionTitle>
+                  <DetailList>
+                    {infoRows.map(([label, value]) => (
+                      <DetailRow key={label}>
+                        <DetailRowLabel>{label}</DetailRowLabel>
+                        <DetailRowValue>{value}</DetailRowValue>
+                      </DetailRow>
+                    ))}
+                  </DetailList>
+                </DetailSection>
+
+                <DetailSection>
+                  <DetailSectionTitle>Estado y acceso</DetailSectionTitle>
+                  <DetailList>
+                    {accessRows.map(([label, value]) => (
+                      <DetailRow key={label}>
+                        <DetailRowLabel>{label}</DetailRowLabel>
+                        <DetailRowValue>{value}</DetailRowValue>
+                      </DetailRow>
+                    ))}
+                  </DetailList>
+                </DetailSection>
+              </DetailGrid>
+            </>
+          )}
+
+          {tab === 'archivo' && (
+            <>
+              <DetailGrid>
+                <DetailSection>
+                  <DetailSectionTitle>Retiros recientes</DetailSectionTitle>
+                  {detailWithdrawals.length > 0 ? (
+                    <DetailList>
+                      {detailWithdrawals.slice(0, 4).map(item => (
+                        <DetailRow key={item.id}>
+                          <DetailRowLabel>#{item.id} · {item.status || 'pending'}</DetailRowLabel>
+                          <DetailRowValue>
+                            {item.amount ?? '0'} {item.method ? `· ${item.method}` : ''}
+                          </DetailRowValue>
+                        </DetailRow>
+                      ))}
+                    </DetailList>
+                  ) : (
+                    <DetailEmpty>Sin retiros registrados.</DetailEmpty>
+                  )}
+                </DetailSection>
+
+                <DetailSection>
+                  <DetailSectionTitle>Ajustes de saldo</DetailSectionTitle>
+                  {detailAdjustments.length > 0 ? (
+                    <DetailList>
+                      {detailAdjustments.slice(0, 4).map(item => (
+                        <DetailRow key={item.id}>
+                          <DetailRowLabel>{item.operation || 'ajuste'}</DetailRowLabel>
+                          <DetailRowValue>
+                            {item.amount ?? '0'} {item.note ? `· ${item.note}` : ''}
+                          </DetailRowValue>
+                        </DetailRow>
+                      ))}
+                    </DetailList>
+                  ) : (
+                    <DetailEmpty>Sin ajustes de saldo.</DetailEmpty>
+                  )}
+                </DetailSection>
+              </DetailGrid>
+
+              {detailLabels.length > 0 && (
+                <DetailSection>
+                  <DetailSectionTitle>Etiquetas actuales</DetailSectionTitle>
+                  <DetailChips>
+                    {detailLabels.map(label => (
+                      <DetailChip key={label.id || `${label.name}-${label.color}`}>{label.name}</DetailChip>
+                    ))}
+                  </DetailChips>
+                </DetailSection>
+              )}
+
+              <ReferralDetailsSection data={referralData} loading={referralLoading} compact />
+            </>
+          )}
+
+          {tab === 'saldo' && (
+            <DetailSection>
+              <DetailSectionTitle>Gestion de saldo</DetailSectionTitle>
+              <BalanceControls client={detailClient} notify={notify} />
+              <DetailEmpty style={{ marginTop: 2 }}>
+                Los movimientos de saldo quedan auditados automaticamente.
+              </DetailEmpty>
+            </DetailSection>
+          )}
+
+          {tab === 'perfil' && (
+            <DetailGrid>
+              <DetailSection>
+                <DetailSectionTitle>Sesiones recientes</DetailSectionTitle>
+                {detailSessions.length > 0 ? (
+                  <DetailList>
+                    {detailSessions.slice(0, 4).map(item => (
+                      <DetailRow key={item.id}>
+                        <DetailRowLabel>{item.deviceType || 'Sesion'}</DetailRowLabel>
+                        <DetailRowValue>
+                          {[item.browser || '', item.country || item.city || ''].filter(Boolean).join(' · ') || 'Sin datos'}
+                        </DetailRowValue>
+                      </DetailRow>
+                    ))}
+                  </DetailList>
+                ) : (
+                  <DetailEmpty>Sin sesiones registradas.</DetailEmpty>
+                )}
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>CBUs / CVUs</DetailSectionTitle>
+                {detailCbus.length > 0 ? (
+                  <DetailList>
+                    {detailCbus.slice(0, 4).map(item => (
+                      <DetailRow key={item.id}>
+                        <DetailRowLabel>{item.label || 'CBU/CVU'}</DetailRowLabel>
+                        <DetailRowValue>{item.cbu}</DetailRowValue>
+                      </DetailRow>
+                    ))}
+                  </DetailList>
+                ) : (
+                  <DetailEmpty>Sin CBUs cargados.</DetailEmpty>
+                )}
+              </DetailSection>
+
+              <DetailSection>
+                <DetailSectionTitle>Datos tecnicos</DetailSectionTitle>
+                <DetailList>
+                  <DetailRow>
+                    <DetailRowLabel>Username</DetailRowLabel>
+                    <DetailRowValue>{detailClient?.username || 'Sin usuario'}</DetailRowValue>
+                  </DetailRow>
+                  <DetailRow>
+                    <DetailRowLabel>ID externo</DetailRowLabel>
+                    <DetailRowValue>{detailClient?.externalId || 'Sin ID externo'}</DetailRowValue>
+                  </DetailRow>
+                  <DetailRow>
+                    <DetailRowLabel>Ultima actividad</DetailRowLabel>
+                    <DetailRowValue>{formatDate(detailClient?.lastSeenAt, true)}</DetailRowValue>
+                  </DetailRow>
+                  <DetailRow>
+                    <DetailRowLabel>CUIT / CUIL</DetailRowLabel>
+                    <DetailRowValue>{detailClient?.cuil || 'No especificado'}</DetailRowValue>
+                  </DetailRow>
+                </DetailList>
+              </DetailSection>
+            </DetailGrid>
+          )}
+        </ModalBody>
+
+        <ModalFoot>
+          <FootLeft>
+            <ModalBtn $v="danger" onClick={() => onDelete(detailClient?.id || client.id)}>
+              Eliminar
+            </ModalBtn>
+          </FootLeft>
+          <FootRight>
+            <ModalBtn onClick={onClose}>Cerrar</ModalBtn>
+            <ModalBtn $v="primary" onClick={() => onEdit(detailClient)}>
+              Editar
+            </ModalBtn>
+          </FootRight>
+        </ModalFoot>
+      </ModalCardWide>
+    </Overlay>
+  )
+}
+
+const ClientFormModalV2 = ({ mode, client, onClose, onSave, saving }) => {
+  const isAddMode = mode === 'add'
+  const { timezone } = useDateFormat()
+  const [form, setForm] = useState(() => (
+    !isAddMode && client
+      ? {
+          username: client.username || '',
+          fullName: client.fullName || '',
+          email: client.email || '',
+          externalId: client.externalId || '',
+          cuil: client.cuil || '',
+          active: client.active ?? true,
+          registeredAt: client.registeredAt || '',
+          password: '',
+          balance: '',
+        }
+      : { username: '', password: '', balance: '' }
+  ))
+
+  useEffect(() => {
+    setForm(
+      !isAddMode && client
+        ? {
+            username: client.username || '',
+            fullName: client.fullName || '',
+            email: client.email || '',
+            externalId: client.externalId || '',
+            cuil: client.cuil || '',
+            active: client.active ?? true,
+            registeredAt: client.registeredAt || '',
+            password: '',
+            balance: '',
+          }
+        : { username: '', password: '', balance: '' }
+    )
+  }, [client?.id, isAddMode])
+
+  const set = (k, v) => setForm(p => ({ ...p, [k]: v }))
+  const avatarChar = (form.username || client?.username || '?').trim()
+    ? (form.username || client?.username || '?').trim()[0].toUpperCase()
+    : '?'
+
+  const handleSubmit = () => onSave(form)
+
+  return (
+    <Overlay onClick={onClose}>
+      <ModalCard onClick={e => e.stopPropagation()}>
+        <ModalHead>
+          <div>
+            <ModalTitle>{isAddMode ? 'Nuevo cliente' : 'Editar cliente'}</ModalTitle>
+            <ModalSub>
+              {isAddMode ? 'Registrar nuevo cliente en el sistema' : `Editar datos de ${client?.username || 'cliente'}`}
+            </ModalSub>
+          </div>
+          <ModalClose onClick={onClose}><CloseIcon /></ModalClose>
+        </ModalHead>
+
+        <ModalBody>
+          <AvatarRow>
+            <AvatarBox>{avatarChar}</AvatarBox>
+            <AvatarHint>{isAddMode ? 'Se asignara automaticamente' : 'Cambios administrativos'}</AvatarHint>
+          </AvatarRow>
+
+          {isAddMode ? (
+            <div>
+              <SecLabel>Datos del cliente</SecLabel>
+              <FormGrid style={{ marginTop: 14 }}>
+                <Field $full>
+                  <FieldLabel>Nombre de usuario</FieldLabel>
+                  <FieldInput
+                    placeholder="usuario123"
+                    value={form.username}
+                    onChange={e => set('username', e.target.value)}
+                    autoComplete="username"
+                  />
+                </Field>
+                <Field $full>
+                  <FieldLabel>Contrasena</FieldLabel>
+                  <FieldInput
+                    type="text"
+                    placeholder="contrasena123"
+                    value={form.password}
+                    onChange={e => set('password', e.target.value)}
+                    autoComplete="new-password"
+                  />
+                </Field>
+                <Field $full>
+                  <FieldLabel>Saldo inicial (opcional)</FieldLabel>
+                  <FieldInput
+                    type="number"
+                    min="0"
+                    step="1"
+                    placeholder="0"
+                    value={form.balance}
+                    onChange={e => set('balance', e.target.value)}
+                  />
+                </Field>
+              </FormGrid>
+            </div>
+          ) : (
+            <div>
+              <SecLabel>Datos editables</SecLabel>
+              <FormGrid style={{ marginTop: 14 }}>
+                <Field $full>
+                  <FieldLabel>Nombre de usuario</FieldLabel>
+                  <FieldInput value={form.username} readOnly />
+                </Field>
+                <Field>
+                  <FieldLabel>Nombre completo</FieldLabel>
+                  <FieldInput
+                    placeholder="No especificado"
+                    value={form.fullName}
+                    onChange={e => set('fullName', e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>Correo electronico</FieldLabel>
+                  <FieldInput
+                    type="email"
+                    placeholder="usuario@email.com"
+                    value={form.email}
+                    onChange={e => set('email', e.target.value)}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel>ID externo</FieldLabel>
+                  <FieldInput value={form.externalId} readOnly />
+                </Field>
+                <Field>
+                  <FieldLabel>CUIT / CUIL</FieldLabel>
+                  <FieldInput
+                    placeholder="XX-XXXXXXXX-X"
+                    value={form.cuil}
+                    onChange={e => set('cuil', e.target.value)}
+                  />
+                </Field>
+                <Field $full>
+                  <FieldLabel>Fecha de registro</FieldLabel>
+                  <FieldInput
+                    value={form.registeredAt ? new Date(form.registeredAt).toLocaleDateString('es-AR', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      ...(timezone && { timeZone: timezone }),
+                    }) : ''}
+                    readOnly
+                  />
+                </Field>
+              </FormGrid>
+
+              <StatusRow>
+                <StatusRowLabel>
+                  <StatusRowTitle>Cuenta activa</StatusRowTitle>
+                  <StatusRowSub>El cliente puede iniciar sesion en la plataforma</StatusRowSub>
+                </StatusRowLabel>
+                <Toggle $on={form.active} onClick={() => set('active', !form.active)}>
+                  <ToggleThumb $on={form.active} />
+                </Toggle>
+              </StatusRow>
+            </div>
+          )}
+        </ModalBody>
+
+        <ModalFoot>
+          <FootLeft />
+          <FootRight>
+            <ModalBtn onClick={onClose}>Cerrar</ModalBtn>
+            <ModalBtn $v="primary" disabled={saving} onClick={handleSubmit}>
+              {saving ? <><BtnSpinner />{isAddMode ? 'Creando...' : 'Guardando...'}</> : (isAddMode ? 'Crear cliente' : 'Guardar cambios')}
+            </ModalBtn>
+          </FootRight>
+        </ModalFoot>
+      </ModalCard>
+    </Overlay>
+  )
+}
+
+const ClientModalV2 = (props) => {
+  if (props.mode === 'view') {
+    return <ClientDetailModalV2 {...props} />
+  }
+  return <ClientFormModalV2 {...props} />
+}
+
 const PwdModal = ({ client, onClose, onSave }) => {
   const [newPwd, setNewPwd]         = useState('')
   const [confirmPwd, setConfirmPwd] = useState('')
@@ -400,6 +1102,101 @@ const ReferralModal = ({ client, onClose }) => {
 }
 
 const QUICK_AMOUNTS = [500, 1000, 2000, 3000, 5000, 10000]
+
+const BalanceControls = ({ client, notify, onDone }) => {
+  const [amount, setAmount] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [status, setStatus] = useState('')
+  const avatarChar = (client.username || '?')[0].toUpperCase()
+  const fmt = (n) => `$${new Intl.NumberFormat('es-AR').format(n)}`
+
+  const handleQuick = (val) => setAmount(String(val))
+
+  const handleAction = async (operation) => {
+    const n = Number(amount)
+    if (!n || n <= 0) {
+      setStatus('Ingresá un monto válido.')
+      return
+    }
+
+    setLoading(true)
+    setStatus('')
+    try {
+      await api.post(`/api/clients/${client.id}/balance`, { amount: n, operation })
+      const message = operation === 'in'
+        ? `Saldo cargado: ${fmt(n)}`
+        : `Retiro registrado: ${fmt(n)}`
+      setStatus(message)
+      notify?.(message, 'success')
+      setAmount('')
+      onDone?.()
+    } catch (err) {
+      const message = err?.payload?.error || err?.message || 'Error al modificar el saldo'
+      setStatus(message)
+      notify?.(message, 'danger')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <>
+      <BalanceClientRow style={{ padding: 0 }}>
+        <BalanceClientAvatar>{avatarChar}</BalanceClientAvatar>
+        <BalanceClientMeta>
+          <BalanceClientName>{client.username}</BalanceClientName>
+          <BalanceClientSub>{client.externalId ? `ID externo: ${client.externalId}` : 'Sin ID externo'}</BalanceClientSub>
+        </BalanceClientMeta>
+      </BalanceClientRow>
+
+      <BalanceBody style={{ padding: 0 }}>
+        <div>
+          <BalanceSectionLabel>Monto rápido</BalanceSectionLabel>
+          <QuickGrid style={{ marginTop: 10 }}>
+            {QUICK_AMOUNTS.map(v => (
+              <QuickBtn
+                key={v}
+                type="button"
+                $active={amount === String(v)}
+                onClick={() => handleQuick(v)}
+              >
+                ${new Intl.NumberFormat('es-AR').format(v)}
+              </QuickBtn>
+            ))}
+          </QuickGrid>
+        </div>
+
+        <div>
+          <BalanceSectionLabel>Monto personalizado</BalanceSectionLabel>
+          <BalanceInputWrap style={{ marginTop: 10 }}>
+            <BalanceCurrencySign>$</BalanceCurrencySign>
+            <BalanceInput
+              type="number"
+              min="1"
+              step="1"
+              placeholder="0"
+              value={amount}
+              onChange={e => setAmount(e.target.value)}
+            />
+          </BalanceInputWrap>
+        </div>
+
+        {status && <DetailEmpty style={{ marginTop: -4, padding: 12 }}>{status}</DetailEmpty>}
+      </BalanceBody>
+
+      <BalanceBtnRow style={{ padding: 0, marginTop: 2 }}>
+        <BalanceCreditBtn disabled={loading} onClick={() => handleAction('in')}>
+          {loading ? <BtnSpinner /> : <AddCardIcon />}
+          Cargar saldo
+        </BalanceCreditBtn>
+        <BalanceDebitBtn disabled={loading} onClick={() => handleAction('out')}>
+          {loading ? <BtnSpinner /> : <RemoveIcon />}
+          Retirar saldo
+        </BalanceDebitBtn>
+      </BalanceBtnRow>
+    </>
+  )
+}
 
 const BalanceModal = ({ client, onClose, notify }) => {
   const [amount, setAmount] = useState('')
@@ -657,7 +1454,7 @@ const ClientsPage = ({ onMenuOpen }) => {
           balance: Number(form.balance) || 0,
         })
         notify('Cliente creado exitosamente.', 'success')
-      } else if (modal.mode === 'view') {
+      } else if (modal.mode === 'edit') {
         await api.put(`/api/clients/${modal.client.id}`, {
           fullName: form.fullName || '',
           email: form.email || '',
@@ -859,7 +1656,7 @@ const ClientsPage = ({ onMenuOpen }) => {
                     <Td $center>
                       <ActionBtns style={{ justifyContent: 'center' }}>
                         <ActionBtn
-                          title="Ver cliente"
+                          title="Ver detalles"
                           onClick={() => setModal({ mode: 'view', client: c })}
                         >
                           <VisibilityOutlinedIcon />
@@ -947,12 +1744,13 @@ const ClientsPage = ({ onMenuOpen }) => {
       />
 
       {modal && (
-        <ClientModal
+        <ClientModalV2
           mode={modal.mode}
           client={modal.client}
           onClose={() => setModal(null)}
           onSave={handleSave}
           onDelete={handleDelete}
+          onEdit={(editedClient) => setModal({ mode: 'edit', client: editedClient || modal.client })}
           notify={notify}
           saving={saving}
         />

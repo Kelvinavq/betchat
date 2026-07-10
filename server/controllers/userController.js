@@ -5,7 +5,16 @@ import { fetchPermissions, normalizePermissions, replacePermissions, rowsToPermi
 import { parseGeoSnapshot } from '../services/ipGuideService.js'
 import { hasColumn } from '../services/schemaSupport.js'
 
-const ALLOWED_ROLES = ['admin', 'cashier']
+const ALLOWED_ROLES = ['admin', 'cashier', 'superadmin']
+
+const isSuperadmin = (role) => role === 'superadmin'
+const isPrivilegedRole = (role) => role === 'admin' || role === 'superadmin'
+
+const normalizeTransferPermission = (role, value) => {
+  if (role === 'superadmin') return true
+  if (role === 'cashier') return false
+  return Boolean(value)
+}
 
 function sanitizeUser(user) {
   return {
@@ -18,6 +27,7 @@ function sanitizeUser(user) {
     online: Boolean(user.online),
     last_login_at: user.last_login_at ?? null,
     created_at: user.created_at ?? null,
+    canTransferClientData: normalizeTransferPermission(user.role, user.can_transfer_client_data ?? user.canTransferClientData),
     permissions: user.permissions,
     access_start: user.access_start ?? null,
     access_end: user.access_end ?? null,
@@ -26,7 +36,36 @@ function sanitizeUser(user) {
 
 export async function createUser(req, res, next) {
   try {
-    const { username, full_name, email, password, role, is_active, permissions, access_start, access_end } = req.body
+    const {
+      username,
+      full_name,
+      email,
+      password,
+      role,
+      is_active,
+      permissions,
+      access_start,
+      access_end,
+      can_transfer_client_data,
+      canTransferClientData,
+    } = req.body
+
+    const { rows: currentRows, error: currentError } = await query(
+      'SELECT id, role, can_transfer_client_data FROM users WHERE id = ? LIMIT 1',
+      [numericId]
+    )
+    if (currentError) return next(currentError)
+    const currentUser = currentRows?.[0] || null
+    if (!currentUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado', code: 'USER_NOT_FOUND' })
+    }
+
+    if (isSuperadmin(currentUser.role) && !isSuperadmin(req.user?.role)) {
+      return res.status(403).json({
+        error: 'Solo un superadmin puede modificar otro superadmin',
+        code: 'FORBIDDEN',
+      })
+    }
 
     const { rows: existingRows, error: existingError } = await query(
       'SELECT id, username, email FROM users WHERE username = ? OR email = ? LIMIT 1',
@@ -53,12 +92,20 @@ export async function createUser(req, res, next) {
       })
     }
 
+    if (isSuperadmin(role) && !isSuperadmin(req.user?.role)) {
+      return res.status(403).json({
+        error: 'Solo un superadmin puede crear otro superadmin',
+        code: 'FORBIDDEN',
+      })
+    }
+
     const passwordHash = await hashPassword(password)
+    const transferPermission = normalizeTransferPermission(role, can_transfer_client_data ?? canTransferClientData)
 
     const createdUser = await transaction(async (connection) => {
       const [insertResult] = await connection.execute(
-        'INSERT INTO users (username, full_name, email, password_hash, role, is_active, registered_by, access_start, access_end) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        [username, full_name || username, email, passwordHash, role, is_active ? 1 : 0, req.user?.sub ?? null, access_start || null, access_end || null]
+        'INSERT INTO users (username, full_name, email, password_hash, role, is_active, registered_by, access_start, access_end, can_transfer_client_data) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [username, full_name || username, email, passwordHash, role, is_active ? 1 : 0, req.user?.sub ?? null, access_start || null, access_end || null, transferPermission ? 1 : 0]
       )
 
       const insertId = insertResult?.insertId
@@ -67,7 +114,7 @@ export async function createUser(req, res, next) {
       const [[created]] = await connection.execute(
         `SELECT
           u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at, u.created_at,
-          u.access_start, u.access_end,
+          u.access_start, u.access_end, u.can_transfer_client_data,
           0 AS online
          FROM users u
          WHERE u.id = ?
@@ -136,6 +183,7 @@ export async function getUsers(req, res, next) {
     const { rows, error } = await query(
       `SELECT
         u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at, u.created_at,
+        u.can_transfer_client_data,
         u.access_start, u.access_end,
         EXISTS(
           SELECT 1 FROM user_sessions us
@@ -194,7 +242,19 @@ export async function updateUser(req, res, next) {
       return res.status(400).json({ error: 'ID de usuario inválido', code: 'INVALID_ID' })
     }
 
-    const { username, full_name, email, password, role, is_active, permissions, access_start, access_end } = req.body
+    const {
+      username,
+      full_name,
+      email,
+      password,
+      role,
+      is_active,
+      permissions,
+      access_start,
+      access_end,
+      can_transfer_client_data,
+      canTransferClientData,
+    } = req.body
 
     if (username || email) {
       const { rows: conflicts } = await query(
@@ -217,8 +277,21 @@ export async function updateUser(req, res, next) {
     if (role !== undefined && !ALLOWED_ROLES.includes(role)) {
       return res.status(400).json({ error: 'Rol de usuario inválido', code: 'INVALID_ROLE' })
     }
+    if (role !== undefined && isSuperadmin(role) && !isSuperadmin(req.user?.role)) {
+      return res.status(403).json({
+        error: 'Solo un superadmin puede asignar el rol superadmin',
+        code: 'FORBIDDEN',
+      })
+    }
     if (role !== undefined && ALLOWED_ROLES.includes(role)) {
       updates.push('role = ?'); values.push(role)
+    }
+    const normalizedTransferPermission = normalizeTransferPermission(
+      role !== undefined ? role : currentUser.role,
+      can_transfer_client_data ?? canTransferClientData
+    )
+    if (role !== undefined || can_transfer_client_data !== undefined || canTransferClientData !== undefined) {
+      updates.push('can_transfer_client_data = ?'); values.push(normalizedTransferPermission ? 1 : 0)
     }
     if (is_active !== undefined) { updates.push('is_active = ?'); values.push(is_active ? 1 : 0) }
     if (access_start !== undefined) { updates.push('access_start = ?'); values.push(access_start || null) }
@@ -244,7 +317,7 @@ export async function updateUser(req, res, next) {
       const [[updated]] = await connection.execute(
         `SELECT
           u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at, u.created_at,
-          u.access_start, u.access_end,
+          u.access_start, u.access_end, u.can_transfer_client_data,
           EXISTS(
             SELECT 1 FROM user_sessions us
             WHERE us.user_id = u.id AND us.is_active = 1
@@ -269,6 +342,94 @@ export async function updateUser(req, res, next) {
   }
 }
 
+export async function updateTransferPermission(req, res, next) {
+  try {
+    const numericId = parseInt(req.params.id, 10)
+    if (!numericId || isNaN(numericId)) {
+      return res.status(400).json({ error: 'ID de usuario inválido', code: 'INVALID_ID' })
+    }
+
+    const desiredRaw = req.body?.canTransferClientData ?? req.body?.can_transfer_client_data
+    if (desiredRaw === undefined) {
+      return res.status(400).json({ error: 'El permiso de transferencia es requerido', code: 'INVALID_PAYLOAD' })
+    }
+
+    const { rows: targetRows, error: targetError } = await query(
+      'SELECT id, username, full_name, role, can_transfer_client_data FROM users WHERE id = ? LIMIT 1',
+      [numericId]
+    )
+    if (targetError) return next(targetError)
+    const targetUser = targetRows?.[0] || null
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado', code: 'USER_NOT_FOUND' })
+    }
+
+    const nextValue = Boolean(desiredRaw)
+    if (!isPrivilegedRole(targetUser.role) && nextValue) {
+      return res.status(400).json({
+        error: 'Solo los administradores pueden recibir este permiso',
+        code: 'INVALID_ROLE',
+      })
+    }
+
+    if (isSuperadmin(targetUser.role) && !nextValue) {
+      return res.status(403).json({
+        error: 'No se puede quitar el permiso de transferencia a un superadmin',
+        code: 'FORBIDDEN',
+      })
+    }
+
+    const currentValue = normalizeTransferPermission(targetUser.role, targetUser.can_transfer_client_data)
+    if (currentValue === nextValue) {
+      return res.json({ user: sanitizeUser({ ...targetUser, can_transfer_client_data: currentValue }) })
+    }
+
+    const updatedUser = await transaction(async (connection) => {
+      await connection.execute(
+        'UPDATE users SET can_transfer_client_data = ? WHERE id = ?',
+        [nextValue ? 1 : 0, numericId]
+      )
+
+      await connection.execute(
+        `INSERT INTO user_permission_audit_log
+          (target_user_id, permission_key, old_value, new_value, changed_by, changed_by_username, reason, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)`,
+        [
+          numericId,
+          'can_transfer_client_data',
+          currentValue ? 1 : 0,
+          nextValue ? 1 : 0,
+          req.user?.sub ?? null,
+          req.user?.username || null,
+          req.body?.reason ? String(req.body.reason).trim().slice(0, 500) : null,
+        ]
+      )
+
+      const [[updated]] = await connection.execute(
+        `SELECT
+          u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.last_login_at, u.created_at,
+          u.can_transfer_client_data, u.access_start, u.access_end,
+          EXISTS(
+            SELECT 1 FROM user_sessions us
+            WHERE us.user_id = u.id AND us.is_active = 1
+              AND (us.expires_at IS NULL OR us.expires_at > CURRENT_TIMESTAMP)
+          ) AS online
+         FROM users u
+         WHERE u.id = ?
+         LIMIT 1`,
+        [numericId]
+      )
+
+      const updatedPermissions = await fetchPermissions(connection, numericId, updated.role)
+      return { ...updated, permissions: updatedPermissions }
+    })
+
+    res.json({ user: sanitizeUser(updatedUser) })
+  } catch (err) {
+    next(err)
+  }
+}
+
 export async function deleteUser(req, res, next) {
   try {
     const numericId = parseInt(req.params.id, 10)
@@ -278,6 +439,22 @@ export async function deleteUser(req, res, next) {
 
     if (numericId === req.user?.sub) {
       return res.status(400).json({ error: 'No puedes eliminar tu propia cuenta', code: 'SELF_DELETE' })
+    }
+
+    const { rows: targetRows, error: targetError } = await query(
+      'SELECT id, role FROM users WHERE id = ? LIMIT 1',
+      [numericId]
+    )
+    if (targetError) return next(targetError)
+    const targetUser = targetRows?.[0] || null
+    if (!targetUser) {
+      return res.status(404).json({ error: 'Usuario no encontrado', code: 'USER_NOT_FOUND' })
+    }
+    if (isSuperadmin(targetUser.role) && !isSuperadmin(req.user?.role)) {
+      return res.status(403).json({
+        error: 'Solo un superadmin puede eliminar otro superadmin',
+        code: 'FORBIDDEN',
+      })
     }
 
     const { error } = await query('DELETE FROM users WHERE id = ?', [numericId])

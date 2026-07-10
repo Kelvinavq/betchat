@@ -20,7 +20,7 @@ import { useDateFormat } from '../../../hooks/useDateFormat'
 import { useConfirm } from '../../common/ConfirmDialog'
 import { api } from '../../../utils/api'
 import { getSocket } from '../../../utils/socket'
-import { canEditModule } from '../../../utils/adminPermissions'
+import { canEditModule, isPrivilegedAdmin } from '../../../utils/adminPermissions'
 import { useNotificationSound } from '../../../hooks/useNotificationSound'
 import {
   Wrap, ListHeader, ListTitle, TitleGroup, HeaderActions, IconBtn,
@@ -694,12 +694,12 @@ const ChatList = ({ selectedChat, onSelectChat, $width, $fullWidth, onMenuOpen }
               <ArchiveOutlinedIcon /> Archivar
             </QuickMenuItem>
           )}
-          {user?.role === 'admin' && (
+          {isPrivilegedAdmin(user) && (
             <QuickMenuItem type="button" $danger onClick={() => runQuickAction('clear')}>
               <DeleteSweepOutlinedIcon /> Vaciar historial
             </QuickMenuItem>
           )}
-          {user?.role === 'admin' && (
+          {isPrivilegedAdmin(user) && (
             <QuickMenuItem type="button" $danger onClick={() => runQuickAction('delete')}>
               <DeleteOutlineIcon /> Eliminar chat
             </QuickMenuItem>

@@ -16,12 +16,15 @@ export const SECTION_MODULES = {
 
 export const DEFAULT_ADMIN_SECTION = 'chat'
 
+export const isPrivilegedAdmin = (user) =>
+  user?.role === 'admin' || user?.role === 'superadmin'
+
 export const canViewModule = (user, module) => {
   if (!module) return true
   if (user?.permissions?.[module]) {
     return Boolean(user.permissions[module].can_view)
   }
-  if (user?.role === 'admin') return true
+  if (isPrivilegedAdmin(user)) return true
   return Boolean(user?.permissions?.[module]?.can_view)
 }
 
@@ -30,7 +33,7 @@ export const canEditModule = (user, module) => {
   if (user?.permissions?.[module]) {
     return Boolean(user.permissions[module].can_edit)
   }
-  if (user?.role === 'admin') return true
+  if (isPrivilegedAdmin(user)) return true
   return Boolean(user?.permissions?.[module]?.can_edit)
 }
 

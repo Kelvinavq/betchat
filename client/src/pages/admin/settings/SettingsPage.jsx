@@ -1333,7 +1333,7 @@ const SettingsPage = ({ onMenuOpen }) => {
                     <ProfileName>{profileForm.full_name || profileForm.username || 'Usuario'}</ProfileName>
                   <ProfileRole>{profileForm.email}</ProfileRole>
                   <ProfileBadge $role={user?.role}>
-                    {user?.role === 'admin' ? 'Administrador' : 'Cajero'}
+                    {user?.role === 'superadmin' ? 'Superadmin' : user?.role === 'admin' ? 'Administrador' : 'Cajero'}
                   </ProfileBadge>
                 </ProfileInfo>
               </ProfileCard>

@@ -10,7 +10,7 @@ import { rowsToPermissions } from '../utils/userPermissions.js';
 import { extractPublicIpFromHeaders, lookupIpGuide, serializeGeoSnapshot } from '../services/ipGuideService.js';
 import { hasColumn } from '../services/schemaSupport.js';
 
-const ALLOWED_ROLES = ['admin', 'cashier'];
+const ALLOWED_ROLES = ['admin', 'cashier', 'superadmin'];
 const DUMMY_PASSWORD_HASH = '$2a$12$KIXxJp7LNqCAQsfyi.W8VOe3vlqZ29wxs2jR7NpuTR5sMBUy3eL8W';
 const WEBAUTHN_RP_ID = config.webAuthnRpId || 'localhost';
 const WEBAUTHN_RP_NAME = config.webAuthnRpName || 'BetChat';
@@ -196,6 +196,10 @@ async function loadCredentialByUserAndId(userId, credentialId) {
   return rows?.[0] || null;
 }
 
+function resolveCanTransferClientData(user) {
+  return Boolean(user?.can_transfer_client_data ?? user?.canTransferClientData ?? user?.role === 'superadmin');
+}
+
 async function issueLoginResponse(req, res, user) {
   const sessionToken = randomUUID();
   const tokenPayload = {
@@ -274,7 +278,7 @@ async function issueLoginResponse(req, res, user) {
 
 async function findUserByGoogleEmail(email) {
   const { rows, error } = await query(
-    'SELECT id, username, full_name, email, password_hash, role, avatar_url, is_active, last_login_at FROM users WHERE email = ? LIMIT 1',
+    'SELECT id, username, full_name, email, password_hash, role, avatar_url, is_active, last_login_at, can_transfer_client_data FROM users WHERE email = ? LIMIT 1',
     [email]
   );
   if (error) throw error;
@@ -292,6 +296,7 @@ function sanitizeUser(user) {
     is_active: Boolean(user.is_active),
     last_login_at: user.last_login_at,
     online: Boolean(user.online),
+    canTransferClientData: resolveCanTransferClientData(user),
     permissions: user.permissions,
   };
 }
@@ -301,7 +306,7 @@ export async function login(req, res, next) {
     const { username, password } = req.body;
 
     const { rows, error } = await query(
-      'SELECT id, username, full_name, email, password_hash, role, avatar_url, is_active, last_login_at FROM users WHERE username = ? LIMIT 1',
+      'SELECT id, username, full_name, email, password_hash, role, avatar_url, is_active, last_login_at, can_transfer_client_data FROM users WHERE username = ? LIMIT 1',
       [username]
     );
 
@@ -512,7 +517,7 @@ export async function webauthnAuthOptions(req, res, next) {
     }
 
     const { rows, error } = await query(
-      'SELECT id, username, full_name, email FROM users WHERE username = ? AND is_active = 1 AND role IN (\'admin\', \'cashier\') LIMIT 1',
+      'SELECT id, username, full_name, email FROM users WHERE username = ? AND is_active = 1 AND role IN (\'admin\', \'cashier\', \'superadmin\') LIMIT 1',
       [username]
     );
     if (error) return next(error);
@@ -559,7 +564,7 @@ export async function webauthnAuthVerify(req, res, next) {
     }
 
     const { rows: usersRows, error: userError } = await query(
-      'SELECT id, username, full_name, email, role, avatar_url, is_active, last_login_at FROM users WHERE username = ? AND is_active = 1 LIMIT 1',
+      'SELECT id, username, full_name, email, role, avatar_url, is_active, last_login_at, can_transfer_client_data FROM users WHERE username = ? AND is_active = 1 LIMIT 1',
       [username]
     );
     if (userError) return next(userError);
@@ -664,7 +669,7 @@ export async function me(req, res, next) {
 
     const { rows, error } = await query(
       `SELECT
-        u.id, u.username, u.full_name, u.email, u.role, u.avatar_url, u.is_active, u.last_login_at,
+        u.id, u.username, u.full_name, u.email, u.role, u.avatar_url, u.is_active, u.last_login_at, u.can_transfer_client_data,
         EXISTS(
           SELECT 1 FROM user_sessions us
           WHERE us.user_id = u.id AND us.is_active = 1

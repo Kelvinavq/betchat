@@ -177,7 +177,7 @@ const PAGE_MODULES = MODULE_CONFIG.filter(m => m.isPage)
 const ROWS_PER_PAGE = 8
 
 const defaultPermissions = (role = 'cashier') => {
-  const enabled = role === 'admin'
+  const enabled = role === 'admin' || role === 'superadmin'
   return MODULE_CONFIG.reduce((acc, module) => {
     const enabledIds = new Set(module.actions.filter(Boolean).map(a => a.id))
     acc[module.id] = {
@@ -224,6 +224,7 @@ const mapApiUser = (u) => ({
   permissions:   normalizePermissions(u.permissions, u.role),
   access_start:  u.access_start ?? null,
   access_end:    u.access_end ?? null,
+  canTransferClientData: Boolean(u.canTransferClientData ?? u.can_transfer_client_data ?? u.role === 'superadmin'),
 })
 
 const initForm = (user = null) => ({
@@ -234,6 +235,7 @@ const initForm = (user = null) => ({
   role:           user?.role       ?? 'cashier',
   status:         user?.status     ?? true,
   permissions:    user ? normalizePermissions(user.permissions, user.role) : defaultPermissions('cashier'),
+  canTransferClientData: !!(user?.canTransferClientData ?? user?.role === 'superadmin'),
   timeRestricted: !!(user?.access_start && user?.access_end),
   access_start:   formatTimeStr(user?.access_start),
   access_end:     formatTimeStr(user?.access_end),
@@ -317,7 +319,12 @@ const UsersPage = ({ onMenuOpen }) => {
   const closeSessions = () => { setSessionsUser(null); setSessions([]) }
 
   const setField    = (key, val) => setForm(f => ({ ...f, [key]: val }))
-  const setRoleField = (role) => setForm(f => ({ ...f, role, permissions: defaultPermissions(role) }))
+  const setRoleField = (role) => setForm(f => ({
+    ...f,
+    role,
+    canTransferClientData: role === 'superadmin' ? true : (role === 'admin' ? f.canTransferClientData : false),
+    permissions: defaultPermissions(role),
+  }))
   const togglePerm  = (moduleId, actionId)  => setForm(f => ({
     ...f,
     permissions: {
@@ -378,6 +385,7 @@ const UsersPage = ({ onMenuOpen }) => {
         email:        form.email.trim(),
         role:         form.role,
         is_active:    form.status,
+        can_transfer_client_data: form.role === 'superadmin' ? true : Boolean(form.canTransferClientData),
         permissions:  normalizePermissions(form.permissions, form.role),
         access_start: form.timeRestricted ? form.access_start : null,
         access_end:   form.timeRestricted ? form.access_end   : null,
@@ -530,6 +538,7 @@ const UsersPage = ({ onMenuOpen }) => {
           <FilterSelect value={roleFilter} onChange={changeFilter(setRole)}>
             <option value="all">Todos los roles</option>
             <option value="admin">Admin</option>
+            <option value="superadmin">Superadmin</option>
             <option value="cashier">Cajero</option>
           </FilterSelect>
           <ResultCount>{pagination.total} resultado{pagination.total !== 1 ? 's' : ''}</ResultCount>
@@ -574,7 +583,7 @@ const UsersPage = ({ onMenuOpen }) => {
 
                     <Td>
                       <RoleBadge $role={user.role}>
-                        {user.role === 'admin' ? 'Admin' : 'Cajero'}
+                        {user.role === 'superadmin' ? 'Superadmin' : user.role === 'admin' ? 'Admin' : 'Cajero'}
                       </RoleBadge>
                     </Td>
 
@@ -593,6 +602,11 @@ const UsersPage = ({ onMenuOpen }) => {
                         {PAGE_MODULES.filter(p => user.permissions[p.id]?.can_view).map(p => (
                           <PermChip key={p.id} $bg={p.bg} $cl={p.cl} $br={p.br}>{p.label}</PermChip>
                         ))}
+                        {user.canTransferClientData && (
+                          <PermChip $bg="rgba(34,197,94,0.12)" $cl="#4ade80" $br="rgba(34,197,94,0.24)">
+                            Transferencia
+                          </PermChip>
+                        )}
                         {!PAGE_MODULES.some(p => user.permissions[p.id]?.can_view) && (
                           <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.18)' }}>—</span>
                         )}
@@ -748,9 +762,34 @@ const UsersPage = ({ onMenuOpen }) => {
                     <FieldLabel>Rol</FieldLabel>
                     <FieldSelect value={form.role} onChange={e => setRoleField(e.target.value)}>
                       <option value="admin">Administrador</option>
+                      <option value="superadmin">Superadmin</option>
                       <option value="cashier">Cajero</option>
                     </FieldSelect>
                   </Field>
+                  {form.role !== 'cashier' && (
+                    <Field $full>
+                      <StatusRow>
+                        <StatusRowLabel>
+                          <StatusRowTitle>Transferir datos de cliente</StatusRowTitle>
+                          <StatusRowSub>
+                            {form.role === 'superadmin'
+                              ? 'Obligatorio para superadmin'
+                              : 'Permite mover historiales, CBUs y retiros entre clientes'}
+                          </StatusRowSub>
+                        </StatusRowLabel>
+                        <Toggle
+                          $on={form.role === 'superadmin' ? true : form.canTransferClientData}
+                          onClick={() => {
+                            if (form.role === 'superadmin') return
+                            setField('canTransferClientData', !form.canTransferClientData)
+                          }}
+                          style={form.role === 'superadmin' ? { pointerEvents: 'none', opacity: 0.8 } : {}}
+                        >
+                          <ToggleThumb $on={form.role === 'superadmin' ? true : form.canTransferClientData} />
+                        </Toggle>
+                      </StatusRow>
+                    </Field>
+                  )}
                 </FormGrid>
               </div>
 

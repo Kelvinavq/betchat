@@ -121,6 +121,7 @@ const BOTTOM_ITEMS = [
 
 const ROLE_LABELS = {
   admin:    'Administrador',
+  superadmin: 'Superadmin',
   manager:  'Gerente',
   support:  'Soporte',
   operator: 'Operador',

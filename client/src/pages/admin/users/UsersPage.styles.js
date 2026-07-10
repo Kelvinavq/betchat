@@ -256,7 +256,10 @@ export const RoleBadge = styled.span`
   display: inline-flex; align-items: center;
   padding: 3px 10px; border-radius: 6px;
   font-size: 11px; font-weight: 600; letter-spacing: 0.04em; white-space: nowrap;
-  ${({ $role }) => $role === 'admin' ? css`
+  ${({ $role }) => $role === 'superadmin' ? css`
+    background: rgba(236,72,153,0.14); color: #f472b6;
+    border: 1px solid rgba(236,72,153,0.28);
+  ` : $role === 'admin' ? css`
     background: rgba(139,92,246,0.14); color: #a78bfa;
     border: 1px solid rgba(139,92,246,0.28);
   ` : css`

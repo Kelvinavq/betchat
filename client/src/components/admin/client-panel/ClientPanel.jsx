@@ -15,11 +15,13 @@ import RemoveIcon from '@mui/icons-material/Remove'
 import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
+import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
 import DesktopWindowsOutlinedIcon from '@mui/icons-material/DesktopWindowsOutlined'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import TabletAndroidIcon from '@mui/icons-material/TabletAndroid'
 import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined'
 import { api, resolveApiAsset } from '../../../utils/api'
+import useAuth from '../../../hooks/useAuth'
 import ReferralDetailsSection from '../referrals/ReferralDetailsSection'
 import SessionGeoCard from '../sessions/SessionGeoCard'
 import { useToast } from '../../../context/ToastContext'
@@ -31,6 +33,13 @@ import {
   FilterBar, FilterBtn, FilesGrid, FileCard, FileThumb, FileInfo, FileName, FileDate,
   PaginationRow, PageBtn, PageInfo,
   ViewerOverlay, ViewerContent, ViewerFileName, ViewerImg, ViewerEmbed, ViewerActions, ViewerBtn,
+  TransferOverlay, TransferCard, TransferHead, TransferHeadCopy, TransferTitle, TransferSub, TransferClose,
+  TransferBody, TransferGrid, TransferPanel, TransferPanelTitle, TransferPanelSub, TransferInfoBox, TransferInfoText,
+  TransferSummaryList, TransferSummaryRow, TransferSummaryLabel, TransferSummaryValue,
+  TransferSearchWrap, TransferSearchInput, TransferSearchResults, TransferSearchItem, TransferSearchMeta,
+  TransferSearchName, TransferSearchHint, TransferSearchEmpty, TransferSelectedCard, TransferSelectedMeta,
+  TransferSelectedTitle, TransferSelectedSub, TransferSelectedClear, TransferSearchBadge, TransferReason, TransferFooter, TransferStatus,
+  TransferActions, TransferActionBtn,
   BalanceWrap, BalanceCard, BalanceCardHead, BalanceCardLabel, BalanceRefreshBtn,
   BalanceMainRow, BalanceCurrencyLabel, BalanceMainAmount,
   BalanceMetricsRow, BalanceMetric, BalanceMetricLabel, BalanceMetricValue,
@@ -445,13 +454,365 @@ const FileViewer = ({ data, onClose }) => {
   )
 }
 
+const TransferModal = ({ client, details, onClose }) => {
+  const { user } = useAuth()
+  const toast = useToast()
+  const { timezone } = useDateFormat()
+  const [sourceDetail, setSourceDetail] = useState(null)
+  const [loadingSource, setLoadingSource] = useState(true)
+  const [search, setSearch] = useState('')
+  const [results, setResults] = useState([])
+  const [searching, setSearching] = useState(false)
+  const [selectedTarget, setSelectedTarget] = useState(null)
+  const [reason, setReason] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [statusMsg, setStatusMsg] = useState('')
+
+  const canTransfer = Boolean(user?.role === 'superadmin' || user?.canTransferClientData)
+  const searchQuery = search.trim()
+
+  useEffect(() => {
+    let active = true
+    if (!canTransfer) {
+      setLoadingSource(false)
+      setSourceDetail(null)
+      return () => { active = false }
+    }
+
+    setLoadingSource(true)
+    setSourceDetail(null)
+
+    api.get(`/api/clients/${client.id}/detail`)
+      .then((payload) => {
+        if (!active) return
+        setSourceDetail(payload?.client ? payload : null)
+      })
+      .catch(() => {
+        if (!active) return
+        setSourceDetail(null)
+      })
+      .finally(() => {
+        if (active) setLoadingSource(false)
+      })
+
+    return () => { active = false }
+  }, [client.id, canTransfer])
+
+  useEffect(() => {
+    let active = true
+    if (!canTransfer) {
+      setResults([])
+      setSearching(false)
+      return () => { active = false }
+    }
+
+    const timer = setTimeout(async () => {
+      const query = searchQuery
+      setStatusMsg('')
+      if (query.length < 2) {
+        setResults([])
+        setSearching(false)
+        return
+      }
+
+      setSearching(true)
+      try {
+        const payload = await api.get(`/api/clients?search=${encodeURIComponent(query)}&status=active&page=1&limit=6`)
+        if (!active) return
+        const filtered = (payload.clients || []).filter(item => Number(item.id) !== Number(client.id))
+        setResults(filtered)
+        if (selectedTarget && !filtered.some(item => Number(item.id) === Number(selectedTarget.id))) {
+          setSelectedTarget(null)
+        }
+      } catch (error) {
+        if (active) {
+          setResults([])
+          setStatusMsg(error.message || 'No se pudo buscar clientes destino.')
+        }
+      } finally {
+        if (active) setSearching(false)
+      }
+    }, 220)
+
+    return () => {
+      active = false
+      clearTimeout(timer)
+    }
+  }, [client.id, searchQuery, selectedTarget, canTransfer])
+
+  const detail = sourceDetail?.client || details || {}
+  const withdrawals = sourceDetail?.withdrawals || []
+  const sessions = sourceDetail?.sessions || []
+  const cbus = sourceDetail?.cbus || []
+  const adjustments = sourceDetail?.adjustments || []
+
+  const formatDate = (value) => formatDateTime(value, timezone)
+
+  const handleTransfer = async () => {
+    if (!selectedTarget?.id) {
+      setStatusMsg('Elegí el cliente destino.')
+      return
+    }
+    if (!reason.trim()) {
+      setStatusMsg('El motivo administrativo es obligatorio.')
+      return
+    }
+
+    setSubmitting(true)
+    setStatusMsg('')
+    try {
+      const payload = await api.post(`/api/clients/${client.id}/transfer`, {
+        targetClientId: selectedTarget.id,
+        reason: reason.trim(),
+      })
+      toast.success(payload.message || 'Datos transferidos correctamente.')
+      onClose()
+    } catch (error) {
+      toast.error(error.message || 'No se pudo completar la transferencia.')
+      setStatusMsg(error.message || 'No se pudo completar la transferencia.')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const sourceLabel = detail.fullName || detail.username || client.username
+  const sourceCuil = detail.cuil || client.cuil || 'Sin CUIL'
+  const sourceCbu = detail.cbuCvu || 'Sin CBU/CVU'
+  const transferStatusText = statusMsg
+    || (selectedTarget
+      ? (reason.trim() ? `Destino seleccionado: ${selectedTarget.username}` : 'Falta completar el motivo administrativo.')
+      : 'Elegí un destino para continuar.')
+
+  return createPortal(
+    <TransferOverlay onClick={onClose}>
+      <TransferCard onClick={event => event.stopPropagation()}>
+        <TransferHead>
+          <TransferHeadCopy>
+            <TransferTitle>Transferir datos de cliente</TransferTitle>
+            <TransferSub>
+              Movemos retiros, sesiones, CBUs, chats y otras trazas al cliente destino.
+              El cliente origen quedará inactivo con auditoría de la operación.
+            </TransferSub>
+          </TransferHeadCopy>
+          <TransferClose type="button" onClick={onClose} aria-label="Cerrar">
+            <CloseIcon />
+          </TransferClose>
+        </TransferHead>
+
+        <TransferBody>
+          <TransferInfoBox>
+            <TransferInfoText>
+              Esta acción está pensada para unir duplicados o corregir cuentas vinculadas al mismo jugador.
+              Revisá bien el destino antes de confirmar, porque el cambio queda registrado en auditoría.
+            </TransferInfoText>
+          </TransferInfoBox>
+
+          <TransferGrid>
+            <TransferPanel>
+              <TransferPanelTitle>Cliente origen</TransferPanelTitle>
+              <TransferPanelSub>
+                {loadingSource ? 'Cargando detalle del origen...' : 'Resumen del cliente que se va a transferir'}
+              </TransferPanelSub>
+
+              <TransferSummaryList>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>Usuario</TransferSummaryLabel>
+                  <TransferSummaryValue>{detail.username || client.username}</TransferSummaryValue>
+                </TransferSummaryRow>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>Nombre</TransferSummaryLabel>
+                  <TransferSummaryValue>{sourceLabel}</TransferSummaryValue>
+                </TransferSummaryRow>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>CUIL</TransferSummaryLabel>
+                  <TransferSummaryValue>{sourceCuil}</TransferSummaryValue>
+                </TransferSummaryRow>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>CBU/CVU</TransferSummaryLabel>
+                  <TransferSummaryValue>{sourceCbu}</TransferSummaryValue>
+                </TransferSummaryRow>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>Retiros</TransferSummaryLabel>
+                  <TransferSummaryValue>{sourceDetail?.withdrawalCount ?? withdrawals.length}</TransferSummaryValue>
+                </TransferSummaryRow>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>Pendientes</TransferSummaryLabel>
+                  <TransferSummaryValue>{sourceDetail?.pendingWithdrawalCount ?? withdrawals.filter(w => w.status === 'pending').length}</TransferSummaryValue>
+                </TransferSummaryRow>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>Sesiones</TransferSummaryLabel>
+                  <TransferSummaryValue>{sourceDetail?.sessionCount ?? sessions.length}</TransferSummaryValue>
+                </TransferSummaryRow>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>CBUs</TransferSummaryLabel>
+                  <TransferSummaryValue>{sourceDetail?.cbuCount ?? cbus.length}</TransferSummaryValue>
+                </TransferSummaryRow>
+                <TransferSummaryRow>
+                  <TransferSummaryLabel>Ajustes</TransferSummaryLabel>
+                  <TransferSummaryValue>{sourceDetail?.balanceAdjustmentCount ?? adjustments.length}</TransferSummaryValue>
+                </TransferSummaryRow>
+              </TransferSummaryList>
+            </TransferPanel>
+
+            <TransferPanel>
+              <TransferPanelTitle>Destino</TransferPanelTitle>
+              <TransferPanelSub>
+                Buscá el cliente que recibirá los datos transferidos. La búsqueda arranca desde 2 caracteres.
+              </TransferPanelSub>
+
+              <TransferSearchWrap>
+                <TransferSearchInput
+                  value={search}
+                  onChange={event => {
+                    const next = event.target.value
+                    setSearch(next)
+                    if (selectedTarget && next.trim().toLowerCase() !== String(selectedTarget.username || '').toLowerCase()) {
+                      setSelectedTarget(null)
+                    }
+                  }}
+                  placeholder="Buscar por usuario, CUIL o ID externo..."
+                />
+
+                {selectedTarget && (
+                  <TransferSelectedCard>
+                    <TransferSelectedMeta>
+                      <TransferSelectedTitle>{selectedTarget.username}</TransferSelectedTitle>
+                      <TransferSelectedSub>
+                        {[selectedTarget.fullName || '', selectedTarget.cuil || '', selectedTarget.externalId || '']
+                          .filter(Boolean)
+                          .join(' · ') || 'Destino seleccionado'}
+                      </TransferSelectedSub>
+                    </TransferSelectedMeta>
+                    <TransferSelectedClear
+                      type="button"
+                      onClick={() => {
+                        setSelectedTarget(null)
+                        setStatusMsg('')
+                      }}
+                    >
+                      Cambiar
+                    </TransferSelectedClear>
+                  </TransferSelectedCard>
+                )}
+
+                <TransferSearchResults>
+                  {searching && (
+                    <TransferPanelSub>Cargando resultados...</TransferPanelSub>
+                  )}
+                  {!searching && searchQuery.length < 2 && (
+                    <TransferSearchEmpty>
+                      Escribí al menos 2 caracteres para buscar por usuario, CUIL o ID externo.
+                    </TransferSearchEmpty>
+                  )}
+                  {!searching && searchQuery.length >= 2 && results.length === 0 && (
+                    <TransferSearchEmpty>
+                      No encontramos clientes activos con ese criterio.
+                    </TransferSearchEmpty>
+                  )}
+                  {!searching && results.map(item => {
+                    const isActive = selectedTarget?.id === item.id
+                    return (
+                      <TransferSearchItem
+                        key={item.id}
+                        type="button"
+                        $active={isActive}
+                        onClick={() => {
+                          setSelectedTarget(item)
+                          setSearch(item.username || '')
+                          setResults([])
+                          setStatusMsg('')
+                        }}
+                      >
+                        <TransferSearchMeta>
+                          <TransferSearchName>{item.username}</TransferSearchName>
+                          <TransferSearchHint>
+                            {[item.fullName || '', item.cuil || item.externalId || ''].filter(Boolean).join(' · ') || 'Sin datos extra'}
+                          </TransferSearchHint>
+                        </TransferSearchMeta>
+                        <TransferSearchBadge>{item.active ? 'Activo' : 'Inactivo'}</TransferSearchBadge>
+                      </TransferSearchItem>
+                    )
+                  })}
+                </TransferSearchResults>
+
+                <div>
+                  <TransferPanelTitle>Motivo administrativo</TransferPanelTitle>
+                  <TransferReason
+                    value={reason}
+                    onChange={event => setReason(event.target.value)}
+                    placeholder="Ej: cuenta duplicada, se unificaron CBUs y retiros..."
+                  />
+                </div>
+              </TransferSearchWrap>
+            </TransferPanel>
+          </TransferGrid>
+
+          {(withdrawals.length > 0 || sessions.length > 0 || cbus.length > 0) && (
+            <TransferPanel>
+              <TransferPanelTitle>Vista previa del historial</TransferPanelTitle>
+              <TransferPanelSub>
+                Revisá los registros principales que van a acompañar la transferencia.
+              </TransferPanelSub>
+              <TransferSummaryList>
+                {withdrawals.slice(0, 3).map(item => (
+                  <TransferSummaryRow key={`wd-${item.id}`}>
+                    <TransferSummaryLabel>Retiro #{item.id}</TransferSummaryLabel>
+                    <TransferSummaryValue>
+                      {item.status} · {item.amount ?? '0'}
+                    </TransferSummaryValue>
+                  </TransferSummaryRow>
+                ))}
+                {cbus.slice(0, 3).map(item => (
+                  <TransferSummaryRow key={`cbu-${item.id}`}>
+                    <TransferSummaryLabel>{item.label || 'CBU/CVU'}</TransferSummaryLabel>
+                    <TransferSummaryValue>{item.cbu}</TransferSummaryValue>
+                  </TransferSummaryRow>
+                ))}
+                {sessions.slice(0, 2).map(item => (
+                  <TransferSummaryRow key={`ses-${item.id}`}>
+                    <TransferSummaryLabel>{item.deviceType || 'SesiÃ³n'}</TransferSummaryLabel>
+                    <TransferSummaryValue>{formatDate(item.createdAt)}</TransferSummaryValue>
+                  </TransferSummaryRow>
+                ))}
+              </TransferSummaryList>
+            </TransferPanel>
+          )}
+        </TransferBody>
+
+        <TransferFooter>
+          <TransferStatus $error={Boolean(statusMsg)}>
+            {transferStatusText}
+          </TransferStatus>
+          <TransferActions>
+            <TransferActionBtn type="button" onClick={onClose} disabled={submitting}>
+              Cancelar
+            </TransferActionBtn>
+            <TransferActionBtn
+              type="button"
+              $v="primary"
+              disabled={submitting || !canTransfer || !selectedTarget?.id || !reason.trim()}
+              onClick={handleTransfer}
+            >
+              {submitting ? <TabSpinner /> : <SwapHorizIcon />}
+              Transferir
+            </TransferActionBtn>
+          </TransferActions>
+        </TransferFooter>
+      </TransferCard>
+    </TransferOverlay>,
+    document.body
+  )
+}
+
 const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
   const { timezone } = useDateFormat()
   const toast = useToast()
+  const { user } = useAuth()
   const [tab, setTab] = useState('info')
   const [fileFilter, setFileFilter] = useState('all')
   const [filePage, setFilePage] = useState(1)
   const [viewerData, setViewerData] = useState(null)
+  const [transferOpen, setTransferOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [labelOptions, setLabelOptions] = useState(DEFAULT_TAGS)
   const [newLabelName, setNewLabelName] = useState('')
@@ -650,6 +1011,21 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
               {saving && <EditHint style={{ display: 'block', padding: '0 14px 10px' }}>Guardando...</EditHint>}
             </InfoCard>
 
+            {(user?.role === 'superadmin' || user?.canTransferClientData) && (
+              <InfoCard>
+                <InfoCardTitle>Transferencia</InfoCardTitle>
+                <div style={{ padding: '12px 14px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
+                  <FieldValue style={{ flex: 1, minWidth: 0 }}>
+                    Mover retiros, sesiones, CBUs y chats a otro cliente. La operación deja auditoría.
+                  </FieldValue>
+                  <TransferActionBtn type="button" $v="primary" onClick={() => setTransferOpen(true)}>
+                    <SwapHorizIcon />
+                    Transferir
+                  </TransferActionBtn>
+                </div>
+              </InfoCard>
+            )}
+
             <InfoCard>
               <InfoCardTitle>Etiquetas</InfoCardTitle>
               <TagsSection>
@@ -756,6 +1132,14 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
           </>
         )}
       </ScrollArea>
+
+      {transferOpen && (
+        <TransferModal
+          client={client}
+          details={details}
+          onClose={() => setTransferOpen(false)}
+        />
+      )}
     </Wrap>
   )
 }

@@ -14,7 +14,7 @@ async function testLogin() {
     console.log(`Intentando login con usuario: ${username}`);
 
     const { rows, error } = await query(
-      'SELECT id, username, full_name, email, password_hash, role, is_active, last_login_at FROM users WHERE username = ? LIMIT 1',
+      'SELECT id, username, full_name, email, password_hash, role, is_active, last_login_at, can_transfer_client_data FROM users WHERE username = ? LIMIT 1',
       [username]
     );
 
@@ -42,7 +42,7 @@ async function testLogin() {
       return;
     }
 
-    if (!['admin', 'cashier'].includes(user.role)) {
+    if (!['admin', 'cashier', 'superadmin'].includes(user.role)) {
       console.log(`Rol no permitido: ${user.role}`);
       return;
     }

@@ -16,7 +16,8 @@ CREATE TABLE IF NOT EXISTS `users` (
   `full_name`       VARCHAR(120)     NOT NULL,
   `email`           VARCHAR(180)     NOT NULL,
   `password_hash`   VARCHAR(255)     NOT NULL,
-  `role`            ENUM('admin','cashier') NOT NULL DEFAULT 'cashier',
+  `role`            ENUM('admin','cashier','superadmin') NOT NULL DEFAULT 'cashier',
+  `can_transfer_client_data` TINYINT(1) NOT NULL DEFAULT 0 COMMENT 'permite transferir datos entre clientes',
   `avatar_url`      VARCHAR(512)     DEFAULT NULL,
   `is_active`       TINYINT(1)       NOT NULL DEFAULT 1,
   `registered_by`   INT UNSIGNED     DEFAULT NULL  COMMENT 'admin who created this user',
@@ -589,6 +590,55 @@ CREATE TABLE IF NOT EXISTS `user_sessions` (
   KEY `idx_us_is_active`    (`is_active`),
   KEY `idx_us_expires_at`   (`expires_at`),
   CONSTRAINT `fk_us_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  20A. USER PERMISSION AUDIT LOG
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `user_permission_audit_log` (
+  `id`                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `target_user_id`      INT UNSIGNED    NOT NULL,
+  `permission_key`      VARCHAR(80)     NOT NULL,
+  `old_value`           TINYINT(1)      NOT NULL DEFAULT 0,
+  `new_value`           TINYINT(1)      NOT NULL DEFAULT 0,
+  `changed_by`          INT UNSIGNED    DEFAULT NULL,
+  `changed_by_username` VARCHAR(120)    DEFAULT NULL,
+  `reason`              VARCHAR(255)    DEFAULT NULL,
+  `created_at`          DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_upal_target` (`target_user_id`, `created_at`),
+  KEY `idx_upal_changed_by` (`changed_by`, `created_at`),
+  KEY `idx_upal_permission` (`permission_key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ============================================================
+--  20B. CLIENT TRANSFER AUDIT LOG
+-- ============================================================
+CREATE TABLE IF NOT EXISTS `client_transfer_audit_log` (
+  `id`                           BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `source_client_id`             INT UNSIGNED    NOT NULL,
+  `target_client_id`             INT UNSIGNED    NOT NULL,
+  `actor_user_id`                INT UNSIGNED    DEFAULT NULL,
+  `actor_username`               VARCHAR(120)    DEFAULT NULL,
+  `reason`                       TEXT            DEFAULT NULL,
+  `moved_chats`                  INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_messages`               INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_withdrawals`            INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_balance_adjustments`    INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_manual_movements`       INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_hgcash_movements`       INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_telepagos_movements`    INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_mercadopago_movements`  INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_sessions`               INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_push_tokens`            INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_push_subscriptions`     INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_labels`                 INT UNSIGNED    NOT NULL DEFAULT 0,
+  `moved_cbus`                   INT UNSIGNED    NOT NULL DEFAULT 0,
+  `created_at`                   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id`),
+  KEY `idx_ctal_source` (`source_client_id`, `created_at`),
+  KEY `idx_ctal_target` (`target_client_id`, `created_at`),
+  KEY `idx_ctal_actor` (`actor_user_id`, `created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ============================================================

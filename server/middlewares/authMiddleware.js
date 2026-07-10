@@ -120,7 +120,11 @@ export async function authenticateToken(req, res, next) {
 
 export function requireRole(...roles) {
   return (req, res, next) => {
-    if (!req.user || !roles.includes(req.user.role)) {
+    const role = req.user?.role
+    const allowed = role && roles.includes(role)
+      || (role === 'superadmin' && roles.includes('admin'))
+
+    if (!req.user || !allowed) {
       return res.status(403).json({
         error: 'No tienes permisos para acceder a esta ruta',
         code: 'FORBIDDEN',
@@ -181,7 +185,7 @@ export function requirePermission(moduleName, action = 'can_view') {
         return next()
       }
 
-      if (req.user.role === 'admin') {
+      if (req.user.role === 'admin' || req.user.role === 'superadmin') {
         return next()
       }
 

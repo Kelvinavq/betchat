@@ -1496,7 +1496,7 @@ export async function pinChat(req, res, next) {
 
 export async function clearChatMessages(req, res, next) {
   try {
-    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Solo administradores', code: 'FORBIDDEN' })
+    if (!['admin', 'superadmin'].includes(req.user?.role)) return res.status(403).json({ error: 'Solo administradores', code: 'FORBIDDEN' })
     const chatId = Number(req.params.chatId)
     await query('UPDATE manual_payment_movements SET message_id = NULL WHERE chat_id = ?', [chatId])
     await query('DELETE FROM messages WHERE chat_id = ?', [chatId])
@@ -1518,7 +1518,7 @@ export async function clearChatMessages(req, res, next) {
 
 export async function deleteChat(req, res, next) {
   try {
-    if (req.user?.role !== 'admin') return res.status(403).json({ error: 'Solo administradores', code: 'FORBIDDEN' })
+    if (!['admin', 'superadmin'].includes(req.user?.role)) return res.status(403).json({ error: 'Solo administradores', code: 'FORBIDDEN' })
     const chatId = Number(req.params.chatId)
     const { rows: chatRows } = await query('SELECT client_id FROM chats WHERE id = ? LIMIT 1', [chatId])
     const clientId = chatRows?.[0]?.client_id

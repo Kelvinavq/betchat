@@ -87,7 +87,7 @@ async function insertRows(connection, table, columns, rows) {
 
 async function getAdminUserId(connection) {
   const [rows] = await connection.query(
-    "SELECT id FROM users WHERE role IN ('admin','cashier') AND is_active = 1 ORDER BY id ASC LIMIT 1"
+    "SELECT id FROM users WHERE role IN ('admin','cashier','superadmin') AND is_active = 1 ORDER BY id ASC LIMIT 1"
   )
   return rows?.[0]?.id || null
 }

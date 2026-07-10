@@ -19,6 +19,18 @@ export const USER_PERMISSION_MODULES = [
 export const USER_PERMISSION_ACTIONS = ['can_view', 'can_create', 'can_edit', 'can_delete']
 
 export function defaultPermissions(role = 'cashier') {
+  if (role === 'superadmin') {
+    return USER_PERMISSION_MODULES.reduce((acc, module) => {
+      acc[module] = {
+        can_view: true,
+        can_create: true,
+        can_edit: true,
+        can_delete: true,
+      }
+      return acc
+    }, {})
+  }
+
   return USER_PERMISSION_MODULES.reduce((acc, module) => {
     const enabled = role === 'admin'
     acc[module] = {
@@ -32,6 +44,10 @@ export function defaultPermissions(role = 'cashier') {
 }
 
 export function normalizePermissions(input = {}, role = 'cashier') {
+  if (role === 'superadmin') {
+    return defaultPermissions(role)
+  }
+
   const fallback = defaultPermissions(role)
 
   return USER_PERMISSION_MODULES.reduce((acc, module) => {
@@ -45,6 +61,10 @@ export function normalizePermissions(input = {}, role = 'cashier') {
 }
 
 export function rowsToPermissions(rows = [], role = 'cashier') {
+  if (role === 'superadmin') {
+    return defaultPermissions(role)
+  }
+
   const permissions = defaultPermissions(role)
 
   rows.forEach((row) => {

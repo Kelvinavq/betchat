@@ -4,6 +4,28 @@ import { getSocket } from '../utils/socket'
 
 export const AuthContext = createContext(null)
 
+const ADMIN_SESSION_STORAGE_KEYS = {
+  role: 'admin_role',
+  canTransfer: 'admin_can_transfer_client_data',
+}
+
+function syncAdminSessionStorage(user) {
+  try {
+    if (!user) {
+      localStorage.removeItem(ADMIN_SESSION_STORAGE_KEYS.role)
+      localStorage.removeItem(ADMIN_SESSION_STORAGE_KEYS.canTransfer)
+      return
+    }
+    localStorage.setItem(ADMIN_SESSION_STORAGE_KEYS.role, String(user.role || ''))
+    localStorage.setItem(
+      ADMIN_SESSION_STORAGE_KEYS.canTransfer,
+      user.canTransferClientData ? '1' : '0'
+    )
+  } catch {
+    // ignore storage failures
+  }
+}
+
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
   const [initializing, setInitializing] = useState(true)
@@ -15,8 +37,10 @@ export const AuthProvider = ({ children }) => {
       try {
         const response = await api.get('/api/auth/me')
         setUser(response.user)
+        syncAdminSessionStorage(response.user)
       } catch {
         setUser(null)
+        syncAdminSessionStorage(null)
       } finally {
         setInitializing(false)
       }
@@ -57,6 +81,7 @@ export const AuthProvider = ({ children }) => {
 
   const login = (userData) => {
     setUser(userData)
+    syncAdminSessionStorage(userData)
   }
 
   const logout = async () => {
@@ -66,6 +91,7 @@ export const AuthProvider = ({ children }) => {
       console.warn('Error al cerrar sesión:', error)
     } finally {
       setUser(null)
+      syncAdminSessionStorage(null)
     }
   }
 

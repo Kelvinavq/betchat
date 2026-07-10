@@ -9,7 +9,7 @@ const DEFAULT_USER = {
   full_name: 'Administrador Principal',
   email: 'admin@betchat.local',
   password: 'Admin1234!',
-  role: 'admin',
+  role: 'superadmin',
 };
 
 async function main() {
@@ -34,9 +34,9 @@ async function main() {
 
     const insertSql = `
       INSERT INTO users
-        (username, full_name, email, password_hash, role, is_active)
+        (username, full_name, email, password_hash, role, is_active, can_transfer_client_data)
       VALUES
-        (?, ?, ?, ?, ?, 1)
+        (?, ?, ?, ?, ?, 1, 1)
     `;
 
     const { rows: insertResult, error: insertError } = await query(insertSql, [

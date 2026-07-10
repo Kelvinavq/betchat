@@ -5,6 +5,10 @@ const fadeIn = keyframes`from { opacity: 0; } to { opacity: 1; }`
 
 const spin = keyframes`from { transform: rotate(0deg); } to { transform: rotate(360deg); }`
 const pulse = keyframes`0%,100% { opacity: 1; } 50% { opacity: 0.4; }`
+const slideUp = keyframes`
+  from { opacity: 0; transform: translateY(22px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+`
 
 export const Wrap = styled.div`
   width: ${({ $width, $fullWidth }) => $fullWidth ? '100%' : $width ? `${$width}px` : '320px'};
@@ -505,6 +509,398 @@ export const ViewerBtn = styled.button`
   `}
   svg { font-size: 17px; }
   &:hover { opacity: 0.80; }
+`
+
+export const TransferOverlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 2200;
+  background: rgba(0,0,0,0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  overflow-y: auto;
+  animation: ${fadeIn} 0.22s ease both;
+`
+
+export const TransferCard = styled.div`
+  width: min(1120px, calc(100vw - 24px));
+  height: min(920px, calc(var(--app-height, 100dvh) - 24px));
+  max-height: calc(var(--app-height, 100dvh) - 24px);
+  min-height: 0;
+  background: #0d0d20;
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 22px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.75), 0 0 0 1px rgba(255,255,255,0.04);
+  animation: ${slideUp} 0.26s cubic-bezier(0.16,1,0.3,1) both;
+`
+
+export const TransferHead = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+`
+
+export const TransferHeadCopy = styled.div`
+  min-width: 0;
+`
+
+export const TransferTitle = styled.h2`
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.01em;
+`
+
+export const TransferSub = styled.p`
+  font-size: 12px;
+  color: rgba(255,255,255,0.30);
+  margin-top: 2px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+`
+
+export const TransferClose = styled.button`
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.09);
+  color: rgba(255,255,255,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  flex-shrink: 0;
+  svg { font-size: 16px; }
+  &:hover { background: rgba(255,255,255,0.11); color: rgba(255,255,255,0.88); }
+`
+
+export const TransferBody = styled.div`
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 16px 20px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overscroll-behavior: contain;
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+`
+
+export const TransferGrid = styled.div`
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  gap: 12px;
+  @media (max-width: 860px) { grid-template-columns: 1fr; }
+`
+
+export const TransferPanel = styled.div`
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+`
+
+export const TransferPanelTitle = styled.p`
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.28);
+`
+
+export const TransferPanelSub = styled.p`
+  font-size: 11px;
+  color: rgba(255,255,255,0.30);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+`
+
+export const TransferInfoBox = styled.div`
+  background: linear-gradient(135deg, rgba(30,133,255,0.12), rgba(52,211,153,0.08));
+  border: 1px solid rgba(30,133,255,0.18);
+  border-radius: 14px;
+  padding: 12px 14px;
+`
+
+export const TransferInfoText = styled.p`
+  font-size: 12px;
+  line-height: 1.5;
+  color: rgba(255,255,255,0.72);
+`
+
+export const TransferSummaryList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+export const TransferSummaryRow = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+`
+
+export const TransferSummaryLabel = styled.span`
+  font-size: 11px;
+  color: rgba(255,255,255,0.34);
+`
+
+export const TransferSummaryValue = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.80);
+  text-align: right;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  @media (max-width: 640px) {
+    text-align: left;
+  }
+`
+
+export const TransferSearchWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+`
+
+export const TransferSearchInput = styled.input`
+  width: 100%;
+  height: 42px;
+  padding: 0 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 13px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  &::placeholder { color: rgba(255,255,255,0.18); }
+  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+`
+
+export const TransferSearchResults = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 240px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  &::-webkit-scrollbar { width: 3px; }
+  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+`
+
+export const TransferSearchItem = styled.button`
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  background: ${({ $active }) => $active ? 'rgba(30,133,255,0.12)' : 'rgba(255,255,255,0.035)'};
+  border: 1px solid ${({ $active }) => $active ? 'rgba(30,133,255,0.26)' : 'rgba(255,255,255,0.07)'};
+  color: inherit;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.12s;
+  &:hover { transform: translateY(-1px); background: rgba(30,133,255,0.10); border-color: rgba(30,133,255,0.22); }
+`
+
+export const TransferSearchMeta = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`
+
+export const TransferSearchName = styled.p`
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const TransferSearchHint = styled.p`
+  font-size: 11px;
+  color: rgba(255,255,255,0.30);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
+export const TransferSearchEmpty = styled.div`
+  padding: 12px 10px;
+  font-size: 12px;
+  color: rgba(255,255,255,0.30);
+  line-height: 1.45;
+  border: 1px dashed rgba(255,255,255,0.08);
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+`
+
+export const TransferSelectedCard = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.18);
+`
+
+export const TransferSelectedMeta = styled.div`
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+`
+
+export const TransferSelectedTitle = styled.p`
+  font-size: 12px;
+  font-weight: 700;
+  color: #e5fbe9;
+`
+
+export const TransferSelectedSub = styled.p`
+  font-size: 11px;
+  color: rgba(229,251,233,0.72);
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+`
+
+export const TransferSelectedClear = styled.button`
+  border: none;
+  background: rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.72);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.12s;
+  &:hover { background: rgba(255,255,255,0.14); }
+  &:active { transform: scale(0.98); }
+`
+
+export const TransferSearchBadge = styled.span`
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  background: rgba(34,197,94,0.12);
+  border: 1px solid rgba(34,197,94,0.24);
+  color: #4ade80;
+`
+
+export const TransferReason = styled.textarea`
+  width: 100%;
+  min-height: 84px;
+  max-height: 220px;
+  resize: vertical;
+  padding: 11px 12px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 13px;
+  line-height: 1.45;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.2s, background 0.2s;
+  &::placeholder { color: rgba(255,255,255,0.18); }
+  &:focus { border-color: rgba(30,133,255,0.45); background: rgba(30,133,255,0.05); }
+`
+
+export const TransferFooter = styled.div`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 14px 20px 16px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  @media (max-width: 640px) {
+    flex-direction: column;
+    align-items: stretch;
+  }
+`
+
+export const TransferStatus = styled.span`
+  font-size: 12px;
+  color: ${({ $error }) => $error ? '#f87171' : 'rgba(255,255,255,0.38)'};
+  overflow-wrap: anywhere;
+`
+
+export const TransferActions = styled.div`
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  @media (max-width: 640px) {
+    width: 100%;
+  }
+`
+
+export const TransferActionBtn = styled.button`
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  padding: 9px 18px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.18s, transform 0.15s;
+  ${({ $v }) => $v === 'primary' ? css`
+    background: ${gradients.btn};
+    border: none;
+    color: #fff;
+    box-shadow: 0 4px 18px rgba(13,79,232,0.36);
+  ` : $v === 'danger' ? css`
+    background: rgba(239,68,68,0.12);
+    border: 1px solid rgba(239,68,68,0.24);
+    color: #f87171;
+  ` : css`
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.09);
+    color: rgba(255,255,255,0.60);
+  `}
+  &:hover { opacity: 0.82; }
+  &:active { transform: scale(0.97); }
+  &:disabled { opacity: 0.32; cursor: default; pointer-events: none; }
 `
 
 /* ── balance tab ── */

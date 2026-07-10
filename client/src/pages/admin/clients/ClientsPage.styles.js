@@ -244,6 +244,11 @@ export const ModalCard = styled.div`
   max-width: 520px;
   max-height: calc(var(--app-height, 100dvh) - 32px);
 `
+export const ModalCardWide = styled.div`
+  ${baseCard}
+  max-width: 960px;
+  max-height: calc(var(--app-height, 100dvh) - 32px);
+`
 export const PwdModalCard = styled.div`
   ${baseCard}
   max-width: 380px;
@@ -267,6 +272,58 @@ export const ModalBody = styled.div`
   display: flex; flex-direction: column; gap: 20px;
   &::-webkit-scrollbar { width: 3px; }
   &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.10); border-radius: 2px; }
+`
+
+export const ModalTabBar = styled.div`
+  display: flex;
+  gap: 2px;
+  padding: 8px 8px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  flex-shrink: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+`
+
+export const ModalTab = styled.button`
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 9px 8px;
+  border: none;
+  background: none;
+  border-radius: 10px 10px 0 0;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.2s, background 0.2s, border-color 0.2s;
+  border-bottom: 2px solid ${({ $active }) => $active ? colors.primaryLight : 'transparent'};
+  color: ${({ $active }) => $active ? '#ffffff' : 'rgba(255,255,255,0.38)'};
+  svg { font-size: 14px; flex-shrink: 0; }
+  span.tab-label {
+    overflow: hidden;
+    max-width: 72px;
+    transition: max-width 0.2s, opacity 0.2s;
+  }
+  @media (max-width: 540px) {
+    span.tab-label { max-width: 0; opacity: 0; }
+    gap: 0;
+  }
+  &:hover { color: rgba(255,255,255,0.72); background: rgba(255,255,255,0.04); }
+`
+
+export const ModalTabPill = styled.span`
+  padding: 2px 7px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  background: rgba(30,133,255,0.12);
+  color: #60a5fa;
+  border: 1px solid rgba(30,133,255,0.22);
 `
 
 /* avatar */
@@ -355,6 +412,118 @@ export const ModalBtn = styled.button`
   &:active { transform: scale(0.97); }
   &:disabled { opacity: 0.32; cursor: default; pointer-events: none; }
 `
+export const DetailSection = styled.section`
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.035);
+  border: 1px solid rgba(255,255,255,0.07);
+`
+
+export const DetailSectionTitle = styled.p`
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.28);
+`
+
+export const DetailStatsGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  @media (max-width: 560px) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+`
+
+export const DetailStat = styled.div`
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  min-width: 0;
+`
+
+export const DetailStatLabel = styled.p`
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.26);
+`
+
+export const DetailStatValue = styled.p`
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.88);
+`
+
+export const DetailChips = styled.div`
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+`
+
+export const DetailChip = styled.span`
+  padding: 5px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.72);
+  background: rgba(30,133,255,0.10);
+  border: 1px solid rgba(30,133,255,0.16);
+`
+
+export const DetailList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+`
+
+export const DetailRow = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.025);
+  border: 1px solid rgba(255,255,255,0.05);
+`
+
+export const DetailRowLabel = styled.span`
+  font-size: 11px;
+  color: rgba(255,255,255,0.34);
+`
+
+export const DetailRowValue = styled.span`
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.80);
+  text-align: right;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+`
+
+export const DetailGrid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  @media (max-width: 560px) { grid-template-columns: 1fr; }
+`
+
+export const DetailEmpty = styled.div`
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px dashed rgba(255,255,255,0.08);
+  color: rgba(255,255,255,0.30);
+  font-size: 12px;
+  line-height: 1.45;
+`
+
 /* ── toast notification ── */
 export const Toast = styled.div`
   position: fixed;

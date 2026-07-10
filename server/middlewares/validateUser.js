@@ -17,8 +17,8 @@ export function validateCreateUser(req, res, next) {
     errors.push('La contraseña debe tener al menos 8 caracteres')
   }
 
-  if (!['admin', 'cashier'].includes(role)) {
-    errors.push('El rol debe ser admin o cajero')
+  if (!['admin', 'cashier', 'superadmin'].includes(role)) {
+    errors.push('El rol debe ser admin, superadmin o cajero')
   }
 
   if (errors.length > 0) {

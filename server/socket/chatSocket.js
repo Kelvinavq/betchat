@@ -50,7 +50,7 @@ async function canAccessChat({ payload, chatId }) {
     if (error) throw error
     return Boolean(rows?.length)
   }
-  return payload.role === 'admin' || payload.role === 'cashier'
+  return payload.role === 'admin' || payload.role === 'superadmin' || payload.role === 'cashier'
 }
 
 function cleanupRecent() {
@@ -76,7 +76,7 @@ export function setupChatSockets(io) {
 
     socket.data.user = payload
 
-    if (payload?.role === 'admin' || payload?.role === 'cashier') {
+    if (payload?.role === 'admin' || payload?.role === 'superadmin' || payload?.role === 'cashier') {
       socket.join('admins')
       socket.join(`user:${payload.sub}`)
       const activeBroadcasts = getActiveBroadcasts()
@@ -113,7 +113,7 @@ export function setupChatSockets(io) {
           return
         }
         socket.join(`chat:${numericChatId}`)
-        if ((payload?.role === 'admin' || payload?.role === 'cashier') && payload?.sub) {
+        if ((payload?.role === 'admin' || payload?.role === 'superadmin' || payload?.role === 'cashier') && payload?.sub) {
           await assignChatIfUnassigned(numericChatId, payload.sub)
         }
         // Reset client unread count when client opens the chat

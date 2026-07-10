@@ -46,6 +46,7 @@ import TransactionHistoryDrawer from './TransactionHistoryDrawer'
 import ReceiptLogModal from './ReceiptLogModal'
 import { api, resolveApiAsset } from '../../../utils/api'
 import { useToast } from '../../../context/ToastContext'
+import { isPrivilegedAdmin } from '../../../utils/adminPermissions'
 import { useNotificationSound } from '../../../hooks/useNotificationSound'
 import { getSocket, makeClientMessageId } from '../../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../../utils/richText'
@@ -1438,12 +1439,12 @@ const AdminChatView = ({ chat, onBack, onOpenClient, onChatDeleted }) => {
               <DropdownItem onClick={() => setMenuOpen(false)}>
                 <CloseIcon />Cerrar chat
               </DropdownItem>
-              {user?.role === 'admin' && (
+              {isPrivilegedAdmin(user) && (
                 <DropdownItem $danger onClick={clearCurrentChat}>
                   <DeleteSweepOutlinedIcon />Vaciar historial
                 </DropdownItem>
               )}
-              {user?.role === 'admin' && (
+              {isPrivilegedAdmin(user) && (
                 <DropdownItem $danger onClick={deleteCurrentChat}>
                   <DeleteOutlineIcon />Eliminar chat
                 </DropdownItem>
