@@ -104,9 +104,11 @@ export async function resetClientBotAdmin(req, res, next) {
   }
 }
 
-const emitMessage = (chatId, message, extra = {}) => {
+const emitMessage = (chatId, message, extra = {}, clientId = null) => {
   const payload = Object.keys(extra).length > 0 ? { ...message, ...extra } : message
-  io.to(`chat:${chatId}`).emit('message:new', payload)
+  let clientTarget = io.to(`chat:${chatId}`)
+  if (clientId) clientTarget = clientTarget.to(`client:${clientId}`)
+  clientTarget.emit('message:new', payload)
   io.to('admins').emit('message:new', payload)
 }
 
@@ -1023,7 +1025,7 @@ export async function persistMessage({
   await invalidateMessageCache(chatId, messageDay)
   const chatRow = await getChat(chatId)
   const chat = sanitizeChat(chatRow)
-  emitMessage(chatId, message, extra)
+  emitMessage(chatId, message, extra, chatRow?.client_id || null)
   if (chatRow?.client_id && message.senderType !== 'client') {
     io.to(`client:${chatRow.client_id}`).emit('message:notify', {
       id: message.id,
@@ -1173,11 +1175,11 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
     console.log(`[Receipt] Iniciando procesamiento — chatId=${chatId} clientId=${clientId} messageId=${messageId}`)
 
     const { rows, error } = await query(
-      `SELECT bi.receipt_processing, cpc.bank_account_id, bp.slug AS active_provider
+      `SELECT bi.receipt_processing, ba.id AS bank_account_id, bp.slug AS active_provider
        FROM chats ch
        LEFT JOIN bot_items bi ON bi.id = ch.bot_last_button_id
        LEFT JOIN chat_processing_config cpc ON cpc.id = 1
-       LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
+       LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id AND ba.is_active = 1
        LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
        WHERE ch.id = ?
        LIMIT 1`,
@@ -1196,6 +1198,12 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
     const bankAccountId = bank_account_id || null
 
     console.log(`[Receipt] Contexto — receipt_processing=${receipt_processing} active_provider=${active_provider} bankAccountId=${bankAccountId}`)
+
+    // El constructor del bot decide si este botón se procesa automáticamente
+    // por el banco activo o queda pendiente para revisión del operador.
+    if (!receipt_processing || receipt_processing === 'manual') {
+      return await runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId })
+    }
 
     if (active_provider === 'mercadopago') {
       const { processMercadoPagoClientReceipt } = await import('./mercadoPagoController.js')
@@ -1259,8 +1267,29 @@ export async function processReceiptAsync({ chatId, clientId, messageId, dataUrl
     }
 
     // Manual por operador, o sin botón seleccionado (null → tratar como manual)
-    if (!receipt_processing || receipt_processing === 'manual') {
-      return await runManualAiPipeline({ chatId, clientId, messageId, dataUrl, bankAccountId })
+    if (active_provider === 'caudal') {
+      const { processCaudalClientReceipt } = await import('./caudalController.js')
+      const result = await processCaudalClientReceipt({ chatId, clientId, messageId, dataUrl })
+      const amount = result?.amount != null
+        ? Number(result.amount)
+        : result?.extractedData?.amount != null ? Number(result.extractedData.amount) : null
+      if (result?.status) {
+        io.to(`chat:${chatId}`).emit('receipt:result', {
+          chatId: Number(chatId),
+          messageId: Number(messageId),
+          status: result.status,
+          amount,
+          date: result?.extractedData?.date || null,
+          time: result?.extractedData?.time || null,
+          transactionId: result?.transactionId || result?.extractedData?.transaction_id || null,
+          resultReason: result.resultReason || null,
+        })
+      }
+      if (result?.status === 'paid') {
+        await new Promise(resolve => setTimeout(resolve, 250))
+        await resetClientBot(chatId)
+      }
+      return result
     }
 
     // Automático: si el banco activo es "manual" o no hay banco → fallback al pipeline de IA

@@ -29,7 +29,7 @@ import CardGiftcardOutlinedIcon from '@mui/icons-material/CardGiftcardOutlined'
 import { ChatContext } from '../../context/ChatContext'
 import { useSystemConfig } from '../../context/SystemConfigContext'
 import { api, resolveApiAsset } from '../../utils/api'
-import { getSocket, makeClientMessageId } from '../../utils/socket'
+import { getSocket, makeClientMessageId, refreshSocketAuth } from '../../utils/socket'
 import { hasRichText, htmlToPlainText, sanitizeRichHtml } from '../../utils/richText'
 import { parseDateValue } from '../../utils/dateUtils'
 import {
@@ -84,6 +84,21 @@ import {
   ReceiptDetailRows, ReceiptDetailRow, ReceiptDetailLabel, ReceiptDetailValue,
   ReceiptDetailViewBtn,
 } from './ChatWindow.styles'
+
+const getWithNetworkRetry = async (endpoint, attempts = 3) => {
+  let lastError
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    try {
+      return await api.get(endpoint)
+    } catch (error) {
+      lastError = error
+      const retryable = !error?.status || Number(error.status) >= 500
+      if (!retryable || attempt === attempts) throw error
+      await new Promise(resolve => window.setTimeout(resolve, attempt * 400))
+    }
+  }
+  throw lastError
+}
 
 /* ── login view ── */
 
@@ -1109,6 +1124,28 @@ const createReceiptUploadButtons = (request, actionLabel = '📎 Subir comproban
   }]
 }
 
+const findScreenReceiptButton = (screen) => (screen?.items || []).find(item =>
+  item.type === 'button' &&
+  item.label &&
+  !item.isBack &&
+  (item.buttonType === 'receipt_request' || item.showReceiptAfter)
+) || null
+
+const createScreenButtonsWithReceipt = (screen, request, actionLabel, reason = 'screen', buttonsOnly = true) =>
+  (buttonsOnly ? createBotButtonMessages(screen, reason) : createBotMessages(screen, reason)).map(message => {
+    if (message.type !== 'bot-buttons') return message
+    const receiptButton = {
+      id: `receipt-upload-btn-${request.buttonId}`,
+      label: actionLabel,
+      buttonType: 'receipt_upload',
+      receiptRequest: request,
+    }
+    const firstBackIndex = message.buttons.findIndex(button => button.isBack)
+    const buttons = [...message.buttons]
+    buttons.splice(firstBackIndex >= 0 ? firstBackIndex : buttons.length, 0, receiptButton)
+    return { ...message, buttons }
+  })
+
 const createButtonResponseMessages = (button, time = messageTime()) =>
   (button?.responseMessages || [])
     .map((text, index) => ({
@@ -1587,6 +1624,9 @@ const mergeDbMessage = (incoming) => (prev) => {
 const getClientTaxId = (client) =>
   String(client?.cuil || client?.cuit || client?.cuit_cuil || client?.cuil_cuit || '').trim()
 
+const getClientFullName = (client) =>
+  String(client?.fullName || client?.full_name || client?.name || '').trim()
+
 const normalizeClientProfile = (client) => {
   if (!client) return null
   const taxId = getClientTaxId(client)
@@ -1644,25 +1684,31 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
   const connectionTimerRef = useRef(null)
   const connectionStatusRef = useRef(connectionStatus)
   const lastManualConnectRef = useRef(0)
+  const chatRoomReadyRef = useRef(false)
   const readTimerRef = useRef(null)
   const typingTimerRef = useRef(null)
   const adminTypingTimerRef = useRef(null)
   const receiptProcessingTimerRef = useRef(null)
   const receiptResultsRef = useRef(new Map())
   const [resolvedClient, setResolvedClient] = useState(() => normalizeClientProfile(client))
-  const clientTaxId = getClientTaxId(resolvedClient)
-  const canReportPayment = useCallback((request, taxId = clientTaxId) => {
-    const provider = String(request?.activeProvider || activeBankProvider || '').toLowerCase()
-    return !request?.forceUpload && Boolean(taxId) && ['hgcash', 'cash'].includes(provider)
-  }, [activeBankProvider, clientTaxId])
+  const canReportPayment = useCallback((request, profile) => {
+    const providerValue = request && Object.prototype.hasOwnProperty.call(request, 'activeProvider')
+      ? request.activeProvider
+      : activeBankProvider
+    const provider = String(providerValue || '').toLowerCase()
+    if (request?.forceUpload || String(request?.processing || 'manual').toLowerCase() !== 'auto') return false
+    if (['hgcash', 'cash'].includes(provider)) return Boolean(getClientTaxId(profile))
+    if (provider === 'caudal') return getClientFullName(profile).split(/\s+/).filter(Boolean).length >= 2
+    return false
+  }, [activeBankProvider])
   // Legacy wrapper kept for compatibility with older call sites.
   // eslint-disable-next-line no-unused-vars
-  const getReceiptActionLabel = useCallback((request, taxId = clientTaxId) => (
-    canReportPayment(request) ? '📣 Reportar pago' : '📎 Subir comprobante'
-  ), [canReportPayment, clientTaxId])
-  const getReceiptActionLabelFresh = useCallback((request, taxId = clientTaxId) => (
-    canReportPayment(request, taxId) ? '📣 Reportar pago' : '📎 Subir comprobante'
-  ), [canReportPayment, clientTaxId])
+  const getReceiptActionLabel = useCallback((request, profile) => (
+    canReportPayment(request, profile) ? '📣 Reportar pago' : '📎 Subir comprobante'
+  ), [canReportPayment])
+  const getReceiptActionLabelFresh = useCallback((request, profile) => (
+    canReportPayment(request, profile) ? '📣 Reportar pago' : '📎 Subir comprobante'
+  ), [canReportPayment])
   const typingActiveRef = useRef(false)
   const shouldScrollBottomRef = useRef(false)
   const messageMenuRef = useRef(null)
@@ -1708,7 +1754,6 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
     const syncClientProfile = async () => {
       const nextClient = await refreshClientProfile()
       if (cancelled || !nextClient) return
-      const nextTaxId = getClientTaxId(nextClient)
       setMessages(prev => {
         let changed = false
         const next = prev.map(message => {
@@ -1716,7 +1761,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
           let rowChanged = false
           const buttons = message.buttons.map(button => {
             if (button.buttonType !== 'receipt_upload' || !button.receiptRequest) return button
-            const nextLabel = getReceiptActionLabelFresh(button.receiptRequest, nextTaxId)
+            const nextLabel = getReceiptActionLabelFresh(button.receiptRequest, nextClient)
             if (button.label === nextLabel) return button
             rowChanged = true
             return { ...button, label: nextLabel }
@@ -1792,6 +1837,8 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
 
   const markMessagePending = useCallback((clientMessageId) => {
     clearPendingTimer(clientMessageId)
+    window.clearTimeout(receiptProcessingTimerRef.current)
+    setReceiptProcessing(false)
     setQueuedManualRetry(clientMessageId)
     setMessages(prev => prev.map(message =>
       message.id === clientMessageId || message.clientMessageId === clientMessageId
@@ -1874,7 +1921,11 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
     if (!socket.connected) {
       if (queueWhenOffline) queueMessage(payload)
       setConnectionStatus('reconnecting')
-      sendHttpPayload(payload)
+      return
+    }
+
+    if (!chatRoomReadyRef.current) {
+      if (queueWhenOffline) queueMessage(payload)
       return
     }
 
@@ -1904,14 +1955,13 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
   }, [clearPendingTimer, markConnectionRestored, markMessagePending, queueMessage, removeQueuedMessage, replaceOptimisticMessage, sendHttpPayload])
 
   const flushOutbox = useCallback(() => {
-    if (!chatId || outboxRef.current.length === 0) return
+    if (!chatId || !chatRoomReadyRef.current || outboxRef.current.length === 0) return
     const pending = [...outboxRef.current]
     pending.forEach(payload => {
       if (isMediaPayload(payload) && payload.needsManualRetry) return
-      if (navigator.onLine && !getSocket('client').connected) sendHttpPayload(payload)
-      else sendSocketPayload(payload, { queueWhenOffline: true })
+      sendSocketPayload(payload, { queueWhenOffline: true })
     })
-  }, [chatId, sendHttpPayload, sendSocketPayload])
+  }, [chatId, sendSocketPayload])
 
   const retryQueuedMedia = useCallback((clientMessageId) => {
     const payload = outboxRef.current.find(item => item.clientMessageId === clientMessageId)
@@ -1924,10 +1974,15 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
         ? { ...message, type: 'sending' }
         : message
     ))
+    if (retryPayload.isReceipt) {
+      window.clearTimeout(receiptProcessingTimerRef.current)
+      setReceiptProcessing(true)
+      receiptProcessingTimerRef.current = window.setTimeout(() => setReceiptProcessing(false), 90_000)
+    }
     schedulePendingState(clientMessageId)
-    if (navigator.onLine && !getSocket('client').connected) sendHttpPayload(retryPayload)
-    else sendSocketPayload(retryPayload, { queueWhenOffline: true })
-  }, [queueMessage, schedulePendingState, sendHttpPayload, sendSocketPayload])
+    if (navigator.onLine) sendHttpPayload(retryPayload)
+    else setConnectionStatus('offline')
+  }, [queueMessage, schedulePendingState, sendHttpPayload])
 
   const cancelQueuedMedia = useCallback((clientMessageId) => {
     cancelledMediaRef.current.add(clientMessageId)
@@ -2042,7 +2097,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
         buttons: [
           {
             id: `receipt-upload-restore-${request.buttonId || 'file'}`,
-            label: getReceiptActionLabelFresh(request, clientTaxId),
+            label: getReceiptActionLabelFresh(request, resolvedClient),
             buttonType: 'receipt_upload',
             receiptRequest: request,
           },
@@ -2053,7 +2108,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
         avatar: BOT_AVATAR,
       }]
     })
-  }, [clientTaxId, getReceiptActionLabelFresh])
+  }, [getReceiptActionLabelFresh, resolvedClient])
 
   const watchReceiptFileDialog = useCallback((request) => {
     receiptFileDialogRef.current = { request, active: true }
@@ -2070,7 +2125,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
     window.addEventListener('focus', handleFocus, { once: true })
   }, [restoreReceiptButtons])
 
-  const handleReportPayment = useCallback(async (request) => {
+  const handleReportPayment = useCallback(async (request, profile = resolvedClient) => {
     const req = request || receiptRequest
     if (!req || !chatId || receiptProcessing) return
     lastReceiptRequestRef.current = req
@@ -2080,8 +2135,16 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
     setReceiptProcessing(true)
     receiptProcessingTimerRef.current = window.setTimeout(() => setReceiptProcessing(false), 90_000)
     try {
-      const result = await api.post(`/api/client/chats/${chatId}/hgcash/report-payment`, {})
-      if (result?.status && result.status !== 'paid') {
+      const providerValue = req && Object.prototype.hasOwnProperty.call(req, 'activeProvider')
+        ? req.activeProvider
+        : activeBankProvider
+      const provider = String(providerValue || '').toLowerCase()
+      const isCaudal = provider === 'caudal'
+      const endpoint = isCaudal
+        ? `/api/client/chats/${chatId}/caudal/report-payment`
+        : `/api/client/chats/${chatId}/hgcash/report-payment`
+      const result = await api.post(endpoint, isCaudal ? { fullName: getClientFullName(profile) } : {})
+      if (result?.status && !['paid', 'pagado', 'duplicate', 'duplicado'].includes(String(result.status).toLowerCase())) {
         restoreReceiptButtons({ ...req, forceUpload: true })
       }
     } catch {
@@ -2090,22 +2153,34 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
       window.clearTimeout(receiptProcessingTimerRef.current)
       setReceiptProcessing(false)
     }
-  }, [chatId, receiptProcessing, receiptRequest, restoreReceiptButtons])
+  }, [activeBankProvider, chatId, receiptProcessing, receiptRequest, resolvedClient, restoreReceiptButtons])
 
   const handleReceiptUploadClick = useCallback(async (request) => {
-    const req = request || receiptRequest
-    if (!req) return
-    const latestClient = await refreshClientProfile()
-    const latestTaxId = getClientTaxId(latestClient)
-    if (canReportPayment(req, latestTaxId)) {
-      handleReportPayment(req)
+    const initialRequest = request || receiptRequest
+    if (!initialRequest) return
+    const [latestClient, latestBankContext] = await Promise.all([
+      refreshClientProfile(),
+      api.get('/api/client/bot/flow').catch(() => null),
+      initialRequest.screenId && initialRequest.buttonId
+        ? api.put(`/api/client/bot/chats/${chatId}/state`, {
+            screenId: initialRequest.screenId,
+            buttonId: initialRequest.buttonId,
+          }).catch(() => null)
+        : Promise.resolve(null),
+    ])
+    const req = latestBankContext
+      ? { ...initialRequest, activeProvider: latestBankContext.activeProvider || null }
+      : initialRequest
+    if (latestBankContext) setActiveBankProvider(latestBankContext.activeProvider || null)
+    if (canReportPayment(req, latestClient)) {
+      handleReportPayment(req, latestClient)
       return
     }
     lastReceiptRequestRef.current = req
     setReceiptRequest(req)
     watchReceiptFileDialog(req)
     receiptInputRef.current?.click()
-  }, [canReportPayment, handleReportPayment, receiptRequest, refreshClientProfile, watchReceiptFileDialog])
+  }, [canReportPayment, chatId, handleReportPayment, receiptRequest, refreshClientProfile, watchReceiptFileDialog])
 
   const handleBotButton = async (button) => {
     if (button.buttonType === 'receipt_upload') {
@@ -2129,6 +2204,15 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
     const willShowReceipt = Boolean(button.showReceiptAfter) || button.buttonType === 'receipt_request'
     const target = isMessagesOnly ? currentScreen : (botFlow?.screens?.find(screen => screen.id === button.actionScreenId) || currentScreen)
     const targetBackButtons = (target?.items || []).filter(item => item.type === 'button' && item.isBack && item.label)
+    const targetReceiptButton = willShowReceipt ? null : findScreenReceiptButton(target)
+    const screenReceiptRequest = targetReceiptButton ? {
+      buttonId: targetReceiptButton.id,
+      label: targetReceiptButton.label,
+      processing: targetReceiptButton.receiptProcessing || 'manual',
+      activeProvider: activeBankProvider || null,
+      screenId: target?.id || null,
+      backButtons: targetBackButtons,
+    } : null
     const currentBackButtons = (currentScreen?.items || []).filter(item => item.type === 'button' && item.isBack && item.label)
     const backButtonRow = isMessagesOnly && currentBackButtons.length > 0 ? {
       id: `bot-back-${button.id}-${Date.now()}`,
@@ -2153,11 +2237,29 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
       if (responseMessages.length > 0) {
         if (willShowReceipt) return [...responseMessages, receiptPromptMsg]
         if (isMessagesOnly) return backButtonRow ? [...responseMessages, backButtonRow] : responseMessages
-        return [...responseMessages, ...createBotButtonMessages(target, button.id)]
+        return [
+          ...responseMessages,
+          ...(screenReceiptRequest
+            ? createScreenButtonsWithReceipt(
+                target,
+                screenReceiptRequest,
+                getReceiptActionLabelFresh(screenReceiptRequest, resolvedClient),
+                button.id
+              )
+            : createBotButtonMessages(target, button.id)),
+        ]
       }
       if (willShowReceipt) return [receiptPromptMsg]
       if (isMessagesOnly) return backButtonRow ? [backButtonRow] : []
-      return createBotMessages(target, button.id)
+      return screenReceiptRequest
+        ? createScreenButtonsWithReceipt(
+            target,
+            screenReceiptRequest,
+            getReceiptActionLabelFresh(screenReceiptRequest, resolvedClient),
+            button.id,
+            false
+          )
+        : createBotMessages(target, button.id)
     })()
     const botTextMessages = botMessages.filter(message => message.type === 'text')
     const botMessageIds = botTextMessages.map(() => makeClientMessageId('bot-auto'))
@@ -2188,7 +2290,6 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
     }
 
     const latestClient = await refreshClientProfile()
-    const latestTaxId = getClientTaxId(latestClient)
 
     api.post(`/api/client/bot/chats/${chatId}/select`, {
       buttonId: button.id,
@@ -2198,11 +2299,12 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
       .then((data) => {
         markConnectionRestored()
         setCurrentBotScreenId(data.state?.currentScreenId || target.id)
-        if (data.button?.showReceiptAfter || (data.button?.buttonType === 'receipt_request')) {
+        if (data.button?.showReceiptAfter || (data.button?.buttonType === 'receipt_request') || targetReceiptButton) {
+          const receiptSource = targetReceiptButton || button
           const nextReceiptRequest = {
-            buttonId: button.id,
-            label: button.label,
-            processing: data.button?.receiptProcessing || button.receiptProcessing || 'manual',
+            buttonId: receiptSource.id,
+            label: receiptSource.label,
+            processing: data.button?.receiptProcessing || receiptSource.receiptProcessing || 'manual',
             activeProvider: data.activeProvider || activeBankProvider || null,
             screenId: target.id,
             backButtons: targetBackButtons,
@@ -2212,22 +2314,17 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
           shouldScrollBottomRef.current = true
           setMessages(prev => [
             ...prev.filter(m => m.type !== 'bot-buttons'),
-            {
-              id: `bot-receipt-upload-${button.id}-${Date.now()}`,
-              type: 'bot-buttons',
-              buttons: [
-                {
-                  id: `receipt-upload-btn-${button.id}`,
-                  label: getReceiptActionLabelFresh(nextReceiptRequest, latestTaxId),
-                  buttonType: 'receipt_upload',
-                  receiptRequest: nextReceiptRequest,
-                },
-                ...targetBackButtons,
-              ],
-              received: true,
-              time: messageTime(),
-              avatar: BOT_AVATAR,
-            },
+            ...(targetReceiptButton
+              ? createScreenButtonsWithReceipt(
+                  target,
+                  nextReceiptRequest,
+                  getReceiptActionLabelFresh(nextReceiptRequest, latestClient),
+                  button.id
+                )
+              : createReceiptUploadButtons(
+                  nextReceiptRequest,
+                  getReceiptActionLabelFresh(nextReceiptRequest, latestClient)
+                )),
           ])
         }
         shouldScrollBottomRef.current = true
@@ -2339,7 +2436,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
       receiptProcessingTimerRef.current = window.setTimeout(() => setReceiptProcessing(false), 90_000)
     }
 
-    sendSocketPayload({
+    const payload = {
       chatId,
       clientMessageId: sendingId,
       messageType: type,
@@ -2352,7 +2449,11 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
       loaderStartedAt,
       replyToMessageId,
       replyTo: replyPayload,
-    })
+      isReceipt: Boolean(mediaReceiptRequest),
+    }
+    queueMessage(payload)
+    if (navigator.onLine) sendHttpPayload(payload)
+    else setConnectionStatus('offline')
   }
 
   useEffect(() => {
@@ -2362,7 +2463,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
       try {
         const [latestClient, botData, messageData] = await Promise.all([
           refreshClientProfile(),
-          client?.temporary ? Promise.resolve({ flow: null, state: null }) : api.get('/api/client/bot/flow'),
+          client?.temporary ? Promise.resolve({ flow: null, state: null }) : getWithNetworkRetry('/api/client/bot/flow'),
           chatId ? api.get(`/api/client/chats/${chatId}/messages?mode=day`) : Promise.resolve({ messages: [] }),
         ])
         const flow = botData.flow
@@ -2371,26 +2472,39 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
         const currentScreen = flow?.screens?.find(screen => screen.id === botData.state?.currentScreenId) || root
         const dbMessages = (messageData.messages || []).map(mapDbMessage)
         const lastButton = currentScreen?.items?.find(item => item.type === 'button' && item.id === botData.state?.lastButtonId)
+        const hasProgressed = Boolean(botData.state?.lastButtonId)
+        const directReceiptButton = lastButton && (lastButton.buttonType === 'receipt_request' || lastButton.showReceiptAfter)
+          ? lastButton
+          : null
+        const screenReceiptButton = !directReceiptButton && hasProgressed
+          ? findScreenReceiptButton(currentScreen)
+          : null
+        const receiptButton = directReceiptButton || screenReceiptButton
         const submittedFormIds = currentScreen?.items?.some(item => item.type === 'form' && item.id === botData.state?.lastButtonId)
           ? [botData.state.lastButtonId]
           : []
-        const receiptRequest = lastButton && (lastButton.buttonType === 'receipt_request' || lastButton.showReceiptAfter)
+        const receiptRequest = receiptButton
           ? {
-              buttonId: lastButton.id,
-              label: lastButton.label,
-              processing: lastButton.receiptProcessing || 'manual',
+              buttonId: receiptButton.id,
+              label: receiptButton.label,
+              processing: receiptButton.receiptProcessing || 'manual',
               activeProvider: botData.activeProvider || null,
               screenId: currentScreen?.id || root?.id || null,
               backButtons: (currentScreen?.items || []).filter(item => item.type === 'button' && item.isBack && item.label),
             }
           : null
-        const hasProgressed = Boolean(botData.state?.lastButtonId)
         const initialScreen = hasProgressed ? currentScreen : root
         const screenHasBackButtons = (initialScreen?.items || []).some(item => item.type === 'button' && item.isBack && item.label)
         const screenHasForms = (initialScreen?.items || []).some(item => item.type === 'form' && item.formConfig?.fields?.length && !submittedFormIds.includes(item.id))
-        const latestTaxId = getClientTaxId(latestClient)
-        const botMessages = receiptRequest
-          ? createReceiptUploadButtons(receiptRequest, getReceiptActionLabelFresh(receiptRequest, latestTaxId))
+        const botMessages = directReceiptButton && receiptRequest
+          ? createReceiptUploadButtons(receiptRequest, getReceiptActionLabelFresh(receiptRequest, latestClient))
+          : screenReceiptButton && receiptRequest
+            ? createScreenButtonsWithReceipt(
+                initialScreen,
+                receiptRequest,
+                getReceiptActionLabelFresh(receiptRequest, latestClient),
+                botData.state?.lastButtonId || 'state'
+              )
           : (hasProgressed && screenHasBackButtons && !screenHasForms)
             ? createBackButtonMessages(initialScreen, botData.state?.lastButtonId || 'state')
             : createBotMessages(initialScreen, botData.state?.lastButtonId || 'state', submittedFormIds)
@@ -2455,7 +2569,33 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
   useEffect(() => {
     if (!chatId) return
     const socket = getSocket('client')
-    socket.emit('chat:join', { chatId })
+    chatRoomReadyRef.current = false
+    let joinRetryTimer = null
+    const joinChatRoom = () => {
+      socket.emit('chat:join', { chatId }, (ack = {}) => {
+        if (ack?.ok) {
+          chatRoomReadyRef.current = true
+          if (connectionStatusRef.current === 'reconnecting' || connectionStatusRef.current === 'offline') {
+            markConnectionRestored()
+          }
+          flushOutbox()
+        } else {
+          chatRoomReadyRef.current = false
+          setConnectionStatus('reconnecting')
+          window.clearTimeout(joinRetryTimer)
+          if (socket.connected) {
+            joinRetryTimer = window.setTimeout(() => {
+              if (socket.connected && !chatRoomReadyRef.current) joinChatRoom()
+            }, 500)
+          }
+        }
+      })
+    }
+    if (socket.connected) {
+      joinChatRoom()
+    } else {
+      socket.once('connect', joinChatRoom)
+    }
     const onNewMessage = (message) => {
       if (Number(message.chatId) !== Number(chatId)) return
       shouldScrollBottomRef.current = true
@@ -2511,13 +2651,16 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
     socket.on('balance:updated', onBalanceUpdated)
     socket.on('receipt:result', onReceiptResult)
     return () => {
+      window.clearTimeout(joinRetryTimer)
       socket.off('message:new', onNewMessage)
       socket.off('typing', onTyping)
       socket.off('balance:updated', onBalanceUpdated)
       socket.off('receipt:result', onReceiptResult)
+      socket.off('connect', joinChatRoom)
       socket.emit('chat:leave', { chatId })
+      chatRoomReadyRef.current = false
     }
-  }, [chatId, fetchWithdrawableBalance, markOutboundDelivered, markOutboundReadSoon])
+  }, [chatId, fetchWithdrawableBalance, flushOutbox, markConnectionRestored, markOutboundDelivered, markOutboundReadSoon])
 
   useEffect(() => {
     if (!chatId || client?.temporary) return
@@ -2560,12 +2703,21 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
 
       let aiMessages = Array.isArray(data.botMessages) ? data.botMessages.map(message => ({
         ...message,
+        buttons: message.type === 'bot-buttons' && nextReceiptRequest
+          ? (message.buttons || []).map(button => button.buttonType === 'receipt_upload'
+              ? {
+                  ...button,
+                  label: getReceiptActionLabelFresh(nextReceiptRequest, resolvedClient),
+                  receiptRequest: nextReceiptRequest,
+                }
+              : button)
+          : message.buttons,
         received: true,
         time: message.time || messageTime(),
         avatar: message.avatar || BOT_AVATAR,
       })) : []
 
-      if (data.action === 'select_button' && data.buttonId && botFlow?.screens) {
+      if (!nextReceiptRequest && data.action === 'select_button' && data.buttonId && botFlow?.screens) {
         const allItems = (botFlow.screens || []).flatMap(s => s.items || [])
         const btn = allItems.find(item => item.type === 'button' && String(item.id) === String(data.buttonId))
         if (btn) {
@@ -2590,7 +2742,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
     }
     socket.on('bot:ai-transition', onBotAiTransition)
     return () => socket.off('bot:ai-transition', onBotAiTransition)
-  }, [chatId, client?.temporary, botFlow])
+  }, [chatId, client?.temporary, botFlow, getReceiptActionLabelFresh, resolvedClient])
 
   useEffect(() => {
     if (!chatId || client?.temporary) return
@@ -3195,7 +3347,7 @@ const ChatView = ({ onClose, client, onLogout, loggingOut, onChatReassigned, ref
         onChange={handleReceiptFileSelect}
       />
 
-      {menuOpen && <ClientMenu onClose={() => setMenuOpen(false)} />}
+      {menuOpen && <ClientMenu onClose={() => setMenuOpen(false)} chatId={chatId} />}
 
     </ChatViewContainer>
   )
@@ -3281,6 +3433,7 @@ const ChatWindow = ({ onClose, embedded = false }) => {
         ...(referralCode ? { referralCode } : {}),
       })
       setIframeLoginData({ username: username.trim(), password })
+      refreshSocketAuth('client')
       setClientSession(session.client)
       localStorage.setItem('clientUsername', session.client.username)
       localStorage.setItem('clientId', String(session.client.id))
@@ -3341,6 +3494,7 @@ const ChatWindow = ({ onClose, embedded = false }) => {
         ...(referralCode ? { referralCode } : {}),
       })
       setIframeLoginData({ username: username.trim(), password })
+      refreshSocketAuth('client')
       setClientSession(session.client)
       localStorage.setItem('clientUsername', session.client.username)
       localStorage.setItem('clientId', String(session.client.id))
@@ -3363,6 +3517,7 @@ const ChatWindow = ({ onClose, embedded = false }) => {
     try {
       const session = await api.post('/api/client/auth/help-session', { reason, note })
       setIframeLoginData(null)
+      refreshSocketAuth('client')
       setClientSession(session.client)
       localStorage.setItem('clientUsername', session.client.username)
       localStorage.setItem('clientId', String(session.client.id))

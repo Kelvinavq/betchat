@@ -18,11 +18,13 @@ const DEFAULT_SYSTEM_CONFIG = {
   clientMenuEvents:     true,
   clientMenuHistory:    true,
   clientMenuFaq:        true,
+  clientMenuCaudal:     false,
   clientBalanceVisible: true,
   botMode: 'manual',
   botAiModel: '',
   botAiTemperature: 0.1,
   botAiMaxTokens: 250,
+  botAiConfig: null,
   bubbleConfig: DEFAULT_BUBBLE_CONFIG,
 }
 
@@ -61,6 +63,7 @@ const normalizeSystemConfig = (config = {}) => ({
   clientMenuEvents:          configFlag(config.clientMenuEvents          ?? config.client_menu_events,          true),
   clientMenuHistory:         configFlag(config.clientMenuHistory         ?? config.client_menu_history,         true),
   clientMenuFaq:             configFlag(config.clientMenuFaq             ?? config.client_menu_faq,             true),
+  clientMenuCaudal:          configFlag(config.clientMenuCaudal          ?? config.client_menu_caudal,          false),
   clientBalanceVisible:      configFlag(config.clientBalanceVisible      ?? config.client_balance_visible,      true),
   botMode: String(config.botMode || config.bot_mode || DEFAULT_SYSTEM_CONFIG.botMode).toLowerCase() === 'hybrid_ai' ? 'hybrid_ai' : 'manual',
   botAiModel: String(config.botAiModel || config.bot_ai_model || ''),
@@ -70,6 +73,7 @@ const normalizeSystemConfig = (config = {}) => ({
   botAiMaxTokens: Number.isFinite(Number(config.botAiMaxTokens ?? config.bot_ai_max_tokens))
     ? Math.max(1, Math.min(2000, Math.floor(Number(config.botAiMaxTokens ?? config.bot_ai_max_tokens))))
     : DEFAULT_SYSTEM_CONFIG.botAiMaxTokens,
+  botAiConfig: config.botAiConfig || config.bot_ai_config || DEFAULT_SYSTEM_CONFIG.botAiConfig,
   bubbleConfig: (config.bubbleConfig || config.bubble_config)
     ? { ...DEFAULT_BUBBLE_CONFIG, ...(config.bubbleConfig || config.bubble_config) }
     : DEFAULT_BUBBLE_CONFIG,

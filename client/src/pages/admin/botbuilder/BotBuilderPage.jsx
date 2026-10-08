@@ -328,7 +328,7 @@ const EditButtonModal = ({ item, screens, currentScreenId, onClose, onSave }) =>
   const [label, setLabel]               = useState(item?.label ?? '')
   const [buttonType, setButtonType]     = useState(isLegacyReceipt ? 'messages_only' : (item?.buttonType ?? 'navigate'))
   const [showReceiptAfter, setShowReceiptAfter] = useState(Boolean(item?.showReceiptAfter) || isLegacyReceipt)
-  const [receiptProcessing, setReceiptProcessing] = useState(item?.receiptProcessing ?? 'manual')
+  const [receiptProcessing, setReceiptProcessing] = useState(item?.receiptProcessing ?? 'auto')
   const [receiptPrompt, setReceiptPrompt] = useState(item?.receiptPrompt ?? 'Subi una imagen o PDF del comprobante para que podamos validarlo.')
   const [responseMessages, setResponseMessages] = useState(item?.responseMessages || [])
   const [actionScreenId, setAction]     = useState(item?.actionScreenId ?? (screens.find(s => s.id !== currentScreenId)?.id ?? screens[0]?.id ?? ''))
@@ -1225,7 +1225,7 @@ const BotBuilderPage = ({ onMenuOpen }) => {
     setModal(null)
   }
 
-  const handleSaveButton = ({ label, actionScreenId, isBack, buttonType = 'navigate', receiptProcessing = 'manual', receiptPrompt = '', showReceiptAfter = false, responseMessages = [] }) => {
+  const handleSaveButton = ({ label, actionScreenId, isBack, buttonType = 'navigate', receiptProcessing = 'auto', receiptPrompt = '', showReceiptAfter = false, responseMessages = [] }) => {
     const items = [...selectedScreen.items]
     if (modal.item) {
       const idx = items.findIndex(i => i.id === modal.item.id)

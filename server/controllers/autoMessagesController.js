@@ -8,6 +8,14 @@ const EVENTS = [
   'deposit_completed',
   'deposit_completed_report',
   'deposit_failed',
+  'caudal_deposito_completado',
+  'caudal_request_name',
+  'caudal_no_pending',
+  'caudal_pending',
+  'caudal_comprobante_duplicado',
+  'caudal_withdrawal_processing',
+  'caudal_withdrawal_review',
+  'caudal_withdrawal_rejected',
   'receipt_reupload',
   'receipt_amount_low',
   'hgcash_payment_not_found',
@@ -29,6 +37,14 @@ const DEFAULTS = {
   deposit_completed:        '¡Tu depósito fue acreditado con éxito! Ya podés jugar.',
   deposit_completed_report: '¡Tu pago fue reportado y acreditado con éxito! Ya podés jugar.',
   deposit_failed:           'No pudimos procesar tu depósito. Contactá a soporte para más información.',
+  caudal_deposito_completado:'¡Tu depósito fue acreditado con éxito! Ya podés jugar.',
+  caudal_request_name:      'Necesitamos tu nombre y apellido para continuar con el pago Caudal.',
+  caudal_no_pending:        'No encontramos un pago pendiente. Subí el comprobante para revisarlo manualmente.',
+  caudal_pending:           'Tu pago quedó en revisión manual. Un administrador lo va a revisar y, si hace falta, se va a contactar con vos.',
+  caudal_comprobante_duplicado: 'El comprobante ingresado ya se encuentra registrado previamente.',
+  caudal_withdrawal_processing:'Tu retiro quedó en proceso. Te avisaremos apenas esté resuelto.',
+  caudal_withdrawal_review: 'Tu solicitud quedó en revisión manual. Un administrador la va a revisar y te va a contactar si hace falta.',
+  caudal_withdrawal_rejected:'Tu solicitud de retiro no pudo procesarse en este momento.',
   receipt_reupload:         'Necesitamos que vuelvas a enviar el comprobante. Por favor subí una imagen más clara.',
   receipt_amount_low:       'El monto de tu comprobante es inferior al mínimo permitido. Realizá un depósito por el monto mínimo requerido.',
   hgcash_payment_not_found:  'No encontramos ningún pago pendiente con tu CUIL. Por favor subí el comprobante para que podamos validarlo.',
@@ -143,7 +159,7 @@ export async function resolveMessage(template, context = {}) {
       const { rows } = await query(
         `SELECT ba.account_data
          FROM chat_processing_config cpc
-         INNER JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
+         INNER JOIN bank_accounts ba ON ba.id = cpc.bank_account_id AND ba.is_active = 1
          WHERE cpc.id = 1 LIMIT 1`
       )
       baRow = rows?.[0]

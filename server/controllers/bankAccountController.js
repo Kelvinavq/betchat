@@ -1,6 +1,7 @@
-import { query } from '../config/database.js'
+import { query, transaction } from '../config/database.js'
+import { deleteCache } from '../utils/redisCache.js'
 
-const PROVIDERS = ['hgcash', 'mercadopago', 'telepagos', 'manual']
+const PROVIDERS = ['hgcash', 'mercadopago', 'telepagos', 'manual', 'caudal']
 
 function parseAccountData(value) {
   if (!value) return {}
@@ -14,6 +15,10 @@ function parseAccountData(value) {
 
 function normalizeText(value) {
   return String(value ?? '').trim()
+}
+
+function normalizeBearerToken(value) {
+  return normalizeText(value).replace(/^Bearer\s+/i, '').trim()
 }
 
 function normalizeBoolean(value) {
@@ -38,6 +43,9 @@ function sanitizeAccount(row) {
     alias: row.alias || data.alias || '',
     cbu: data.cbu || '',
     token: data.token || '',
+    api_token: row.provider_slug === 'hgcash' ? '' : (data.api_token || ''),
+    account_id: data.account_id || '',
+    account_external_id: data.account_external_id || '',
     cookie: data.cookie || '',
     cookie_expires_at: data.cookie_expires_at || null,
     webhook_enabled: Boolean(data.webhook_enabled),
@@ -75,6 +83,16 @@ async function getAccountRow(id) {
   return rows?.[0] || null
 }
 
+async function followActivatedAccount(connection, accountId, providerId) {
+  await connection.execute(
+    `UPDATE chat_processing_config cpc
+     INNER JOIN bank_accounts selected ON selected.id = cpc.bank_account_id
+     SET cpc.bank_account_id = ?
+     WHERE cpc.id = 1 AND selected.provider_id = ?`,
+    [accountId, providerId]
+  )
+}
+
 function validatePayload(body, provider, { editing = false, previousData = {} } = {}) {
   const errors = []
   const password = normalizeText(body.password)
@@ -92,6 +110,7 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
     alias: normalizeText(body.alias),
     cbu: normalizeText(body.cbu),
     token: normalizeText(body.token),
+    account_id: normalizeText(body.account_id),
     cookie: normalizeText(body.cookie),
     cookie_expires_at: normalizeText(body.cookie_expires_at) || null,
     webhook_enabled: webhookEnabled,
@@ -104,7 +123,9 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
   if (password) payload.password = password
   else if (editing && previousData.password) payload.password = previousData.password
 
-  const apiToken = normalizeText(body.api_token)
+  const apiToken = provider === 'hgcash'
+    ? normalizeBearerToken(body.api_token)
+    : normalizeText(body.api_token)
   if (apiToken) payload.api_token = apiToken
   else if (editing && previousData.api_token) payload.api_token = previousData.api_token
 
@@ -117,8 +138,7 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
   }
 
   if (provider === 'hgcash') {
-    requireFields(payload, ['nombre_titular', 'email', 'cuit', 'alias', 'cbu'], errors)
-    if (!editing && !password) errors.push('El campo password es requerido')
+    requireFields(payload, ['nombre_titular', 'cuit', 'alias', 'cbu', 'account_id', 'api_token'], errors)
     if (webhookEnabled && payload.webhook_mode === 'hmac' && !payload.webhook_secret) {
       errors.push('El webhook secret es requerido cuando el modo webhook es HMAC')
     }
@@ -135,6 +155,23 @@ function validatePayload(body, provider, { editing = false, previousData = {} } 
     if (!editing && !password) errors.push('El campo password es requerido')
   }
 
+  if (provider === 'caudal') {
+    requireFields(payload, ['nombre_titular', 'alias', 'cbu'], errors)
+
+    const rawExternalId = normalizeText(body.account_external_id)
+    if (!rawExternalId) errors.push('El Account External ID de Caudal es requerido')
+    payload.account_external_id = rawExternalId
+
+    const rawApiToken = normalizeText(body.api_token) || (editing ? normalizeText(previousData.api_token) : '')
+    if (!rawApiToken) errors.push('El API Token de Caudal es requerido')
+    payload.api_token = rawApiToken
+
+    const rawSecret = normalizeText(body.webhook_secret) || (editing ? normalizeText(previousData.webhook_secret) : '')
+    if (!rawSecret) errors.push('El Webhook Secret de Caudal es requerido')
+    payload.webhook_secret = rawSecret
+    payload.webhook_enabled = true
+  }
+
   return { errors, payload }
 }
 
@@ -143,7 +180,7 @@ async function getCounts() {
     `SELECT bp.slug, COUNT(ba.id) AS total
      FROM bank_providers bp
      LEFT JOIN bank_accounts ba ON ba.provider_id = bp.id
-     WHERE bp.slug IN ('hgcash', 'mercadopago', 'telepagos', 'manual')
+     WHERE bp.slug IN ('hgcash', 'mercadopago', 'telepagos', 'manual', 'caudal')
      GROUP BY bp.slug`,
     []
   )
@@ -152,7 +189,7 @@ async function getCounts() {
   return rows.reduce((acc, row) => {
     acc[row.slug] = Number(row.total || 0)
     return acc
-  }, { hgcash: 0, mercadopago: 0, telepagos: 0, manual: 0 })
+  }, { hgcash: 0, mercadopago: 0, telepagos: 0, manual: 0, caudal: 0 })
 }
 
 export async function getBankAccounts(req, res, next) {
@@ -244,13 +281,27 @@ export async function createBankAccount(req, res, next) {
     }
 
     const isActive = req.body.estatus !== 'inactiva' && req.body.is_active !== false
-    const { rows: result, error: insertError } = await query(
-      'INSERT INTO bank_accounts (provider_id, alias, account_data, currency, is_active) VALUES (?, ?, ?, ?, ?)',
-      [provider.id, payload.alias, JSON.stringify(payload), req.body.currency || 'ARS', isActive ? 1 : 0]
-    )
-    if (insertError) return next(insertError)
+    const result = await transaction(async (connection) => {
+      if (isActive) {
+        await connection.execute(
+          'UPDATE bank_accounts SET is_active = 0 WHERE provider_id = ?',
+          [provider.id]
+        )
+      }
+      const [insertResult] = await connection.execute(
+        'INSERT INTO bank_accounts (provider_id, alias, account_data, currency, is_active) VALUES (?, ?, ?, ?, ?)',
+        [provider.id, payload.alias, JSON.stringify(payload), req.body.currency || 'ARS', isActive ? 1 : 0]
+      )
+      if (isActive) await followActivatedAccount(connection, insertResult.insertId, provider.id)
+      return insertResult
+    })
 
     const row = await getAccountRow(result.insertId)
+    await Promise.all([
+      deleteCache('bot:v1:flow'),
+      deleteCache('bot:v1:bank-provider'),
+      deleteCache('bot:v1:bank-context'),
+    ])
     res.status(201).json({ account: sanitizeAccount(row), counts: await getCounts() })
   } catch (err) {
     next(err)
@@ -275,13 +326,70 @@ export async function updateBankAccount(req, res, next) {
     }
 
     const isActive = req.body.estatus !== 'inactiva' && req.body.is_active !== false
-    const { error: updateError } = await query(
-      'UPDATE bank_accounts SET alias = ?, account_data = ?, currency = ?, is_active = ? WHERE id = ?',
-      [payload.alias, JSON.stringify(payload), req.body.currency || current.currency || 'ARS', isActive ? 1 : 0, id]
-    )
-    if (updateError) return next(updateError)
+    await transaction(async (connection) => {
+      if (isActive) {
+        await connection.execute(
+          'UPDATE bank_accounts SET is_active = 0 WHERE provider_id = ? AND id <> ?',
+          [current.provider_id, id]
+        )
+      }
+      await connection.execute(
+        'UPDATE bank_accounts SET alias = ?, account_data = ?, currency = ?, is_active = ? WHERE id = ?',
+        [payload.alias, JSON.stringify(payload), req.body.currency || current.currency || 'ARS', isActive ? 1 : 0, id]
+      )
+      if (isActive) await followActivatedAccount(connection, id, current.provider_id)
+    })
 
     const row = await getAccountRow(id)
+    await Promise.all([
+      deleteCache('bot:v1:flow'),
+      deleteCache('bot:v1:bank-provider'),
+      deleteCache('bot:v1:bank-context'),
+    ])
+    res.json({ account: sanitizeAccount(row), counts: await getCounts() })
+  } catch (err) {
+    next(err)
+  }
+}
+
+export async function updateBankAccountStatus(req, res, next) {
+  try {
+    const id = parseInt(req.params.id, 10)
+    if (!id || isNaN(id)) {
+      return res.status(400).json({ error: 'ID de cuenta invalido', code: 'INVALID_ID' })
+    }
+
+    const hasBooleanStatus = typeof req.body?.is_active === 'boolean'
+    const requestedStatus = normalizeText(req.body?.estatus).toLowerCase()
+    const hasTextStatus = requestedStatus === 'activa' || requestedStatus === 'inactiva'
+    if (!hasBooleanStatus && !hasTextStatus) {
+      return res.status(400).json({ error: 'Estado de cuenta invalido', code: 'INVALID_BANK_ACCOUNT_STATUS' })
+    }
+
+    const current = await getAccountRow(id)
+    if (!current) return res.status(404).json({ error: 'Cuenta no encontrada', code: 'BANK_ACCOUNT_NOT_FOUND' })
+
+    const isActive = hasBooleanStatus ? req.body.is_active : requestedStatus === 'activa'
+    await transaction(async (connection) => {
+      if (isActive) {
+        await connection.execute(
+          'UPDATE bank_accounts SET is_active = 0 WHERE provider_id = ? AND id <> ?',
+          [current.provider_id, id]
+        )
+      }
+      await connection.execute(
+        'UPDATE bank_accounts SET is_active = ? WHERE id = ?',
+        [isActive ? 1 : 0, id]
+      )
+      if (isActive) await followActivatedAccount(connection, id, current.provider_id)
+    })
+
+    const row = await getAccountRow(id)
+    await Promise.all([
+      deleteCache('bot:v1:flow'),
+      deleteCache('bot:v1:bank-provider'),
+      deleteCache('bot:v1:bank-context'),
+    ])
     res.json({ account: sanitizeAccount(row), counts: await getCounts() })
   } catch (err) {
     next(err)
@@ -299,8 +407,8 @@ export async function fetchHgCashBalance(req, res, next) {
       return res.status(400).json({ error: 'Solo disponible para cuentas HGCash' })
     }
 
-    const data     = parseAccountData(row.account_data)
-    const apiToken = data.api_token
+    const data = parseAccountData(row.account_data)
+    const apiToken = normalizeBearerToken(data.api_token)
     if (!apiToken) {
       return res.status(400).json({ error: 'Esta cuenta no tiene token API configurado' })
     }
@@ -322,27 +430,34 @@ export async function fetchHgCashBalance(req, res, next) {
     const hgData   = await hgRes.json()
     const accounts = Array.isArray(hgData.data) ? hgData.data : []
 
-    const storedAlias = data.alias || ''
-    const storedCbu   = data.cbu   || ''
-    const match = accounts.find(a =>
-      (storedAlias && a.alias  === storedAlias) ||
-      (storedCbu   && a.number === storedCbu)
-    ) || accounts[0] || null
+    const storedAccountId = normalizeText(data.account_id)
+    const storedAlias = normalizeText(data.alias).toLowerCase()
+    const storedCbu = normalizeText(data.cbu)
+    const match = accounts.find(account => storedAccountId && String(account.id) === storedAccountId)
+      || accounts.find(account => storedAlias && normalizeText(account.alias).toLowerCase() === storedAlias)
+      || accounts.find(account => storedCbu && normalizeText(account.number) === storedCbu)
+      || (accounts.length === 1 ? accounts[0] : null)
 
     if (!match) {
-      return res.status(404).json({ error: 'No se encontraron cuentas en HGCash para este token' })
+      return res.status(404).json({
+        error: 'La cuenta configurada no pertenece al Bearer token',
+        detail: `HGCash devolvió ${accounts.length} cuenta(s), pero ninguna coincide con el Account ID, alias o CBU guardado`,
+      })
     }
 
     res.json({
       account: {
-        id:       match.id,
-        name:     match.name,
-        balance:  Number(match.balance ?? 0),
+        id: match.id,
+        name: match.name,
+        balance: Number(match.balance ?? 0),
+        pendingFees: Number(match.pendingFees ?? 0),
+        netBalance: Number(match.netBalance ?? match.balance ?? 0),
+        status: match.status || null,
         currency: match.currency,
-        number:   match.number,
-        alias:    match.alias,
-        platform: match.platform,
-        company:  match.company,
+        number: match.number,
+        alias: match.alias,
+        platform: match.platform || null,
+        company: match.company || null,
       },
     })
   } catch (err) { next(err) }
@@ -372,6 +487,15 @@ export async function getBankAccountMovements(req, res, next) {
     }
 
     const cfg = tableMap[provider]
+    if (provider === 'caudal') {
+      return res.json({
+        account: sanitizeAccount(row),
+        balance: 0,
+        movements: [],
+        pagination: { page: 1, limit: 20, total: 0, totalPages: 1 },
+        caudalRedirect: true,
+      })
+    }
     if (!cfg) return res.status(400).json({ error: 'Proveedor no soportado' })
 
     const { rows: balRows } = await query(
@@ -487,6 +611,11 @@ export async function deleteBankAccount(req, res, next) {
       return next(error)
     }
 
+    await Promise.all([
+      deleteCache('bot:v1:flow'),
+      deleteCache('bot:v1:bank-provider'),
+      deleteCache('bot:v1:bank-context'),
+    ])
     res.json({ success: true, counts: await getCounts() })
   } catch (err) {
     next(err)

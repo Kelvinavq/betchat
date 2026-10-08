@@ -1057,6 +1057,627 @@ function GamesHistory({ onBack }) {
   )
 }
 
+/* ── Caudal deposit/withdrawal styled components ── */
+const CaudalSection = styled.div`
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`
+
+const TabRow = styled.div`
+  display: flex;
+  background: ${T.surface};
+  border-radius: 10px;
+  border: 1px solid ${T.border};
+  overflow: hidden;
+  flex-shrink: 0;
+`
+
+const TabBtn = styled.button`
+  flex: 1;
+  padding: 9px 0;
+  background: ${({ $active }) => $active ? 'rgba(59,130,246,0.18)' : 'none'};
+  border: none;
+  color: ${({ $active }) => $active ? '#60a5fa' : T.t3};
+  font-size: 13px;
+  font-weight: ${({ $active }) => $active ? 700 : 500};
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+`
+
+const DropZone = styled.div`
+  border: 2px dashed ${({ $drag }) => $drag ? 'rgba(59,130,246,0.6)' : T.border};
+  border-radius: 14px;
+  background: ${({ $drag }) => $drag ? 'rgba(59,130,246,0.06)' : T.surface};
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 0.18s, background 0.18s;
+  &:hover { border-color: rgba(59,130,246,0.45); background: rgba(59,130,246,0.04); }
+`
+
+const DropIcon = styled.div`
+  font-size: 32px;
+  line-height: 1;
+`
+
+const DropLabel = styled.div`
+  font-size: 14px;
+  font-weight: 700;
+  color: ${T.t1};
+`
+
+const DropSub = styled.div`
+  font-size: 12px;
+  color: ${T.t3};
+`
+
+const PreviewBox = styled.div`
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid ${T.border};
+  background: ${T.surface};
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+`
+
+const PreviewImg = styled.img`
+  max-width: 100%;
+  max-height: 180px;
+  border-radius: 8px;
+  object-fit: contain;
+`
+
+const PdfPreview = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 6px 4px;
+`
+
+const PdfName = styled.div`
+  font-size: 13px;
+  font-weight: 600;
+  color: ${T.t1};
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+`
+
+const FormField = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+`
+
+const FieldLabel = styled.label`
+  font-size: 12px;
+  font-weight: 700;
+  color: ${T.t2};
+  letter-spacing: 0.04em;
+`
+
+const FieldInput = styled.input`
+  width: 100%;
+  padding: 11px 13px;
+  background: ${T.surface};
+  border: 1px solid ${T.border};
+  border-radius: 10px;
+  color: ${T.t1};
+  font-size: 14px;
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.15s;
+  box-sizing: border-box;
+  &:focus { border-color: rgba(59,130,246,0.55); }
+  &::placeholder { color: ${T.t3}; }
+`
+
+const PrimaryBtn = styled.button`
+  width: 100%;
+  padding: 13px;
+  border-radius: 12px;
+  border: none;
+  background: ${({ $danger }) => $danger
+    ? 'linear-gradient(135deg,#ef4444,#dc2626)'
+    : 'linear-gradient(135deg,#3b82f6,#2563eb)'};
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: opacity 0.15s;
+  &:disabled { opacity: 0.55; cursor: default; }
+`
+
+const ResultCard = styled.div`
+  border-radius: 14px;
+  border: 1px solid ${({ $ok }) => $ok ? 'rgba(16,185,129,0.35)' : 'rgba(239,68,68,0.35)'};
+  background: ${({ $ok }) => $ok ? 'rgba(16,185,129,0.08)' : 'rgba(239,68,68,0.08)'};
+  padding: 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+`
+
+const ResultIcon = styled.div`
+  font-size: 36px;
+  line-height: 1;
+`
+
+const ResultTitle = styled.div`
+  font-size: 16px;
+  font-weight: 800;
+  color: ${({ $ok }) => $ok ? T.success : T.danger};
+`
+
+const ResultMsg = styled.div`
+  font-size: 13px;
+  color: ${T.t2};
+  line-height: 1.55;
+`
+
+const SecondaryBtn = styled.button`
+  padding: 9px 20px;
+  border-radius: 10px;
+  border: 1px solid ${T.border};
+  background: rgba(255,255,255,0.06);
+  color: ${T.t2};
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s;
+  &:hover { background: rgba(255,255,255,0.11); }
+`
+
+const SmallSpinner = styled.div`
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: ${spin} 0.7s linear infinite;
+  flex-shrink: 0;
+`
+
+const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10 MB
+
+/* ── DepositCaudalView ── */
+function DepositCaudalView({ onBack, chatId }) {
+  const [tab, setTab]           = useState('upload')   // 'upload' | 'manual'
+  const [file, setFile]         = useState(null)       // File object
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [drag, setDrag]         = useState(false)
+  const [status, setStatus]     = useState('idle')     // idle | loading | success | error
+  const [result, setResult]     = useState(null)
+  const [errMsg, setErrMsg]     = useState('')
+  // manual form
+  const [amount, setAmount]     = useState('')
+  const [fullName, setFullName] = useState('')
+  const fileRef = useRef(null)
+
+  const reset = () => {
+    setFile(null)
+    setPreviewUrl(null)
+    setStatus('idle')
+    setResult(null)
+    setErrMsg('')
+    setAmount('')
+    setFullName('')
+  }
+
+  const handleFile = (f) => {
+    if (!f) return
+    if (f.size > MAX_FILE_SIZE) { setErrMsg('El archivo supera los 10 MB.'); return }
+    setErrMsg('')
+    setFile(f)
+    if (f.type.startsWith('image/')) {
+      const url = URL.createObjectURL(f)
+      setPreviewUrl(url)
+    } else {
+      setPreviewUrl(null)
+    }
+  }
+
+  const handleDrop = (e) => {
+    e.preventDefault()
+    setDrag(false)
+    const f = e.dataTransfer.files?.[0]
+    if (f) handleFile(f)
+  }
+
+  const handleSubmitFile = async () => {
+    if (!file) return
+    setStatus('loading')
+    setErrMsg('')
+    try {
+      const isPdf = file.type === 'application/pdf'
+      const fd = new FormData()
+      fd.append('file', file)
+      const endpoint = isPdf
+        ? `/api/client/chats/${chatId}/caudal/process-pdf`
+        : `/api/client/chats/${chatId}/caudal/process-image`
+      const res = await api.post(endpoint, fd)
+      setResult(res)
+      setStatus('success')
+    } catch (e) {
+      setErrMsg(e.message || 'Error al procesar el comprobante')
+      setStatus('error')
+    }
+  }
+
+  const handleSubmitManual = async () => {
+    if (!amount || Number(amount) <= 0) { setErrMsg('Ingresá un monto válido.'); return }
+    setStatus('loading')
+    setErrMsg('')
+    try {
+      const body = { amount: Number(amount) }
+      if (fullName.trim()) body.fullName = fullName.trim()
+      const res = await api.post(`/api/client/chats/${chatId}/caudal/report-payment`, body)
+      setResult(res)
+      setStatus('success')
+    } catch (e) {
+      setErrMsg(e.message || 'Error al reportar el pago')
+      setStatus('error')
+    }
+  }
+
+  const isPdf = file?.type === 'application/pdf'
+
+  const decisionMsg = () => {
+    if (!result) return ''
+    if (result.decision === 'paid') return 'Tu saldo fue acreditado exitosamente.'
+    if (result.decision === 'pending') return 'Tu comprobante está en revisión. Te avisaremos cuando sea procesado.'
+    return result.message || 'Operación registrada.'
+  }
+
+  return (
+    <>
+      <SheetHeader>
+        <BackBtn type="button" onClick={onBack}>←</BackBtn>
+        <SheetTitle>Reportar pago Caudal</SheetTitle>
+      </SheetHeader>
+
+      <SheetBody>
+        <CaudalSection>
+          {/* Tab selector */}
+          <TabRow>
+            <TabBtn $active={tab === 'upload'} type="button" onClick={() => { setTab('upload'); reset() }}>
+              Subir comprobante
+            </TabBtn>
+            <TabBtn $active={tab === 'manual'} type="button" onClick={() => { setTab('manual'); reset() }}>
+              Ingresar monto
+            </TabBtn>
+          </TabRow>
+
+          {/* ── Upload tab ── */}
+          {tab === 'upload' && status === 'idle' && (
+            <>
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+                style={{ display: 'none' }}
+                onChange={e => handleFile(e.target.files?.[0])}
+              />
+
+              {!file ? (
+                <DropZone
+                  $drag={drag}
+                  onClick={() => fileRef.current?.click()}
+                  onDragOver={e => { e.preventDefault(); setDrag(true) }}
+                  onDragLeave={() => setDrag(false)}
+                  onDrop={handleDrop}
+                >
+                  <DropIcon>📎</DropIcon>
+                  <DropLabel>Arrastrá tu comprobante aquí</DropLabel>
+                  <DropSub>o hacé clic para seleccionar un archivo</DropSub>
+                  <DropSub>JPG, PNG, WEBP, GIF, PDF · Máx. 10 MB</DropSub>
+                </DropZone>
+              ) : (
+                <PreviewBox>
+                  {!isPdf ? (
+                    <PreviewImg src={previewUrl} alt="Comprobante" />
+                  ) : (
+                    <PdfPreview>
+                      <span style={{ fontSize: 28 }}>📄</span>
+                      <PdfName>{file.name}</PdfName>
+                    </PdfPreview>
+                  )}
+                  <SecondaryBtn type="button" onClick={() => { setFile(null); setPreviewUrl(null); setErrMsg('') }}>
+                    Cambiar archivo
+                  </SecondaryBtn>
+                </PreviewBox>
+              )}
+
+              {errMsg && <div style={{ fontSize: 12, color: T.danger }}>{errMsg}</div>}
+
+              {file && (
+                <PrimaryBtn type="button" onClick={handleSubmitFile}>
+                  Subir comprobante
+                </PrimaryBtn>
+              )}
+            </>
+          )}
+
+          {tab === 'upload' && status === 'loading' && (
+            <LoaderWrap style={{ flexDirection: 'column', gap: 14 }}>
+              <Spinner />
+              <div style={{ fontSize: 13, color: T.t3 }}>Procesando comprobante…</div>
+            </LoaderWrap>
+          )}
+
+          {tab === 'upload' && (status === 'success' || status === 'error') && (
+            <ResultCard $ok={status === 'success'}>
+              <ResultIcon>{status === 'success' ? '✅' : '❌'}</ResultIcon>
+              <ResultTitle $ok={status === 'success'}>
+                {status === 'success'
+                  ? (result?.decision === 'paid' ? 'Saldo acreditado' : 'En revisión')
+                  : 'Error al procesar'}
+              </ResultTitle>
+              <ResultMsg>{status === 'success' ? decisionMsg() : errMsg}</ResultMsg>
+              <SecondaryBtn type="button" onClick={reset}>
+                {status === 'success' ? 'Subir otro' : 'Reintentar'}
+              </SecondaryBtn>
+            </ResultCard>
+          )}
+
+          {/* ── Manual tab ── */}
+          {tab === 'manual' && status === 'idle' && (
+            <>
+              <FormField>
+                <FieldLabel htmlFor="caudal-amount">Monto *</FieldLabel>
+                <FieldInput
+                  id="caudal-amount"
+                  type="number"
+                  min="1"
+                  placeholder="Ej: 5000"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                />
+              </FormField>
+
+              <FormField>
+                <FieldLabel htmlFor="caudal-fullname">Titular de la cuenta (opcional)</FieldLabel>
+                <FieldInput
+                  id="caudal-fullname"
+                  type="text"
+                  placeholder="Nombre completo del titular"
+                  value={fullName}
+                  onChange={e => setFullName(e.target.value)}
+                />
+              </FormField>
+
+              {errMsg && <div style={{ fontSize: 12, color: T.danger }}>{errMsg}</div>}
+
+              <PrimaryBtn type="button" onClick={handleSubmitManual} disabled={!amount}>
+                Reportar pago
+              </PrimaryBtn>
+            </>
+          )}
+
+          {tab === 'manual' && status === 'loading' && (
+            <LoaderWrap style={{ flexDirection: 'column', gap: 14 }}>
+              <Spinner />
+              <div style={{ fontSize: 13, color: T.t3 }}>Registrando pago…</div>
+            </LoaderWrap>
+          )}
+
+          {tab === 'manual' && (status === 'success' || status === 'error') && (
+            <ResultCard $ok={status === 'success'}>
+              <ResultIcon>{status === 'success' ? '✅' : '❌'}</ResultIcon>
+              <ResultTitle $ok={status === 'success'}>
+                {status === 'success' ? 'Pago reportado' : 'Error al reportar'}
+              </ResultTitle>
+              <ResultMsg>{status === 'success' ? decisionMsg() : errMsg}</ResultMsg>
+              <SecondaryBtn type="button" onClick={reset}>
+                {status === 'success' ? 'Reportar otro' : 'Reintentar'}
+              </SecondaryBtn>
+            </ResultCard>
+          )}
+        </CaudalSection>
+        <div style={{ height: 20 }} />
+      </SheetBody>
+    </>
+  )
+}
+
+/* ── WithdrawalCaudalView ── */
+function WithdrawalCaudalView({ onBack, chatId }) {
+  const [destType, setDestType] = useState('CBU')   // 'CBU' | 'CVU'
+  const [destination, setDestination] = useState('')
+  const [amount, setAmount]     = useState('')
+  const [holderName, setHolderName] = useState('')
+  const [dni, setDni] = useState('')
+  const [clientReferenceId, setClientReferenceId] = useState(() => globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`)
+  const [status, setStatus]     = useState('idle')  // idle | loading | success | error
+  const [result, setResult]     = useState(null)
+  const [errMsg, setErrMsg]     = useState('')
+
+  const reset = () => {
+    setDestination('')
+    setAmount('')
+    setHolderName('')
+    setDni('')
+    setClientReferenceId(globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`)
+    setStatus('idle')
+    setResult(null)
+    setErrMsg('')
+  }
+
+  const handleSubmit = async () => {
+    if (!amount || Number(amount) < 1) { setErrMsg('Ingresá un monto válido (mínimo 1).'); return }
+    setStatus('loading')
+    setErrMsg('')
+    try {
+      if (!/^\d{22}$/.test(destination.replace(/\D/g, ''))) throw new Error('Ingresá un CBU/CVU válido de 22 dígitos.')
+      if (holderName.trim().split(/\s+/).length < 2) throw new Error('Ingresá el nombre y apellido del titular.')
+      if (!/^\d{8}$/.test(dni.replace(/\D/g, ''))) throw new Error('Ingresá un DNI válido de 8 dígitos.')
+      const body = {
+        amount: Number(amount),
+        holderName: holderName.trim(),
+        dni: dni.replace(/\D/g, ''),
+        method: destType.toLowerCase(),
+        cbu: destination.replace(/\D/g, ''),
+        clientReferenceId,
+      }
+      const res = await api.post(`/api/client/chats/${chatId}/caudal/withdrawal-request`, body)
+      setResult(res)
+      setStatus('success')
+    } catch (e) {
+      setErrMsg(e.message || 'Error al enviar la solicitud')
+      setStatus('error')
+    }
+  }
+
+  const statusLabel = () => {
+    if (!result) return ''
+    const s = result.status || ''
+    if (s === 'REVIEW_PENDING') return 'Tu solicitud está en revisión.'
+    if (s === 'INITIATED' || s === 'DISPATCHED') return 'Tu retiro está en proceso.'
+    return result.message || 'Solicitud registrada.'
+  }
+
+  const hasRisk = result?.riskScore != null || result?.status === 'REVIEW_PENDING'
+
+  return (
+    <>
+      <SheetHeader>
+        <BackBtn type="button" onClick={onBack}>←</BackBtn>
+        <SheetTitle>Solicitar retiro</SheetTitle>
+      </SheetHeader>
+
+      <SheetBody>
+        <CaudalSection>
+          {status === 'idle' && (
+            <>
+              {/* Destination type toggle */}
+              <FormField>
+                <FieldLabel>Tipo de destino</FieldLabel>
+                <TabRow>
+                  <TabBtn $active={destType === 'CBU'} type="button" onClick={() => { setDestType('CBU'); setDestination('') }}>
+                    CBU
+                  </TabBtn>
+                  <TabBtn $active={destType === 'CVU'} type="button" onClick={() => { setDestType('CVU'); setDestination('') }}>
+                    CVU
+                  </TabBtn>
+                </TabRow>
+              </FormField>
+
+              <FormField>
+                <FieldLabel htmlFor="wd-destination">
+                  {destType} (22 dígitos) *
+                </FieldLabel>
+                <FieldInput
+                  id="wd-destination"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={22}
+                  placeholder="Ej: 0000003100012345678901"
+                  value={destination}
+                  onChange={e => setDestination(e.target.value.replace(/\D/g, '').slice(0, 22))}
+                />
+              </FormField>
+
+              <FormField>
+                <FieldLabel htmlFor="wd-holder">Nombre y apellido del titular *</FieldLabel>
+                <FieldInput
+                  id="wd-holder"
+                  type="text"
+                  placeholder="Ej: Juan Perez"
+                  value={holderName}
+                  onChange={e => setHolderName(e.target.value)}
+                />
+              </FormField>
+
+              <FormField>
+                <FieldLabel htmlFor="wd-dni">DNI del titular *</FieldLabel>
+                <FieldInput
+                  id="wd-dni"
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={8}
+                  placeholder="Ej: 30123456"
+                  value={dni}
+                  onChange={e => setDni(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                />
+              </FormField>
+
+              <FormField>
+                <FieldLabel htmlFor="wd-amount">Monto *</FieldLabel>
+                <FieldInput
+                  id="wd-amount"
+                  type="number"
+                  min="1"
+                  placeholder="Ej: 10000"
+                  value={amount}
+                  onChange={e => setAmount(e.target.value)}
+                />
+              </FormField>
+
+              {errMsg && <div style={{ fontSize: 12, color: T.danger }}>{errMsg}</div>}
+
+              <PrimaryBtn $danger type="button" onClick={handleSubmit} disabled={!amount || !destination || !holderName || !dni}>
+                Solicitar retiro
+              </PrimaryBtn>
+            </>
+          )}
+
+          {status === 'loading' && (
+            <LoaderWrap style={{ flexDirection: 'column', gap: 14 }}>
+              <Spinner />
+              <div style={{ fontSize: 13, color: T.t3 }}>Enviando solicitud…</div>
+            </LoaderWrap>
+          )}
+
+          {(status === 'success' || status === 'error') && (
+            <ResultCard $ok={status === 'success'}>
+              <ResultIcon>{status === 'success' ? '✅' : '❌'}</ResultIcon>
+              <ResultTitle $ok={status === 'success'}>
+                {status === 'success'
+                  ? (result?.status === 'REVIEW_PENDING' ? 'En revisión' : 'En proceso')
+                  : 'Error en la solicitud'}
+              </ResultTitle>
+              <ResultMsg>{status === 'success' ? statusLabel() : errMsg}</ResultMsg>
+              {hasRisk && status === 'success' && (
+                <StatusBadge
+                  $bg="rgba(245,158,11,0.12)"
+                  $color={T.gold}
+                  $border="rgba(245,158,11,0.3)"
+                >
+                  Sujeto a revisión de seguridad
+                </StatusBadge>
+              )}
+              <SecondaryBtn type="button" onClick={reset}>
+                {status === 'success' ? 'Nueva solicitud' : 'Reintentar'}
+              </SecondaryBtn>
+            </ResultCard>
+          )}
+        </CaudalSection>
+        <div style={{ height: 20 }} />
+      </SheetBody>
+    </>
+  )
+}
+
 /* ══════════════════════════════════════════════════════════════
    MAIN MENU
 ══════════════════════════════════════════════════════════════ */
@@ -1090,9 +1711,23 @@ const MENU_ITEMS = [
     label: 'Preguntas frecuentes',
     sub: 'Información y ayuda',
   },
+  {
+    id: 'deposit',
+    icon: '💳',
+    iconBg: 'rgba(16,185,129,0.15)',
+    label: 'Reportar pago Caudal',
+    sub: 'Subí tu comprobante de transferencia',
+  },
+  {
+    id: 'withdrawal',
+    icon: '💸',
+    iconBg: 'rgba(239,68,68,0.10)',
+    label: 'Solicitar retiro',
+    sub: 'Transferencia a tu cuenta bancaria',
+  },
 ]
 
-export default function ClientMenu({ onClose }) {
+export default function ClientMenu({ onClose, chatId }) {
   const { systemConfig } = useSystemConfig()
   const [view, setView] = useState('menu')
   const sheetRef = useRef(null)
@@ -1132,9 +1767,11 @@ export default function ClientMenu({ onClose }) {
             <SheetBody>
               <MenuGroup>
                 {MENU_ITEMS.filter(item => {
-                  if (item.id === 'events'  && !systemConfig.clientMenuEvents)  return false
-                  if (item.id === 'history' && !systemConfig.clientMenuHistory) return false
-                  if (item.id === 'faq'     && !systemConfig.clientMenuFaq)     return false
+                  if (item.id === 'events'     && !systemConfig.clientMenuEvents)  return false
+                  if (item.id === 'history'    && !systemConfig.clientMenuHistory) return false
+                  if (item.id === 'faq'        && !systemConfig.clientMenuFaq)     return false
+                  if (item.id === 'deposit'    && !systemConfig.clientMenuCaudal)  return false
+                  if (item.id === 'withdrawal' && !systemConfig.clientMenuCaudal)  return false
                   return true
                 }).map(item => (
                   <MenuItem
@@ -1160,10 +1797,12 @@ export default function ClientMenu({ onClose }) {
           </>
         )}
 
-        {view === 'events'  && <EventsView   onBack={() => setView('menu')} onOpenOverlay={openOverlay} />}
-        {view === 'history' && <MovementHistory onBack={() => setView('menu')} />}
-        {view === 'faq'     && <FaqView         onBack={() => setView('menu')} />}
-        {view === 'games'   && <GamesHistory onBack={() => setView('menu')} />}
+        {view === 'events'     && <EventsView      onBack={() => setView('menu')} onOpenOverlay={openOverlay} />}
+        {view === 'history'    && <MovementHistory  onBack={() => setView('menu')} />}
+        {view === 'faq'        && <FaqView          onBack={() => setView('menu')} />}
+        {view === 'games'      && <GamesHistory     onBack={() => setView('menu')} />}
+        {view === 'deposit'    && <DepositCaudalView    onBack={() => setView('menu')} chatId={chatId} />}
+        {view === 'withdrawal' && <WithdrawalCaudalView onBack={() => setView('menu')} chatId={chatId} />}
       </Sheet>
     </Backdrop>
   )

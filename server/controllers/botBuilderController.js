@@ -2,7 +2,8 @@ import { query, transaction } from '../config/database.js'
 import { persistMessage, emitChatRefresh } from './chatController.js'
 import { getValidatedClientPayload } from '../utils/clientSession.js'
 import { buildRequestContext, evaluateWithdrawalRisk, checkBlacklist, normalizeCbuCvu } from '../utils/withdrawalRiskEngine.js'
-import { processAutoWithdrawal } from '../services/withdrawalAutoService.js'
+import { createManualWithdrawal, processAutoWithdrawal } from '../services/withdrawalAutoService.js'
+import { deleteCache } from '../utils/redisCache.js'
 
 const ITEM_TYPES = ['message', 'button', 'form']
 const BUTTON_TYPES = ['navigate', 'receipt_request', 'messages_only']
@@ -380,7 +381,7 @@ async function getActiveBankProvider() {
   const { rows, error } = await query(
     `SELECT bp.slug AS provider
      FROM chat_processing_config cpc
-     LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
+     INNER JOIN bank_accounts ba ON ba.id = cpc.bank_account_id AND ba.is_active = 1
      LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
      WHERE cpc.id = 1
      LIMIT 1`,
@@ -800,22 +801,29 @@ export async function submitClientBotForm(req, res, next) {
 
     if (formConfig.isWithdrawal && withdrawalContext) {
       const { requestedAmount, withdrawable, manualThreshold, cbu, method, holderName, dni, clientRow } = withdrawalContext
+      const withdrawalIdempotencyKey = String(clientMessageId || `form-${formId}-message-${submitted.message.id}`)
+      const requestContext = await buildRequestContext(req)
 
       if (requestedAmount >= manualThreshold) {
         // Flujo manual: el admin revisará y aprobará/rechazará
-        const { error: wrErr } = await query(
-          `INSERT INTO withdrawal_requests
-             (chat_id, client_id, form_id, message_id, status, form_data, holder_name, method, cbu, dni,
-              amount, withdrawable_balance, review_mode, created_at, updated_at)
-           VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, 'manual', NOW(), NOW())`,
-          [chatId, client.sub, String(formId), submitted.message.id, formText,
-           holderName || null, method, cbu || null, dni || null,
-           requestedAmount, withdrawable]
-        )
-        if (wrErr) { console.error('[withdrawal_requests] insert error:', wrErr.message); return next(wrErr) }
+        await createManualWithdrawal({
+          chatId,
+          clientId: client.sub,
+          clientRow,
+          formId: String(formId),
+          messageId: submitted.message.id,
+          holderName,
+          method,
+          cbu,
+          dni,
+          amount: requestedAmount,
+          withdrawableBalance: withdrawable,
+          formData: formText,
+          idempotencyKey: withdrawalIdempotencyKey,
+          requestContext,
+        })
       } else {
         // Flujo auto: motor de riesgo decide
-        const requestContext = await buildRequestContext(req)
         const riskResult = await evaluateWithdrawalRisk({
           clientId: client.sub, clientRow,
           destinationCbu: cbu, holderName, amount: requestedAmount, requestContext,
@@ -826,6 +834,7 @@ export async function submitClientBotForm(req, res, next) {
           amount: requestedAmount, withdrawableBalance: withdrawable,
           riskResult, requestContext,
           formId: String(formId), messageId: submitted.message.id, formData: values,
+          idempotencyKey: withdrawalIdempotencyKey,
         })
 
         // Si fue auto-aprobado y ya procesado, no enviar mensajes del formulario
@@ -946,6 +955,8 @@ export async function saveBotFlow(req, res, next) {
         }
       }
     })
+
+    await deleteCache('bot:v1:flow')
 
     res.json({ success: true, flow: { screens } })
   } catch (error) {

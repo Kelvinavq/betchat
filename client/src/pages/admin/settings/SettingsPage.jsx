@@ -26,6 +26,8 @@ import BrandingWatermarkOutlinedIcon from '@mui/icons-material/BrandingWatermark
 import LanguageOutlinedIcon from '@mui/icons-material/LanguageOutlined'
 import CodeOutlinedIcon from '@mui/icons-material/CodeOutlined'
 import ContentCopyOutlinedIcon from '@mui/icons-material/ContentCopyOutlined'
+import AddIcon from '@mui/icons-material/Add'
+import DeleteOutlinedIcon from '@mui/icons-material/DeleteOutlined'
 import MenuIcon from '@mui/icons-material/Menu'
 import { useParams, useNavigate } from 'react-router-dom'
 import useAuth from '../../../hooks/useAuth'
@@ -462,6 +464,96 @@ const AiFieldHint = styled.p`
   color: rgba(255,255,255,0.34);
 `
 
+const FieldTextarea = styled.textarea`
+  width: 100%;
+  min-height: 120px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 11px;
+  color: #fff;
+  font-size: 13.5px;
+  font-family: inherit;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.2s, background 0.2s;
+  &::placeholder { color: rgba(255,255,255,0.18); }
+  &:focus { border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.45); background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.04); }
+`
+
+const BotAiEditor = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`
+
+const BotAiRuleList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`
+
+const BotAiRuleCard = styled.div`
+  padding: 14px;
+  border-radius: 14px;
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.07);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+`
+
+const BotAiRuleTop = styled.div`
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+`
+
+const BotAiRuleTitle = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+`
+
+const BotAiRuleName = styled.p`
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(255,255,255,0.92);
+`
+
+const BotAiRuleMeta = styled.p`
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.34);
+`
+
+const BotAiRuleActions = styled.div`
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+`
+
+const BotAiChipBtn = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  color: rgba(255,255,255,0.72);
+  font-size: 12px;
+  cursor: pointer;
+  font-family: inherit;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+  svg { font-size: 16px; }
+  &:hover {
+    background: rgba(255,255,255,0.06);
+    color: #fff;
+    border-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.28);
+  }
+`
+
 function BrowserTabPreview({ favicon, appName }) {
   const displayFavicon = favicon || null
   const urlSlug = (appName || 'app').toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -857,6 +949,101 @@ const BOT_AI_MODEL_OPTIONS = [
   ...RECEIPT_MODELS,
 ]
 
+const BOT_AI_DEFAULT_INSTRUCTIONS = `Eres el router inteligente del chat de soporte.
+Tu tarea es entender lo que quiere el cliente y elegir la mejor acción disponible dentro del bot manual existente.
+No inventes cuentas, montos, reglas ni respuestas que no estén en el sistema.`
+
+const BOT_AI_DEFAULT_RULES = [
+  {
+    id: 'withdrawal_issue',
+    label: 'No me deja retirar',
+    enabled: true,
+    action: 'handoff',
+    reply: 'Te derivo con soporte para revisar tu retiro.',
+    keywords: ['no me deja retirar', 'no puedo retirar', 'fallo al retirar', 'retiro rechazado', 'retiro pendiente', 'retiro trabado', 'problema con el retiro'],
+  },
+  {
+    id: 'receipt_issue',
+    label: 'Subí mal el comprobante',
+    enabled: true,
+    action: 'handoff',
+    reply: 'Te derivo con soporte para revisar el comprobante.',
+    keywords: ['subi mal el comprobante', 'subi mal comprobante', 'comprobante mal', 'me equivoque de comprobante', 'subi el comprobante equivocado', 'error en el comprobante', 'no se ve el comprobante'],
+  },
+  {
+    id: 'wrong_amount',
+    label: 'Me equivoqué de monto',
+    enabled: true,
+    action: 'handoff',
+    reply: 'Te derivo con soporte para revisar el monto cargado.',
+    keywords: ['me equivoque de monto', 'mande mal el monto', 'cargue mal el monto', 'importe incorrecto', 'monto incorrecto', 'error de monto', 'puse mal el monto'],
+  },
+  {
+    id: 'generic_support',
+    label: 'Reclamo o error de cuenta',
+    enabled: true,
+    action: 'handoff',
+    reply: 'Te derivo con soporte para revisar tu caso.',
+    keywords: ['reclamo', 'queja', 'error', 'problema de cuenta', 'cuenta bloqueada', 'usuario bloqueado', 'no me funciona', 'no funciona', 'no me deja entrar', 'acceso', 'login fallando', 'cbu incorrecto', 'alias incorrecto'],
+  },
+]
+
+const normalizeBotAiKeywords = (value) => {
+  if (Array.isArray(value)) {
+    return value.map(item => String(item || '').trim().toLowerCase()).filter(Boolean).slice(0, 20)
+  }
+  return String(value || '')
+    .split(/\n|,|;/)
+    .map(item => String(item || '').trim().toLowerCase())
+    .filter(Boolean)
+    .slice(0, 20)
+}
+
+const createDefaultBotAiConfig = () => ({
+  instructions: BOT_AI_DEFAULT_INSTRUCTIONS,
+  faqEnabled: true,
+  operationalHandoffEnabled: true,
+  showFaqFallback: true,
+  faqMatchThreshold: 0.55,
+  rules: BOT_AI_DEFAULT_RULES.map(rule => ({ ...rule, keywords: [...rule.keywords] })),
+})
+
+const normalizeBotAiConfig = (raw) => {
+  const source = typeof raw === 'string'
+    ? (() => { try { return JSON.parse(raw) } catch { return {} } })()
+    : (raw && typeof raw === 'object' ? raw : {})
+  const defaults = createDefaultBotAiConfig()
+  const rulesSource = Array.isArray(source.rules) ? source.rules : Array.isArray(source.intentRules) ? source.intentRules : defaults.rules
+  return {
+    instructions: String(source.instructions || source.systemInstructions || defaults.instructions).trim().slice(0, 4000),
+    faqEnabled: source.faqEnabled !== false && source.faq_enabled !== false,
+    operationalHandoffEnabled: source.operationalHandoffEnabled !== false && source.operational_handoff_enabled !== false,
+    showFaqFallback: source.showFaqFallback !== false && source.show_faq_fallback !== false,
+    faqMatchThreshold: Number.isFinite(Number(source.faqMatchThreshold ?? source.faq_threshold))
+      ? Math.max(0.2, Math.min(1, Number(source.faqMatchThreshold ?? source.faq_threshold)))
+      : defaults.faqMatchThreshold,
+    rules: rulesSource.map((rule, index) => ({
+      id: String(rule?.id || `rule_${index + 1}`).trim().replace(/[^a-z0-9_-]/gi, '_').slice(0, 60) || `rule_${index + 1}`,
+      label: String(rule?.label || `Regla ${index + 1}`).trim().slice(0, 80),
+      enabled: rule?.enabled !== false,
+      action: ['select_button', 'show_buttons', 'ask_clarification', 'handoff', 'none'].includes(String(rule?.action || '').trim())
+        ? String(rule.action).trim()
+        : 'handoff',
+      reply: String(rule?.reply || '').trim().slice(0, 220),
+      keywords: normalizeBotAiKeywords(rule?.keywords || rule?.patterns || rule?.terms || []),
+    })).filter(rule => rule.label),
+  }
+}
+
+const addDefaultBotAiRule = (index = 0) => ({
+  id: `custom_rule_${Date.now()}_${index}`,
+  label: '',
+  enabled: true,
+  action: 'handoff',
+  reply: '',
+  keywords: [],
+})
+
 const BANK_STYLES = {
   hgcash: { initials: 'HG', color: '#818cf8', bg: 'rgba(99,102,241,0.10)', br: 'rgba(99,102,241,0.26)', avatarBg: 'linear-gradient(135deg,#4f46e5,#6366f1)', avatarBr: 'rgba(99,102,241,0.35)' },
   mercadopago: { initials: 'MP', color: '#38bdf8', bg: 'rgba(14,165,233,0.10)', br: 'rgba(14,165,233,0.26)', avatarBg: 'linear-gradient(135deg,#0284c7,#38bdf8)', avatarBr: 'rgba(14,165,233,0.35)' },
@@ -910,11 +1097,13 @@ const SettingsPage = ({ onMenuOpen }) => {
     clientMenuEvents:     true,
     clientMenuHistory:    true,
     clientMenuFaq:        true,
+    clientMenuCaudal:     false,
     clientBalanceVisible: true,
     botMode: 'manual',
     botAiModel: '',
     botAiTemperature: 0.1,
     botAiMaxTokens: 250,
+    botAiConfig: createDefaultBotAiConfig(),
     clearLogo: false,
     clearFavicon: false,
   })
@@ -1051,11 +1240,13 @@ const SettingsPage = ({ onMenuOpen }) => {
         clientMenuEvents:          system.clientMenuEvents     !== false,
         clientMenuHistory:         system.clientMenuHistory    !== false,
         clientMenuFaq:             system.clientMenuFaq        !== false,
+        clientMenuCaudal:          Boolean(system.clientMenuCaudal),
         clientBalanceVisible:      system.clientBalanceVisible !== false,
         botMode: system.botMode === 'hybrid_ai' ? 'hybrid_ai' : 'manual',
         botAiModel: system.botAiModel || '',
         botAiTemperature: Number(system.botAiTemperature ?? 0.1),
         botAiMaxTokens: Number(system.botAiMaxTokens ?? 250),
+        botAiConfig: normalizeBotAiConfig(system.botAiConfig || system.bot_ai_config),
         bubbleConfig: system.bubbleConfig || system.bubble_config || null,
         clearLogo: false,
         clearFavicon: false,
@@ -1208,11 +1399,13 @@ const SettingsPage = ({ onMenuOpen }) => {
         clientMenuEvents:          system.clientMenuEvents     !== false,
         clientMenuHistory:         system.clientMenuHistory    !== false,
         clientMenuFaq:             system.clientMenuFaq        !== false,
+        clientMenuCaudal:          Boolean(system.clientMenuCaudal),
         clientBalanceVisible:      system.clientBalanceVisible !== false,
         botMode: system.botMode === 'hybrid_ai' ? 'hybrid_ai' : 'manual',
         botAiModel: system.botAiModel || '',
         botAiTemperature: Number(system.botAiTemperature ?? 0.1),
         botAiMaxTokens: Number(system.botAiMaxTokens ?? 250),
+        botAiConfig: normalizeBotAiConfig(system.botAiConfig || system.bot_ai_config),
         bubbleConfig: system.bubbleConfig || system.bubble_config || null,
         clearLogo: false,
         clearFavicon: false,
@@ -1247,6 +1440,45 @@ const SettingsPage = ({ onMenuOpen }) => {
 
   const setMonto = (key, field, val) =>
     setMontos(m => ({ ...m, [key]: { ...m[key], [field]: val } }))
+
+  const setBotAiConfig = (updater) =>
+    setSystemForm(form => {
+      const current = normalizeBotAiConfig(form.botAiConfig || createDefaultBotAiConfig())
+      const nextConfig = typeof updater === 'function' ? updater(current) : updater
+      return { ...form, botAiConfig: normalizeBotAiConfig(nextConfig) }
+    })
+
+  const updateBotAiRule = (ruleId, field, value) => {
+    setBotAiConfig(config => ({
+      ...config,
+      rules: config.rules.map(rule => (
+        rule.id === ruleId
+          ? {
+              ...rule,
+              [field]: field === 'keywords'
+                ? normalizeBotAiKeywords(value)
+                : field === 'enabled'
+                  ? Boolean(value)
+                  : String(value || '').trim(),
+            }
+          : rule
+      )),
+    }))
+  }
+
+  const addBotAiRule = () => {
+    setBotAiConfig(config => ({
+      ...config,
+      rules: [...config.rules, addDefaultBotAiRule(config.rules.length + 1)],
+    }))
+  }
+
+  const removeBotAiRule = (ruleId) => {
+    setBotAiConfig(config => ({
+      ...config,
+      rules: config.rules.filter(rule => rule.id !== ruleId),
+    }))
+  }
 
   const initials = (profileForm.full_name || profileForm.username || user?.username || '?')[0].toUpperCase()
   const integrationMode = systemForm.integrationMode === 'script' ? 'script' : 'iframe'
@@ -1735,6 +1967,19 @@ const SettingsPage = ({ onMenuOpen }) => {
                     />
                   </ToggleRow>
 
+                  <ToggleRow>
+                    <ToggleText>
+                      <ToggleTitle>Menú — Caudal (depósito y retiro)</ToggleTitle>
+                      <ToggleSub>Habilita las opciones de reportar pago y solicitar retiro vía Caudal en el menú del cliente.</ToggleSub>
+                    </ToggleText>
+                    <ToggleSwitch
+                      type="button"
+                      $active={systemForm.clientMenuCaudal}
+                      onClick={() => setSystemForm(f => ({ ...f, clientMenuCaudal: !f.clientMenuCaudal }))}
+                      aria-pressed={systemForm.clientMenuCaudal}
+                    />
+                  </ToggleRow>
+
                   <SaveFooter>
                     <SaveBtn type="button" $saved={systemSaved} onClick={saveSystem}>
                       {systemSaved ? <><CheckIcon />Guardado</> : 'Guardar ajustes'}
@@ -2140,6 +2385,7 @@ const SettingsPage = ({ onMenuOpen }) => {
           )}
 
           {activeTab === 'botia' && (
+            <>
                 <Card $delay="40ms">
                   <CardHead>
                     <CardIcon
@@ -2247,6 +2493,162 @@ const SettingsPage = ({ onMenuOpen }) => {
                     </SaveFooter>
                   </CardBody>
                 </Card>
+                <Card $delay="120ms" style={{ marginTop: 18 }}>
+                  <CardHead>
+                    <CardIcon
+                      $bg="rgba(16,185,129,0.12)"
+                      $br="rgba(16,185,129,0.24)"
+                      $cl="#34d399"
+                    >
+                      <AutoAwesomeOutlinedIcon />
+                    </CardIcon>
+                    <CardHeadText>
+                      <CardTitle>Derivaciones e instrucciones</CardTitle>
+                      <CardSub>Reglas editables para el router híbrido</CardSub>
+                    </CardHeadText>
+                    <ApiStatusBadge $ok={Boolean(systemForm.botAiConfig?.rules?.length)}>
+                      {systemForm.botAiConfig?.rules?.length ? 'Configurado' : 'Sin reglas'}
+                    </ApiStatusBadge>
+                  </CardHead>
+                  <CardBody>
+                    <InfoBanner>
+                      <InfoBannerIcon><InfoOutlinedIcon /></InfoBannerIcon>
+                      <InfoBannerText>
+                        Estas reglas se guardan en la configuración del sistema y el bot las usa antes de consultar a la IA generativa.
+                      </InfoBannerText>
+                    </InfoBanner>
+                    <Field>
+                      <FieldLabel>Instrucciones del router</FieldLabel>
+                      <FieldTextarea
+                        rows={6}
+                        value={systemForm.botAiConfig?.instructions || ''}
+                        onChange={e => setBotAiConfig(config => ({ ...config, instructions: e.target.value }))}
+                        placeholder="Escribí aquí instrucciones adicionales para el bot híbrido..."
+                      />
+                      <AiFieldHint>
+                        Se agregan al prompt del router. Usálas para priorizar tono, criterios de derivación o límites de respuesta.
+                      </AiFieldHint>
+                    </Field>
+                    <FormGrid $cols={2}>
+                      <ToggleRow>
+                        <ToggleText>
+                          <ToggleTitle>FAQ dinámica</ToggleTitle>
+                          <ToggleSub>Responde preguntas frecuentes desde el panel FAQ.</ToggleSub>
+                        </ToggleText>
+                        <ToggleSwitch
+                          type="button"
+                          $active={systemForm.botAiConfig?.faqEnabled !== false}
+                          onClick={() => setBotAiConfig(config => ({ ...config, faqEnabled: !config.faqEnabled }))}
+                        />
+                      </ToggleRow>
+                      <ToggleRow>
+                        <ToggleText>
+                          <ToggleTitle>Derivación operativa</ToggleTitle>
+                          <ToggleSub>Aplica handoff en reclamos y errores de cuenta.</ToggleSub>
+                        </ToggleText>
+                        <ToggleSwitch
+                          type="button"
+                          $active={systemForm.botAiConfig?.operationalHandoffEnabled !== false}
+                          onClick={() => setBotAiConfig(config => ({ ...config, operationalHandoffEnabled: !config.operationalHandoffEnabled }))}
+                        />
+                      </ToggleRow>
+                    </FormGrid>
+                    <Field>
+                      <FieldLabel>Umbral de coincidencia FAQ</FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="number"
+                          min="0.2"
+                          max="1"
+                          step="0.05"
+                          value={systemForm.botAiConfig?.faqMatchThreshold ?? 0.55}
+                          onChange={e => setBotAiConfig(config => ({ ...config, faqMatchThreshold: e.target.value }))}
+                          autoComplete="off"
+                          spellCheck={false}
+                        />
+                      </InputWrap>
+                      <AiFieldHint>
+                        Más alto = más estricto. Con 0.55 funciona bien para FAQs cortas y preguntas parecidas.
+                      </AiFieldHint>
+                    </Field>
+                    <BotAiEditor>
+                      <BotAiRuleList>
+                        {(systemForm.botAiConfig?.rules || []).map((rule, index) => (
+                          <BotAiRuleCard key={rule.id || index}>
+                            <BotAiRuleTop>
+                              <BotAiRuleTitle>
+                                <BotAiRuleName>{rule.label || `Regla ${index + 1}`}</BotAiRuleName>
+                                <BotAiRuleMeta>{rule.action || 'handoff'} · {rule.keywords?.length || 0} palabra{(rule.keywords?.length || 0) === 1 ? '' : 's'} clave</BotAiRuleMeta>
+                              </BotAiRuleTitle>
+                              <ToggleSwitch
+                                type="button"
+                                $active={rule.enabled !== false}
+                                onClick={() => updateBotAiRule(rule.id, 'enabled', !(rule.enabled !== false))}
+                              />
+                            </BotAiRuleTop>
+                            <FormGrid $cols={2}>
+                              <Field>
+                                <FieldLabel>Nombre</FieldLabel>
+                                <FieldInput
+                                  type="text"
+                                  value={rule.label || ''}
+                                  onChange={e => updateBotAiRule(rule.id, 'label', e.target.value)}
+                                  autoComplete="off"
+                                  spellCheck={false}
+                                />
+                              </Field>
+                              <Field>
+                                <FieldLabel>Acción</FieldLabel>
+                                <FieldSelect
+                                  value={rule.action || 'handoff'}
+                                  onChange={e => updateBotAiRule(rule.id, 'action', e.target.value)}
+                                >
+                                  <option value="handoff">Derivar a humano</option>
+                                  <option value="select_button">Seleccionar botón</option>
+                                  <option value="show_buttons">Mostrar botones</option>
+                                  <option value="ask_clarification">Pedir aclaración</option>
+                                  <option value="none">Solo responder</option>
+                                </FieldSelect>
+                              </Field>
+                            </FormGrid>
+                            <Field>
+                              <FieldLabel>Palabras clave</FieldLabel>
+                              <FieldTextarea
+                                rows={3}
+                                value={(rule.keywords || []).join(', ')}
+                                onChange={e => updateBotAiRule(rule.id, 'keywords', e.target.value)}
+                                placeholder="Ej: no me deja retirar, retiro trabado, no puedo retirar"
+                              />
+                            </Field>
+                            <Field>
+                              <FieldLabel>Respuesta</FieldLabel>
+                              <FieldTextarea
+                                rows={3}
+                                value={rule.reply || ''}
+                                onChange={e => updateBotAiRule(rule.id, 'reply', e.target.value)}
+                                placeholder="Mensaje breve que verá el cliente"
+                              />
+                            </Field>
+                            <BotAiRuleActions>
+                              <BotAiChipBtn type="button" onClick={() => removeBotAiRule(rule.id)}>
+                                <DeleteOutlinedIcon />
+                                Eliminar regla
+                              </BotAiChipBtn>
+                            </BotAiRuleActions>
+                          </BotAiRuleCard>
+                        ))}
+                      </BotAiRuleList>
+                      <BotAiChipBtn type="button" onClick={addBotAiRule} style={{ alignSelf: 'flex-start' }}>
+                        <AddIcon />
+                        Agregar regla
+                      </BotAiChipBtn>
+                    </BotAiEditor>
+                    <ModelCostNote style={{ marginTop: 6 }}>
+                      Si dejás las reglas por defecto, el bot se comporta como ahora: deriva retiros problemáticos, comprobantes mal subidos y errores de monto.
+                    </ModelCostNote>
+                  </CardBody>
+                </Card>
+            </>
               )}
 
           {activeTab === 'apis' && (

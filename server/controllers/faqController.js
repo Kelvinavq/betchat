@@ -1,4 +1,5 @@
 import { query } from '../config/database.js'
+import { deleteCache } from '../utils/redisCache.js'
 
 async function ensureTable() {
   await query(`
@@ -43,6 +44,7 @@ export async function createFaqItem(req, res, next) {
       [question.trim(), answer.trim(), Number(sort_order) || 0]
     )
     if (error) throw error
+    await deleteCache('bot:v1:faq')
     res.json({ id: rows.insertId, ok: true })
   } catch (err) {
     next(err)
@@ -64,6 +66,7 @@ export async function updateFaqItem(req, res, next) {
     params.push(id)
     const { error } = await query(`UPDATE faq_items SET ${sets.join(', ')} WHERE id = ?`, params)
     if (error) throw error
+    await deleteCache('bot:v1:faq')
     res.json({ ok: true })
   } catch (err) {
     next(err)
@@ -76,6 +79,7 @@ export async function deleteFaqItem(req, res, next) {
     if (!id) return res.status(400).json({ error: 'ID requerido' })
     const { error } = await query('DELETE FROM faq_items WHERE id = ?', [id])
     if (error) throw error
+    await deleteCache('bot:v1:faq')
     res.json({ ok: true })
   } catch (err) {
     next(err)

@@ -248,10 +248,10 @@ function getMpTransactionId(payment) {
 async function getMpToken() {
   const { rows, error } = await query(
     `SELECT ba.account_data
-     FROM bank_accounts ba
+     FROM chat_processing_config cpc
+     INNER JOIN bank_accounts ba ON ba.id = cpc.bank_account_id AND ba.is_active = 1
      INNER JOIN bank_providers bp ON bp.id = ba.provider_id
-     WHERE bp.slug = 'mercadopago' AND ba.is_active = 1
-     ORDER BY ba.updated_at DESC, ba.id DESC
+     WHERE cpc.id = 1 AND bp.slug = 'mercadopago'
      LIMIT 1`,
   )
   if (error) throw error

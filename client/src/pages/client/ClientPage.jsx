@@ -4,7 +4,7 @@ import ChatBubble from '../../components/chat/ChatBubble'
 import { ChatContext } from '../../context/ChatContext'
 import { useSystemConfig } from '../../context/SystemConfigContext'
 import { api } from '../../utils/api'
-import { getSocket } from '../../utils/socket'
+import { getSocket, refreshSocketAuth } from '../../utils/socket'
 import { usePushNotification } from '../../hooks/usePushNotification'
 
 const PushPrompt = lazy(() => import('../../components/chat/PushPrompt'))
@@ -376,12 +376,13 @@ const ClientPage = () => {
 
   /* ── session ── */
   const applySession = useCallback((session) => {
-    setClientSession(session?.client || null)
     if (session?.client) {
+      refreshSocketAuth('client')
       localStorage.setItem('clientUsername', session.client.username)
       localStorage.setItem('clientId', String(session.client.id))
       localStorage.setItem('chatId', String(session.client.chatId || ''))
     }
+    setClientSession(session?.client || null)
   }, [setClientSession])
 
   const doAutoLogin = useCallback(async (username) => {

@@ -43,7 +43,10 @@ import clientHistoryRoutes from './routes/clientHistoryRoutes.js'
 import { startMaintenanceScheduler, stopMaintenanceScheduler } from './controllers/maintenanceController.js';
 import { startPushScheduler, stopPushScheduler } from './utils/pushScheduler.js'
 import { startEventScheduler, stopEventScheduler } from './utils/eventScheduler.js'
-import { cashGatewayWebhook } from './controllers/hgCashController.js'
+import { hgWebhook } from './controllers/hgCashController.js'
+import { handleCaudalWebhook } from './controllers/caudalWebhookController.js'
+import caudalRoutes from './routes/caudalRoutes.js'
+import adminCaudalRoutes from './routes/adminCaudalRoutes.js'
 import { setupChatSockets } from './socket/chatSocket.js';
 import { setIo } from './socket/socketServer.js';
 import { query } from './config/database.js';
@@ -81,10 +84,10 @@ app.use(cors({
 }));
 
 // Webhooks raw-body before JSON parser
-app.post('/webhooks/hgcash', express.raw({ type: 'application/json', limit: '2mb' }), cashGatewayWebhook);
-app.post('/webhooks/hgcash/update', express.raw({ type: 'application/json', limit: '2mb' }), cashGatewayWebhook);
+app.post('/webhooks/hgcash', express.raw({ type: 'application/json', limit: '2mb' }), hgWebhook);
+app.post('/api/hgcash/webhook', express.raw({ type: 'application/json', limit: '2mb' }), hgWebhook);
+app.post('/webhooks/caudal', express.raw({ type: 'application/json', limit: '2mb' }), handleCaudalWebhook);
 app.use('/api/cashgateway', cashGatewayRoutes);
-app.use('/api/hgcash', cashGatewayRoutes);
 app.use('/api/webhooks', providerWebhookRoutes);
 
 // Body parser — capture raw body for HMAC webhook verification
@@ -122,6 +125,8 @@ app.use('/api/maintenance', maintenanceRoutes)
 app.use('/api/metrics', metricsRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/withdrawals', withdrawalRoutes);
+app.use('/api/caudal', caudalRoutes);
+app.use('/api/admin/caudal', adminCaudalRoutes);
 app.use('/api/hgcash', hgCashRoutes);
 app.use('/api/mercadopago', mercadoPagoRoutes);
 app.use('/api/push', pushRoutes);

@@ -27,7 +27,8 @@
       "Read(//c/laragon/bin/mysql/**)",
       "Read(//c/laragon/**)",
       "Bash(Get-ChildItem -Path \"c:\\\\laragon\\\\www\\\\betchat\" -Force)",
-      "Bash(Select-Object Name)"
+      "Bash(Select-Object Name)",
+      "Bash(dir C:/laragon/www/betchat/database/)"
     ]
   }
 }

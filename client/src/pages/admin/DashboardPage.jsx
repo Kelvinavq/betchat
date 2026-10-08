@@ -9,7 +9,6 @@ import useAuth from '../../hooks/useAuth'
 import { SECTION_MODULES, canViewSection } from '../../utils/adminPermissions'
 import BroadcastNotifBubble from '../../components/admin/BroadcastNotifBubble'
 
-const AdminTour = lazy(() => import('../../components/common/AdminTour'))
 const UsersPage = lazy(() => import('./users/UsersPage'))
 const ClientsPage = lazy(() => import('./clients/ClientsPage'))
 const CommandsPage = lazy(() => import('./commands/CommandsPage'))
@@ -21,7 +20,8 @@ const BotBuilderPage = lazy(() => import('./botbuilder/BotBuilderPage'))
 const EventsPage = lazy(() => import('./events/EventsPage'))
 const MetricsPage = lazy(() => import('./metrics/MetricsPage'))
 const AnalyticsPage = lazy(() => import('./analytics/AnalyticsPage'))
-const WithdrawalsPage = lazy(() => import('./withdrawals/WithdrawalsPage'))
+const WithdrawalsPage        = lazy(() => import('./withdrawals/WithdrawalsPage'))
+const CaudalTransactionsPage = lazy(() => import('./caudal/CaudalTransactionsPage'))
 
 const MIN_W     = 240
 const MAX_W     = 560
@@ -272,6 +272,10 @@ const DashboardPage = () => {
           <WithdrawalsPage onMenuOpen={() => setMobileSidebar(true)} />
         )}
 
+        {canViewCurrentSection && section === 'caudal' && (
+          <CaudalTransactionsPage onMenuOpen={() => setMobileSidebar(true)} />
+        )}
+
         {canViewCurrentSection && section === 'chat' && mobileView === 'list' && (
           <MobileView $dir={viewDir}>
             <ChatList
@@ -303,7 +307,6 @@ const DashboardPage = () => {
           </MobileView>
         )}
 
-        <AdminTour currentSection={section} />
         <BroadcastNotifBubble />
       </Layout>
     )
@@ -334,6 +337,7 @@ const DashboardPage = () => {
       {canViewCurrentSection && section === 'metricas'       && <MetricsPage />}
       {canViewCurrentSection && section === 'analytics'      && <AnalyticsPage />}
       {canViewCurrentSection && section === 'retiros'        && <WithdrawalsPage />}
+      {canViewCurrentSection && section === 'caudal'         && <CaudalTransactionsPage />}
 
       {canViewCurrentSection && section === 'chat' && (
         <>
@@ -369,7 +373,6 @@ const DashboardPage = () => {
         </>
       )}
 
-      <AdminTour currentSection={section} />
       <BroadcastNotifBubble />
     </Layout>
   )

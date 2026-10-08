@@ -34,6 +34,12 @@ import {
 import { listWithdrawals } from '../controllers/withdrawalController.js'
 import { getChatProfile } from '../controllers/profileController.js'
 import { getClientEventRewards } from '../controllers/eventsController.js'
+import {
+  addClientCbu,
+  getClientCbuWhitelist,
+  removeClientCbu,
+  updateClientCbu,
+} from '../controllers/clientCbuController.js'
 
 const router = Router()
 
@@ -43,6 +49,10 @@ router.use(requireRole('admin', 'cashier'))
 router.get('/', getAdminChats)
 router.get('/labels', getChatLabels)
 router.post('/labels', createChatLabel)
+router.get('/client-cbu/:clientId', getClientCbuWhitelist)
+router.post('/client-cbu/:clientId', addClientCbu)
+router.put('/client-cbu/:clientId/:entryId', updateClientCbu)
+router.delete('/client-cbu/:clientId/:entryId', removeClientCbu)
 router.get('/:chatId/client', getChatClientDetails)
 router.put('/:chatId/client', updateChatClientDetails)
 router.get('/:chatId/balance', getChatClientBalance)

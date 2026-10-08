@@ -43,6 +43,15 @@ export function getSocket(mode = 'auto') {
   return sockets.get(socketMode)
 }
 
+export function refreshSocketAuth(mode = 'auto') {
+  const socket = getSocket(mode)
+  socket.disconnect()
+  window.setTimeout(() => {
+    if (!socket.connected) socket.connect()
+  }, 0)
+  return socket
+}
+
 export function makeClientMessageId(prefix = 'msg') {
   const cryptoId = crypto?.randomUUID?.()
   return `${prefix}-${cryptoId || `${Date.now()}-${Math.random().toString(36).slice(2)}`}`

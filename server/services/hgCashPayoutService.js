@@ -183,7 +183,7 @@ export async function getActiveHgCashAccount() {
 }
 
 export async function createTransaction({ accountRow, method, destinationCbu, amount, concept = 'pagobetchat', correlationId, withdrawalRequestId, actor, requestContext }) {
-  if (!accountRow?.bearer) {
+  if (!accountRow?.account_id || !accountRow?.bearer) {
     const err = new Error('hgcash_account_unavailable')
     err.code = 'account_unavailable'
     throw err
@@ -191,8 +191,7 @@ export async function createTransaction({ accountRow, method, destinationCbu, am
 
   const endpoint = `${HG_CASH_BASE_URL}/transactions`
   const payloadKey = method === 'cbu' ? 'toCBU' : 'toCVU'
-  const payload = { [payloadKey]: destinationCbu, amount, concept }
-  if (accountRow.account_id) payload.accountId = accountRow.account_id
+  const payload = { accountId: accountRow.account_id, [payloadKey]: destinationCbu, amount, concept }
 
   const requestEvent = buildEvent({ endpoint, httpMethod: 'POST', phase: 'request', correlationId, withdrawalRequestId, actor, requestContext, payloadSummary: summarizeForLog(payload) })
   await logPreCall(requestEvent, { failClosed: true })

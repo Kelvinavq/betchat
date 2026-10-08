@@ -100,6 +100,12 @@ const NAV_ITEMS = [
     icon: <AccountBalanceWalletOutlinedIcon />,
     children: [],
   },
+  {
+    id: 'caudal',
+    label: 'Caudal',
+    icon: <AccountBalanceOutlinedIcon />,
+    children: [],
+  },
 ]
 
 const BOTTOM_ITEMS = [

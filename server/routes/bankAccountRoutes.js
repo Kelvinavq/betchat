@@ -5,6 +5,7 @@ import {
   deleteBankAccount,
   getBankAccounts,
   updateBankAccount,
+  updateBankAccountStatus,
   getBankAccountMovements,
   fetchHgCashBalance,
 } from '../controllers/bankAccountController.js'
@@ -15,6 +16,7 @@ router.get('/', authenticateToken, requireRole('admin'), getBankAccounts)
 router.get('/:id/movements',  authenticateToken, requireRole('admin'), getBankAccountMovements)
 router.get('/:id/hg-balance', authenticateToken, requireRole('admin'), fetchHgCashBalance)
 router.post('/', authenticateToken, requireRole('admin'), createBankAccount)
+router.put('/:id/status', authenticateToken, requireRole('admin'), updateBankAccountStatus)
 router.put('/:id', authenticateToken, requireRole('admin'), updateBankAccount)
 router.delete('/:id', authenticateToken, requireRole('admin'), deleteBankAccount)
 

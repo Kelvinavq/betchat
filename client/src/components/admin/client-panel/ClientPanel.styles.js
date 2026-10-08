@@ -96,18 +96,28 @@ export const PanelStatus = styled.span`
 /* ── tabs ── */
 export const TabBar = styled.div`
   display: flex;
-  padding: 8px 8px 0;
-  gap: 2px;
+  padding: 8px 8px 4px;
+  gap: 4px;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   flex-shrink: 0;
   overflow-x: auto;
-  scrollbar-width: none;
-  &::-webkit-scrollbar { display: none; }
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  scroll-behavior: smooth;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.32) transparent;
+  &::-webkit-scrollbar { height: 4px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(var(--bc-admin-accent-rgb, 30,133,255),0.32);
+    border-radius: 999px;
+  }
 `
 
 export const Tab = styled.button`
-  flex: 1;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 76px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -125,21 +135,18 @@ export const Tab = styled.button`
   border-bottom: 2px solid ${({ $active }) => $active ? colors.primaryLight : 'transparent'};
   color: ${({ $active }) => $active ? '#ffffff' : 'rgba(255,255,255,0.38)'};
   letter-spacing: 0.02em;
+  scroll-snap-align: nearest;
   svg { font-size: 14px; flex-shrink: 0; }
 
-  /* hide label, keep icon when panel is very narrow */
   span.tab-label {
-    overflow: hidden;
-    max-width: 60px;
-    transition: max-width 0.2s, opacity 0.2s;
-  }
-
-  @container (max-width: 260px) {
-    span.tab-label { max-width: 0; opacity: 0; }
-    gap: 0;
+    display: block;
   }
 
   &:hover { color: rgba(255,255,255,0.72); background: rgba(255,255,255,0.04); }
+  &:focus-visible {
+    outline: 2px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.7);
+    outline-offset: -2px;
+  }
 `
 
 /* ── scroll area ── */
@@ -147,16 +154,31 @@ export const ScrollArea = styled.div`
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
   padding: 14px 14px 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  &::-webkit-scrollbar { width: 3px; }
-  &::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.18) transparent;
+  > * {
+    flex: 0 0 auto;
+    min-width: 0;
+  }
+  &::-webkit-scrollbar { width: 6px; }
+  &::-webkit-scrollbar-track { background: transparent; }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.18);
+    border-radius: 999px;
+  }
+  &::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.30); }
 `
 
 /* ── info cards ── */
 export const InfoCard = styled.div`
+  flex-shrink: 0;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 14px;

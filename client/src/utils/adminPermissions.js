@@ -8,6 +8,7 @@ export const SECTION_MODULES = {
   bot: 'bot_builder',
   events: 'events',
   retiros: 'chats_withdrawals',
+  caudal:  'chats_withdrawals',
   cuentas: 'settings',
   ajustes: 'settings',
   metricas: 'settings',

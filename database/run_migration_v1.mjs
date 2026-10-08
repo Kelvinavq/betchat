@@ -3,8 +3,11 @@
  * Agrega las columnas necesarias para el sistema de retiros automáticos.
  * Es idempotente: verifica si cada columna ya existe antes de intentar agregarla.
  */
-import mysql from 'mysql2/promise'
-import dotenv from 'dotenv'
+import { createRequire } from 'node:module'
+
+const require = createRequire(new URL('../server/package.json', import.meta.url))
+const mysql = require('mysql2/promise')
+const dotenv = require('dotenv')
 dotenv.config()
 
 const conn = await mysql.createConnection({
@@ -41,6 +44,15 @@ async function indexExists(table, indexName) {
     [table, indexName]
   )
   return rows[0].cnt > 0
+}
+
+async function indexIsUnique(table, indexName) {
+  const [rows] = await conn.query(
+    `SELECT MIN(NON_UNIQUE) AS non_unique FROM INFORMATION_SCHEMA.STATISTICS
+     WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?`,
+    [table, indexName]
+  )
+  return rows?.[0]?.non_unique === 0
 }
 
 async function addColumn(table, col, definition, afterCol) {
@@ -126,16 +138,21 @@ try {
 
 console.log('\n[8] Índices')
 const indices = [
-  ['idx_wr_correlation',   'withdrawal_requests', '(`correlation_id`)'],
-  ['idx_wr_idempotency',   'withdrawal_requests', '(`chat_id`, `idempotency_key`)'],
-  ['idx_wr_dispatched_at', 'withdrawal_requests', '(`dispatched_at`)'],
-  ['idx_wr_created_at',    'withdrawal_requests', '(`created_at`)'],
+  ['idx_wr_correlation',   'withdrawal_requests', '(`correlation_id`)', false],
+  ['idx_wr_idempotency',   'withdrawal_requests', '(`chat_id`, `idempotency_key`)', true],
+  ['idx_wr_dispatched_at', 'withdrawal_requests', '(`dispatched_at`)', false],
+  ['idx_wr_created_at',    'withdrawal_requests', '(`created_at`)', false],
 ]
-for (const [name, table, cols] of indices) {
+for (const [name, table, cols, unique] of indices) {
   if (await indexExists(table, name)) {
-    console.log(`  ↩  ${name} ya existe, skip`)
+    if (unique && !(await indexIsUnique(table, name))) {
+      await conn.query(`ALTER TABLE \`${table}\` DROP INDEX \`${name}\`, ADD UNIQUE INDEX \`${name}\` ${cols}`)
+      console.log(`  ✓  ${name} convertido a UNIQUE`)
+    } else {
+      console.log(`  ↩  ${name} ya existe, skip`)
+    }
   } else {
-    await conn.query(`CREATE INDEX \`${name}\` ON \`${table}\` ${cols}`)
+    await conn.query(`CREATE ${unique ? 'UNIQUE ' : ''}INDEX \`${name}\` ON \`${table}\` ${cols}`)
     console.log(`  ✓  ${name} creado`)
   }
 }
@@ -254,7 +271,7 @@ if (!(await tableExists('client_cbu_whitelist'))) {
       \`client_id\`      INT UNSIGNED    NOT NULL,
       \`cbu\`            VARCHAR(22)     NOT NULL,
       \`label\`          VARCHAR(120)             DEFAULT NULL,
-      \`source\`         ENUM('manual','approved_withdrawal','profile','hgcash_movement') NOT NULL DEFAULT 'manual',
+      \`source\`         ENUM('manual','approved_withdrawal','profile','hgcash_movement','caudal_withdrawal') NOT NULL DEFAULT 'manual',
       \`source_ref_id\`  BIGINT UNSIGNED          DEFAULT NULL,
       \`verified_by\`    VARCHAR(150)             DEFAULT NULL,
       \`verified_at\`    DATETIME                 DEFAULT NULL,
@@ -269,6 +286,41 @@ if (!(await tableExists('client_cbu_whitelist'))) {
   `)
   console.log('  ✓  client_cbu_whitelist creada')
 } else { console.log('  ↩  client_cbu_whitelist ya existe') }
+
+await conn.query(`
+  ALTER TABLE \`client_cbu_whitelist\`
+  MODIFY COLUMN \`source\` ENUM(
+    'manual','approved_withdrawal','profile','hgcash_movement','caudal_withdrawal'
+  ) NOT NULL DEFAULT 'manual'
+`)
+console.log('  ✓  client_cbu_whitelist.source admite HG Cash y Caudal')
+
+if (!(await tableExists('client_profile_audit_log'))) {
+  await conn.query(`
+    CREATE TABLE \`client_profile_audit_log\` (
+      \`id\`                         BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+      \`client_id\`                  INT             NOT NULL,
+      \`field_name\`                 ENUM('cuit_cuil','cbu_cvu','verified_titular_name') NOT NULL,
+      \`old_value\`                  VARCHAR(255)             DEFAULT NULL,
+      \`new_value\`                  VARCHAR(255)    NOT NULL,
+      \`changed_by_admin_id\`        BIGINT UNSIGNED          DEFAULT NULL,
+      \`changed_by_admin_email\`     VARCHAR(150)             DEFAULT NULL,
+      \`changed_by_admin_label\`     VARCHAR(150)             DEFAULT NULL,
+      \`changed_by_admin_role\`      VARCHAR(40)              DEFAULT NULL,
+      \`changed_by_admin_username\`  VARCHAR(150)             DEFAULT NULL,
+      \`change_source\`              VARCHAR(60)     NOT NULL DEFAULT 'admin_panel',
+      \`change_reason\`              VARCHAR(255)             DEFAULT NULL,
+      \`ip_address\`                 VARCHAR(45)              DEFAULT NULL,
+      \`user_agent\`                 TEXT                     DEFAULT NULL,
+      \`created_at\`                 DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (\`id\`),
+      KEY \`idx_client_profile_audit_client\` (\`client_id\`, \`created_at\`),
+      KEY \`idx_client_profile_audit_field\` (\`field_name\`, \`created_at\`),
+      KEY \`idx_client_profile_audit_admin\` (\`changed_by_admin_id\`, \`created_at\`)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+  `)
+  console.log('  ✓  client_profile_audit_log creada')
+} else { console.log('  ↩  client_profile_audit_log ya existe') }
 
 // ─── Mensajes automáticos ─────────────────────────────────────────────────────
 

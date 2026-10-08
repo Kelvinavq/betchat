@@ -3,6 +3,8 @@ import { query } from '../config/database.js'
 import { config } from '../config/config.js'
 import { io } from '../app.js'
 import { persistMessage, emitChatRefresh } from '../controllers/chatController.js'
+import { getDefaultBotAiConfig, normalizeBotAiConfig, botAiRuleKeywords } from '../utils/botAiConfig.js'
+import { getCacheJson, setCacheJson } from '../utils/redisCache.js'
 
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions'
 const BOT_AVATAR = 'BC'
@@ -16,6 +18,12 @@ const ALLOWED_MODELS = new Set([
 ])
 const CONFIDENCE_THRESHOLD = 0.72
 const TZ = 'America/Buenos_Aires'
+const BOT_RUNTIME_CACHE_KEY = 'bot:v1:runtime'
+const BOT_FLOW_CACHE_KEY = 'bot:v1:flow'
+const BOT_FAQ_CACHE_KEY = 'bot:v1:faq'
+const BOT_AMOUNTS_CACHE_KEY = 'bot:v1:amounts'
+const BOT_BANK_PROVIDER_CACHE_KEY = 'bot:v1:bank-provider'
+const BOT_BANK_CONTEXT_CACHE_KEY = 'bot:v1:bank-context'
 
 function normalizeText(value) {
   return String(value ?? '').trim()
@@ -144,18 +152,24 @@ function sanitizeItem(item) {
 }
 
 async function getBotRuntimeConfig() {
+  const cached = await getCacheJson(BOT_RUNTIME_CACHE_KEY)
+  if (cached) return cached
+
   const { rows, error } = await query(
-    'SELECT bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bot_ai_config FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
   const row = rows?.[0] || {}
-  return {
+  const runtime = {
     mode: String(row.bot_mode || 'manual').toLowerCase() === 'hybrid_ai' ? 'hybrid_ai' : 'manual',
     model: normalizeText(row.bot_ai_model || ''),
     temperature: Number.isFinite(Number(row.bot_ai_temperature)) ? Math.max(0, Math.min(2, Number(row.bot_ai_temperature))) : 0.1,
     maxTokens: Number.isFinite(Number(row.bot_ai_max_tokens)) ? Math.max(1, Math.min(2000, Math.floor(Number(row.bot_ai_max_tokens)))) : 250,
+    botAiConfig: normalizeBotAiConfig(row.bot_ai_config || getDefaultBotAiConfig()),
   }
+  await setCacheJson(BOT_RUNTIME_CACHE_KEY, runtime, 30)
+  return runtime
 }
 
 async function getOpenRouterConfig() {
@@ -170,6 +184,9 @@ async function getOpenRouterConfig() {
 }
 
 async function getActiveAmountsForBot() {
+  const cached = await getCacheJson(BOT_AMOUNTS_CACHE_KEY)
+  if (cached) return cached
+
   const { rows, error } = await query(
     `SELECT currency, operation, min_amount, is_active
        FROM amounts
@@ -194,13 +211,40 @@ async function getActiveAmountsForBot() {
     }
   }
 
+  await setCacheJson(BOT_AMOUNTS_CACHE_KEY, amounts, 30)
   return amounts
 }
 
-const SAFE_BANK_FIELDS_AI = new Set(['nombre_titular', 'alias', 'cbu', 'email', 'cuit', 'currency'])
+async function getCachedActiveBankProvider() {
+  const cached = await getCacheJson(BOT_BANK_PROVIDER_CACHE_KEY)
+  if (cached && typeof cached === 'object' && 'activeProvider' in cached) {
+    return cached.activeProvider || null
+  }
 
-async function resolveReceiptPrompt(text) {
-  if (!text || !text.includes('{{bank.')) return text
+  const { rows, error } = await query(
+    `SELECT bp.slug AS active_provider
+       FROM chat_processing_config cpc
+       LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id AND ba.is_active = 1
+       LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
+      WHERE cpc.id = 1
+      LIMIT 1`,
+    []
+  )
+  if (error) throw error
+  const provider = rows?.[0]?.active_provider || null
+  await setCacheJson(BOT_BANK_PROVIDER_CACHE_KEY, { activeProvider: provider }, 60)
+  return provider
+}
+
+async function getCachedBankContext() {
+  const cached = await getCacheJson(BOT_BANK_CONTEXT_CACHE_KEY)
+  if (cached && typeof cached === 'object') {
+    return {
+      accountData: cached.accountData || null,
+      currency: cached.currency || 'ARS',
+    }
+  }
+
   const { rows, error } = await query(
     `SELECT ba.account_data, ba.currency
        FROM chat_processing_config cpc
@@ -209,8 +253,23 @@ async function resolveReceiptPrompt(text) {
       LIMIT 1`,
     []
   )
-  if (error || !rows?.length) return text
-  const raw = rows[0].account_data
+  if (error) throw error
+
+  const context = {
+    accountData: rows?.[0]?.account_data || null,
+    currency: rows?.[0]?.currency || 'ARS',
+  }
+  await setCacheJson(BOT_BANK_CONTEXT_CACHE_KEY, context, 60)
+  return context
+}
+
+const SAFE_BANK_FIELDS_AI = new Set(['nombre_titular', 'alias', 'cbu', 'email', 'cuit', 'currency'])
+
+async function resolveReceiptPrompt(text) {
+  if (!text || !text.includes('{{bank.')) return text
+  const bankContext = await getCachedBankContext().catch(() => null)
+  if (!bankContext?.accountData) return text
+  const raw = bankContext.accountData
   const data = typeof raw === 'object' ? raw : (() => { try { return JSON.parse(raw) } catch { return {} } })()
   const fields = {
     nombre_titular: data.nombre_titular || '',
@@ -218,7 +277,7 @@ async function resolveReceiptPrompt(text) {
     cbu: data.cbu || '',
     email: data.email || '',
     cuit: data.cuit || '',
-    currency: rows[0].currency || 'ARS',
+    currency: bankContext.currency || 'ARS',
   }
   return text.replace(/\{\{bank\.(\w+)\}\}/g, (match, key) =>
     SAFE_BANK_FIELDS_AI.has(key) ? (fields[key] || match) : match
@@ -226,18 +285,31 @@ async function resolveReceiptPrompt(text) {
 }
 
 async function loadBotFlow() {
-  const { rows: screenRows, error: screenError } = await query(
+  const cached = await getCacheJson(BOT_FLOW_CACHE_KEY)
+  if (cached?.screens?.length) return cached
+
+  const [withdrawalMinAmount, activeProvider, screenResult, itemResult] = await Promise.all([
+    getActiveAmountsForBot().then(amounts => ({
+      amount: amounts?.retiro?.amount ?? null,
+      currency: amounts?.retiro?.currency || 'USD',
+    })).catch(() => ({ amount: null, currency: 'USD' })),
+    getCachedActiveBankProvider(),
+    query(
     `SELECT id, name, is_root, sort_order
        FROM bot_screens
        ORDER BY sort_order ASC, created_at ASC`
-  )
-  if (screenError) throw screenError
-
-  const { rows: itemRows, error: itemError } = await query(
+    ),
+    query(
     `SELECT id, screen_id, type, text, label, form_config, button_type, receipt_processing, receipt_prompt, show_receipt_after, response_messages, action_screen_id, is_back, sort_order
        FROM bot_items
        ORDER BY screen_id ASC, sort_order ASC, created_at ASC`
-  )
+    ),
+  ])
+
+  const { rows: screenRows, error: screenError } = screenResult
+  if (screenError) throw screenError
+
+  const { rows: itemRows, error: itemError } = itemResult
   if (itemError) throw itemError
 
   const screens = (screenRows || []).map(sanitizeScreen)
@@ -246,7 +318,9 @@ async function loadBotFlow() {
     const screen = byId.get(item.screen_id)
     if (screen) screen.items.push(sanitizeItem(item))
   }
-  return { screens }
+  const flow = { screens, withdrawalMinAmount, activeProvider }
+  await setCacheJson(BOT_FLOW_CACHE_KEY, flow, 60)
+  return flow
 }
 
 async function loadChatContext(chatId) {
@@ -262,17 +336,7 @@ async function loadChatContext(chatId) {
   if (error) throw error
   const chat = rows?.[0] || null
   if (!chat) return null
-  const { rows: providerRows, error: providerError } = await query(
-    `SELECT bp.slug AS active_provider
-       FROM chat_processing_config cpc
-       LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
-       LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
-      WHERE cpc.id = 1
-      LIMIT 1`,
-    []
-  )
-  if (providerError) throw providerError
-  return { ...chat, active_provider: providerRows?.[0]?.active_provider || null }
+  return { ...chat, active_provider: await getCachedActiveBankProvider() }
 }
 
 async function loadRecentMessages(chatId, limit = 10) {
@@ -287,6 +351,103 @@ async function loadRecentMessages(chatId, limit = 10) {
   )
   if (error) throw error
   return (rows || []).reverse()
+}
+
+async function loadActiveFaqItems() {
+  const cached = await getCacheJson(BOT_FAQ_CACHE_KEY)
+  if (Array.isArray(cached)) return cached
+
+  const { rows, error } = await query(
+    `SELECT id, question, answer, sort_order
+       FROM faq_items
+      WHERE is_active = 1
+      ORDER BY sort_order ASC, id ASC`,
+    []
+  )
+  if (error) throw error
+  const items = rows || []
+  await setCacheJson(BOT_FAQ_CACHE_KEY, items, 60)
+  return items
+}
+
+function tokenizeSearchText(value) {
+  return normalizeSearchText(value)
+    .split(/[^a-z0-9]+/i)
+    .map(token => token.trim())
+    .filter(token => token.length > 2)
+}
+
+function detectOperationalIssue(text, botAiConfig = null) {
+  const normalized = normalizeSearchText(text)
+  if (!normalized) return null
+
+  const rules = Array.isArray(botAiConfig?.rules) && botAiConfig.rules.length
+    ? botAiConfig.rules
+    : getDefaultBotAiConfig().rules
+
+  for (const rule of rules) {
+    if (!rule?.enabled) continue
+    if (rule.action !== 'handoff') continue
+    const keywords = botAiRuleKeywords(rule)
+    if (keywords.some(keyword => keyword && normalized.includes(normalizeSearchText(keyword).toLowerCase()))) {
+      return {
+        reason: rule.id || 'handoff_operational',
+        reply: rule.reply || 'Te derivo con soporte para revisar tu caso.',
+      }
+    }
+  }
+
+  const genericSupport = /(reclamo|queja|error|problema de cuenta|cuenta bloqueada|usuario bloqueado|no me funciona|no funciona|no me deja entrar|acceso|login fallando|cbu incorrecto|alias incorrecto|cuenta incorrecta)/i
+  if (genericSupport.test(normalized)) {
+    return {
+      reason: 'handoff_operational',
+      reply: 'Te derivo con soporte para revisar tu caso.',
+    }
+  }
+
+  return null
+}
+
+function pickFaqMatch(text, faqItems = [], threshold = 0.55) {
+  const normalizedText = normalizeSearchText(text)
+  if (!normalizedText) return null
+  const textTokens = new Set(tokenizeSearchText(normalizedText))
+  let best = null
+
+  for (const item of faqItems) {
+    const question = normalizeSearchText(item.question || '')
+    const answer = normalizeText(item.answer || '')
+    if (!question || !answer) continue
+
+    const questionTokens = tokenizeSearchText(question)
+    if (questionTokens.length === 0) continue
+
+    let score = 0
+    if (normalizedText.includes(question) || question.includes(normalizedText)) {
+      score += 1.5
+    }
+
+    let shared = 0
+    for (const token of questionTokens) {
+      if (textTokens.has(token)) shared += 1
+    }
+    score += shared / questionTokens.length
+
+    if (/(retiro|retirar|cobro|sacar dinero)/i.test(question) && /(retiro|retirar|cobrar|sacar dinero)/i.test(normalizedText)) score += 0.35
+    if (/(deposit|carga|cargar|depositar|transfer|comprobante)/i.test(question) && /(deposit|carga|cargar|depositar|transfer|comprobante)/i.test(normalizedText)) score += 0.35
+    if (/(horario|tiempo|demora|tarda|cuando|cuanto)/i.test(question) && /(horario|tiempo|demora|tarda|cuando|cuanto)/i.test(normalizedText)) score += 0.2
+
+    if (!best || score > best.score) {
+      best = {
+        id: item.id,
+        question: item.question,
+        answer: answer.slice(0, 400),
+        score,
+      }
+    }
+  }
+
+  return best && best.score >= threshold ? best : null
 }
 
 function buildBotContext({ flow, chat, currentScreen, activeProvider, runtime }) {
@@ -347,6 +508,7 @@ function buildBotContext({ flow, chat, currentScreen, activeProvider, runtime })
       assignedUserId: chat?.assigned_user_id || null,
       activeProvider: activeProvider || null,
     },
+    aiConfig: runtime?.botAiConfig || getDefaultBotAiConfig(),
     client: {
       id: Number(chat?.client_id || 0),
       username: chat?.username || '',
@@ -424,6 +586,7 @@ function buildBotButtonsFromDefinitions(buttonDefs, { buttonIds = null, reason =
 }
 
 function buildPrompt({ botContext, chatContext, recentMessages, clientMessage }) {
+  const aiInstructions = normalizeText(botContext?.aiConfig?.instructions || '')
   return `Eres el enrutador inteligente del chat de soporte de una plataforma de apuestas/casino online.
 
 Tu tarea NO es resolver todo libremente.
@@ -443,6 +606,8 @@ Reglas principales:
 - Si el cliente insulta o está molesto, responde con calma y ofrece soporte.
 - Si el cliente manda algo relacionado con comprobantes, pagos pendientes o acreditación, guíalo al flujo de carga/comprobante si está disponible.
 - Si el cliente pregunta por el monto mínimo de carga o retiro, responde usando los valores configurados en "amounts" del sistema, sin inventar.
+- Si el cliente pregunta por una consulta frecuente que ya está resuelta por FAQ, responde de forma breve y útil.
+- Si el cliente reporta un problema operativo o un reclamo, deriva a un humano sin intentar inventar una solución.
 
 Debes devolver ÚNICAMENTE JSON válido, sin markdown, sin explicaciones y sin texto fuera del JSON.
 
@@ -473,6 +638,9 @@ Criterios:
 - "buttonIds" debe contener solo IDs existentes en las opciones disponibles.
 - Nunca uses IDs que no estén en la lista de opciones disponibles.
 
+Instrucciones configurables del admin:
+${aiInstructions || 'No hay instrucciones personalizadas.'}
+
 Contexto del bot manual:
 ${JSON.stringify(botContext, null, 2)}
 
@@ -488,15 +656,19 @@ ${JSON.stringify({ content: clientMessage }, null, 2)}`
 
 function detectAmountQuestion(text) {
   const normalized = normalizeSearchText(text)
-  const asksMin = /(monto minimo|minimo de monto|minimo|mínimo|cuanto puedo|cuánto puedo|cual es el minimo|cuál es el minimo|monto mínimo|importe mínimo|monto de carga|monto de retiro)/i.test(text)
-  const asksDeposit = /(carga|deposit|deposito|depósito|cargar saldo|cargar)/i.test(text)
-  const asksWithdrawal = /(retiro|retirar|cobrar|sacar dinero|withdraw)/i.test(text)
-  if (!asksMin && !asksDeposit && !asksWithdrawal) return null
+  const asksDeposit = /(carga|deposit|deposito|depositar|cargar saldo|cargar)/i.test(normalized)
+  const asksWithdrawal = /(retiro|retirar|cobrar|sacar dinero|withdraw)/i.test(normalized)
+  const asksMin = /(monto minimo|minimo de monto|minimo|cuanto puedo|cual es el minimo|monto minimo|importe minimo|monto de carga|monto de retiro|minimo para|cuanto es el minimo|cual es el monto minimo)/i.test(normalized)
 
-  const wantsDeposit = asksDeposit || normalized.includes('carga') || normalized.includes('deposit')
-  const wantsWithdrawal = asksWithdrawal || normalized.includes('retiro') || normalized.includes('retirar')
+  // Solo tratar como consulta de monto cuando realmente pregunta por el mínimo.
+  // Una intención simple como "quiero cargar" o "quiero retirar" debe seguir
+  // el flujo normal de navegación del bot.
+  if (!asksMin) return null
 
-  if (!wantsDeposit && !wantsWithdrawal && !asksMin) return null
+  const wantsDeposit = asksDeposit || /carga|deposit|deposito|depositar/i.test(normalized)
+  const wantsWithdrawal = asksWithdrawal || /retiro|retirar|cobrar|sacar dinero|withdraw/i.test(normalized)
+
+  if (!wantsDeposit && !wantsWithdrawal) return null
   return {
     wantsDeposit,
     wantsWithdrawal,
@@ -666,6 +838,34 @@ function buildReceiptButtons({ request, actionLabel, reason = 'ai' }) {
   }]
 }
 
+function findScreenReceiptButton(screen) {
+  return (screen?.items || []).find(item =>
+    item.type === 'button' &&
+    item.label &&
+    !item.isBack &&
+    (item.buttonType === 'receipt_request' || item.showReceiptAfter)
+  ) || null
+}
+
+function buildScreenButtonsWithReceipt(screen, request, reason = 'ai') {
+  const messages = buildBotButtonsFromItems(screen?.items || [], { reason })
+  if (!request) return messages
+
+  return messages.map(message => {
+    if (message.type !== 'bot-buttons') return message
+    const receiptButton = {
+      id: `receipt-upload-btn-${request.buttonId}`,
+      label: request.actionLabel || '📎 Subir comprobante',
+      buttonType: 'receipt_upload',
+      receiptRequest: request,
+    }
+    const firstBackIndex = message.buttons.findIndex(button => button.isBack)
+    const buttons = [...message.buttons]
+    buttons.splice(firstBackIndex >= 0 ? firstBackIndex : buttons.length, 0, receiptButton)
+    return { ...message, buttons }
+  })
+}
+
 function buildFallbackReply(action) {
   switch (action) {
     case 'select_button':
@@ -755,13 +955,17 @@ function inferQuickNavigationDecision({ clientMessage, flow, currentScreen }) {
   const support = /(soporte|ayuda|problema|error|no funciona|no puedo|bloquead|acceso|usuario|contrase|login)/i.test(text)
   const promo = /(cuponera|promo|bono|promocion|promoción)/i.test(text)
 
-  const pickRootButton = (matchers) => rootButtons.find(button => matchers.some(matcher => matcher(normalizeSearchText(button.label), normalizeSearchText(button.sourceScreenName || ''))))
+  const pickRootButton = (matchers) => rootButtons.find(button => matchers.some(matcher => matcher(
+    normalizeSearchText(button.label),
+    normalizeSearchText(button.sourceScreenName || ''),
+    normalizeSearchText(button.actionScreenId || '')
+  )))
   const targetButton =
     withdrawals ? pickRootButton([
-      (label) => label.includes('retirar') || label.includes('retiro'),
+      (label, source, target) => label.includes('retirar') || label.includes('retiro') || source.includes('retir') || target.includes('retir'),
     ]) :
     deposits ? pickRootButton([
-      (label) => label.includes('cargar') || label.includes('deposit') || label.includes('carga'),
+      (label, source, target) => label.includes('cargar') || label.includes('deposit') || label.includes('carga') || source.includes('carg') || source.includes('deposit') || target.includes('carg') || target.includes('deposit'),
     ]) :
     support ? pickRootButton([
       (label) => label.includes('soporte') || label.includes('ayuda'),
@@ -787,8 +991,14 @@ function inferQuickNavigationDecision({ clientMessage, flow, currentScreen }) {
   return null
 }
 
-function emitBotProcessing(chatId, isProcessing, text = 'IA procesando...') {
-  io.to(`chat:${chatId}`).emit('bot:processing', {
+function emitClientBotEvent(chatId, clientId, eventName, payload) {
+  let target = io.to(`chat:${chatId}`)
+  if (clientId) target = target.to(`client:${clientId}`)
+  target.emit(eventName, payload)
+}
+
+function emitBotProcessing(chatId, clientId, isProcessing, text = 'IA procesando...') {
+  emitClientBotEvent(chatId, clientId, 'bot:processing', {
     chatId: Number(chatId),
     isProcessing: Boolean(isProcessing),
     text: text || 'IA procesando...',
@@ -826,6 +1036,8 @@ async function executeSelectedButton({
     : (flow.screens.find(screen => screen.id === button.actionScreenId) || currentScreen)
   const targetScreenId = targetScreen?.id || chat.bot_screen_id || button.actionScreenId || currentScreen?.id || null
   const targetButtons = (targetScreen?.items || []).filter(item => item.type === 'button' && item.isBack && item.label)
+  const screenReceiptButton = showReceiptAfter ? null : findScreenReceiptButton(targetScreen)
+  const receiptButton = showReceiptAfter ? button : screenReceiptButton
 
   const responseMessages = parseJsonArray(button.responseMessages)
     .map(text => normalizeText(text))
@@ -886,26 +1098,28 @@ async function executeSelectedButton({
     )
   }
 
-  const receiptRequest = showReceiptAfter
+  const receiptRequest = receiptButton
     ? {
-        buttonId: button.id,
-        label: button.label,
-        processing: button.receiptProcessing || 'manual',
+        buttonId: receiptButton.id,
+        label: receiptButton.label,
+        processing: receiptButton.receiptProcessing || 'manual',
         activeProvider: chat.active_provider || null,
         screenId: targetScreenId,
         backButtons: targetButtons,
         forceUpload: false,
-        actionLabel: button.buttonType === 'receipt_request' ? '📎 Subir comprobante' : '📎 Subir comprobante',
+        actionLabel: '📎 Subir comprobante',
       }
     : null
 
-  const botMessages = receiptRequest
+  const botMessages = showReceiptAfter && receiptRequest
     ? buildReceiptButtons({
         request: receiptRequest,
         actionLabel: '📎 Subir comprobante',
         reason: `select-${button.id}`,
       })
-    : buildBotButtonsFromItems(targetScreen?.items || [], { reason: `select-${button.id}` })
+    : receiptRequest
+      ? buildScreenButtonsWithReceipt(targetScreen, receiptRequest, `select-${button.id}`)
+      : buildBotButtonsFromItems(targetScreen?.items || [], { reason: `select-${button.id}` })
 
   return {
     createdMessages,
@@ -955,12 +1169,13 @@ export async function processHybridBotTextMessage({
       loadRecentMessages(chatId, 10),
     ])
     const amounts = await getActiveAmountsForBot().catch(() => ({ carga: null, retiro: null }))
+    const botAiConfig = runtime.botAiConfig || getDefaultBotAiConfig()
 
     if (!chat || Number(chat.client_id) !== Number(clientId)) {
       return { handled: false, reason: 'chat_not_found' }
     }
 
-    emitBotProcessing(chatId, true, 'IA procesando tu mensaje...')
+    emitBotProcessing(chatId, clientId, true, 'IA procesando tu mensaje...')
     const allButtons = buildFlowButtons(flow)
     const availableButtons = buildAvailableButtons(
       flow.screens.find(screen => screen.id === chat.bot_screen_id)
@@ -1008,6 +1223,7 @@ export async function processHybridBotTextMessage({
     })
 
     const amountQuestion = detectAmountQuestion(content)
+    let amountReply = ''
     if (amountQuestion) {
       const depositLabel = formatAmountLabel(amounts?.carga)
       const withdrawalLabel = formatAmountLabel(amounts?.retiro)
@@ -1020,13 +1236,46 @@ export async function processHybridBotTextMessage({
       if (wantsWithdrawal || (!wantsDeposit && !wantsWithdrawal)) {
         replyParts.push(`El mínimo de retiro es ${withdrawalLabel}.`)
       }
-      const reply = replyParts.join(' ')
+      amountReply = replyParts.join(' ')
+
+      // Si también hay una intención clara, informar el mínimo y continuar
+      // con la acción configurada en lugar de cortar el flujo.
+      if (syntheticDecision?.action === 'select_button') {
+        syntheticDecision = {
+          ...syntheticDecision,
+          reply: `${amountReply} ${syntheticDecision.reply}`.trim().slice(0, 160),
+          reason: `${syntheticDecision.reason}_with_amount`,
+        }
+      } else {
+        await persistReplyMessage({ chatId, reply: amountReply, messageId, clientMessageId })
+        emitClientBotEvent(chatId, clientId, 'bot:ai-transition', {
+          chatId: Number(chatId),
+          action: 'none',
+          reply: amountReply,
+          reason: 'amounts_inquiry',
+          state: {
+            chatId: Number(chatId),
+            currentScreenId: chat.bot_screen_id || null,
+            lastButtonId: chat.bot_last_button_id || null,
+          },
+          botMessages: [],
+          receiptRequest: null,
+          clearBotMessages: false,
+        })
+        await emitChatRefresh(chatId)
+        return { handled: true, action: 'amounts_inquiry' }
+      }
+    }
+
+    const operationalIssue = botAiConfig.operationalHandoffEnabled ? detectOperationalIssue(content, botAiConfig) : null
+    if (operationalIssue) {
+      const reply = normalizeText(operationalIssue.reply || 'Te derivo con soporte para revisar tu caso.')
       await persistReplyMessage({ chatId, reply, messageId, clientMessageId })
-      io.to(`chat:${chatId}`).emit('bot:ai-transition', {
+      emitClientBotEvent(chatId, clientId, 'bot:ai-transition', {
         chatId: Number(chatId),
-        action: 'none',
+        action: 'handoff',
         reply,
-        reason: 'amounts_inquiry',
+        reason: operationalIssue.reason,
         state: {
           chatId: Number(chatId),
           currentScreenId: chat.bot_screen_id || null,
@@ -1037,7 +1286,30 @@ export async function processHybridBotTextMessage({
         clearBotMessages: false,
       })
       await emitChatRefresh(chatId)
-      return { handled: true, action: 'amounts_inquiry' }
+      return { handled: true, action: 'handoff', reason: operationalIssue.reason }
+    }
+
+    const faqItems = botAiConfig.faqEnabled ? await loadActiveFaqItems().catch(() => []) : []
+    const faqMatch = botAiConfig.faqEnabled ? pickFaqMatch(content, faqItems, botAiConfig.faqMatchThreshold || 0.55) : null
+    if (faqMatch) {
+      const reply = faqMatch.answer.slice(0, 160)
+      await persistReplyMessage({ chatId, reply, messageId, clientMessageId })
+      emitClientBotEvent(chatId, clientId, 'bot:ai-transition', {
+        chatId: Number(chatId),
+        action: 'none',
+        reply,
+        reason: 'faq_match',
+        state: {
+          chatId: Number(chatId),
+          currentScreenId: chat.bot_screen_id || null,
+          lastButtonId: chat.bot_last_button_id || null,
+        },
+        botMessages: [],
+        receiptRequest: null,
+        clearBotMessages: false,
+      })
+      await emitChatRefresh(chatId)
+      return { handled: true, action: 'faq_match', faqId: faqMatch.id }
     }
 
     let rawDecision = null
@@ -1184,7 +1456,7 @@ export async function processHybridBotTextMessage({
             )
           }
 
-          io.to(`chat:${chatId}`).emit('bot:ai-transition', {
+          emitClientBotEvent(chatId, clientId, 'bot:ai-transition', {
             chatId: Number(chatId),
             action: 'none',
             reply,
@@ -1227,7 +1499,7 @@ export async function processHybridBotTextMessage({
           clientMessageId,
         })
 
-        io.to(`chat:${chatId}`).emit('bot:ai-transition', {
+        emitClientBotEvent(chatId, clientId, 'bot:ai-transition', {
           chatId: Number(chatId),
           action,
           reply,
@@ -1292,7 +1564,7 @@ export async function processHybridBotTextMessage({
         : []
 
     if (botMessages.length > 0 || replyResult?.message) {
-      io.to(`chat:${chatId}`).emit('bot:ai-transition', {
+      emitClientBotEvent(chatId, clientId, 'bot:ai-transition', {
         chatId: Number(chatId),
         action,
         reply,
@@ -1335,7 +1607,7 @@ export async function processHybridBotTextMessage({
         messageId,
         clientMessageId,
       }).catch(() => null)
-      io.to(`chat:${chatId}`).emit('bot:ai-transition', {
+      emitClientBotEvent(chatId, clientId, 'bot:ai-transition', {
         chatId: Number(chatId),
         action: 'show_buttons',
         reply: buildFallbackReply('show_buttons'),
@@ -1362,6 +1634,6 @@ export async function processHybridBotTextMessage({
       return { handled: false, error: fallbackError.message }
     }
   } finally {
-    emitBotProcessing(chatId, false, '')
+    emitBotProcessing(chatId, clientId, false, '')
   }
 }

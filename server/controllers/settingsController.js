@@ -7,6 +7,8 @@ import { query, transaction } from '../config/database.js'
 import { config } from '../config/config.js'
 import { hashPassword, verifyPassword } from '../utils/password.js'
 import { getIo } from '../socket/socketServer.js'
+import { getDefaultBotAiConfig, normalizeBotAiConfig, serializeBotAiConfig } from '../utils/botAiConfig.js'
+import { deleteCache, deleteCachePattern } from '../utils/redisCache.js'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
@@ -217,6 +219,25 @@ async function ensureSystemConfigSchema() {
     if (alterError && !/duplicate column/i.test(String(alterError.message || ''))) throw alterError
   }
 
+  const { rows: botRows, error: botError } = await query(
+    `SELECT COLUMN_NAME
+     FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = ?
+       AND TABLE_NAME = 'system_config'
+       AND COLUMN_NAME = 'bot_ai_config'
+     LIMIT 1`,
+    [config.db.database]
+  )
+  if (botError) throw botError
+
+  if (!botRows?.length) {
+    const { error: alterBotError } = await query(
+      `ALTER TABLE system_config
+       ADD COLUMN bot_ai_config JSON DEFAULT NULL AFTER bot_ai_max_tokens`
+    )
+    if (alterBotError && !/duplicate column/i.test(String(alterBotError.message || ''))) throw alterBotError
+  }
+
   systemConfigSchemaChecked = true
 }
 
@@ -229,11 +250,12 @@ async function ensureSystemConfig() {
 export async function getSystemConfig() {
   await ensureSystemConfig()
   const { rows, error } = await query(
-    'SELECT app_name, logo_url, favicon_url, iframe_url, integration_mode, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_balance_visible FROM system_config WHERE id = 1 LIMIT 1',
+    'SELECT app_name, logo_url, favicon_url, iframe_url, integration_mode, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bot_ai_config, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_menu_caudal, client_balance_visible FROM system_config WHERE id = 1 LIMIT 1',
     []
   )
   if (error) throw error
   const row = rows?.[0] || {}
+  const botAiConfig = normalizeBotAiConfig(row.bot_ai_config || getDefaultBotAiConfig())
   return {
     appName: row.app_name || 'BetChat',
     logoUrl: row.logo_url || '',
@@ -250,11 +272,13 @@ export async function getSystemConfig() {
     clientMenuEvents:    row.client_menu_events     !== 0,
     clientMenuHistory:   row.client_menu_history    !== 0,
     clientMenuFaq:       row.client_menu_faq        !== 0,
+    clientMenuCaudal:    row.client_menu_caudal     !== 0,
     clientBalanceVisible:row.client_balance_visible !== 0,
     botMode: normalizeBotMode(row.bot_mode),
     botAiModel: normalizeBotModel(row.bot_ai_model),
     botAiTemperature: normalizeBotTemperature(row.bot_ai_temperature),
     botAiMaxTokens: normalizeBotMaxTokens(row.bot_ai_max_tokens),
+    botAiConfig,
     bubbleConfig: normalizeBubbleConfig(parseJson(row.bubble_config)),
     referralEnabled: row.referral_enabled !== 0,
     referralFichas:  Number(row.referral_fichas) || 0,
@@ -347,9 +371,9 @@ async function getApis() {
 
 async function getChatBank() {
   const { rows, error } = await query(
-    `SELECT cpc.bank_account_id, bp.slug AS provider
+    `SELECT ba.id AS bank_account_id, bp.slug AS provider
      FROM chat_processing_config cpc
-     LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id
+     LEFT JOIN bank_accounts ba ON ba.id = cpc.bank_account_id AND ba.is_active = 1
      LEFT JOIN bank_providers bp ON bp.id = ba.provider_id
      WHERE cpc.id = 1
      LIMIT 1`,
@@ -605,6 +629,7 @@ export async function updateSystemConfig(req, res, next) {
     const botAiModel = normalizeBotModel(req.body.botAiModel ?? req.body.bot_ai_model ?? current.botAiModel ?? '')
     const botAiTemperature = normalizeBotTemperature(req.body.botAiTemperature ?? req.body.bot_ai_temperature ?? current.botAiTemperature ?? 0.1)
     const botAiMaxTokens = normalizeBotMaxTokens(req.body.botAiMaxTokens ?? req.body.bot_ai_max_tokens ?? current.botAiMaxTokens ?? 250)
+    const botAiConfig = normalizeBotAiConfig(req.body.botAiConfig ?? req.body.bot_ai_config ?? current.botAiConfig ?? getDefaultBotAiConfig())
 
     const bubblePayload =
       req.body.bubbleConfig ??
@@ -626,15 +651,17 @@ export async function updateSystemConfig(req, res, next) {
     const clientMenuEvents     = boolField(req.body.clientMenuEvents,     current.clientMenuEvents)
     const clientMenuHistory    = boolField(req.body.clientMenuHistory,    current.clientMenuHistory)
     const clientMenuFaq        = boolField(req.body.clientMenuFaq,        current.clientMenuFaq)
+    const clientMenuCaudal     = boolField(req.body.clientMenuCaudal,     current.clientMenuCaudal)
     const clientBalanceVisible = boolField(req.body.clientBalanceVisible, current.clientBalanceVisible)
 
     const { error } = await query(
-      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, integration_mode, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_balance_visible)
-       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), integration_mode = VALUES(integration_mode), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bubble_config = VALUES(bubble_config), referral_enabled = VALUES(referral_enabled), referral_fichas = VALUES(referral_fichas), client_menu_visible = VALUES(client_menu_visible), client_menu_events = VALUES(client_menu_events), client_menu_history = VALUES(client_menu_history), client_menu_faq = VALUES(client_menu_faq), client_balance_visible = VALUES(client_balance_visible)`,
-      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, integrationMode, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, JSON.stringify(bubbleConfig), referralEnabled, referralFichas, clientMenuVisible, clientMenuEvents, clientMenuHistory, clientMenuFaq, clientBalanceVisible]
+      `INSERT INTO system_config (id, app_name, logo_url, favicon_url, iframe_url, integration_mode, timezone, support_type, support_value, support_text, client_registration_enabled, client_logout_enabled, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bot_ai_config, bubble_config, referral_enabled, referral_fichas, client_menu_visible, client_menu_events, client_menu_history, client_menu_faq, client_menu_caudal, client_balance_visible)
+       VALUES (1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON DUPLICATE KEY UPDATE app_name = VALUES(app_name), logo_url = VALUES(logo_url), favicon_url = VALUES(favicon_url), iframe_url = VALUES(iframe_url), integration_mode = VALUES(integration_mode), timezone = VALUES(timezone), support_type = VALUES(support_type), support_value = VALUES(support_value), support_text = VALUES(support_text), client_registration_enabled = VALUES(client_registration_enabled), client_logout_enabled = VALUES(client_logout_enabled), bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bot_ai_config = VALUES(bot_ai_config), bubble_config = VALUES(bubble_config), referral_enabled = VALUES(referral_enabled), referral_fichas = VALUES(referral_fichas), client_menu_visible = VALUES(client_menu_visible), client_menu_events = VALUES(client_menu_events), client_menu_history = VALUES(client_menu_history), client_menu_faq = VALUES(client_menu_faq), client_menu_caudal = VALUES(client_menu_caudal), client_balance_visible = VALUES(client_balance_visible)`,
+      [appName.slice(0, 120), logoUrl || null, faviconUrl || null, iframeUrl || null, integrationMode, timezone, supportType, supportValue || null, supportText || null, clientRegistrationEnabled, clientLogoutEnabled, botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, serializeBotAiConfig(botAiConfig), JSON.stringify(bubbleConfig), referralEnabled, referralFichas, clientMenuVisible, clientMenuEvents, clientMenuHistory, clientMenuFaq, clientMenuCaudal, clientBalanceVisible]
     )
     if (error) return next(error)
+    await deleteCache('bot:v1:runtime')
 
     res.json({ systemConfig: await getSystemConfig() })
   } catch (err) {
@@ -756,6 +783,11 @@ export async function updateAmounts(req, res, next) {
       }
     })
 
+    await Promise.all([
+      deleteCache('bot:v1:amounts'),
+      deleteCache('bot:v1:flow'),
+    ])
+
     res.json({ amounts: await getAmounts(), amountsList: await getAmountsList() })
   } catch (err) {
     if (err.message && err.message.startsWith('Moneda no soportada')) {
@@ -798,6 +830,11 @@ export async function createAmount(req, res, next) {
       [value.currency, value.operation, value.amount, value.is_active]
     )
     if (error) return next(error)
+
+    await Promise.all([
+      deleteCache('bot:v1:amounts'),
+      deleteCache('bot:v1:flow'),
+    ])
 
     res.status(201).json({ amount: buildAmountResponse(value), amountsList: await getAmountsList() })
   } catch (err) {
@@ -846,6 +883,11 @@ export async function updateAmount(req, res, next) {
     )
     if (error) return next(error)
 
+    await Promise.all([
+      deleteCache('bot:v1:amounts'),
+      deleteCache('bot:v1:flow'),
+    ])
+
     res.json({ amount: buildAmountResponse(value), amountsList: await getAmountsList() })
   } catch (err) {
     if (err.message && err.message.startsWith('Moneda no soportada')) {
@@ -874,6 +916,11 @@ export async function deleteAmount(req, res, next) {
       [currency, operation]
     )
     if (error) return next(error)
+
+    await Promise.all([
+      deleteCache('bot:v1:amounts'),
+      deleteCache('bot:v1:flow'),
+    ])
 
     res.json({ amountsList: await getAmountsList() })
   } catch (err) {
@@ -908,14 +955,16 @@ export async function updateApiConfig(req, res, next) {
       const botAiModel = normalizeBotModel(req.body.botAiModel ?? req.body.bot_ai_model ?? current.botAiModel ?? '')
       const botAiTemperature = normalizeBotTemperature(req.body.botAiTemperature ?? req.body.bot_ai_temperature ?? current.botAiTemperature ?? 0.1)
       const botAiMaxTokens = normalizeBotMaxTokens(req.body.botAiMaxTokens ?? req.body.bot_ai_max_tokens ?? current.botAiMaxTokens ?? 250)
+      const botAiConfig = normalizeBotAiConfig(req.body.botAiConfig ?? req.body.bot_ai_config ?? current.botAiConfig ?? getDefaultBotAiConfig())
 
       const { error: botError } = await query(
-        `INSERT INTO system_config (id, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens)
-         VALUES (1, ?, ?, ?, ?)
-         ON DUPLICATE KEY UPDATE bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens)`,
-        [botMode, botAiModel || null, botAiTemperature, botAiMaxTokens]
+        `INSERT INTO system_config (id, bot_mode, bot_ai_model, bot_ai_temperature, bot_ai_max_tokens, bot_ai_config)
+         VALUES (1, ?, ?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE bot_mode = VALUES(bot_mode), bot_ai_model = VALUES(bot_ai_model), bot_ai_temperature = VALUES(bot_ai_temperature), bot_ai_max_tokens = VALUES(bot_ai_max_tokens), bot_ai_config = VALUES(bot_ai_config)`,
+        [botMode, botAiModel || null, botAiTemperature, botAiMaxTokens, serializeBotAiConfig(botAiConfig)]
       )
       if (botError) return next(botError)
+      await deleteCache('bot:v1:runtime')
     } else {
       return res.status(400).json({ error: 'Proveedor invalido', code: 'INVALID_PROVIDER' })
     }
@@ -952,6 +1001,11 @@ export async function updateChatBank(req, res, next) {
     if (error) return next(error)
 
     const updatedBank = await getChatBank()
+    await Promise.all([
+      deleteCache('bot:v1:flow'),
+      deleteCache('bot:v1:bank-provider'),
+      deleteCache('bot:v1:bank-context'),
+    ])
     res.json({ chatBank: updatedBank })
     const io = getIo()
     if (io) io.to('admins').emit('settings:chat-bank-updated', { chatBank: updatedBank })

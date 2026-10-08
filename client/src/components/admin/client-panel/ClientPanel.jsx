@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import styled, { css } from 'styled-components'
 import { useDateFormat } from '../../../hooks/useDateFormat'
 import { createPortal } from 'react-dom'
 import CloseIcon from '@mui/icons-material/Close'
@@ -16,6 +17,7 @@ import CheckCircleOutlinedIcon from '@mui/icons-material/CheckCircleOutlined'
 import ErrorOutlinedIcon from '@mui/icons-material/ErrorOutlined'
 import PersonOutlinedIcon from '@mui/icons-material/PersonOutlined'
 import SwapHorizIcon from '@mui/icons-material/SwapHoriz'
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined'
 import DesktopWindowsOutlinedIcon from '@mui/icons-material/DesktopWindowsOutlined'
 import SmartphoneIcon from '@mui/icons-material/Smartphone'
 import TabletAndroidIcon from '@mui/icons-material/TabletAndroid'
@@ -319,6 +321,272 @@ const ProfileTab = ({ chatId }) => {
     </ProfileWrap>
   )
 }
+
+// ── PaymentsTab styled components ────────────────────────────────────────────
+
+const SubTabBar = styled.div`
+  display: flex;
+  gap: 2px;
+  padding: 10px 12px 0;
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+  margin-bottom: 0;
+`
+
+const SubTab = styled.button`
+  flex: 1;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 6px 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: ${({ $active }) => $active ? 'rgba(30,133,255,1)' : 'rgba(255,255,255,0.45)'};
+  border-bottom: 2px solid ${({ $active }) => $active ? 'rgba(30,133,255,1)' : 'transparent'};
+  transition: color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  &:hover { color: rgba(255,255,255,0.75); }
+`
+
+const PayList = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+`
+
+const PayItem = styled.div`
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+  &:last-child { border-bottom: none; }
+`
+
+const PayItemLeft = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+`
+
+const PayItemMain = styled.span`
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.90);
+  white-space: nowrap;
+`
+
+const PayItemSub = styled.span`
+  font-size: 11px;
+  color: rgba(255,255,255,0.45);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+`
+
+const PayItemRight = styled.div`
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+`
+
+const PayDate = styled.span`
+  font-size: 10px;
+  color: rgba(255,255,255,0.30);
+  white-space: nowrap;
+`
+
+const StatusBadge = styled.span`
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 99px;
+  letter-spacing: 0.02em;
+  ${({ $status }) => {
+    const s = String($status || '').toLowerCase()
+    if (s === 'paid' || s === 'pagado' || s === 'completed') return css`
+      background: rgba(34,197,94,0.15);
+      color: #22c55e;
+    `
+    if (s === 'pending' || s === 'pendiente') return css`
+      background: rgba(245,158,11,0.15);
+      color: #f59e0b;
+    `
+    return css`
+      background: rgba(255,255,255,0.07);
+      color: rgba(255,255,255,0.35);
+    `
+  }}
+`
+
+const PayEmpty = styled.div`
+  padding: 28px 14px;
+  text-align: center;
+  font-size: 12px;
+  color: rgba(255,255,255,0.30);
+`
+
+const PayCountNote = styled.div`
+  padding: 6px 14px 10px;
+  font-size: 11px;
+  color: rgba(255,255,255,0.30);
+  text-align: right;
+`
+
+const PaySpinnerWrap = styled.div`
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 28px 0;
+`
+
+const fmtPesos = (n) => {
+  if (n === null || n === undefined) return '—'
+  return `$${Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
+const fmtShortDate = (value) => {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return '—'
+  return d.toLocaleString('es', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false })
+}
+
+const PaymentsTab = ({ clientId }) => {
+  const [subTab, setSubTab] = useState('caudal-dep')
+  const [depData, setDepData]   = useState(null)
+  const [retData, setRetData]   = useState(null)
+  const [hgData,  setHgData]    = useState(null)
+  const [depLoading, setDepLoading] = useState(false)
+  const [retLoading, setRetLoading] = useState(false)
+  const [hgLoading,  setHgLoading]  = useState(false)
+
+  useEffect(() => {
+    if (!clientId) return
+    if (subTab === 'caudal-dep' && !depData && !depLoading) {
+      setDepLoading(true)
+      api.get(`/api/admin/caudal/client/${clientId}/deposits?page=1&pageSize=20`)
+        .then(res => setDepData(res))
+        .catch(() => setDepData({ items: [], total: 0 }))
+        .finally(() => setDepLoading(false))
+    }
+    if (subTab === 'caudal-ret' && !retData && !retLoading) {
+      setRetLoading(true)
+      api.get(`/api/admin/caudal/client/${clientId}/withdrawals?page=1&pageSize=20`)
+        .then(res => setRetData(res))
+        .catch(() => setRetData({ items: [], total: 0 }))
+        .finally(() => setRetLoading(false))
+    }
+    if (subTab === 'hgcash' && !hgData && !hgLoading) {
+      setHgLoading(true)
+      api.get(`/api/admin/hgcash/client/${clientId}/movements?page=1&pageSize=20`)
+        .then(res => setHgData(res))
+        .catch(() => setHgData({ items: [], total: 0 }))
+        .finally(() => setHgLoading(false))
+    }
+  }, [subTab, clientId, depData, retData, hgData, depLoading, retLoading, hgLoading])
+
+  if (!clientId) {
+    return <PayEmpty>Sin ID de cliente disponible</PayEmpty>
+  }
+
+  const renderDeposits = () => {
+    if (depLoading) return <PaySpinnerWrap><TabSpinner /></PaySpinnerWrap>
+    const items = depData?.items || []
+    if (!items.length) return <PayEmpty>Sin registros</PayEmpty>
+    return (
+      <>
+        <PayList>
+          {items.map(item => (
+            <PayItem key={item.id}>
+              <PayItemLeft>
+                <PayItemMain>{fmtPesos(item.amount)}</PayItemMain>
+                <PayItemSub>{item.from_name || item.from_cuit || '—'}</PayItemSub>
+              </PayItemLeft>
+              <PayItemRight>
+                <StatusBadge $status={item.our_status || 'pending'}>{item.our_status || 'pendiente'}</StatusBadge>
+                <PayDate>{fmtShortDate(item.occurred_at)}</PayDate>
+              </PayItemRight>
+            </PayItem>
+          ))}
+        </PayList>
+        {depData?.total > 20 && <PayCountNote>Mostrando 20 de {depData.total}</PayCountNote>}
+      </>
+    )
+  }
+
+  const renderWithdrawals = () => {
+    if (retLoading) return <PaySpinnerWrap><TabSpinner /></PaySpinnerWrap>
+    const items = retData?.items || []
+    if (!items.length) return <PayEmpty>Sin registros</PayEmpty>
+    return (
+      <>
+        <PayList>
+          {items.map(item => (
+            <PayItem key={item.id}>
+              <PayItemLeft>
+                <PayItemMain>{fmtPesos(item.amount)}</PayItemMain>
+                <PayItemSub>{item.destination_alias || item.destination_cbu || item.destination_name || '—'}</PayItemSub>
+              </PayItemLeft>
+              <PayItemRight>
+                <StatusBadge $status={item.status}>{item.status || '—'}</StatusBadge>
+                <PayDate>{fmtShortDate(item.created_at)}</PayDate>
+              </PayItemRight>
+            </PayItem>
+          ))}
+        </PayList>
+        {retData?.total > 20 && <PayCountNote>Mostrando 20 de {retData.total}</PayCountNote>}
+      </>
+    )
+  }
+
+  const renderHgCash = () => {
+    if (hgLoading) return <PaySpinnerWrap><TabSpinner /></PaySpinnerWrap>
+    const items = hgData?.items || []
+    if (!items.length) return <PayEmpty>Sin registros</PayEmpty>
+    return (
+      <>
+        <PayList>
+          {items.map(item => (
+            <PayItem key={item.id}>
+              <PayItemLeft>
+                <PayItemMain>{fmtPesos(item.amount)}</PayItemMain>
+                <PayItemSub>{item.coelsa_id || item.cuit || '—'}</PayItemSub>
+              </PayItemLeft>
+              <PayItemRight>
+                <StatusBadge $status={item.status}>{item.status || '—'}</StatusBadge>
+                <PayDate>{fmtShortDate(item.created_at)}</PayDate>
+              </PayItemRight>
+            </PayItem>
+          ))}
+        </PayList>
+        {hgData?.total > 20 && <PayCountNote>Mostrando 20 de {hgData.total}</PayCountNote>}
+      </>
+    )
+  }
+
+  return (
+    <div>
+      <SubTabBar>
+        <SubTab $active={subTab === 'caudal-dep'} onClick={() => setSubTab('caudal-dep')}>Dep. Caudal</SubTab>
+        <SubTab $active={subTab === 'caudal-ret'} onClick={() => setSubTab('caudal-ret')}>Ret. Caudal</SubTab>
+        <SubTab $active={subTab === 'hgcash'}     onClick={() => setSubTab('hgcash')}>HG Cash</SubTab>
+      </SubTabBar>
+      <InfoCard style={{ margin: '10px 10px 0', borderRadius: 8 }}>
+        {subTab === 'caudal-dep' && renderDeposits()}
+        {subTab === 'caudal-ret' && renderWithdrawals()}
+        {subTab === 'hgcash'     && renderHgCash()}
+      </InfoCard>
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 const normalizeLabel = (value = '') => String(value).trim().toLowerCase()
 
@@ -804,6 +1072,181 @@ const TransferModal = ({ client, details, onClose }) => {
   )
 }
 
+const SecurityListsTab = ({ clientId }) => {
+  const toast = useToast()
+  const toastRef = useRef(toast)
+  const [whitelist, setWhitelist] = useState([])
+  const [blacklist, setBlacklist] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [cbu, setCbu] = useState('')
+  const [cbuLabel, setCbuLabel] = useState('')
+  const [blackType, setBlackType] = useState('cbu')
+  const [blackValue, setBlackValue] = useState('')
+  const [blackReason, setBlackReason] = useState('')
+
+  useEffect(() => { toastRef.current = toast }, [toast])
+
+  const loadLists = useCallback(async () => {
+    if (!clientId) return
+    setLoading(true)
+    try {
+      const [whiteData, blackData] = await Promise.all([
+        api.get(`/api/chats/client-cbu/${clientId}`),
+        api.get('/api/withdrawals/blacklist'),
+      ])
+      setWhitelist(whiteData.entries || [])
+      setBlacklist(blackData.blacklist || [])
+    } catch (error) {
+      toastRef.current.error(error.message || 'No se pudieron cargar las listas de seguridad.')
+    } finally {
+      setLoading(false)
+    }
+  }, [clientId])
+
+  useEffect(() => { loadLists() }, [loadLists])
+
+  const resetWhitelistForm = () => {
+    setEditingId(null)
+    setCbu('')
+    setCbuLabel('')
+  }
+
+  const saveWhitelist = async () => {
+    const normalized = cbu.replace(/\D/g, '')
+    if (normalized.length !== 22) return toast.error('El CBU/CVU debe tener 22 dígitos.')
+    setSaving(true)
+    try {
+      if (editingId) {
+        await api.put(`/api/chats/client-cbu/${clientId}/${editingId}`, { cbu: normalized, label: cbuLabel.trim() || null })
+        toast.success('CBU/CVU actualizado.')
+      } else {
+        await api.post(`/api/chats/client-cbu/${clientId}`, { cbu: normalized, label: cbuLabel.trim() || null })
+        toast.success('CBU/CVU agregado a la whitelist.')
+      }
+      resetWhitelistForm()
+      await loadLists()
+    } catch (error) {
+      toast.error(error.message || 'No se pudo guardar el CBU/CVU.')
+    } finally { setSaving(false) }
+  }
+
+  const removeWhitelist = async (entry) => {
+    if (!window.confirm(`¿Quitar ${entry.cbu} de la whitelist?`)) return
+    try {
+      await api.delete(`/api/chats/client-cbu/${clientId}/${entry.id}`)
+      if (editingId === entry.id) resetWhitelistForm()
+      setWhitelist(prev => prev.filter(item => item.id !== entry.id))
+      toast.success('CBU/CVU quitado de la whitelist.')
+    } catch (error) { toast.error(error.message || 'No se pudo quitar el CBU/CVU.') }
+  }
+
+  const addBlacklist = async () => {
+    const normalized = blackValue.replace(/\D/g, '')
+    const expected = blackType === 'cbu' ? 22 : blackType === 'cuit' ? 11 : 8
+    if (normalized.length !== expected) return toast.error(`El valor debe tener ${expected} dígitos.`)
+    setSaving(true)
+    try {
+      await api.post('/api/withdrawals/blacklist', { type: blackType, value: normalized, reason: blackReason.trim() || null })
+      setBlackValue('')
+      setBlackReason('')
+      toast.success('Valor agregado a la blacklist global.')
+      await loadLists()
+    } catch (error) { toast.error(error.message || 'No se pudo agregar a la blacklist.') }
+    finally { setSaving(false) }
+  }
+
+  const removeBlacklist = async (entry) => {
+    if (!window.confirm(`¿Quitar ${entry.value} de la blacklist global?`)) return
+    try {
+      await api.delete(`/api/withdrawals/blacklist/${entry.id}`)
+      setBlacklist(prev => prev.filter(item => item.id !== entry.id))
+      toast.success('Valor quitado de la blacklist.')
+    } catch (error) { toast.error(error.message || 'No se pudo quitar de la blacklist.') }
+  }
+
+  if (!clientId) return <ListEmpty>No se pudo identificar al cliente.</ListEmpty>
+  if (loading) return <ListEmpty><TabSpinner /> Cargando listas...</ListEmpty>
+
+  return (
+    <ListsWrap>
+      <InfoCard>
+        <InfoCardTitle>Whitelist de CBU/CVU</InfoCardTitle>
+        <ListHint>Destinos habilitados para los retiros de este cliente. Las altas y bajas quedan auditadas.</ListHint>
+        <ListForm>
+          <ListInput
+            value={cbu}
+            inputMode="numeric"
+            maxLength={22}
+            placeholder="CBU/CVU · 22 dígitos"
+            onChange={event => setCbu(event.target.value.replace(/\D/g, '').slice(0, 22))}
+          />
+          <ListInput value={cbuLabel} maxLength={120} placeholder="Etiqueta opcional" onChange={event => setCbuLabel(event.target.value)} />
+          <ListFormActions>
+            {editingId && <ListSecondaryBtn type="button" onClick={resetWhitelistForm}>Cancelar</ListSecondaryBtn>}
+            <ListPrimaryBtn type="button" disabled={saving || cbu.length !== 22} onClick={saveWhitelist}>
+              {saving ? <TabSpinner /> : editingId ? 'Guardar' : <><AddIcon /> Agregar</>}
+            </ListPrimaryBtn>
+          </ListFormActions>
+        </ListForm>
+        <ListRows>
+          {whitelist.length === 0 && <ListEmpty>Sin CBU/CVU permitidos.</ListEmpty>}
+          {whitelist.map(entry => (
+            <ListRow key={entry.id}>
+              <ListStatus $bad={false}><CheckCircleOutlinedIcon /></ListStatus>
+              <ListBody>
+                <ListValue>{entry.cbu}</ListValue>
+                <ListMeta>{entry.label || 'Sin etiqueta'} · {entry.source || 'manual'}</ListMeta>
+              </ListBody>
+              <ListIconBtn type="button" title="Editar" onClick={() => { setEditingId(entry.id); setCbu(entry.cbu); setCbuLabel(entry.label || '') }}>
+                <DescriptionIcon />
+              </ListIconBtn>
+              <ListIconBtn type="button" $danger title="Quitar" onClick={() => removeWhitelist(entry)}><RemoveIcon /></ListIconBtn>
+            </ListRow>
+          ))}
+        </ListRows>
+      </InfoCard>
+
+      <InfoCard>
+        <InfoCardTitle>Blacklist global</InfoCardTitle>
+        <ListHint>Bloquea CBU/CVU, CUIT/CUIL o DNI en cualquier solicitud de retiro.</ListHint>
+        <ListForm>
+          <ListSelect value={blackType} onChange={event => { setBlackType(event.target.value); setBlackValue('') }}>
+            <option value="cbu">CBU / CVU</option>
+            <option value="cuit">CUIT / CUIL</option>
+            <option value="dni">DNI</option>
+          </ListSelect>
+          <ListInput
+            value={blackValue}
+            inputMode="numeric"
+            maxLength={blackType === 'cbu' ? 22 : blackType === 'cuit' ? 11 : 8}
+            placeholder={blackType === 'cbu' ? '22 dígitos' : blackType === 'cuit' ? '11 dígitos' : '8 dígitos'}
+            onChange={event => setBlackValue(event.target.value.replace(/\D/g, '').slice(0, blackType === 'cbu' ? 22 : blackType === 'cuit' ? 11 : 8))}
+          />
+          <ListInput value={blackReason} maxLength={240} placeholder="Motivo" onChange={event => setBlackReason(event.target.value)} />
+          <ListPrimaryBtn type="button" disabled={saving || !blackValue} onClick={addBlacklist}>
+            {saving ? <TabSpinner /> : <><ErrorOutlinedIcon /> Bloquear</>}
+          </ListPrimaryBtn>
+        </ListForm>
+        <ListRows>
+          {blacklist.length === 0 && <ListEmpty>La blacklist global está vacía.</ListEmpty>}
+          {blacklist.map(entry => (
+            <ListRow key={entry.id}>
+              <ListStatus $bad><ErrorOutlinedIcon /></ListStatus>
+              <ListBody>
+                <ListValue>{entry.value}</ListValue>
+                <ListMeta>{String(entry.type || '').toUpperCase()} · {entry.reason || 'Sin motivo'} · {entry.created_by || 'Admin'}</ListMeta>
+              </ListBody>
+              <ListIconBtn type="button" $danger title="Quitar" onClick={() => removeBlacklist(entry)}><RemoveIcon /></ListIconBtn>
+            </ListRow>
+          ))}
+        </ListRows>
+      </InfoCard>
+    </ListsWrap>
+  )
+}
+
 const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
   const { timezone } = useDateFormat()
   const toast = useToast()
@@ -819,6 +1262,7 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
   const [newLabelColor, setNewLabelColor] = useState('#60a5fa')
   const [creatingLabel, setCreatingLabel] = useState(false)
   const [loadedDetails, setLoadedDetails] = useState(() => buildFallbackDetails(client))
+  const tabBarRef = useRef(null)
   const fallbackDetails = buildFallbackDetails(client)
   const details = loadedDetails.chatId === client.id ? loadedDetails : fallbackDetails
 
@@ -833,6 +1277,7 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
         const loaded = payload.client || {}
         setLoadedDetails({
           chatId: client.id,
+          clientId: loaded.id || null,
           fullName: loaded.fullName ?? fallback.fullName,
           cuil: loaded.cuil || '',
           note: loaded.note || '',
@@ -940,6 +1385,18 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
 
   const openFile = (file) => setViewerData({ type: file.type, url: file.url || null, name: file.name })
 
+  useEffect(() => {
+    const activeTab = tabBarRef.current?.querySelector('[aria-selected="true"]')
+    activeTab?.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' })
+  }, [tab])
+
+  const handleTabWheel = (event) => {
+    const tabBar = event.currentTarget
+    if (tabBar.scrollWidth <= tabBar.clientWidth || Math.abs(event.deltaX) >= Math.abs(event.deltaY)) return
+    tabBar.scrollLeft += event.deltaY
+    event.preventDefault()
+  }
+
   return (
     <Wrap $width={$width} $fullWidth={$fullWidth}>
       {viewerData && createPortal(
@@ -959,18 +1416,24 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
         </PanelStatus>
       </PanelHeader>
 
-      <TabBar>
-        <Tab $active={tab === 'info'} onClick={() => setTab('info')}>
+      <TabBar ref={tabBarRef} role="tablist" aria-label="Información del cliente" onWheel={handleTabWheel}>
+        <Tab type="button" role="tab" aria-selected={tab === 'info'} $active={tab === 'info'} onClick={() => setTab('info')}>
           <InfoOutlinedIcon /><span className="tab-label">Info</span>
         </Tab>
-        <Tab $active={tab === 'files'} onClick={() => setTab('files')}>
+        <Tab type="button" role="tab" aria-selected={tab === 'files'} $active={tab === 'files'} onClick={() => setTab('files')}>
           <FolderOutlinedIcon /><span className="tab-label">Archivos</span>
         </Tab>
-        <Tab $active={tab === 'balance'} onClick={() => setTab('balance')}>
+        <Tab type="button" role="tab" aria-selected={tab === 'balance'} $active={tab === 'balance'} onClick={() => setTab('balance')}>
           <AccountBalanceWalletOutlinedIcon /><span className="tab-label">Saldo</span>
         </Tab>
-        <Tab $active={tab === 'profile'} onClick={() => setTab('profile')}>
+        <Tab type="button" role="tab" aria-selected={tab === 'profile'} $active={tab === 'profile'} onClick={() => setTab('profile')}>
           <PersonOutlinedIcon /><span className="tab-label">Perfil</span>
+        </Tab>
+        <Tab type="button" role="tab" aria-selected={tab === 'pagos'} $active={tab === 'pagos'} onClick={() => setTab('pagos')}>
+          <PaymentsOutlinedIcon /><span className="tab-label">Pagos</span>
+        </Tab>
+        <Tab type="button" role="tab" aria-selected={tab === 'listas'} $active={tab === 'listas'} onClick={() => setTab('listas')}>
+          <CheckCircleOutlinedIcon /><span className="tab-label">Listas</span>
         </Tab>
       </TabBar>
 
@@ -1079,6 +1542,14 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
           <ProfileTab chatId={client.id} />
         )}
 
+        {tab === 'pagos' && (
+          <PaymentsTab clientId={details.clientId} />
+        )}
+
+        {tab === 'listas' && (
+          <SecurityListsTab clientId={details.clientId} />
+        )}
+
         {tab === 'files' && (
           <>
             <FilterBar>
@@ -1144,5 +1615,129 @@ const ClientPanel = ({ client, onClose, $width, $fullWidth }) => {
   )
 }
 
-export default ClientPanel
+const ListsWrap = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+`
+const ListHint = styled.p`
+  margin: 0;
+  padding: 11px 14px 0;
+  color: rgba(255,255,255,.48);
+  font-size: 12px;
+  line-height: 1.45;
+`
+const ListForm = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+`
+const listControlCss = css`
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 9px;
+  background: rgba(255,255,255,.045);
+  color: #fff;
+  padding: 0 11px;
+  font: inherit;
+  font-size: 13px;
+  outline: none;
+  &:focus { border-color: rgba(96,165,250,.7); box-shadow: 0 0 0 2px rgba(96,165,250,.12); }
+  &::placeholder { color: rgba(255,255,255,.28); }
+`
+const ListInput = styled.input`${listControlCss}`
+const ListSelect = styled.select`
+  ${listControlCss}
+  option { background: #111827; color: #fff; }
+`
+const ListFormActions = styled.div`
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+`
+const ListPrimaryBtn = styled.button`
+  min-height: 36px;
+  border: 0;
+  border-radius: 9px;
+  padding: 0 13px;
+  background: linear-gradient(135deg,#2563eb,#3b82f6);
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  svg { font-size: 17px; }
+  &:disabled { opacity: .45; cursor: default; }
+`
+const ListSecondaryBtn = styled(ListPrimaryBtn)`
+  background: rgba(255,255,255,.07);
+  color: rgba(255,255,255,.72);
+`
+const ListRows = styled.div`
+  border-top: 1px solid rgba(255,255,255,.07);
+`
+const ListRow = styled.div`
+  min-height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-bottom: 1px solid rgba(255,255,255,.055);
+  &:last-child { border-bottom: 0; }
+`
+const ListStatus = styled.span`
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: ${({ $bad }) => $bad ? '#f87171' : '#4ade80'};
+  background: ${({ $bad }) => $bad ? 'rgba(248,113,113,.1)' : 'rgba(74,222,128,.1)'};
+  flex: 0 0 auto;
+  svg { font-size: 17px; }
+`
+const ListBody = styled.div`
+  min-width: 0;
+  flex: 1;
+`
+const ListValue = styled.div`
+  color: rgba(255,255,255,.9);
+  font: 600 12.5px ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow-wrap: anywhere;
+`
+const ListMeta = styled.div`
+  color: rgba(255,255,255,.4);
+  font-size: 10.5px;
+  margin-top: 3px;
+  overflow-wrap: anywhere;
+`
+const ListIconBtn = styled.button`
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  background: ${({ $danger }) => $danger ? 'rgba(248,113,113,.08)' : 'rgba(255,255,255,.055)'};
+  color: ${({ $danger }) => $danger ? '#f87171' : 'rgba(255,255,255,.55)'};
+  cursor: pointer;
+  svg { font-size: 16px; }
+  &:hover { background: ${({ $danger }) => $danger ? 'rgba(248,113,113,.16)' : 'rgba(255,255,255,.1)'}; }
+`
+const ListEmpty = styled.div`
+  padding: 18px 14px;
+  color: rgba(255,255,255,.38);
+  font-size: 12px;
+  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+`
 
+export default ClientPanel

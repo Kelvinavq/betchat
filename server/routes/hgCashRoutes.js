@@ -3,7 +3,7 @@ import multer from 'multer'
 import path from 'path'
 import fs from 'fs'
 import { authenticateToken, requireRole } from '../middlewares/authMiddleware.js'
-import { hgSyncTransactions, processImage, processPdf, requestPaymentHG } from '../controllers/hgCashController.js'
+import { hgSyncTransactions, processImage, processPdf, requestPaymentHG, getClientHgCashMovements } from '../controllers/hgCashController.js'
 
 const HG_RECEIPTS_DIR = path.join(process.cwd(), 'public', 'hgcash-receipts')
 fs.mkdirSync(HG_RECEIPTS_DIR, { recursive: true })
@@ -33,5 +33,6 @@ router.post('/:id/sync', authenticateToken, requireRole('admin'), hgSyncTransact
 router.post('/process-image', authenticateToken, requireRole('admin'), upload.single('file'), processImage)
 router.post('/process-pdf', authenticateToken, requireRole('admin'), upload.single('file'), processPdf)
 router.post('/request-payment', authenticateToken, requireRole('admin'), requestPaymentHG)
+router.get('/client/:clientId/movements', authenticateToken, requireRole('admin'), getClientHgCashMovements)
 
 export default router

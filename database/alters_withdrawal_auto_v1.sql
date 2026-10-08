@@ -74,7 +74,7 @@ ALTER TABLE `withdrawal_requests`
 
 -- Índices adicionales para el nuevo flujo
 CREATE INDEX `idx_wr_correlation`     ON `withdrawal_requests` (`correlation_id`);
-CREATE INDEX `idx_wr_idempotency`     ON `withdrawal_requests` (`chat_id`, `idempotency_key`);
+CREATE UNIQUE INDEX `idx_wr_idempotency` ON `withdrawal_requests` (`chat_id`, `idempotency_key`);
 CREATE INDEX `idx_wr_dispatched_at`   ON `withdrawal_requests` (`dispatched_at`);
 CREATE INDEX `idx_wr_created_at`      ON `withdrawal_requests` (`created_at`);
 

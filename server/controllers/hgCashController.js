@@ -12,6 +12,7 @@ import { getIo } from '../socket/socketServer.js'
 import { insertReceiptLog, finalizeReceiptLog } from './receiptLogController.js'
 import { processReferralRewardForMovement } from './referralController.js'
 import { syncClientEventReceiptPaid } from '../utils/eventParticipantStatus.js'
+import { deleteCache } from '../utils/redisCache.js'
 
 const SUPABASE_AUTH_URL = 'https://oafouerwrpwzlthrsaba.supabase.co/auth/v1/token?grant_type=password'
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9hZm91ZXJ3cnB3emx0aHJzYWJhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDY4MTQwNzMsImV4cCI6MjA2MjM5MDA3M30.RKET8maIzQvYm2yGDtrEIbfT8rw7EKjgzUf886LU_wE'
@@ -70,8 +71,15 @@ async function saveHgCookie(accountId, data, cookie, expiresAt) {
     'UPDATE bank_accounts SET account_data = ? WHERE id = ?',
     [JSON.stringify(updated), accountId]
   )
-  if (error) console.error('[HGCash] Error guardando cookie en DB:', error)
-  else console.log('[HGCash] Cookie guardada en DB. expires_at:', expiresAt)
+  if (error) {
+    console.error('[HGCash] Error guardando cookie en DB:', error)
+  } else {
+    await Promise.all([
+      deleteCache('bot:v1:bank-context'),
+      deleteCache('bot:v1:flow'),
+    ])
+    console.log('[HGCash] Cookie guardada en DB. expires_at:', expiresAt)
+  }
 }
 
 async function getOpenRouterConfig() {
@@ -409,12 +417,22 @@ async function ensureHgCookie(accountId, data) {
 
 function verifySignature(rawBody, secret, sigHeader) {
   if (!secret || !sigHeader) return false
-  const hmac = crypto.createHmac('sha256', secret)
-  hmac.update(rawBody)
-  const expected = Buffer.from(`sha256=${hmac.digest('hex')}`)
-  const received = Buffer.from(sigHeader)
+  const received = String(sigHeader).trim().replace(/^sha256=/i, '')
+  const expected = crypto.createHmac('sha256', secret).update(rawBody).digest('hex')
   if (expected.length !== received.length) return false
-  return crypto.timingSafeEqual(expected, received)
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(received.toLowerCase()))
+}
+
+function describeHgSignature(sigHeader) {
+  const value = String(sigHeader || '').trim()
+  const signature = value.replace(/^sha256=/i, '')
+  return {
+    format: /^[a-f0-9]{64}$/i.test(signature)
+      ? 'hex'
+      : /^[A-Za-z0-9+/]{43}=$/.test(signature) ? 'base64' : 'unknown',
+    length: signature.length,
+    hasSha256Prefix: /^sha256=/i.test(value),
+  }
 }
 
 // ============================================================
@@ -423,64 +441,149 @@ function verifySignature(rawBody, secret, sigHeader) {
 
 function mapHgStatus(direction, status) {
   const s = String(status || '').toLowerCase()
-  if (['done', 'completed', 'approved', 'success', 'acreditado'].includes(s)) return 'paid'
+  if (['done', 'completed', 'approved', 'success', 'acreditado', 'hecha'].includes(s)) return 'paid'
   if (['failed', 'rejected', 'error', 'rechazado'].includes(s))        return 'rejected'
   return 'pending'
 }
 
-function parseDateFields(dateStr) {
+function parseDateFields(dateStr, timezone = null) {
   if (!dateStr) return { date: null, time: null }
-  const d = new Date(dateStr)
-  if (isNaN(d.getTime())) return { date: null, time: null }
-  return { date: d.toISOString().slice(0, 10), time: d.toISOString().slice(11, 19) }
+  const timezoneName = String(timezone || '').trim()
+  const parsed = timezoneName && moment.tz.zone(timezoneName)
+    ? moment.tz(String(dateStr), timezoneName)
+    : moment.parseZone(String(dateStr))
+  if (!parsed.isValid()) return { date: null, time: null }
+  return { date: parsed.format('YYYY-MM-DD'), time: parsed.format('HH:mm:ss') }
 }
 
 // Returns true if a new row was inserted, false if it already existed
-async function upsertMovement(accountId, item) {
+async function upsertMovement(accountId, item, { rawBody = null, receivedAt = null } = {}) {
   const coelsaId  = item.coelsaCode || item.coelsa_id || item.coelsaId || item.externalID || String(item.id || '')
   if (!coelsaId) {
     console.warn('[HGCash] Item sin coelsaId, ignorado:', JSON.stringify(item).slice(0, 200))
     return false
   }
 
-  const amount    = Number(item.amount || 0)
-  const fromCBU   = item.fromCBU  || item.from_cbu  || null
-  const fromCUIT  = item.fromCUIT || item.from_cuit || null
+  const amount     = Number(item.amount || 0)
+  const fromCBU    = item.fromCBU  || item.from_cbu  || null
+  const fromCUIT   = item.fromCUIT || item.from_cuit || null
   const bankStatus = String(item.transactionStatus?.name || item.status || '').trim()
-  const status    = mapHgStatus(item.direction || item.type, item.transactionStatus?.name || item.status)
-  const { date, time } = parseDateFields(item.date || item.createdAt || item.created_at || item.externalDate)
+  const status     = mapHgStatus(item.direction || item.type, item.transactionStatus?.name || item.status)
+  const { date, time } = parseDateFields(
+    item.date || item.createdAt || item.created_at || item.externalDate,
+    item.timezone,
+  )
+  const rawPayload = JSON.stringify(item)
+  const rawBodyText = Buffer.isBuffer(rawBody) ? rawBody.toString('utf8') : rawBody
+  const movement = {
+    bankAccountId: accountId,
+    hgId: item.id || null,
+    hgMovementId: item.externalID || item.externalId || null,
+    hgAccountId: item.accountId || null,
+    providerStatus: bankStatus || null,
+    cuit: fromCUIT,
+    receiptDate: date,
+    receiptTime: time,
+    amount: Number.isFinite(amount) ? amount : 0,
+    currency: item.currency || null,
+    direction: item.direction || null,
+    type: item.type || null,
+    timezone: item.timezone || null,
+    fromName: item.fromName || item.from_name || null,
+    toName: item.toName || item.to_name || null,
+    fromCbu: fromCBU,
+    toCbu: item.toCBU || item.to_cbu || null,
+    fromCuit: fromCUIT,
+    toCuit: item.toCUIT || item.to_cuit || null,
+    accountId: item.accountId || null,
+    cbuCvu: fromCBU,
+    bankStatus: bankStatus || null,
+    coelsaId,
+    status,
+    rawPayload,
+    rawBody: rawBodyText || null,
+    receivedAt,
+  }
 
   const { rows: existing, error: selErr } = await query(
-    'SELECT id, status FROM hgcash_movements WHERE coelsa_id = ? LIMIT 1',
-    [coelsaId]
+    `SELECT id, status
+     FROM hgcash_movements
+     WHERE coelsa_id = ? OR (? IS NOT NULL AND hg_id = ?)
+     ORDER BY id DESC
+     LIMIT 1`,
+    [movement.coelsaId, movement.hgId, movement.hgId]
   )
-  if (selErr) { console.error('[HGCash] Error SELECT coelsa_id:', selErr); return false }
+  if (selErr) throw selErr
 
   if (existing?.length > 0) {
     const currentStatus = String(existing[0].status || '').toLowerCase()
-    const nextStatus = currentStatus === 'paid' ? 'paid' : status
-    await query(
+    const nextStatus = currentStatus === 'paid' ? 'paid' : movement.status
+    const { error } = await query(
       `UPDATE hgcash_movements SET
-         bank_account_id = ?, amount = ?, cbu_cvu = ?, cuit = ?,
-         receipt_date = ?, receipt_time = ?, bank_status = ?, status = ?,
-         sync_status = 'synced', updated_at = CURRENT_TIMESTAMP
-       WHERE coelsa_id = ?`,
-      [accountId, amount, fromCBU, fromCUIT, date, time, bankStatus, nextStatus, coelsaId]
+         bank_account_id = ?,
+         hg_id = COALESCE(?, hg_id),
+         hg_movement_id = COALESCE(?, hg_movement_id),
+         hg_account_id = COALESCE(?, hg_account_id),
+         provider_status = COALESCE(?, provider_status),
+         cuit = COALESCE(?, cuit),
+         receipt_date = COALESCE(?, receipt_date),
+         receipt_time = COALESCE(?, receipt_time),
+         amount = ?,
+         currency = COALESCE(?, currency),
+         direction = COALESCE(?, direction),
+         type = COALESCE(?, type),
+         timezone = COALESCE(?, timezone),
+         from_name = COALESCE(?, from_name),
+         to_name = COALESCE(?, to_name),
+         from_cbu = COALESCE(?, from_cbu),
+         to_cbu = COALESCE(?, to_cbu),
+         from_cuit = COALESCE(?, from_cuit),
+         to_cuit = COALESCE(?, to_cuit),
+         account_id = COALESCE(?, account_id),
+         cbu_cvu = COALESCE(?, cbu_cvu),
+         bank_status = COALESCE(?, bank_status),
+         coelsa_id = COALESCE(?, coelsa_id),
+         status = ?,
+         sync_status = 'synced',
+         raw_payload = COALESCE(?, raw_payload),
+         raw_body = COALESCE(?, raw_body),
+         received_from_gateway_at = COALESCE(received_from_gateway_at, ?),
+         updated_from_gateway_at = COALESCE(?, updated_from_gateway_at),
+         updated_at = CURRENT_TIMESTAMP
+       WHERE id = ?`,
+      [
+        movement.bankAccountId, movement.hgId, movement.hgMovementId, movement.hgAccountId,
+        movement.providerStatus, movement.cuit, movement.receiptDate, movement.receiptTime,
+        movement.amount, movement.currency, movement.direction, movement.type, movement.timezone,
+        movement.fromName, movement.toName, movement.fromCbu, movement.toCbu,
+        movement.fromCuit, movement.toCuit, movement.accountId, movement.cbuCvu,
+        movement.bankStatus, movement.coelsaId, nextStatus, movement.rawPayload,
+        movement.rawBody, movement.receivedAt, movement.receivedAt, existing[0].id,
+      ]
     )
+    if (error) throw error
     return false  // already existed
   } else {
     const { error } = await query(
       `INSERT INTO hgcash_movements
-         (bank_account_id, coelsa_id, amount, cbu_cvu, cuit,
-          receipt_date, receipt_time, bank_status, status, sync_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced')`,
-      [accountId, coelsaId, amount, fromCBU, fromCUIT, date, time, bankStatus, status]
+         (bank_account_id, hg_id, hg_movement_id, hg_account_id, provider_status,
+          cuit, receipt_date, receipt_time, amount, currency, direction, type, timezone,
+          from_name, to_name, from_cbu, to_cbu, from_cuit, to_cuit, account_id,
+          cbu_cvu, bank_status, coelsa_id, status, sync_status,
+          raw_payload, raw_body, received_from_gateway_at, updated_from_gateway_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'synced', ?, ?, ?, ?)`,
+      [
+        movement.bankAccountId, movement.hgId, movement.hgMovementId, movement.hgAccountId,
+        movement.providerStatus, movement.cuit, movement.receiptDate, movement.receiptTime,
+        movement.amount, movement.currency, movement.direction, movement.type, movement.timezone,
+        movement.fromName, movement.toName, movement.fromCbu, movement.toCbu,
+        movement.fromCuit, movement.toCuit, movement.accountId, movement.cbuCvu,
+        movement.bankStatus, movement.coelsaId, movement.status, movement.rawPayload,
+        movement.rawBody, movement.receivedAt, movement.receivedAt,
+      ]
     )
-    if (error) {
-      console.error('[HGCash] Error INSERT movimiento:', error.message, '| code:', error.code)
-      return false
-    }
-    console.log(`[HGCash] INSERT coelsa_id=${coelsaId} amount=${amount} status=${status}`)
+    if (error) throw error
+    console.log(`[HGCash] INSERT coelsa_id=${movement.coelsaId} amount=${movement.amount} status=${movement.status}`)
     return true  // newly inserted
   }
 }
@@ -561,9 +664,32 @@ async function fetchTrpcTransactions(cookie, page, pageSize) {
 
 export async function hgWebhook(req, res, next) {
   try {
-    const rawBody   = req.rawBody || Buffer.from(JSON.stringify(req.body ?? {}))
+    const rawBody   = Buffer.isBuffer(req.body)
+      ? req.body
+      : req.rawBody || Buffer.from(JSON.stringify(req.body ?? {}))
     const sigHeader = req.headers['x-hg-webhook-signature'] || ''
     const qid       = parseInt(req.query.account_id || '0', 10) || null
+    const parsedBody = Buffer.isBuffer(req.body)
+      ? parseJsonMaybe(rawBody.toString('utf8'))
+      : req.body
+    const receivedAccountId = String(parsedBody?.accountId || '').trim()
+
+    console.info('[HGCash][Webhook] recibido', {
+      path: req.originalUrl || req.url,
+      contentType: req.headers['content-type'] || null,
+      contentLength: rawBody.length,
+      signaturePresent: Boolean(sigHeader),
+      signature: describeHgSignature(sigHeader),
+      accountIdHint: qid,
+      hgAccountIdPresent: Boolean(receivedAccountId),
+      topic: parsedBody?.topic || null,
+      eventType: parsedBody?.eventType || null,
+    })
+
+    if (!sigHeader) {
+      console.warn('[HGCash][Webhook] firma_ausente', { accountIdHint: qid })
+      return res.status(401).json({ error: 'Firma de webhook requerida' })
+    }
 
     let row = null
 
@@ -573,6 +699,7 @@ export async function hgWebhook(req, res, next) {
         const data   = parseData(row.account_data)
         const secret = data.webhook_secret || ''
         if (secret && !verifySignature(rawBody, secret, sigHeader)) {
+          console.warn('[HGCash][Webhook] firma_invalida', { accountId: row.id })
           return res.status(401).json({ error: 'Firma de webhook inválida' })
         }
       }
@@ -581,10 +708,24 @@ export async function hgWebhook(req, res, next) {
         `SELECT ba.*, bp.slug AS provider_slug
          FROM bank_accounts ba
          INNER JOIN bank_providers bp ON bp.id = ba.provider_id
-         WHERE bp.slug = 'hgcash' AND ba.is_active = 1`,
+         WHERE bp.slug = 'hgcash'
+           AND ba.is_active = 1
+           AND JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.webhook_enabled')) IN ('true', '1')
+           AND JSON_UNQUOTE(JSON_EXTRACT(ba.account_data, '$.webhook_mode')) = 'hmac'`,
         []
       )
       if (error) throw error
+      console.info('[HGCash][Webhook] cuentas_hmac_candidatas', {
+        count: candidates?.length || 0,
+        accounts: (candidates || []).map((candidate) => ({
+          id: candidate.id,
+          hasSecret: Boolean(parseData(candidate.account_data).webhook_secret),
+          accountIdMatches: Boolean(
+            receivedAccountId
+            && String(parseData(candidate.account_data).account_id || '').trim() === receivedAccountId
+          ),
+        })),
+      })
       for (const candidate of (candidates || [])) {
         const data   = parseData(candidate.account_data)
         const secret = data.webhook_secret || ''
@@ -595,17 +736,58 @@ export async function hgWebhook(req, res, next) {
       }
     }
 
-    if (!row) return res.status(404).json({ error: 'Cuenta no encontrada o firma inválida' })
+    if (!row) {
+      console.warn('[HGCash][Webhook] cuenta_no_resuelta', {
+        signaturePresent: Boolean(sigHeader),
+        accountIdHint: qid,
+      })
+      return res.status(404).json({ error: 'Cuenta no encontrada o firma inválida' })
+    }
 
-    const payload = req.body
+    console.info('[HGCash][Webhook] firma_valida', { accountId: row.id })
+
+    const payload = parsedBody
+
+    if (!payload || typeof payload !== 'object') {
+      console.warn('[HGCash][Webhook] json_invalido', { accountId: row.id })
+      return res.status(400).json({ error: 'JSON inválido' })
+    }
+
+    if (payload.topic && payload.topic !== 'TRANSACTION') {
+      console.info('[HGCash][Webhook] topic_ignorado', {
+        accountId: row.id,
+        topic: payload.topic,
+        eventType: payload.eventType || null,
+      })
+      return res.json({ ok: true, skipped: true, reason: 'not_transaction' })
+    }
 
     if (payload.direction && payload.direction !== 'Inbound') {
+      console.info('[HGCash][Webhook] movimiento_ignorado', {
+        accountId: row.id,
+        direction: payload.direction,
+      })
       return res.json({ ok: true, skipped: true, reason: 'not_inbound' })
     }
 
-    await upsertMovement(row.id, payload)
-    res.json({ ok: true })
-  } catch (err) { next(err) }
+    const inserted = await upsertMovement(row.id, payload, {
+      rawBody,
+      receivedAt: new Date(),
+    })
+    console.info('[HGCash][Webhook] movimiento_guardado', {
+      accountId: row.id,
+      inserted,
+      coelsaId: payload.coelsaCode || payload.coelsa_id || payload.coelsaId || payload.externalID || payload.id || null,
+      status: payload.transactionStatus?.name || payload.status || null,
+    })
+    res.json({ ok: true, inserted })
+  } catch (err) {
+    console.error('[HGCash][Webhook] error', {
+      message: err?.message || String(err),
+      code: err?.code || null,
+    })
+    next(err)
+  }
 }
 
 // ============================================================
@@ -866,6 +1048,35 @@ async function findLatestPendingHgMovementByCuit(cuit, accountId = null) {
   )
   if (error) throw error
   return rows?.[0] || null
+}
+
+async function syncLatestPendingHgMovementByCuit({ cuit, account, clientId, chatId }) {
+  if (!account || isWebhookHgAccount(account)) return null
+  const accountData = parseData(account.account_data)
+  let cookie
+  try {
+    cookie = await ensureHgCookie(account.id, accountData)
+  } catch (error) {
+    console.warn('[HGCash][Report] No se pudo sincronizar la cuenta activa:', error?.message || error)
+    return null
+  }
+
+  const items = await fetchTrpcTransactions(cookie, 1, 100)
+  const cleanCuit = normalizeTaxId(cuit)
+  const match = (items || []).find(item => normalizeTaxId(
+    item?.fromCUIT || item?.from_cuit || item?.cuit || item?.payerCuit || item?.originCuit,
+  ) === cleanCuit)
+  if (!match) return null
+
+  await upsertHgMovement({
+    accountId: account.id,
+    clientId,
+    chatId,
+    messageId: null,
+    payload: match,
+    syncStatus: 'synced',
+  })
+  return findLatestPendingHgMovementByCuit(cleanCuit, account.id)
 }
 
 async function markHgMovementPaidFromReport({ movement, clientId, chatId, messageId = null }) {
@@ -1362,13 +1573,38 @@ export async function reportHgCashPaymentByClientCuil(req, res, next) {
     }
 
     const activeAccount = await getActiveHgBankAccount()
+    if (!activeAccount) {
+      logSteps.push({
+        step: 'report_payment_active_account_missing',
+        ts: new Date().toISOString(),
+        detail: { cuit, chatId },
+      })
+      await finalizeReportLog(logId, {
+        resultStatus: 'unavailable',
+        resultReason: 'active_hgcash_account_not_found',
+        resultDetail: { cuit, chatId, clientId: Number(clientSession.sub) },
+      })
+      return res.status(409).json({
+        ok: false,
+        status: 'unavailable',
+        error: 'La cuenta HGCash seleccionada no está activa',
+        code: 'ACTIVE_HGCASH_ACCOUNT_NOT_FOUND',
+      })
+    }
     logSteps.push({
       step: 'movement_lookup_start',
       ts: new Date().toISOString(),
       detail: { cuit, accountId: activeAccount?.id || null },
     })
-    const movement = await findLatestPendingHgMovementByCuit(cuit, activeAccount?.id || null)
-      || await findLatestPendingHgMovementByCuit(cuit, null)
+    let movement = await findLatestPendingHgMovementByCuit(cuit, activeAccount.id)
+    if (!movement) {
+      movement = await syncLatestPendingHgMovementByCuit({
+        cuit,
+        account: activeAccount,
+        clientId: Number(clientSession.sub),
+        chatId,
+      })
+    }
 
     if (!movement) {
       logSteps.push({
@@ -2230,5 +2466,34 @@ export async function cashGatewayWebhook(req, res, next) {
   } catch (error) {
     console.error('[CashGateway] error interno', error)
     next(error)
+  }
+}
+
+export async function getClientHgCashMovements(req, res) {
+  try {
+    const clientId = parseInt(req.params.clientId, 10)
+    if (!clientId) return res.status(400).json({ ok: false, message: 'clientId inválido' })
+    const page     = Math.max(parseInt(req.query.page, 10) || 1, 1)
+    const pageSize = Math.min(Math.max(parseInt(req.query.pageSize, 10) || 20, 1), 100)
+    const offset   = (page - 1) * pageSize
+
+    const { rows: cnt } = await query(
+      `SELECT COUNT(*) AS total FROM hgcash_movements WHERE client_id = ?`,
+      [clientId]
+    )
+    const total = cnt?.[0]?.total ?? 0
+
+    const { rows, error } = await query(
+      `SELECT id, coelsa_id, amount, cbu_cvu, cuit, receipt_date, receipt_time, bank_status, status, created_at
+       FROM hgcash_movements
+       WHERE client_id = ?
+       ORDER BY created_at DESC
+       LIMIT ${pageSize} OFFSET ${offset}`,
+      [clientId]
+    )
+    if (error) return res.status(500).json({ ok: false })
+    res.json({ ok: true, items: rows || [], total, page, pageSize })
+  } catch (err) {
+    res.status(500).json({ ok: false, message: err.message })
   }
 }

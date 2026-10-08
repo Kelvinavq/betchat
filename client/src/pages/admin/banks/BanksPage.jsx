@@ -19,7 +19,7 @@ import { api } from '../../../utils/api'
 import { useToast, useConfirm } from '../../../context/ToastContext'
 import { getPaginationItems } from '../../../utils/pagination'
 import {
-  PageWrap, PageScroll, PageHeader, HeaderLeft, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn,
+  PageWrap, PageScroll, PageHeader, HeaderLeft, HeaderActions, MenuBtn, TitleBlock, PageTitle, PageSub, AddBtn, WebhookCopyBtn,
   BankTabsBar, BankTab, BankTabDot, BankTabCount,
   FiltersBar, SearchBox, SrchIcon, SearchInput, FilterSelect, ResultCount,
   TableCard, TableScroll, Table, Thead, Th, Tbody, Tr, Td,
@@ -113,6 +113,13 @@ const BANKS = [
   },
   // { id: 'telepagos', ... },  // hidden — not in use
   {
+    id: 'caudal',
+    label: 'Caudal',
+    color: '#34d399', bg: 'rgba(16,185,129,0.12)', br: 'rgba(16,185,129,0.28)',
+    avatarBg: 'linear-gradient(135deg,#059669,#34d399)',
+    avatarBr: 'rgba(16,185,129,0.35)',
+  },
+  {
     id: 'manual',
     label: 'Cuentas Manuales',
     color: '#94a3b8', bg: 'rgba(148,163,184,0.10)', br: 'rgba(148,163,184,0.22)',
@@ -122,7 +129,7 @@ const BANKS = [
 ]
 
 const ROWS = 8
-const EMPTY_COUNTS = { hgcash: 0, mercadopago: 0, telepagos: 0, manual: 0 }
+const EMPTY_COUNTS = { hgcash: 0, mercadopago: 0, telepagos: 0, caudal: 0, manual: 0 }
 
 const maskCBU   = (v) => v ? `${v.slice(0, 8)}...${v.slice(-4)}` : '-'
 const maskToken = (v) => v ? `${v.slice(0, 10)}...${v.slice(-4)}` : '-'
@@ -133,8 +140,6 @@ const initForm = (bank, account = null) => {
   if (bank === 'hgcash') {
     return {
       nombre_titular: account?.nombre_titular ?? '',
-      email: account?.email ?? '',
-      password: '',
       cuit: account?.cuit ?? '',
       alias: account?.alias ?? '',
       cbu: account?.cbu ?? '',
@@ -142,6 +147,7 @@ const initForm = (bank, account = null) => {
       webhook_mode: account?.webhook_mode ?? 'hmac',
       webhook_secret: account?.webhook_secret ?? '',
       gateway_signing_secret: account?.gateway_signing_secret ?? '',
+      account_id: account?.account_id ?? '',
       api_token: '',
       estatus: account?.estatus ?? 'activa',
     }
@@ -171,6 +177,18 @@ const initForm = (bank, account = null) => {
     }
   }
 
+  if (bank === 'caudal') {
+    return {
+      nombre_titular:      account?.nombre_titular      ?? '',
+      alias:               account?.alias               ?? '',
+      cbu:                 account?.cbu                 ?? '',
+      account_external_id: account?.account_external_id ?? '',
+      api_token:           account?.api_token           ?? '',
+      webhook_secret:      account?.webhook_secret      ?? '',
+      estatus:             account?.estatus             ?? 'activa',
+    }
+  }
+
   return {
     nombre_titular: account?.nombre_titular ?? '',
     email: account?.email ?? '',
@@ -185,13 +203,18 @@ const validateForm = (bank, form, editing) => {
   const required = {
     mercadopago: ['nombre_titular', 'alias', 'cbu', 'token'],
     manual: ['nombre_titular', 'alias', 'cbu'],
-    hgcash: ['nombre_titular', 'email', 'cuit', 'alias', 'cbu'],
+    hgcash: editing
+      ? ['nombre_titular', 'cuit', 'alias', 'cbu', 'account_id']
+      : ['nombre_titular', 'cuit', 'alias', 'cbu', 'account_id', 'api_token'],
     telepagos: ['nombre_titular', 'email', 'cuit', 'alias', 'cbu', 'token', 'expires_at'],
+    caudal: editing
+      ? ['nombre_titular', 'alias', 'cbu', 'account_external_id']
+      : ['nombre_titular', 'alias', 'cbu', 'account_external_id', 'api_token', 'webhook_secret'],
   }[bank]
 
   const missing = required.filter(key => !String(form[key] ?? '').trim())
   if (missing.length) return 'Completa todos los campos obligatorios antes de guardar.'
-  if ((bank === 'hgcash' || bank === 'telepagos') && !editing && !String(form.password ?? '').trim()) {
+  if (bank === 'telepagos' && !editing && !String(form.password ?? '').trim()) {
     return 'La contrasena es obligatoria para crear esta cuenta.'
   }
   if (bank === 'hgcash' && form.webhook_enabled && form.webhook_mode === 'hmac' && !String(form.webhook_secret ?? '').trim()) {
@@ -219,6 +242,7 @@ const BanksPage = ({ onMenuOpen }) => {
   const [pagination, setPagination] = useState({ page: 1, limit: ROWS, total: 0, totalPages: 1 })
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [webhookCopied, setWebhookCopied] = useState(false)
   const [modalOpen, setModal] = useState(false)
   const [editAcc, setEditAcc] = useState(null)
   const [form, setForm] = useState({})
@@ -369,6 +393,18 @@ const BanksPage = ({ onMenuOpen }) => {
     setModal(true)
   }
 
+  const copyHgCashWebhookUrl = async () => {
+    const webhookUrl = `${window.location.origin.replace(/\/$/, '')}/api/hgcash/webhook`
+    try {
+      await navigator.clipboard.writeText(webhookUrl)
+      setWebhookCopied(true)
+      toast.success(`URL copiada: ${webhookUrl}`)
+      window.setTimeout(() => setWebhookCopied(false), 2000)
+    } catch {
+      toast.error('No se pudo copiar la URL del webhook.')
+    }
+  }
+
   const openEdit = (acc) => {
     setEditAcc(acc)
     setForm(initForm(activeBank, acc))
@@ -421,9 +457,7 @@ const BanksPage = ({ onMenuOpen }) => {
 
   const toggleStatus = async (acc) => {
     try {
-      await api.put(`/api/bank-accounts/${acc.id}`, {
-        ...acc,
-        password: '',
+      await api.put(`/api/bank-accounts/${acc.id}/status`, {
         estatus: acc.estatus === 'activa' ? 'inactiva' : 'activa',
       })
       await loadAccounts()
@@ -443,6 +477,7 @@ const BanksPage = ({ onMenuOpen }) => {
     hgcash: 'Nueva HGCash',
     mercadopago: 'Nueva MP',
     telepagos: 'Nueva Telepagos',
+    caudal: 'Nueva Caudal',
     manual: 'Cuenta manual',
   }
 
@@ -461,9 +496,22 @@ const BanksPage = ({ onMenuOpen }) => {
               <PageSub>{totalCount} cuentas en el sistema</PageSub>
             </TitleBlock>
           </HeaderLeft>
-          <AddBtn type="button" onClick={openAdd}>
-            <AddIcon />{addLabel[activeBank]}
-          </AddBtn>
+          <HeaderActions>
+            {activeBank === 'hgcash' && (
+              <WebhookCopyBtn
+                type="button"
+                $copied={webhookCopied}
+                onClick={copyHgCashWebhookUrl}
+                title={`${window.location.origin.replace(/\/$/, '')}/api/hgcash/webhook`}
+              >
+                {webhookCopied ? <CheckIcon /> : <ContentCopyIcon />}
+                {webhookCopied ? 'URL copiada' : 'Copiar URL webhook'}
+              </WebhookCopyBtn>
+            )}
+            <AddBtn type="button" onClick={openAdd}>
+              <AddIcon />{addLabel[activeBank]}
+            </AddBtn>
+          </HeaderActions>
         </PageHeader>
 
         <BankTabsBar data-tour="banks-tabs">
@@ -507,11 +555,12 @@ const BanksPage = ({ onMenuOpen }) => {
               <Thead>
                 <tr>
                   <Th>Titular</Th>
-                  {activeBank !== 'mercadopago' && <Th>CUIT</Th>}
+                  {!['mercadopago', 'caudal'].includes(activeBank) && <Th>CUIT</Th>}
                   <Th>Alias / CBU</Th>
                   {activeBank === 'mercadopago' && <Th>Token</Th>}
                   {activeBank === 'hgcash' && <Th>Cookie / Webhook</Th>}
                   {activeBank === 'telepagos' && <Th>Token / Vence</Th>}
+                  {activeBank === 'caudal' && <Th>Credenciales</Th>}
                   <Th $center>Estado</Th>
                   <Th $center>Acciones</Th>
                 </tr>
@@ -535,7 +584,7 @@ const BanksPage = ({ onMenuOpen }) => {
                       </AccountCell>
                     </Td>
 
-                    {activeBank !== 'mercadopago' && (
+                    {!['mercadopago', 'caudal'].includes(activeBank) && (
                       <Td><MonoText>{acc.cuit || '-'}</MonoText></Td>
                     )}
 
@@ -583,6 +632,22 @@ const BanksPage = ({ onMenuOpen }) => {
                       </Td>
                     )}
 
+                    {activeBank === 'caudal' && (
+                      <Td>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                          {acc.account_external_id
+                            ? <TokenBadge $ok title={acc.account_external_id}>ID: {String(acc.account_external_id).slice(0, 14)}…</TokenBadge>
+                            : <TokenBadge>Sin External ID</TokenBadge>}
+                          {acc.api_token
+                            ? <TokenBadge $ok>API Token ✓</TokenBadge>
+                            : <TokenBadge>Sin API Token</TokenBadge>}
+                          {acc.webhook_secret
+                            ? <TokenBadge $ok>HMAC ✓</TokenBadge>
+                            : <TokenBadge>Sin webhook</TokenBadge>}
+                        </div>
+                      </Td>
+                    )}
+
                     <Td $center>
                       <StatusBadge $on={acc.estatus === 'activa'}>
                         {acc.estatus === 'activa' ? 'Activa' : 'Inactiva'}
@@ -591,9 +656,11 @@ const BanksPage = ({ onMenuOpen }) => {
 
                     <Td $center>
                       <ActionBtns style={{ justifyContent: 'center' }}>
-                        <ActionBtn type="button" title="Ver movimientos" onClick={() => openMovements(acc)}>
-                          <HistoryOutlinedIcon />
-                        </ActionBtn>
+                        {activeBank !== 'caudal' && (
+                          <ActionBtn type="button" title="Ver movimientos" onClick={() => openMovements(acc)}>
+                            <HistoryOutlinedIcon />
+                          </ActionBtn>
+                        )}
                         <ActionBtn type="button" title="Editar" onClick={() => openEdit(acc)}>
                           <EditOutlinedIcon />
                         </ActionBtn>
@@ -697,20 +764,41 @@ const BanksPage = ({ onMenuOpen }) => {
 
                   {/* Balance — HGCash only */}
                   {(movAcc.provider || activeBank) === 'hgcash' && (
-                    <MovBalCard>
-                      <MovBalLabel>{hgLive ? 'Saldo actual' : 'Saldo'}</MovBalLabel>
+                    <MovBalCard $primary>
+                      <MovBalLabel>Saldo disponible</MovBalLabel>
                       <MovBalVal>
-                        {hgLiveLoading ? '…' : hgLive ? fmtAmount(hgLive.balance) : '—'}
+                        {hgLiveLoading ? '…' : hgLive ? fmtAmount(hgLive.netBalance) : '—'}
                       </MovBalVal>
                     </MovBalCard>
                   )}
 
-                  {/* Sync button — HGCash and MercadoPago */}
-                  {['hgcash', 'mercadopago'].includes(movAcc.provider || activeBank) && (
+                  {hgLive && (movAcc.provider || activeBank) === 'hgcash' && (
+                    <>
+                      <MovBalCard>
+                        <MovBalLabel>Saldo contable</MovBalLabel>
+                        <MovBalVal>{fmtAmount(hgLive.balance)}</MovBalVal>
+                      </MovBalCard>
+                      <MovBalCard $warning={hgLive.pendingFees > 0}>
+                        <MovBalLabel>Comisiones pendientes</MovBalLabel>
+                        <MovBalVal>{fmtAmount(hgLive.pendingFees)}</MovBalVal>
+                      </MovBalCard>
+                      <MovInfoItem>
+                        <MovInfoLabel>Estado</MovInfoLabel>
+                        <MovInfoVal>{hgLive.status || '—'}</MovInfoVal>
+                      </MovInfoItem>
+                      <MovInfoItem>
+                        <MovInfoLabel>Plataforma / empresa</MovInfoLabel>
+                        <MovInfoVal>{[hgLive.platform?.name, hgLive.company?.name].filter(Boolean).join(' · ') || '—'}</MovInfoVal>
+                      </MovInfoItem>
+                    </>
+                  )}
+
+                  {/* MercadoPago imports; HGCash movements arrive by webhook */}
+                  {(movAcc.provider || activeBank) === 'mercadopago' && (
                     <button
                       onClick={() => syncAccount(movAcc)}
                       disabled={hgSyncing}
-                      title="Importar movimientos desde HGCash"
+                      title="Importar movimientos"
                       style={{
                         marginLeft: 8, height: 30, padding: '0 10px', borderRadius: 8,
                         border: '1px solid rgba(99,102,241,0.40)', background: 'rgba(99,102,241,0.18)',
@@ -985,6 +1073,72 @@ const BanksPage = ({ onMenuOpen }) => {
                 </FormGrid>
               </div>
 
+              {activeBank === 'caudal' && (
+                <div>
+                  <SecLabel>Credenciales Caudal</SecLabel>
+                  <FormGrid style={{ marginTop: 12 }}>
+                    <Field $full>
+                      <FieldLabel>Account External ID</FieldLabel>
+                      <FieldInput
+                        placeholder="ej: acc_xxxxxxxxxxxxxxxx"
+                        value={form.account_external_id ?? ''}
+                        onChange={e => setField('account_external_id', e.target.value)}
+                        style={{ fontFamily: "'Courier New', monospace", fontSize: 12 }}
+                      />
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginTop: 4, display: 'block' }}>
+                        ID externo de la cuenta en la API de Caudal (requerido para retiros)
+                      </span>
+                    </Field>
+                    <Field $full>
+                      <FieldLabel>
+                        API Token&nbsp;
+                        {editAcc?.api_token && (
+                          <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>
+                            dejar vacío para no cambiar
+                          </span>
+                        )}
+                      </FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder={editAcc?.api_token ? '••••••••••••••••' : 'cdt_live_...'}
+                          value={form.api_token ?? ''}
+                          onChange={e => setField('api_token', e.target.value)}
+                          autoComplete="off"
+                          style={{ paddingRight: 40, fontFamily: "'Courier New', monospace", fontSize: 12 }}
+                        />
+                      </InputWrap>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginTop: 4, display: 'block' }}>
+                        Token Bearer para autenticar las llamadas a la API de Caudal
+                      </span>
+                    </Field>
+                    <Field $full>
+                      <FieldLabel>
+                        Secreto Webhook Caudal&nbsp;
+                        {editAcc?.webhook_secret && (
+                          <span style={{ fontWeight: 400, textTransform: 'none', letterSpacing: 0, fontSize: 10, color: 'rgba(255,255,255,0.22)' }}>
+                            dejar vacío para no cambiar
+                          </span>
+                        )}
+                      </FieldLabel>
+                      <InputWrap>
+                        <FieldInput
+                          type="text"
+                          placeholder={editAcc?.webhook_secret ? '••••••••••••••••' : 'whsec_...'}
+                          value={form.webhook_secret ?? ''}
+                          onChange={e => setField('webhook_secret', e.target.value)}
+                          autoComplete="off"
+                          style={{ paddingRight: 40, fontFamily: "'Courier New', monospace", fontSize: 12 }}
+                        />
+                      </InputWrap>
+                      <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginTop: 4, display: 'block' }}>
+                        Se obtiene desde el panel/API de Caudal
+                      </span>
+                    </Field>
+                  </FormGrid>
+                </div>
+              )}
+
               {form.token !== undefined && (
                 <div>
                   <SecLabel>Credenciales API</SecLabel>
@@ -1019,10 +1173,20 @@ const BanksPage = ({ onMenuOpen }) => {
                 </div>
               )}
 
-              {form.api_token !== undefined && (
+              {activeBank === 'hgcash' && form.api_token !== undefined && (
                 <div>
                   <SecLabel>Token API HGCash</SecLabel>
                   <FormGrid style={{ marginTop: 12 }}>
+                    <Field $full>
+                      <FieldLabel>Account ID *</FieldLabel>
+                      <FieldInput
+                        type="text"
+                        placeholder="Identificador de la cuenta en HGCash"
+                        value={form.account_id ?? ''}
+                        onChange={e => setField('account_id', e.target.value)}
+                        autoComplete="off"
+                      />
+                    </Field>
                     <Field $full>
                       <FieldLabel>
                         Bearer token&nbsp;
@@ -1035,7 +1199,7 @@ const BanksPage = ({ onMenuOpen }) => {
                       <InputWrap>
                         <FieldInput
                           type={showPw.api_token ? 'text' : 'password'}
-                          placeholder={editAcc?.has_api_token ? '••••••••••••••••' : 'eyJhbGci...'}
+                          placeholder={editAcc?.has_api_token ? '••••••••••••••••' : 'cash_...'}
                           value={form.api_token ?? ''}
                           onChange={e => setField('api_token', e.target.value)}
                           autoComplete="off"
@@ -1046,7 +1210,7 @@ const BanksPage = ({ onMenuOpen }) => {
                         </InputSuffix>
                       </InputWrap>
                       <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.22)', marginTop: 4, display: 'block' }}>
-                        Permite consultar saldo real desde la API de HGCash
+                        Token generado en HG.Cash. Puedes pegarlo con o sin el prefijo Bearer. Se usa solo desde el servidor.
                       </span>
                     </Field>
                   </FormGrid>

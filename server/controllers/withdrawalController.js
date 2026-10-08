@@ -1,4 +1,4 @@
-import { query } from '../config/database.js'
+import { query, transaction } from '../config/database.js'
 import { buildRequestContext } from '../utils/withdrawalRiskEngine.js'
 import {
   approveWithdrawalWithDispatch,
@@ -318,14 +318,28 @@ export async function getBlacklist(req, res, next) {
 export async function addToBlacklist(req, res, next) {
   try {
     const { type, value, reason } = req.body || {}
-    if (!['cbu', 'cuit', 'dni'].includes(type) || !value?.trim()) {
+    const normalizedType = String(type || '').toLowerCase()
+    const normalizedValue = String(value || '').replace(/\D/g, '')
+    const requiredLength = { cbu: 22, cuit: 11, dni: 8 }[normalizedType]
+    if (!requiredLength || normalizedValue.length !== requiredLength) {
       return res.status(400).json({ error: 'type (cbu|cuit|dni) y value son requeridos' })
     }
-    const { error } = await query(
-      `INSERT INTO withdrawal_blacklist (type, value, reason, created_by) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE reason = VALUES(reason), created_by = VALUES(created_by)`,
-      [type, value.trim(), reason?.trim() || null, req.user?.username || 'Admin']
-    )
-    if (error) throw error
+    const actorLabel = req.user?.username || req.user?.email || 'Admin'
+    const normalizedReason = String(reason || '').trim().slice(0, 500) || null
+    await transaction(async (connection) => {
+      await connection.execute(
+        `INSERT INTO withdrawal_blacklist (type, value, reason, created_by)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE reason = VALUES(reason), created_by = VALUES(created_by)`,
+        [normalizedType, normalizedValue, normalizedReason, actorLabel],
+      )
+      await connection.execute(
+        `INSERT INTO withdrawal_audit_log
+           (withdrawal_request_id, event_type, actor_type, actor_id, actor_label, ip_address, user_agent, details_json, created_at)
+         VALUES (NULL, 'withdrawal_blacklist_added', 'admin', ?, ?, ?, ?, ?, NOW())`,
+        [req.user?.id || null, actorLabel, req.ip || null, req.headers['user-agent'] || null, JSON.stringify({ type: normalizedType, value: normalizedValue, reason: normalizedReason })],
+      )
+    })
     res.json({ ok: true })
   } catch (err) { next(err) }
 }
@@ -334,10 +348,30 @@ export async function removeFromBlacklist(req, res, next) {
   try {
     const id = Number(req.params.id)
     if (!id) return res.status(400).json({ error: 'ID inválido' })
-    const { error } = await query('DELETE FROM withdrawal_blacklist WHERE id = ?', [id])
-    if (error) throw error
+    const actorLabel = req.user?.username || req.user?.email || 'Admin'
+    await transaction(async (connection) => {
+      const [existingRows] = await connection.execute(
+        'SELECT id, type, value, reason FROM withdrawal_blacklist WHERE id = ? LIMIT 1 FOR UPDATE',
+        [id],
+      )
+      if (!existingRows?.length) {
+        const error = new Error('Entrada no encontrada.')
+        error.httpStatus = 404
+        throw error
+      }
+      await connection.execute('DELETE FROM withdrawal_blacklist WHERE id = ?', [id])
+      await connection.execute(
+        `INSERT INTO withdrawal_audit_log
+           (withdrawal_request_id, event_type, actor_type, actor_id, actor_label, ip_address, user_agent, details_json, created_at)
+         VALUES (NULL, 'withdrawal_blacklist_removed', 'admin', ?, ?, ?, ?, ?, NOW())`,
+        [req.user?.id || null, actorLabel, req.ip || null, req.headers['user-agent'] || null, JSON.stringify(existingRows[0])],
+      )
+    })
     res.json({ ok: true })
-  } catch (err) { next(err) }
+  } catch (err) {
+    if (err.httpStatus) return res.status(err.httpStatus).json({ error: err.message })
+    next(err)
+  }
 }
 
 // ─── Log de auditoría ─────────────────────────────────────────────────────────────

@@ -1,5 +1,5 @@
 import { randomUUID } from 'crypto'
-import { query } from '../config/database.js'
+import { query, getPool } from '../config/database.js'
 import { io } from '../app.js'
 import { getAutoMessage } from '../controllers/autoMessagesController.js'
 import { persistMessage, resetClientBot } from '../controllers/chatController.js'
@@ -76,10 +76,112 @@ async function checkAdminRateLimit({ adminId, eventTypes, maxPerMinute }) {
 
 async function checkChatRateLimit(chatId) {
   const rows = await dbQuery(
-    `SELECT id FROM withdrawal_requests WHERE chat_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 60 SECOND) LIMIT 1`,
+    `SELECT id, amount, cbu, method, status, bank_transaction_id
+     FROM withdrawal_requests
+     WHERE chat_id = ? AND created_at >= DATE_SUB(NOW(), INTERVAL 60 SECOND)
+     ORDER BY id DESC LIMIT 1`,
     [chatId]
   )
-  return rows.length > 0
+  return rows[0] || null
+}
+
+async function findExistingByIdempotency(chatId, idempotencyKey) {
+  if (!chatId || !idempotencyKey) return null
+  return dbQueryOne(
+    `SELECT id, amount, cbu, method, status, bank_transaction_id
+     FROM withdrawal_requests WHERE chat_id = ? AND idempotency_key = ? LIMIT 1`,
+    [chatId, idempotencyKey]
+  )
+}
+
+function responseFromExisting(row) {
+  return {
+    status: String(row?.status || 'pending'),
+    withdrawalId: Number(row?.id),
+    bankTransactionId: row?.bank_transaction_id || null,
+    idempotent: true,
+    message: 'Esta solicitud de retiro ya fue registrada.',
+  }
+}
+
+async function acquireWithdrawalLock(chatId) {
+  const connection = await getPool().getConnection()
+  const lockName = `hgcash-withdrawal:${Number(chatId)}`
+  try {
+    const [rows] = await connection.query('SELECT GET_LOCK(?, 2) AS acquired', [lockName])
+    if (Number(rows?.[0]?.acquired) !== 1) {
+      const err = new Error('withdrawal_in_progress')
+      err.code = 'withdrawal_in_progress'
+      err.httpStatus = 409
+      err.status = 409
+      throw err
+    }
+  } catch (error) {
+    connection.release()
+    throw error
+  }
+  return async () => {
+    try { await connection.query('SELECT RELEASE_LOCK(?)', [lockName]) } finally { connection.release() }
+  }
+}
+
+export async function createManualWithdrawal({ chatId, clientId, clientRow = null, formId, messageId, holderName, method, cbu, dni, amount, withdrawableBalance, formData, idempotencyKey, requestContext = {} }) {
+  const normalizedIdempotencyKey = String(idempotencyKey || '').trim() || randomUUID()
+  const releaseWithdrawalLock = await acquireWithdrawalLock(chatId)
+  try {
+    const existing = await findExistingByIdempotency(chatId, normalizedIdempotencyKey)
+    if (existing) {
+      if (Number(existing.amount) !== Number(amount) || String(existing.cbu || '') !== String(cbu || '') || String(existing.method || '') !== String(method || '')) {
+        const err = new Error('idempotency_key_scope_mismatch')
+        err.code = 'idempotency_key_scope_mismatch'
+        err.httpStatus = 400
+        err.status = 400
+        throw err
+      }
+      return responseFromExisting(existing)
+    }
+
+    const recent = await checkChatRateLimit(chatId)
+    if (recent) {
+      if (Number(recent.amount) === Number(amount) && String(recent.cbu || '') === String(cbu || '') && String(recent.method || '') === String(method || '')) {
+        return responseFromExisting(recent)
+      }
+      const err = new Error('withdrawal_rate_limited')
+      err.code = 'withdrawal_rate_limited'
+      err.httpStatus = 409
+      err.status = 409
+      throw err
+    }
+
+    const { rows, error } = await query(
+      `INSERT INTO withdrawal_requests
+         (chat_id, client_id, form_id, message_id, status, form_data, holder_name, method, cbu, dni,
+          amount, withdrawable_balance, review_mode, idempotency_key, created_at, updated_at)
+       VALUES (?, ?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?, ?, 'manual', ?, NOW(), NOW())`,
+      [chatId, clientId, formId, messageId, formData, holderName || null, method, cbu || null, dni || null,
+       amount, withdrawableBalance, normalizedIdempotencyKey]
+    )
+    if (error) throw error
+    const withdrawalId = rows?.insertId
+    await insertAudit({
+      withdrawalRequestId: withdrawalId,
+      eventType: 'withdrawal_manual_created',
+      newStatus: 'pending',
+      actor: { type: 'client', id: clientId, label: clientRow?.username || clientRow?.full_name || null },
+      requestContext,
+      details: {
+        amount,
+        method,
+        cbuMasked: cbu ? `${String(cbu).slice(0, 4)}***` : null,
+        formId: formId || null,
+        messageId: messageId || null,
+        idempotencyKey: normalizedIdempotencyKey,
+      },
+    })
+    return { status: 'pending', withdrawalId, bankTransactionId: null }
+  } finally {
+    await releaseWithdrawalLock()
+  }
 }
 
 // ─── Debit de saldo externo ──────────────────────────────────────────────────────
@@ -203,6 +305,26 @@ async function updateClientCbuIfEmpty(clientId, cbu) {
 async function dispatchToHgCash({ withdrawalId, chatId, clientId, accountRow, method, cbu, amount, correlationId, actor, requestContext }) {
   await insertAudit({ withdrawalRequestId: withdrawalId, eventType: 'withdrawal_initiated', newStatus: 'initiated', actor, requestContext, details: { amount, method, cbuMasked: cbu ? `${cbu.slice(0, 4)}***` : null, correlationId } })
 
+  const debitResult = await applyDebitIfApplicable({
+    withdrawalId, chatId, amount, status: 'initiated', actor, requestContext,
+  })
+  if (!debitResult.applied) {
+    const debitError = debitResult.error instanceof Error
+      ? debitResult.error
+      : new Error('withdrawal_balance_debit_failed')
+    await markWithdrawalFailed(withdrawalId, debitError)
+    await insertAudit({
+      withdrawalRequestId: withdrawalId,
+      eventType: 'withdrawal_hg_failed_before_bank',
+      oldStatus: 'initiated',
+      newStatus: 'failed',
+      actor,
+      requestContext,
+      details: { amount, method, correlationId, reason: debitResult.reason, error: String(debitError.message || debitError) },
+    })
+    throw debitError
+  }
+
   let creation
   try {
     creation = await hgCashPayoutService.createTransaction({ accountRow, method, destinationCbu: cbu, amount, correlationId, withdrawalRequestId: withdrawalId, actor, requestContext })
@@ -268,7 +390,34 @@ async function dispatchToHgCash({ withdrawalId, chatId, clientId, accountRow, me
 
 // ─── Flujo auto (desde cliente) ──────────────────────────────────────────────────
 
-export async function processAutoWithdrawal({ chatId, clientId, clientRow, holderName, dni, method, cbu, amount, withdrawableBalance, riskResult, requestContext, formId = null, messageId = null, formData = null }) {
+export async function processAutoWithdrawal({ chatId, clientId, clientRow, holderName, dni, method, cbu, amount, withdrawableBalance, riskResult, requestContext, formId = null, messageId = null, formData = null, idempotencyKey = null }) {
+  const normalizedIdempotencyKey = String(idempotencyKey || '').trim() || randomUUID()
+  const releaseWithdrawalLock = await acquireWithdrawalLock(chatId)
+  try {
+  const existing = await findExistingByIdempotency(chatId, normalizedIdempotencyKey)
+  if (existing) {
+    if (Number(existing.amount) !== Number(amount) || String(existing.cbu || '') !== String(cbu || '') || String(existing.method || '') !== String(method || '')) {
+      const err = new Error('idempotency_key_scope_mismatch')
+      err.code = 'idempotency_key_scope_mismatch'
+      err.httpStatus = 400
+      err.status = 400
+      throw err
+    }
+    return responseFromExisting(existing)
+  }
+
+  const recent = await checkChatRateLimit(chatId)
+  if (recent) {
+    if (Number(recent.amount) !== Number(amount) || String(recent.cbu || '') !== String(cbu || '') || String(recent.method || '') !== String(method || '')) {
+      const err = new Error('withdrawal_rate_limited')
+      err.code = 'withdrawal_rate_limited'
+      err.httpStatus = 409
+      err.status = 409
+      throw err
+    }
+    return responseFromExisting(recent)
+  }
+
   const correlationId = randomUUID()
   const actor = { type: 'client', id: clientId, label: clientRow?.username || null }
 
@@ -276,18 +425,18 @@ export async function processAutoWithdrawal({ chatId, clientId, clientRow, holde
     const { rows, error } = await query(
       `INSERT INTO withdrawal_requests
          (chat_id, client_id, form_id, message_id, holder_name, method, cbu, dni,
-          withdrawable_balance, correlation_id, status, form_data,
+          withdrawable_balance, correlation_id, idempotency_key, status, form_data,
           risk_score, fraud_alerts, review_mode,
           request_ip, request_device, request_user_agent,
           request_country_code, request_country_name, request_city, request_region,
           request_latitude, request_longitude, request_asn_number, request_asn_name,
           request_asn_org, request_timezone, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         chatId, clientId, formId ?? null, messageId ?? null,
         holderName, method, cbu, dni,
-        withdrawableBalance, correlationId, status,
+        withdrawableBalance, correlationId, normalizedIdempotencyKey, status,
         formData ? JSON.stringify(formData) : null,
         riskResult.riskScore, JSON.stringify(riskResult.riskFlags || []),
         riskResult.decision === 'AUTO_APPROVED' ? 'auto' : 'manual',
@@ -321,8 +470,17 @@ export async function processAutoWithdrawal({ chatId, clientId, clientRow, holde
   // AUTO_APPROVED — dispatch inmediato
   const withdrawalId = await insertRow('initiated')
   const accountRow = await hgCashPayoutService.getActiveHgCashAccount()
-  if (!accountRow?.bearer) {
+  if (!accountRow?.account_id || !accountRow?.bearer) {
     await query(`UPDATE withdrawal_requests SET status = 'failed', last_error = 'hgcash_account_unavailable', updated_at = NOW() WHERE id = ?`, [withdrawalId])
+    await insertAudit({
+      withdrawalRequestId: withdrawalId,
+      eventType: 'withdrawal_hg_account_unavailable',
+      oldStatus: 'initiated',
+      newStatus: 'failed',
+      actor,
+      requestContext,
+      details: { correlationId },
+    })
     return { status: 'failed', withdrawalId, message: 'Error interno al procesar el retiro.' }
   }
 
@@ -331,6 +489,9 @@ export async function processAutoWithdrawal({ chatId, clientId, clientRow, holde
     return { status: result.finalStatus, withdrawalId, bankTransactionId: result.bankTransactionId, message: 'Solicitud de retiro procesada correctamente.' }
   } catch (err) {
     return { status: 'failed', withdrawalId, message: 'Tu retiro no pudo procesarse. Por favor contactá a soporte.' }
+  }
+  } finally {
+    await releaseWithdrawalLock()
   }
 }
 
@@ -365,7 +526,7 @@ export async function approveWithdrawalWithDispatch({ withdrawalId, adminUser, n
   await insertAudit({ withdrawalRequestId: withdrawalId, eventType: 'withdrawal_review_approved', oldStatus: row.status, newStatus: 'initiated', actor, requestContext, details: { note } })
 
   const accountRow = await hgCashPayoutService.getActiveHgCashAccount()
-  if (!accountRow?.bearer) {
+  if (!accountRow?.account_id || !accountRow?.bearer) {
     await markWithdrawalFailed(withdrawalId, new Error('hgcash_account_unavailable'))
     const e = new Error('hgcash_account_unavailable'); e.httpStatus = 503; throw e
   }
@@ -423,7 +584,7 @@ export async function refreshWithdrawalStatus({ withdrawalId, adminUser, request
   if (!row.bank_transaction_id) { const e = new Error('withdrawal_not_dispatched'); e.httpStatus = 409; throw e }
 
   const accountRow = await hgCashPayoutService.getActiveHgCashAccount()
-  if (!accountRow?.bearer) { const e = new Error('hgcash_account_unavailable'); e.httpStatus = 503; throw e }
+  if (!accountRow?.account_id || !accountRow?.bearer) { const e = new Error('hgcash_account_unavailable'); e.httpStatus = 503; throw e }
 
   const statusResp = await hgCashPayoutService.getTransactionStatus({ accountRow, transactionId: row.bank_transaction_id, correlationId: row.correlation_id, withdrawalRequestId: row.id, actor, requestContext })
   const nextStatus = String(statusResp.data?.status || row.status || 'processing').toLowerCase()

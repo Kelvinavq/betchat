@@ -31,9 +31,18 @@ export const PageHeader = styled.div`
   display: flex; align-items: flex-start;
   justify-content: space-between; gap: 16px;
   margin-bottom: 24px;
+  @media (max-width: 600px) { flex-direction: column; }
 `
 export const HeaderLeft = styled.div`
   display: flex; align-items: center; gap: 12px;
+`
+export const HeaderActions = styled.div`
+  display: flex; align-items: center; justify-content: flex-end; gap: 9px;
+  flex-wrap: wrap;
+  @media (max-width: 600px) {
+    width: 100%;
+    > button { flex: 1; justify-content: center; }
+  }
 `
 export const MenuBtn = styled.button`
   width: 36px; height: 36px; border-radius: 10px;
@@ -62,6 +71,27 @@ export const AddBtn = styled.button`
   svg { font-size: 18px; }
   &:hover { opacity: 0.86; }
   &:active { transform: scale(0.97); }
+`
+export const WebhookCopyBtn = styled.button`
+  display: flex; align-items: center; gap: 7px;
+  padding: 9px 14px; border-radius: 12px;
+  background: ${({ $copied }) => $copied ? 'rgba(34,197,94,0.12)' : 'rgba(255,255,255,0.05)'};
+  border: 1px solid ${({ $copied }) => $copied ? 'rgba(34,197,94,0.32)' : 'rgba(255,255,255,0.10)'};
+  color: ${({ $copied }) => $copied ? '#4ade80' : 'rgba(255,255,255,0.72)'};
+  font-size: 13px; font-weight: 600; font-family: inherit;
+  cursor: pointer; white-space: nowrap;
+  transition: color 0.2s, background 0.2s, border-color 0.2s, transform 0.15s;
+  svg { font-size: 17px; }
+  &:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.09);
+    border-color: rgba(255,255,255,0.18);
+  }
+  &:active { transform: scale(0.97); }
+  &:focus-visible {
+    outline: 2px solid rgba(var(--bc-admin-accent-rgb, 30,133,255),0.65);
+    outline-offset: 2px;
+  }
 `
 
 /* ── bank type tabs ── */
@@ -566,15 +596,16 @@ export const MovInfoSep = styled.span`
 export const MovBalCard = styled.div`
   display: flex; flex-direction: column; gap: 2px;
   padding: 8px 14px; border-radius: 10px;
-  background: rgba(34,197,94,0.08); border: 1px solid rgba(34,197,94,0.18);
-  margin-left: auto;
+  background: ${({ $warning }) => $warning ? 'rgba(245,158,11,0.08)' : 'rgba(34,197,94,0.08)'};
+  border: 1px solid ${({ $warning }) => $warning ? 'rgba(245,158,11,0.20)' : 'rgba(34,197,94,0.18)'};
+  margin-left: ${({ $primary }) => $primary ? 'auto' : '0'};
 `
 export const MovBalLabel = styled.span`
   font-size: 10px; font-weight: 700; letter-spacing: 0.06em;
-  text-transform: uppercase; color: rgba(34,197,94,0.70);
+  text-transform: uppercase; color: rgba(255,255,255,0.42);
 `
 export const MovBalVal = styled.span`
-  font-size: 16px; font-weight: 700; color: #4ade80; letter-spacing: -0.02em;
+  font-size: 16px; font-weight: 700; color: rgba(255,255,255,0.88); letter-spacing: -0.02em;
 `
 
 /* filters */
